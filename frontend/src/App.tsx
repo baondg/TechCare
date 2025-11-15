@@ -1,11 +1,4 @@
 // import { useState } from 'react'
-import { Header } from "@/components/header"
-import { Footer } from "@/components/footer"
-import { Hero } from "@/components/hero"
-import { Features } from "@/components/features"
-import { HowItWorks } from "@/components/how-it-works"
-import { UserRoles } from "@/components/user-roles"
-import { AIFeatures } from "@/components/ai-features"
 import './App.css'
 import { Routes, Route } from "react-router-dom"
 import LandingPage from "./LandingPage" 
@@ -20,15 +13,6 @@ function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
       </Routes>
-      <Header />
-      <main>
-        <Hero />
-        <Features />
-        <HowItWorks />
-        <UserRoles />
-        <AIFeatures />
-      </main>
-      <Footer />
     </div>
   )
 }

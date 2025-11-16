@@ -20,15 +20,7 @@ function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
       </Routes>
-      <Header />
-      <main>
-        <Hero />
-        <Features />
-        <HowItWorks />
-        <UserRoles />
-        <AIFeatures />
-      </main>
-      <Footer />
+
     </div>
   )
 }

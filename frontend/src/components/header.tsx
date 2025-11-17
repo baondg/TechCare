@@ -47,7 +47,7 @@ export function Header() {
             <Link to="/login">Sign In</Link>
           </Button>
           <Button size="default" asChild>
-            <Link to="/login">Get Started</Link>
+            <Link to="/register">Get Started</Link>
           </Button>
         </div>
       </div>

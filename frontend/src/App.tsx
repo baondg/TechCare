@@ -9,7 +9,8 @@ import { AIFeatures } from "@/components/ai-features"
 import './App.css'
 import { Routes, Route } from "react-router-dom"
 import LandingPage from "./LandingPage" 
-import LoginPage from "./login/page"
+import LoginPage from "./authentication/login"
+import RegisterPage from "./authentication/register"
 
 function App() {
   // const [count, setCount] = useState(0)
@@ -19,8 +20,8 @@ function App() {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
       </Routes>
-
     </div>
   )
 }

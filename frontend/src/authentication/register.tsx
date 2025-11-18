@@ -373,7 +373,9 @@ export default function RegisterPage() {
 
         {/* BUTTONS */}
         <div className="flex justify-between mt-4">
-          <Button variant="ghost">← Back</Button>
+          <Button size="default" variant="outline" className="bg-transparent text-gray-500" asChild>
+            <Link to="/">← Back</Link>
+          </Button>
           <Button>Register!</Button>
         </div>
       </div>

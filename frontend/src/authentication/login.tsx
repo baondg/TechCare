@@ -96,8 +96,10 @@ export default function LoginPage() {
                   Forgot password?
                 </Link>
               </div>
-              <Button type="submit" className="w-full">
-                Sign In
+              <Button type="submit" size="default" className="w-full" asChild>
+                <Link to="/patient/dashboard">
+                  Sign In
+                </Link>
               </Button>
             </form>
 

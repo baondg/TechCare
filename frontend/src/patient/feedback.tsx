@@ -100,15 +100,15 @@ export default function FeedbackPage() {
 
   return (
     <PatientLayout>
-      <div className="max-w-4xl mx-auto">
+      <div className="w-full px-4">
         {/* Header */}
         <div className="mb-8">
           <Link to="/patient/dashboard" className="inline-flex items-center text-blue-600 hover:text-blue-700 mb-4">
             <ChevronLeft className="h-4 w-4 mr-1" />
             Back to Dashboard
           </Link>
-          <h1 className="text-3xl font-bold text-gray-900">Feedback & AI Suggestions</h1>
-          <p className="text-gray-600 mt-2">Share your experience and review AI recommendations</p>
+          <h2 className="text-3xl font-bold text-gray-900">Feedback</h2>
+          <p className="text-gray-600 mt-2">Share your experience and review your feedback</p>
         </div>
 
         {/* Tab Navigation */}
@@ -132,7 +132,7 @@ export default function FeedbackPage() {
             }`}
           >
             <Sparkles className="h-4 w-4" />
-            AI Suggestions ({aiRecommendations.length})
+            Response ({aiRecommendations.length})
           </button>
         </div>
 

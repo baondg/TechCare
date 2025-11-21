@@ -22,10 +22,10 @@ export function PatientLayout({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation()
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-scree w-screen bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
-        <div className="container flex h-16 items-center justify-between px-4">
+      <header className="w-full sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
+        <div className="w-full flex h-16 items-center justify-between pl-4 pr-4">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
               <Activity className="h-5 w-5 text-primary-foreground" />
@@ -44,7 +44,7 @@ export function PatientLayout({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      <div className="flex min-h-[calc(100vh-4rem)]">
+      <div className="flex min-h-[calc(100vh-4rem)] w-full">
         {/* Sidebar - Desktop */}
         <aside className="md:flex w-64 flex-col border-r bg-muted/30 h-[calc(100vh-4rem)] sticky top-16">
           <nav className="flex-1 space-y-1 p-4">
@@ -71,7 +71,9 @@ export function PatientLayout({ children }: { children: React.ReactNode }) {
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 p-6 md:p-8">{children}</main>
+        <main className="flex-1 w-full p-0 md:p-4 overflow-x-hidden">
+          <div className="w-full">{children}</div>
+        </main>
       </div>
     </div>
   )

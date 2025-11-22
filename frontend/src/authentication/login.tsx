@@ -8,13 +8,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Activity, User, Stethoscope, ClipboardList } from "lucide-react"
+import { Activity, User, Stethoscope, Eye, EyeOff } from "lucide-react"
 import { Link } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 
 export default function LoginPage() {
   const router = useNavigate()
   const [role, setRole] = useState<"patient" | "doctor" | "nurse">("patient")
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault()
@@ -57,31 +58,48 @@ export default function LoginPage() {
 
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="username">Username</Label>
                 <Input
-                  id="email"
-                  type="email"
+                  id="username"
+                  type="username"
                   placeholder={
                     role === "patient"
-                      ? "patient@example.com"
+                      ? "Enter username"
                       : role === "doctor"
-                        ? "doctor@hospital.com"
-                        : "nurse@hospital.com"
+                        ? "Enter username"
+                        : "Enter username"
                   }
                   required
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
-                <Input id="password" type="password" required />
+                <div className="relative"> 
+                    <Input 
+                        id="password" 
+                        type={showPassword ? "text" : "password"} 
+                        placeholder="Enter password" 
+                        required 
+                        className="pr-10" // Thêm padding-right để nhường chỗ cho icon
+                    />
+                    <button
+                        type="button" 
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute bg-accent-foreground mx-1 my-1 inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground focus-visible:ring-0 focus:outline-none" // Loại bỏ viền focus khi click
+                    >
+                        {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    </button>
+                </div>
               </div>
               <div className="flex items-center justify-between text-sm">
                 <Link to="#" className="text-primary hover:underline">
                   Forgot password?
                 </Link>
               </div>
-              <Button type="submit" className="w-full">
-                Sign In
+              <Button type="submit" size="default" className="w-full" asChild>
+                <Link to="/patient/dashboard">
+                  Sign In
+                </Link>
               </Button>
             </form>
 

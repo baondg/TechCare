@@ -90,11 +90,11 @@ button {
   transition: border-color 0.25s;
 }
 button:hover {
-  border-color: #646cff;
+  border-color: #ececec;
 }
 button:focus,
 button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+  outline: none;
 }
 
 @media (prefers-color-scheme: light) {
@@ -188,5 +188,13 @@ button:focus-visible {
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .calendar-today-fix {
+    .rdp-day_today:not(.rdp-day_outside) {
+      @apply text-shadow-chart-5;
+    }
   }
 }

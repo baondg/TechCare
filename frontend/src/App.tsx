@@ -13,6 +13,8 @@ import LoginPage from "./authentication/login"
 import RegisterPage from "./authentication/register"
 import DashBoardPage from "./patient/dashboard"
 import FeedBackPage from "./patient/feedback"
+import ProfilePage from "./patient/profile"
+import ChatbotPage from "./patient/chatbot"
 
 function App() {
   // const [count, setCount] = useState(0)
@@ -25,6 +27,8 @@ function App() {
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/patient/dashboard" element={<DashBoardPage />} />
         <Route path="/patient/feedback" element={<FeedBackPage />} />
+        <Route path="/patient/profile" element={<ProfilePage />} />
+        <Route path="/patient/chatbot" element={<ChatbotPage />} />
       </Routes>
     </div>
   )

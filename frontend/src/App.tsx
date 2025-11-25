@@ -15,6 +15,8 @@ import DashBoardPage from "./patient/dashboard"
 import FeedBackPage from "./patient/feedback"
 import ProfilePage from "./patient/profile"
 import ChatbotPage from "./patient/chatbot"
+import AppointmentsPage from "./patient/appointments"
+import BookAppointmentPage from "./patient/appointments/book-appointment"
 
 function App() {
   // const [count, setCount] = useState(0)
@@ -29,6 +31,8 @@ function App() {
         <Route path="/patient/feedback" element={<FeedBackPage />} />
         <Route path="/patient/profile" element={<ProfilePage />} />
         <Route path="/patient/chatbot" element={<ChatbotPage />} />
+        <Route path="/patient/appointments" element={<AppointmentsPage />} />
+        <Route path="/patient/appointments/book-appointment" element={<BookAppointmentPage />} />
       </Routes>
     </div>
   )

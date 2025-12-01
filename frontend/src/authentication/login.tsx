@@ -14,7 +14,7 @@ import { useNavigate } from "react-router-dom";
 
 export default function LoginPage() {
   const router = useNavigate()
-  const [role, setRole] = useState<"patient" | "doctor" | "nurse">("patient")
+  const [role, setRole] = useState<"patient" | "hospital staff" | "admin">("patient")
   const [showPassword, setShowPassword] = useState(false);
 
   const handleLogin = (e: React.FormEvent) => {
@@ -22,8 +22,8 @@ export default function LoginPage() {
     // Redirect based on role
     if (role === "patient") {
       router("/patient/dashboard")
-    } else {
-      router("/doctor/dashboard")        //TODO
+    } else if (role === "hospital staff" || role === "admin") {
+      router("/admin/dashboard")        //TODO
     } 
   }
 
@@ -44,14 +44,18 @@ export default function LoginPage() {
           </CardHeader>
           <CardContent>
             <Tabs value={role} onValueChange={(v) => setRole(v as any)} className="mb-6">
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="patient" className="gap-2 h-7">
                   <User className="h-4 w-4" />
                   Patient
                 </TabsTrigger>
-                <TabsTrigger value="doctor" className="gap-2 h-7">
+                <TabsTrigger value="hospital staff" className="gap-2 h-7">
                   <Stethoscope className="h-4 w-4" />
                   Hospital Staff
+                </TabsTrigger>
+                <TabsTrigger value="admin" className="gap-2 h-7">
+                  <Stethoscope className="h-4 w-4" />
+                  Admin
                 </TabsTrigger>
               </TabsList>
             </Tabs>
@@ -65,7 +69,7 @@ export default function LoginPage() {
                   placeholder={
                     role === "patient"
                       ? "Enter username"
-                      : role === "doctor"
+                      : role === "hospital staff"
                         ? "Enter username"
                         : "Enter username"
                   }
@@ -96,10 +100,8 @@ export default function LoginPage() {
                   Forgot password?
                 </Link>
               </div>
-              <Button type="submit" size="default" className="w-full" asChild>
-                <Link to="/patient/dashboard">
-                  Sign In
-                </Link>
+              <Button type="submit" size="default" className="w-full">
+                Sign In
               </Button>
             </form>
 

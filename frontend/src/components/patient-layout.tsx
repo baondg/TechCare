@@ -5,12 +5,13 @@ import { useState } from "react"
 import { Link } from "react-router-dom";
 import { useLocation } from "react-router-dom"
 import { Button } from "@/components/ui/button"
-import { Activity, Calendar, FileText, MessageSquare, User, LogOut, Heart, BotMessageSquare } from "lucide-react"
+import { Activity, Calendar, FileText, MessageSquare, User, LogOut, Heart, BotMessageSquare, ScanHeart } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const navigation = [
   { name: "Dashboard", href: "/patient/dashboard", icon: Activity },
   { name: "Appointments", href: "/patient/appointments", icon: Calendar },
+  { name: "Symptom Checker", href: "/patient/symptom-checker", icon: ScanHeart },
   { name: "Health Info", href: "/patient/health-info", icon: Heart },
   { name: "Medical Records", href: "/patient/records", icon: FileText },
   { name: "AI Chatbot", href: "/patient/chatbot", icon: BotMessageSquare },

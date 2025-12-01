@@ -19,6 +19,11 @@ import AppointmentsPage from "./patient/appointments"
 import BookAppointmentPage from "./patient/appointments/book-appointment"
 import HealthInfoPage from "./patient/healthInfo"
 import RecordsPage from "./patient/records"
+import SymptomCheckerPage from "./patient/symptomchecker"
+import AdminDashboardPage from "./admin/dashboard"
+import SystemConfig from "./admin/config"
+import HospitalInfo from "./admin/hospitalInfo"
+import UserManagement from "./admin/accountMng"
 
 function App() {
   // const [count, setCount] = useState(0)
@@ -37,6 +42,11 @@ function App() {
         <Route path="/patient/appointments/book-appointment" element={<BookAppointmentPage />} />
         <Route path="/patient/health-info" element={<HealthInfoPage />} />
         <Route path="/patient/records" element={<RecordsPage />} />
+        <Route path="/patient/symptom-checker" element={<SymptomCheckerPage />} />
+        <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
+        <Route path="/admin/system-config" element={<SystemConfig />} />
+        <Route path="/admin/hospital-info" element={<HospitalInfo />} />
+        <Route path="/admin/users" element={<UserManagement />} />
       </Routes>
     </div>
   )

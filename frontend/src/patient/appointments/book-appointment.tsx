@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight, Check, Calendar } from "lucide-react"
 import { PatientLayout } from "@/components/patient-layout"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import {Select,SelectContent,SelectItem,SelectTrigger,SelectValue} from "@/components/ui/select"
 
 type ViewMode = "month" | "week" | "day"
 
@@ -27,6 +28,15 @@ export default function BookAppointmentPage() {
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null)
 
   const departments = ["Cardiology", "Orthopedics", "Dermatology", "Ophthalmology"]
+  const specialtyGroups = [
+    { value: "outpatinent", label: "Outpatient Department" },
+    { value: "ophthalmology", label: "Ophthalmology" },
+    { value: "otolaryngology", label: "Otolaryngology" },
+    { value: "dermatology", label: "Dermatology" },
+    { value: "cardiology", label: "Cardiology" },
+    { value: "orthopedics", label: "Orthopedics" },
+  ]
+  const [selectedDiseaseGroup, setSelectedDiseaseGroup] = useState<string | null>(null)
 
   // Mock time slots data
   const timeSlots: TimeSlot[] = [
@@ -113,7 +123,7 @@ export default function BookAppointmentPage() {
   }
 
   const days = getDaysInMonth()
-  const monthName = currentDate.toLocaleString("default", { month: "long", year: "numeric" })
+  const monthName = currentDate.toLocaleString("en-US", { month: "long", year: "numeric" })
 
   // Group days into weeks
   const weeks = []
@@ -230,33 +240,53 @@ export default function BookAppointmentPage() {
           <Card className="flex-1 p-6 flex flex-col">
             <div className="mb-4">
               <h3 className="text-xl font-semibold mb-4">
-                Available Slots - {selectedDate} {currentDate.toLocaleString("default", { month: "long" })}
+                Available Slots - {selectedDate} {currentDate.toLocaleString("en-US", { month: "long" })}
               </h3>
               
-              {/* Department Tabs */}
-              <div className="flex gap-3 border-b">
-                {departments.map((dept) => (
-                  <button
-                    key={dept}
-                    onClick={() => setSelectedDepartment(dept)}
-                    className={`
-                      px-4 py-2 font-medium transition-colors border-b-2
-                      ${selectedDepartment === dept
-                        ? "text-primary border-primary"
-                        : "text-muted-foreground border-transparent hover:text-foreground"
-                      }
-                    `}
-                  >
-                    {dept}
-                  </button>
-                ))}
+              {/* Step 1: Disease Group Selector */}
+              <div className="mb-6">
+                <label className="text-sm font-medium text-muted-foreground">
+                  Select specialty
+                </label>
+                <Select
+                  value={selectedDepartment}
+                  onValueChange={(value) => {
+                    setSelectedDepartment(value)
+                  }}
+                >
+                  <SelectTrigger className="w-full mt-2">
+                    <SelectValue placeholder="Select specialty" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-96">
+                    {specialtyGroups.map((group) => (
+                      <SelectItem key={group.value} value={group.value}>
+                        {group.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
             {/* Scrollable Time Slots List */}
             <div className="flex-1 overflow-y-auto pr-2">
               <div className="space-y-3">
-                {timeSlots.filter(slot => slot.department === selectedDepartment).map((slot, index) => (
+                {timeSlots.filter((slot) => {
+                      if (selectedDepartment === "all") return true
+                      // Map giá trị combobox về tên khoa tiếng Anh thực tế
+                      const departmentMap: Record<string, string> = {
+                        cardiology: "Cardiology",
+                        orthopedics: "Orthopedics",
+                        dermatology: "Dermatology",
+                        ophthalmology: "Ophthalmology",
+                        eye: "Ophthalmology",
+                        eye1: "Ophthalmology",
+                        eye2: "Ophthalmology",
+                        eye3: "Ophthalmology",
+                        ent: "Otorhinolaryngology", // nếu có khoa này
+                      }
+                      return slot.department === (departmentMap[selectedDepartment] || selectedDepartment)
+                    }).map((slot, index) => (
                   <button
                     key={index}
                     onClick={() => handleBookSlot(slot)}

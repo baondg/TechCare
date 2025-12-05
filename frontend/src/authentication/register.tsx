@@ -21,11 +21,14 @@ export default function RegisterPage() {
     const [dob, setDob] = useState<Date | undefined>();
     const age = dob ? calculateAge(dob) : "";
     const [dobRelative, setDobRelative] = useState<Date | undefined>();
+    const ageRelative = dobRelative ? calculateAge(dobRelative) : "";
     const [nationalId, setNationalId] = useState("");
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
     // check length of password
     const has8Chars = password.length >= 8;
+    // check password must have Upper char
+    const hasUppercase = /[A-Z]/.test(password);
     // check password must have at least one digit
     const hasDigit = /\d/.test(password);
     // check password must have at least 1 special character (non-alphanumeric, non-whitespace)
@@ -200,7 +203,7 @@ export default function RegisterPage() {
 
             <div>
               <Label>Age</Label>
-              <Input value={age} disabled placeholder="Age" />
+              <Input value={ageRelative} disabled placeholder="Age" />
             </div>
 
             <div>
@@ -291,6 +294,7 @@ export default function RegisterPage() {
           </div>
             <div className="col-span-1 md:col-span-3 flex flex-col gap-5 mt-7">
               <ValidationRow ok={has8Chars} text="Password must be longer than 8 characters." />
+              <ValidationRow ok={hasUppercase} text="Password must contain at least one uppercase letter." />
               <ValidationRow ok={hasDigit} text="Password must have at least 1 digit." />
               <ValidationRow ok={hasSpecial} text="Password must contain at least one special character." />
               

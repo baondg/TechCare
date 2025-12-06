@@ -4,7 +4,7 @@ import type React from "react"
 import { useState } from "react"
 import { Link } from "react-router-dom";
 import { useLocation } from "react-router-dom"
-import { LayoutDashboard, Users, Settings, Building2, LogOut, Menu, X, Calendar, Activity } from "lucide-react"
+import { LayoutDashboard, Users, Settings, Building2, LogOut, MessageSquareText , Activity } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
@@ -14,13 +14,13 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
 
   const navigation = [
     { href: "/admin/dashboard", name: "Dashboard", icon: LayoutDashboard },
-    { href: "/admin/users", name: "Account Management", icon: Users },
+    { href: "/admin/user-management", name: "Account Management", icon: Users },
     { href: "/admin/system-config", name: "System Config", icon: Settings },
-    { href: "/admin/hospital-info", name: "Hospital Info", icon: Building2 },
+    { href: "/admin/feedback", name: "Feedback", icon: MessageSquareText },
   ]
 
   return (
-    <div className="min-h-scree w-screen bg-background">
+    <div className="n w-screen bg-background">
           {/* Header */}
           <header className="w-full sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
             <div className="w-full flex h-16 items-center justify-between pl-4 pr-4">

@@ -22,8 +22,8 @@ import RecordsPage from "./patient/records"
 import SymptomCheckerPage from "./patient/symptomchecker"
 import AdminDashboardPage from "./admin/dashboard"
 import SystemConfig from "./admin/config"
-import HospitalInfo from "./admin/hospitalInfo"
 import UserManagement from "./admin/accountMng"
+import FeedbackPage from "./admin/feedback"
 
 function App() {
   // const [count, setCount] = useState(0)
@@ -45,8 +45,8 @@ function App() {
         <Route path="/patient/symptom-checker" element={<SymptomCheckerPage />} />
         <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
         <Route path="/admin/system-config" element={<SystemConfig />} />
-        <Route path="/admin/hospital-info" element={<HospitalInfo />} />
-        <Route path="/admin/users" element={<UserManagement />} />
+        <Route path="/admin/user-management" element={<UserManagement />} />
+        <Route path="/admin/feedback" element={<FeedbackPage />} />
       </Routes>
     </div>
   )

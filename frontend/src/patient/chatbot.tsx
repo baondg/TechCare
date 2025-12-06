@@ -1,24 +1,26 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { PatientLayout } from "@/components/patient-layout"
 import { Bot, Send, ThumbsUp, ThumbsDown } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { sendChatMessage, type ChatMessage as AIMessage } from "@/services/ai-service"
 
 type Message = {
-  id: number
+  id: string
   role: "user" | "assistant"
   content: string
   timestamp: Date
+  isLoading?: boolean
 }
 
 export default function ChatbotPage() {
   const [messages, setMessages] = useState<Message[]>([
     {
-      id: 1,
+      id: `msg-${Date.now()}-1`,
       role: "assistant",
       content:
         "Hello! I'm your TechCare AI assistant. I can help you with questions about your medications, appointments, and post-treatment care. How can I assist you today?",
@@ -26,44 +28,90 @@ export default function ChatbotPage() {
     },
   ])
   const [input, setInput] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
+  const scrollAreaRef = useRef<HTMLDivElement>(null)
 
-  const handleSend = () => {
-    if (!input.trim()) return
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    if (scrollAreaRef.current) {
+      const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]')
+      if (scrollContainer) {
+        scrollContainer.scrollTop = scrollContainer.scrollHeight
+      }
+    }
+  }, [messages])
 
+  const handleSend = async () => {
+    if (!input.trim() || isLoading) return
+
+    const userMessageId = `msg-${Date.now()}-user`
     const userMessage: Message = {
-      id: messages.length + 1,
+      id: userMessageId,
       role: "user",
       content: input,
       timestamp: new Date(),
     }
 
-    setMessages([...messages, userMessage])
+    setMessages(prev => [...prev, userMessage])
+    const currentInput = input
     setInput("")
+    setIsLoading(true)
 
-    // Simulate AI response
-    setTimeout(() => {
-      const aiResponse: Message = {
-        id: messages.length + 2,
-        role: "assistant",
-        content: getAIResponse(input),
-        timestamp: new Date(),
-      }
-      setMessages((prev) => [...prev, aiResponse])
-    }, 1000)
-  }
+    // Add loading message with unique ID
+    const loadingMessageId = `msg-${Date.now()}-loading`
+    const loadingMessage: Message = {
+      id: loadingMessageId,
+      role: "assistant",
+      content: "",
+      timestamp: new Date(),
+      isLoading: true,
+    }
+    setMessages(prev => [...prev, loadingMessage])
 
-  const getAIResponse = (query: string): string => {
-    const lowerQuery = query.toLowerCase()
-    if (lowerQuery.includes("medication") || lowerQuery.includes("medicine")) {
-      return "You're currently taking Amoxicillin 500mg (3 times daily for 5 more days) and Vitamin D3 1000 IU (once daily, ongoing). Make sure to take Amoxicillin with food to avoid stomach upset. Would you like to set up medication reminders?"
+    try {
+      // Prepare conversation history for AI
+      const conversationHistory: AIMessage[] = messages
+        .filter(msg => !msg.isLoading)
+        .map(msg => ({
+          role: msg.role === "assistant" ? "assistant" : "user",
+          content: msg.content
+        }))
+
+      // Call AI service
+      const response = await sendChatMessage(conversationHistory, currentInput)
+
+      // Remove loading message and add actual response
+      setMessages(prev => {
+        const filtered = prev.filter(msg => msg.id !== loadingMessageId)
+        return [
+          ...filtered,
+          {
+            id: `msg-${Date.now()}-assistant`,
+            role: "assistant",
+            content: response.message,
+            timestamp: new Date(),
+          }
+        ]
+      })
+    } catch (error) {
+      console.error('Chat error:', error)
+      
+      // Remove loading message and add error message
+      setMessages(prev => {
+        const filtered = prev.filter(msg => msg.id !== loadingMessageId)
+        return [
+          ...filtered,
+          {
+            id: `msg-${Date.now()}-error`,
+            role: "assistant",
+            content: "I'm having trouble connecting right now. Please try again in a moment, or contact our support team if the issue persists.",
+            timestamp: new Date(),
+          }
+        ]
+      })
+    } finally {
+      setIsLoading(false)
     }
-    if (lowerQuery.includes("appointment")) {
-      return "You have 2 upcoming appointments: 1) General Checkup with Dr. Sarah Johnson tomorrow at 10:00 AM, and 2) Follow-up Visit with Dr. Michael Chen on Dec 20 at 2:30 PM. Would you like to reschedule or get directions?"
-    }
-    if (lowerQuery.includes("symptom") || lowerQuery.includes("pain")) {
-      return "I understand you're experiencing symptoms. For accurate medical advice, I recommend scheduling an appointment with your doctor. However, I can help you book an appointment or provide general wellness tips. What would you prefer?"
-    }
-    return "I'm here to help! You can ask me about your medications, appointments, medical records, or general health questions. What would you like to know?"
   }
 
   return (
@@ -83,7 +131,7 @@ export default function ChatbotPage() {
             <CardDescription>Ask about medications, appointments, and health guidance</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col h-[calc(100%-5rem)]">
-            <ScrollArea className="flex-1 pr-4">
+            <ScrollArea className="flex-1 pr-4" ref={scrollAreaRef}>
               <div className="space-y-4">
                 {messages.map((message) => (
                   <div key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
@@ -92,19 +140,32 @@ export default function ChatbotPage() {
                         message.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
                       }`}
                     >
-                      <p className="text-sm leading-relaxed">{message.content}</p>
-                      <p className="text-xs opacity-70 mt-2">
-                        {message.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                      </p>
-                      {message.role === "assistant" && (
-                        <div className="flex gap-2 mt-3">
-                          <Button size="sm" variant="ghost" className="h-7 px-2">
-                            <ThumbsUp className="h-3 w-3" />
-                          </Button>
-                          <Button size="sm" variant="ghost" className="h-7 px-2">
-                            <ThumbsDown className="h-3 w-3" />
-                          </Button>
+                      {message.isLoading ? (
+                        <div className="flex items-center gap-2">
+                          <div className="flex gap-1">
+                            <div className="w-2 h-2 bg-foreground rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                            <div className="w-2 h-2 bg-foreground rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                            <div className="w-2 h-2 bg-foreground rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                          </div>
+                          <span className="text-sm opacity-70">Thinking...</span>
                         </div>
+                      ) : (
+                        <>
+                          <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
+                          <p className="text-xs opacity-70 mt-2">
+                            {message.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          </p>
+                          {message.role === "assistant" && (
+                            <div className="flex gap-2 mt-3">
+                              <Button size="sm" variant="ghost" className="h-7 px-2">
+                                <ThumbsUp className="h-3 w-3" />
+                              </Button>
+                              <Button size="sm" variant="ghost" className="h-7 px-2">
+                                <ThumbsDown className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>
@@ -117,9 +178,10 @@ export default function ChatbotPage() {
                 placeholder="Type your question..."
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                onKeyPress={(e) => e.key === "Enter" && handleSend()}
+                onKeyPress={(e) => e.key === "Enter" && !isLoading && handleSend()}
+                disabled={isLoading}
               />
-              <Button onClick={handleSend}>
+              <Button onClick={handleSend} disabled={isLoading || !input.trim()}>
                 <Send className="h-4 w-4" />
               </Button>
             </div>

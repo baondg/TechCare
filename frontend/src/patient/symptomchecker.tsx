@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { PatientLayout } from "@/components/patient-layout"
 import { AlertCircle, CheckCircle2, Activity, Clock, AlertTriangle } from "lucide-react"
+import { sendChatMessage } from "@/services/ai-service"
 
 interface SymptomResult {
   condition: string
@@ -43,27 +44,87 @@ export default function SymptomChecker() {
   const handleAnalyze = async () => {
     setIsAnalyzing(true)
 
-    setTimeout(() => {
-      const mockResults: SymptomResult[] = [
-        {
-          condition: "Common Cold",
-          severity: "low",
-          recommendation: "Rest and self-care at home",
-          details:
-            "Your symptoms suggest a common cold. Drink fluids, get plenty of rest, and monitor your condition. Contact a doctor if symptoms worsen.",
-        },
-        {
-          condition: "Viral Infection",
-          severity: "medium",
-          recommendation: "Monitor symptoms closely",
-          details:
-            "Your symptom combination may indicate a viral infection. Continue monitoring and consider visiting urgent care if symptoms persist beyond 5-7 days.",
-        },
-      ]
-      setResults(mockResults)
-      setIsAnalyzing(false)
+    try {
+      // Prepare prompt for AI
+      const prompt = `You are a medical AI assistant. Analyze the following symptoms and provide a preliminary assessment.
+
+Patient's Symptoms:
+${symptoms.map((s, i) => `${i + 1}. ${s}`).join('\n')}
+
+Duration: ${duration}
+Severity: ${severity}
+
+Please provide:
+1. 2-3 possible conditions (from most to least likely)
+2. Severity level for each (low/medium/high)
+3. Specific recommendations
+4. When to seek immediate medical attention
+
+Format your response as JSON array with this structure:
+[
+  {
+    "condition": "condition name",
+    "severity": "low|medium|high",
+    "recommendation": "what to do",
+    "details": "detailed explanation"
+  }
+]
+
+IMPORTANT: 
+- Be cautious and recommend seeing a doctor when appropriate
+- For severe symptoms or combinations, always recommend immediate medical attention
+- This is preliminary guidance only, not a diagnosis
+- Consider the duration and severity level provided`
+
+      // Call AI service
+      const response = await sendChatMessage([], prompt)
+
+      // Try to parse JSON from response
+      let parsedResults: SymptomResult[] = []
+      
+      try {
+        // Extract JSON from response (AI might wrap it in markdown code blocks)
+        const jsonMatch = response.message.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          parsedResults = JSON.parse(jsonMatch[0])
+        } else {
+          // If no JSON found, create a result from the text response
+          parsedResults = [{
+            condition: "AI Analysis",
+            severity: severity === 'severe' ? 'high' : severity === 'moderate' ? 'medium' : 'low',
+            recommendation: "Please consult a healthcare professional",
+            details: response.message
+          }]
+        }
+      } catch (parseError) {
+        console.error('Error parsing AI response:', parseError)
+        // Fallback: use the raw response
+        parsedResults = [{
+          condition: "AI Analysis",
+          severity: severity === 'severe' ? 'high' : severity === 'moderate' ? 'medium' : 'low',
+          recommendation: "Please consult a healthcare professional for proper diagnosis",
+          details: response.message
+        }]
+      }
+
+      setResults(parsedResults)
       setStep(3)
-    }, 1500)
+    } catch (error) {
+      console.error('Symptom analysis error:', error)
+      
+      // Fallback to rule-based results
+      const fallbackResults: SymptomResult[] = [{
+        condition: "Unable to Analyze",
+        severity: "medium",
+        recommendation: "We're experiencing technical difficulties. Please consult a healthcare professional.",
+        details: "Our AI service is temporarily unavailable. For your safety, we recommend speaking with a doctor or visiting urgent care, especially if symptoms are severe or worsening."
+      }]
+      
+      setResults(fallbackResults)
+      setStep(3)
+    } finally {
+      setIsAnalyzing(false)
+    }
   }
 
   const getSeverityColor = (sev: string) => {
@@ -215,7 +276,7 @@ export default function SymptomChecker() {
             <Card className="border-amber-200 bg-amber-50">
               <CardContent className="pt-6">
                 <div className="flex gap-3">
-                  <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
                   <div>
                     <p className="font-semibold text-amber-900">Disclaimer</p>
                     <p className="text-sm text-amber-800 mt-1">
@@ -283,9 +344,16 @@ export default function SymptomChecker() {
         {isAnalyzing && (
           <Card>
             <CardContent className="pt-6">
-              <div className="flex items-center justify-center gap-3">
-                <div className="h-4 w-4 bg-primary rounded-full animate-bounce" />
-                <p className="text-muted-foreground">Analyzing your symptoms...</p>
+              <div className="flex flex-col items-center justify-center gap-4 py-8">
+                <div className="flex gap-2">
+                  <div className="h-3 w-3 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                  <div className="h-3 w-3 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                  <div className="h-3 w-3 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                </div>
+                <div className="text-center">
+                  <p className="text-lg font-medium">Analyzing your symptoms with AI...</p>
+                  <p className="text-sm text-muted-foreground mt-1">This may take a few moments</p>
+                </div>
               </div>
             </CardContent>
           </Card>

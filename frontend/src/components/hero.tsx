@@ -4,17 +4,18 @@ import { Link } from "react-router-dom";
 
 export function Hero() {
   return (
-    <section className="relative overflow-hidden border-b border-border/40 bg-background">
+    <section className="relative overflow-hidden bg-transparent">
       <div className="container px-4 py-24 md:py-10 lg:py-10">
         <div className="mx-auto max-w-4xl text-center">
-          <div className="group mb-8 inline-flex items-center gap-2 rounded-full bg-white px-5 py-2.5 
-                   border border-bg-gray-600 backdrop-blur-md
-                   transition-all duration-300">
+          <div className="group mb-8 inline-flex items-center gap-2 rounded-full  px-5 py-2.5 
+                   border border-cyan-400/30 backdrop-blur-md
+                   transition-all duration-300 hover:scale-105 hover:border-cyan-400/60 
+                   hover:shadow-xl hover:shadow-cyan-500/25">
             <span className="relative flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-gray-600"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-gray-600"></span>
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-cyan-300"></span>
             </span>
-            <span className="bg-gray-600 bg-clip-text text-transparent 
+            <span className="bg-linear-to-r from-[#06b6d4] to-[#0891b2] bg-clip-text text-transparent 
                             text-sm font-semibold tracking-wider">
               AI-Powered Smart Hospital Management
             </span>

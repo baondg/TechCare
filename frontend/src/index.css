@@ -198,3 +198,7 @@ button:focus-visible {
     }
   }
 }
+
+html {
+  overflow-y: scroll;
+}

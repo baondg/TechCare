@@ -28,32 +28,37 @@ export default function RegisterPage() {
     // check length of password
     const has8Chars = password.length >= 8;
     // check password must have Upper char
-    const hasUppercase = /[A-Z]/.test(password);
+    // const hasUppercase = /[A-Z]/.test(password);
     // check password must have at least one digit
     const hasDigit = /\d/.test(password);
     // check password must have at least 1 special character (non-alphanumeric, non-whitespace)
     const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+/.test(password);
     const passwordsMatch = password === confirmPassword && password.length > 0;
     const [showPassword, setShowPassword] = useState(false);
+    const [showPassword2, setShowPassword2] = useState(false);
 
   return (
     <div className="w-full flex flex-col py-10">
       {/* Header */}
-        <div className="flex items-center gap-2 mb-8 mx-auto">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-            <Activity className="h-5 w-5 text-primary-foreground" />
+        <Link to="/" className="group flex items-center justify-center gap-2 mb-8">
+          <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-linear-to-br from-[#06b6d4] to-[#0891b2] p-0.5 shadow-lg">
+            <div className="flex h-full w-full items-center justify-center rounded-lg">
+              <Activity className="h-6 w-6 text-[#FFFFFF]" />
+            </div>
           </div>
-          <span className="text-xl font-bold">TechCare</span>
-        </div>
+          <span className="text-2xl font-bold bg-linear-to-r from-[#06b6d4] to-[#0891b2] bg-clip-text text-transparent">
+            TechCare
+          </span>
+        </Link>
 
 
 
       <div className="w-full max-w-6xl flex flex-col gap-6">
 
         {/* PERSONAL INFO */}
-        <Card>
+        <Card className="card-feature-group card-feature-hover-group">
           <CardHeader>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 icon-feature-card">
                 <CircleUserRound />
                 <CardTitle className="text-xl">Personal Information</CardTitle>
             </div>
@@ -65,13 +70,14 @@ export default function RegisterPage() {
               <Input 
                 value={nationalId}
                 onChange={(e) => setNationalId(e.target.value)}
+                className="custom-input"
               />
             </div>
 
             
             <div>
               <Label>Name</Label>
-              <Input />
+              <Input className="custom-input"/>
             </div>
 
 
@@ -80,13 +86,10 @@ export default function RegisterPage() {
               <Popover>
                 <PopoverTrigger asChild>
                 <div
-                    className="
+                    className="custom-popover custom-popover-secondary
                     w-full flex items-center justify-between 
-                    rounded-md border border-input 
-                    bg-background px-3 py-2 
+                    px-3 py-2 
                     text-sm text-muted-foreground
-                    hover:bg-accent hover:text-accent-foreground
-                    cursor-pointer
                     "
                 >
                     <span className={dob ? "text-foreground" : "text-muted-foreground"}>
@@ -109,19 +112,19 @@ export default function RegisterPage() {
 
             <div>
               <Label>Age</Label>
-              <Input value={age} disabled placeholder="Age" />
+              <Input value={age} disabled placeholder="Age" className="rounded-2xl ring-1 ring-gray-200"/>
             </div>
 
             <div>
               <Label>Phone Number</Label>
-              <Input />
+              <Input className="custom-input"/>
             </div>
 
 
             <div>
               <Label>Sex</Label>
               <Select>
-                <SelectTrigger>
+                <SelectTrigger className="custom-select transition-all duration-100 rounded-2xl">
                   <div className="text-sm font-normal bg-background text-muted-foreground">
                     <SelectValue placeholder="Male" />
                   </div>
@@ -136,15 +139,15 @@ export default function RegisterPage() {
 
             <div className="md:col-span-2">
               <Label>Email</Label>
-              <Input placeholder="user@example.com" />
+              <Input placeholder="user@example.com" className="custom-input"/>
             </div>
           </CardContent>
         </Card>
 
         {/* RELATIVE INFO */}
-        <Card>
+        <Card className="card-feature-group card-feature-hover-group">
           <CardHeader>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 icon-feature-card">
                 <Phone />
                 <CardTitle className="text-xl">Relative Information</CardTitle>
             </div>
@@ -155,18 +158,29 @@ export default function RegisterPage() {
 
             <div>
               <Label>National ID/passport</Label>
-              <Input />
+              <Input className="custom-input"/>
             </div>
 
             
             <div>
               <Label>Name</Label>
-              <Input />
+              <Input className="custom-input"/>
             </div>
 
             <div className="md:col-span-2">
               <Label>Relationship</Label>
-              <Input placeholder="Father" />
+              <Select>
+                <SelectTrigger className="custom-select transition-all duration-100 rounded-2xl">
+                  <div className="text-sm font-normal bg-background text-muted-foreground">
+                    <SelectValue placeholder="Father" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="male">Father</SelectItem>
+                  <SelectItem value="female">Mother</SelectItem>
+                  <SelectItem value="other">Sibling</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div>
@@ -174,13 +188,10 @@ export default function RegisterPage() {
               <Popover>
                 <PopoverTrigger asChild>
                 <div
-                    className="
+                    className="custom-popover custom-popover-secondary
                     w-full flex items-center justify-between 
-                    rounded-md border border-input 
-                    bg-background px-3 py-2 
-                    text-sm text-muted-foreground
-                    hover:bg-accent hover:text-accent-foreground
-                    cursor-pointer
+                    px-3 py-2 
+                    text-sm text-muted-foreground 
                     "
                 >
                     <span className={dobRelative ? "text-foreground" : "text-muted-foreground"}>
@@ -190,7 +201,7 @@ export default function RegisterPage() {
                     <CalendarIcon className="h-5 w-5 opacity-60" />
                 </div>
                 </PopoverTrigger>
-                <PopoverContent className="p-0">
+                <PopoverContent className="p-0 ">
                   <Calendar 
                     mode="single" 
                     selected={dobRelative} 
@@ -202,20 +213,20 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <Label>Age</Label>
-              <Input value={ageRelative} disabled placeholder="Age" />
+              <Label >Age</Label>
+              <Input value={ageRelative} disabled placeholder="Age" className="rounded-2xl ring-1 ring-gray-200"/>
             </div>
 
             <div>
               <Label>Phone Number</Label>
-              <Input />
+              <Input className="custom-input"/>
             </div>
 
 
             <div>
               <Label>Sex</Label>
-              <Select>
-                <SelectTrigger>
+              <Select >
+                <SelectTrigger className="custom-select transition-all duration-100 rounded-2xl">
                   <div className="text-sm font-normal bg-background text-muted-foreground">
                     <SelectValue placeholder="Male" />
                   </div>
@@ -230,16 +241,16 @@ export default function RegisterPage() {
 
             <div className="md:col-span-2">
               <Label>Email</Label>
-              <Input placeholder="user@example.com" />
+              <Input placeholder="user@example.com" className="custom-input"/>
             </div>
 
           </CardContent>
         </Card>
 
         {/* LOGIN CREDENTIALS */}
-        <Card>
+        <Card className="card-feature-group card-feature-hover-group">
           <CardHeader>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 icon-feature-card">
                 <KeyRound />
                 <CardTitle className="text-xl">Login Credentials</CardTitle>
             </div>
@@ -251,6 +262,7 @@ export default function RegisterPage() {
               <Input placeholder="Enter National ID" 
                 value={nationalId}
                 disabled
+                className="rounded-2xl ring-1 ring-gray-200"
               />
             </div>
 
@@ -261,12 +273,12 @@ export default function RegisterPage() {
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="pr-10" 
+                  className="pr-10 custom-input"
                 />
                 <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute bg-accent-foreground mx-1 my-1 inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-gray-700"
+                    className="absolute bg-transparent hover:bg-transparent hover:border-transparent mx-1 my-1 inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-gray-700"
                 >
                     {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </button>
@@ -277,24 +289,24 @@ export default function RegisterPage() {
               <Label>Re-enter password</Label>
               <div className="relative">
               <Input 
-                    type={showPassword ? "text" : "password"}
+                    type={showPassword2 ? "text" : "password"}
                     value={confirmPassword} 
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="pr-10"
+                    className="pr-10 custom-input"
                 />
                 <button
                     type="button" 
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute bg-accent-foreground mx-1 my-1 inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-gray-700"
+                    onClick={() => setShowPassword2(!showPassword2)}
+                    className="absolute bg-transparent hover:bg-transparent hover:border-transparent mx-1 my-1 inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-gray-700"
                 >
-                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    {showPassword2 ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </button>
               </div>
             </div>
           </div>
             <div className="col-span-1 md:col-span-3 flex flex-col gap-5 mt-7">
               <ValidationRow ok={has8Chars} text="Password must be longer than 8 characters." />
-              <ValidationRow ok={hasUppercase} text="Password must contain at least one uppercase letter." />
+              {/* <ValidationRow ok={hasUppercase} text="Password must contain at least one uppercase letter." /> */}
               <ValidationRow ok={hasDigit} text="Password must have at least 1 digit." />
               <ValidationRow ok={hasSpecial} text="Password must contain at least one special character." />
               
@@ -309,9 +321,9 @@ export default function RegisterPage() {
         </Card>
 
         {/* INSURANCE INFORMATION */}
-        <Card>
+        <Card className="card-feature-group card-feature-hover-group">
           <CardHeader>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 icon-feature-card">
                 <IdCard />
                 <CardTitle className="text-xl">Insurance Information</CardTitle>
             </div>
@@ -320,13 +332,13 @@ export default function RegisterPage() {
 
             <div>
               <Label>Insurance ID</Label>
-              <Input placeholder="VN123456789" />
+              <Input placeholder="VN123456789" className="custom-input"/>
             </div>
 
             <div>
               <Label>Insurance Provider</Label>
               <Select>
-                <SelectTrigger>
+                <SelectTrigger className="custom-select transition-all duration-100 rounded-2xl">
                   <div className="text-sm font-normal bg-background text-muted-foreground">
                     <SelectValue placeholder="Vietnam Social Security" />
                   </div>
@@ -342,12 +354,11 @@ export default function RegisterPage() {
               <Popover>
                 <PopoverTrigger asChild>
                 <div
-                    className="
+                    className="custom-popover custom-popover-secondary
                     w-full flex items-center justify-between 
-                    rounded-md border border-input 
+                    rounded-xl border border-input 
                     bg-background px-3 py-2 
                     text-sm text-muted-foreground
-                    hover:bg-accent hover:text-accent-foreground
                     cursor-pointer
                     "
                 >
@@ -377,41 +388,77 @@ export default function RegisterPage() {
 
         {/* BUTTONS */}
         <div className="flex justify-between mt-4">
-          <Button size="default" variant="outline" className="bg-transparent text-gray-500" asChild>
+          <Button className="btn-outline transition-transform duration-500 px-7 py-4 text-base" asChild>
             <Link to="/">← Back</Link>
           </Button>
-          <Button>Register!</Button>
+          <Button className="btn-gradient border-none transition-transform duration-500 text-xl px-7 py-4">Register!</Button>
         </div>
       </div>
     </div>
   )
 }
 
-function calculateAge(date:Date) {
+function calculateAge(date: Date) {
   if (!date) return "";
+
   const today = new Date();
-  let age = today.getFullYear() - date.getFullYear();
 
-  const monthDiff = today.getMonth() - date.getMonth();
-  const dayDiff = today.getDate() - date.getDate();
+  // Tính tổng số ngày từ ngày sinh đến hôm nay
+  const diffTime = today.getTime() - date.getTime();
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
-  // Nếu chưa đến sinh nhật trong năm nay → giảm 1 tuổi
-  if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) {
-    age--;
+  // Nếu < 1 tháng tuổi → tính theo ngày
+  if (diffDays < 30) {
+    return `${diffDays} days`;
   }
 
-  return age;
+  // Nếu < 3 tuổi → tính theo tháng
+  const diffMonths =
+    (today.getFullYear() - date.getFullYear()) * 12 +
+    (today.getMonth() - date.getMonth());
+
+  if (diffMonths < 36) {
+    return `${diffMonths} months`;
+  }
+
+  // ≥ 3 tuổi → tính theo năm
+  let ageYears = today.getFullYear() - date.getFullYear();
+  const m = today.getMonth() - date.getMonth();
+  const d = today.getDate() - date.getDate();
+
+  if (m < 0 || (m === 0 && d < 0)) {
+    ageYears--;
+  }
+
+  return `${ageYears} years`;
 }
 
-function ValidationRow({ ok, text }: { ok: boolean; text: string }) {
-  // Chọn màu và icon dựa trên kết quả kiểm tra
-  const color = ok ? "text-green-600" : "text-red-600";
-  const Icon = ok ? Check : X;
 
+function ValidationRow({ ok, text }: { ok: boolean; text: string }) {
   return (
-    <div className="flex items-center gap-2">
-      <Icon className={`h-4 w-4 ${color}`} />
-      <span className={`text-sm ${color}`}>{text}</span>
+    <div className="group flex items-center gap-3 py-2.5 px-1 rounded-lg transition-all duration-400 hover:bg-cyan-50/50">
+      {/* Icon với hiệu ứng scale + glow */}
+      <div className={`relative flex h-6 w-6 items-center justify-center rounded-full transition-all duration-500 ${ok ? "bg-gradient-to-br from-green-500 to-emerald-500 shadow-lg shadow-green-500/30" : "bg-gray-200/80"}`}>
+        <div className={`absolute inset-0 rounded-full ${ok ? "animate-ping bg-green-500/30" : ""}`} />
+        {ok ? (
+          <Check className="h-4 w-4 text-white relative z-10" strokeWidth={3} />
+        ) : (
+          <X className="h-4 w-4 text-gray-500 relative z-10" strokeWidth={2.5} />
+        )}
+      </div>
+
+      {/* Text với hiệu ứng fade + gạch ngang khi sai */}
+      <span
+        className={`text-sm font-medium transition-all duration-500 ${
+          ok 
+            ? "text-foreground" 
+            : ""
+        }`}
+      >
+        {text}
+      </span>
+
+      
     </div>
   );
 }

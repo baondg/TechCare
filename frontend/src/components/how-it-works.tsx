@@ -5,7 +5,7 @@ const steps = [
   {
     icon: UserPlus,
     step: "01",
-    title: "Patient Registration & Check-In",
+    title: "Patient Registration",
     description:
       "Patients register online or at reception. AI verifies identity, insurance, and assigns optimal clinic based on symptoms.",
   },
@@ -34,7 +34,7 @@ const steps = [
 
 export function HowItWorks() {
   return (
-    <section id="how-it-works" className="border-b border-border/40 bg-muted/30 py-24 md:py-32">
+    <section id="how-it-works" className="py-24 md:py-32 relative bg-transparent top-15">
       <div className="container px-4">
         <div className="mx-auto max-w-2xl text-center mb-16">
           <h2 className="text-3xl font-bold tracking-tight text-balance sm:text-4xl md:text-5xl mb-4">
@@ -47,16 +47,23 @@ export function HowItWorks() {
 
         <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-4">
           {steps.map((step) => (
-            <Card key={step.title} className="border-border/40 bg-card relative">
-              <CardContent className="pt-6">
-                <div className="absolute -top-4 left-6 inline-flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-bold">
+            <Card 
+              key={step.title} 
+              className="card-feature card-feature-hover border-border/40 bg-card relative overflow-visible">
+              <CardContent className="pt-10">
+                <div className="absolute -top-5 left-6 z-10 inline-flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground text-lg font-bold shadow-lg bg-linear-to-br from-[#06b6d4] to-[#0891b2] p-0.5">
                   {step.step}
                 </div>
+
                 <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-lg bg-accent/10">
                   <step.icon className="h-6 w-6 text-accent" />
                 </div>
-                <h3 className="mb-2 text-lg font-semibold text-card-foreground">{step.title}</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">{step.description}</p>
+                <h3 className="mb-2 text-lg font-semibold text-card-foreground">
+                  {step.title}
+                </h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  {step.description}
+                </p>
               </CardContent>
             </Card>
           ))}

@@ -7,23 +7,29 @@ import { HowItWorks } from "@/components/how-it-works"
 import { UserRoles } from "@/components/user-roles"
 import { AIFeatures } from "@/components/ai-features"
 import './App.css'
+import NetworkBackground from "@/components/NetworkBackground";
+import MainCarousel from "@/components/MainCarousel";
 
 function App() {
-  // const [count, setCount] = useState(0)
-
   return (
-    <div>
-      <Header />
-      <main>
-        <Hero />
-        <Features />
-        <HowItWorks />
-        <UserRoles />
-        <AIFeatures />
-      </main>
-      <Footer />
+    <div className="relative max-h-screen -top-50">
+
+      <div className="relative z-10">
+        <Header />
+
+        <MainCarousel
+          slides={[
+            <Hero key="hero" />,
+            <Features key="features" />,
+            <HowItWorks key="how" />,
+            <AIFeatures key="ai" />,
+          ]}
+        />
+
+        <Footer />
+      </div>
     </div>
-  )
+  );
 }
 
 export default App

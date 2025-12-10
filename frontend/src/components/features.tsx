@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card"
 const features = [
   {
     icon: Calendar,
-    title: "Online Appointment Scheduling",
+    title: "Online Appointment",
     description:
       "Can choose appointment slots, reduces wait times, and suggests the best time for patient visits based on historical data.",
   },
@@ -16,7 +16,7 @@ const features = [
   },
   {
     icon: Brain,
-    title: "AI Clinical Decision Support",
+    title: "AI Decision Support",
     description:
       "Intelligent recommendations for clinic assignment, prescription suggestions, and department transfers based on patient symptoms and diagnosis.",
   },
@@ -30,7 +30,7 @@ const features = [
 
 export function Features() {
   return (
-    <section id="features" className="border-b border-border/40 bg-background py-24 md:py-32">
+    <section id="features" className="py-24 md:py-32 relative bg-transparent top-10">
       <div className="container px-4">
         <div className="mx-auto max-w-2xl text-center mb-16">
           <h2 className="text-3xl font-bold tracking-tight text-balance sm:text-4xl md:text-5xl mb-4">
@@ -43,10 +43,10 @@ export function Features() {
 
         <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-4">
           {features.map((feature) => (
-            <Card key={feature.title} className="border-border/40 bg-card/50 backdrop-blur">
+            <Card key={feature.title} className="card-feature bg-white card-feature-hover border-border/40 backdrop-blur">
               <CardContent className="pt-6">
-                <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-                  <feature.icon className="h-6 w-6 text-primary" />
+                <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-lg bg-accent/10 text-accent">
+                  <feature.icon className="h-6 w-6 text-accent" />
                 </div>
                 <h3 className="mb-2 text-xl font-semibold text-card-foreground">{feature.title}</h3>
                 <p className="text-muted-foreground leading-relaxed">{feature.description}</p>

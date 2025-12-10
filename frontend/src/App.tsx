@@ -1,12 +1,8 @@
 // import { useState } from 'react'
-import { Header } from "@/components/header"
-import { Footer } from "@/components/footer"
-import { Hero } from "@/components/hero"
-import { Features } from "@/components/features"
-import { HowItWorks } from "@/components/how-it-works"
-import { UserRoles } from "@/components/user-roles"
-import { AIFeatures } from "@/components/ai-features"
+import FadeTransition from "@/components/FadeTransition"
+import NetworkBackground from "@/components/NetworkBackground";
 import './App.css'
+import AuthLayout from "@/components/AuthLayout"
 import { Routes, Route } from "react-router-dom"
 import LandingPage from "./LandingPage" 
 import LoginPage from "./authentication/login"
@@ -29,25 +25,31 @@ function App() {
   // const [count, setCount] = useState(0)
 
   return (
-    <div>
-      <Routes>
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="/patient/dashboard" element={<DashBoardPage />} />
-        <Route path="/patient/feedback" element={<FeedBackPage />} />
-        <Route path="/patient/profile" element={<ProfilePage />} />
-        <Route path="/patient/chatbot" element={<ChatbotPage />} />
-        <Route path="/patient/appointments" element={<AppointmentsPage />} />
-        <Route path="/patient/appointments/book-appointment" element={<BookAppointmentPage />} />
-        <Route path="/patient/health-info" element={<HealthInfoPage />} />
-        <Route path="/patient/records" element={<RecordsPage />} />
-        <Route path="/patient/symptom-checker" element={<SymptomCheckerPage />} />
-        <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
-        <Route path="/admin/system-config" element={<SystemConfig />} />
-        <Route path="/admin/user-management" element={<UserManagement />} />
-        <Route path="/admin/feedback" element={<FeedbackPage />} />
-      </Routes>
+    <div className="relative">
+      <div className="relative">
+        <FadeTransition>
+          <Routes>
+            <Route element={<AuthLayout />}>
+              <Route path="/" element={<LandingPage />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/register" element={<RegisterPage />} />
+            </Route>
+            <Route path="/patient/dashboard" element={<DashBoardPage />} />
+            <Route path="/patient/feedback" element={<FeedBackPage />} />
+            <Route path="/patient/profile" element={<ProfilePage />} />
+            <Route path="/patient/chatbot" element={<ChatbotPage />} />
+            <Route path="/patient/appointments" element={<AppointmentsPage />} />
+            <Route path="/patient/appointments/book-appointment" element={<BookAppointmentPage />} />
+            <Route path="/patient/health-info" element={<HealthInfoPage />} />
+            <Route path="/patient/records" element={<RecordsPage />} />
+            <Route path="/patient/symptom-checker" element={<SymptomCheckerPage />} />
+            <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
+            <Route path="/admin/system-config" element={<SystemConfig />} />
+            <Route path="/admin/user-management" element={<UserManagement />} />
+            <Route path="/admin/feedback" element={<FeedbackPage />} />
+          </Routes>
+        </FadeTransition>
+      </div>
     </div>
   )
 }

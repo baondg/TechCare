@@ -62,7 +62,7 @@ export function UserRoles() {
 
         <div className="grid gap-8 md:grid-cols-3">
           {roles.map((role) => (
-            <Card key={role.title} className="border-border/40 bg-card">
+            <Card key={role.title} className="card-feature card-feature-hover border-border/40 bg-card">
               <CardContent className="pt-6">
                 <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-lg bg-primary/10">
                   <role.icon className="h-7 w-7 text-primary" />

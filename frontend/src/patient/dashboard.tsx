@@ -2,123 +2,181 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Calendar, FileText, MessageSquare, Pill, Activity, Clock, TrendingUp, BotMessageSquare, HeartPlus } from "lucide-react"
+import { Calendar, FileText, MessageSquare, Pill, Activity, Clock, TrendingUp, BotMessageSquare, HeartPlus, Bell,ChevronRight,User } from "lucide-react"
 import { Link } from "react-router-dom";
 import { PatientLayout } from "@/components/patient-layout"
 import { CollapsibleSection } from "@/components/collapsible-section"
+import NetworkBackground from "@/components/NetworkBackground";
 
 export default function PatientDashboard() {
   return (
     <PatientLayout>
-      <div className="space-y-6">
-        <div>
-          <h2 className="text-3xl font-bold">Welcome, Data:Name</h2>
-          <p className="text-muted-foreground">Here's your health overview</p>
+      <NetworkBackground/>
+      <div className="relative z-10 space-y-8 pb-12">
+        {/* Header Section với gradient text */}
+        
+        <div className="relative">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-4xl font-bold mb-2 bg-linear-to-r from-[#06b6d4] via-[#0891b2] to-[#06b6d4] bg-clip-text text-transparent animate-gradient">
+                Welcome, Data:user!
+              </h2>
+              <p className="text-slate-600 text-lg">Here's your health overview for today</p>
+            </div>
+            <Button className="btn-gradient flex items-center gap-2 h-12">
+              <Bell className="h-5 w-5" />
+              <span className="hidden sm:inline">Notifications</span>
+            </Button>
+          </div>
         </div>
 
-        <CollapsibleSection title="Quick Actions" description="Access key features" defaultOpen={true}>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Card className="hover:shadow-md transition-shadow cursor-pointer">
-              <Link to="/patient/appointments">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Upcomming Visit on</CardTitle>
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">Data:DateTime</div>
-                  <p className="text-xs text-muted-foreground">Data:Doctor</p>
-                </CardContent>
-              </Link>
+        {/* Quick Stats Cards - Design mới với gradient border */}
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          <Link to="/patient/appointments">
+            <Card className="card-feature card-feature-hover cursor-pointer h-full group">
+              <CardContent className="p-6">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="card-icon-wrapper">
+                    <Calendar className="h-7 w-7" />
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-slate-400 group-hover:text-cyan-500 transition-colors" />
+                </div>
+                <h3 className="text-sm font-medium text-slate-500 mb-1">Next Appointment</h3>
+                <div className="text-2xl font-bold text-slate-900 mb-1">Tomorrow</div>
+                <p className="text-sm text-slate-600">10:00 AM • Dr. Sarah</p>
+              </CardContent>
             </Card>
+          </Link>
 
-            <Card className="hover:shadow-md transition-shadow cursor-pointer">
-              <Link to="/patient/medical-record">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Current Diagnosis</CardTitle>
-                  <Activity className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">Data:ICD-10</div>
-                  <p className="text-xs text-muted-foreground">Data:Doctor</p>
-                </CardContent>
-              </Link>
+          <Link to="/patient/medical-record">
+            <Card className="card-feature card-feature-hover cursor-pointer h-full group">
+              <CardContent className="p-6">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="card-icon-wrapper">
+                    <Activity className="h-7 w-7" />
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-slate-400 group-hover:text-cyan-500 transition-colors" />
+                </div>
+                <h3 className="text-sm font-medium text-slate-500 mb-1">Current Diagnosis</h3>
+                <div className="text-2xl font-bold text-slate-900 mb-1">J06.9</div>
+                <p className="text-sm text-slate-600">Acute Upper Respiratory</p>
+              </CardContent>
             </Card>
+          </Link>
 
-            <Card className="hover:shadow-md transition-shadow cursor-pointer">
-              <Link to="/patient/records">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Recovery After</CardTitle>
-                  <HeartPlus className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">Data:Days</div>
-                  <p className="text-xs text-muted-foreground">Days</p>
-                </CardContent>
-              </Link>
+          <Link to="/patient/records">
+            <Card className="card-feature card-feature-hover cursor-pointer h-full group">
+              <CardContent className="p-6">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="card-icon-wrapper">
+                    <HeartPlus className="h-7 w-7" />
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-slate-400 group-hover:text-cyan-500 transition-colors" />
+                </div>
+                <h3 className="text-sm font-medium text-slate-500 mb-1">Recovery Progress</h3>
+                <div className="text-2xl font-bold text-slate-900 mb-1">5 Days</div>
+                <p className="text-sm text-slate-600">Est. full recovery</p>
+              </CardContent>
             </Card>
+          </Link>
 
-            <Card className="hover:shadow-md transition-shadow cursor-pointer">
-              <Link to="/patient/chatbot">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">AI Assistant</CardTitle>
-                  <BotMessageSquare className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">24/7</div>
-                  <p className="text-xs text-muted-foreground">Always available</p>
-                </CardContent>
-              </Link>
+          <Link to="/patient/chatbot">
+            <Card className="card-feature card-feature-hover cursor-pointer h-full group">
+              <CardContent className="p-6">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="card-icon-wrapper">
+                    <BotMessageSquare className="h-7 w-7" />
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-slate-400 group-hover:text-cyan-500 transition-colors" />
+                </div>
+                <h3 className="text-sm font-medium text-slate-500 mb-1">AI Assistant</h3>
+                <div className="text-2xl font-bold text-slate-900 mb-1">24/7</div>
+                <p className="text-sm text-slate-600">Always available</p>
+              </CardContent>
             </Card>
-          </div>
-        </CollapsibleSection>
+          </Link>
+        </div>
 
-        <CollapsibleSection title="Upcoming Appointments" description="Your scheduled visits" defaultOpen={true}>
+        {/* Upcoming Appointments Section */}
+        <CollapsibleSection 
+          title="Upcoming Appointments" 
+          description="Your scheduled visits" 
+          defaultOpen={true}
+        >
           <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 border rounded-lg">
-              <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-                  <Calendar className="h-6 w-6 text-primary" />
+            <Card className="card-feature-group transition-all duration-300 hover:shadow-lg ">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4 flex-1">
+                    <div className="icon-feature-card">
+                      <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-linear-to-br from-cyan-50 to-cyan-100">
+                        <Calendar className="h-7 w-7" />
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xl font-semibold mb-1">Follow-up Visit</p>
+                      <p className="text-sm text-slate-600 flex items-center gap-2">
+                        <User className="h-4 w-4" />
+                        Dr. Sarah Johnson - Cardiology
+                      </p>
+                      <p className="text-sm text-slate-500 flex items-center gap-2 mt-1">
+                        <Clock className="h-4 w-4" />
+                        Tomorrow, 10:00 AM
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" className="btn-outline">
+                      Reschedule
+                    </Button>
+                    <Button variant="outline" size="sm" className="hover:bg-red-50 hover:text-red-600 hover:border-red-300">
+                      Cancel
+                    </Button>
+                  </div>
                 </div>
-                <div>
-                  <p className="font-medium">Follow-up Visit</p>
-                  <p className="text-sm text-muted-foreground">Dr. Sarah Johnson - Cardiology</p>
-                  <p className="text-sm text-muted-foreground">Tomorrow, 10:00 AM</p>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" className="w-28">
-                    Reschedule
-                </Button>
-                <Button variant="outline" size="sm" className="w-28">
-                    Cancel
-                </Button>
-              </div>
-              
-            </div>
+              </CardContent>
+            </Card>
 
-            <div className="flex items-center justify-between p-4 border rounded-lg">
-              <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-accent/10">
-                  <Calendar className="h-6 w-6 text-accent" />
+            <Card className="card-feature-group transition-all duration-300 hover:shadow-lg">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4 flex-1">
+                    <div className="icon-feature-card">
+                      <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-50 to-emerald-100">
+                        <Calendar className="h-7 w-7 text-emerald-600" />
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xl font-semibold mb-1">General Check-up</p>
+                      <p className="text-sm text-slate-600 flex items-center gap-2">
+                        <User className="h-4 w-4" />
+                        Dr. Michael Chen - Internal Medicine
+                      </p>
+                      <p className="text-sm text-slate-500 flex items-center gap-2 mt-1">
+                        <Clock className="h-4 w-4" />
+                        Dec 20, 2025, 2:30 PM
+                      </p>
+                    </div>
+                  </div>
+                  <Button variant="outline" size="sm" className="btn-outline">
+                    Feedback
+                  </Button>
                 </div>
-                <div>
-                  <p className="font-medium">General Check-up</p>
-                  <p className="text-sm text-muted-foreground">Dr. Michael Chen - Internal Medicine</p>
-                  <p className="text-sm text-muted-foreground">Dec 20, 2025, 2:30 PM</p>
-                </div>
-              </div>
-              <Button variant="outline" size="sm" className="w-28">
-               Feedback
-              </Button>
-            </div>
+              </CardContent>
+            </Card>
           </div>
 
-          <Button className="w-full mt-4 bg-transparent" variant="outline" asChild>
-            <Link to="/patient/appointments">View All Appointments</Link>
+          <Button className="w-full mt-6 btn-outline" asChild>
+            <Link to="/patient/appointments" className="flex items-center justify-center gap-2">
+              View All Appointments
+              <ChevronRight className="h-4 w-4" />
+            </Link>
           </Button>
         </CollapsibleSection>
 
-        <div className="grid gap-6 md:grid-cols-2">
+        {/* Two Column Layout */}
+        <div className="grid gap-6 lg:grid-cols-2">
+          {/* Active Medications */}
           <CollapsibleSection
             title="Active Medications"
             description="Current prescriptions"
@@ -126,49 +184,122 @@ export default function PatientDashboard() {
             defaultOpen={true}
           >
             <div className="space-y-3">
-              <div className="flex items-center justify-between p-3 border rounded-lg">
-                <div>
-                  <p className="font-medium">Amoxicillin 500mg</p>
-                  <p className="text-sm text-muted-foreground">3 times daily - 5 days left</p>
-                </div>
-                <Clock className="h-4 w-4 text-muted-foreground" />
-              </div>
-              <div className="flex items-center justify-between p-3 border rounded-lg">
-                <div>
-                  <p className="font-medium">Vitamin D3 1000 IU</p>
-                  <p className="text-sm text-muted-foreground">Once daily - Ongoing</p>
-                </div>
-                <Clock className="h-4 w-4 text-muted-foreground" />
-              </div>
+              <Card className="card-feature-group">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="icon-feature-card">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gradient-to-br from-purple-50 to-purple-100">
+                          <Pill className="h-6 w-6 text-purple-600" />
+                        </div>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-slate-900">Amoxicillin 500mg</p>
+                        <p className="text-sm text-slate-600">3 times daily</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                        5 days left
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="card-feature-group">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="icon-feature-card">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gradient-to-br from-orange-50 to-orange-100">
+                          <Pill className="h-6 w-6 text-orange-600" />
+                        </div>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-slate-900">Vitamin D3 1000 IU</p>
+                        <p className="text-sm text-slate-600">Once daily</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                        Ongoing
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
+
+            <Button variant="outline" size="sm" className="w-full mt-4 btn-outline">
+              View All Medications
+            </Button>
           </CollapsibleSection>
 
+          {/* Recovery Progress */}
           <CollapsibleSection
             title="Recovery Progress"
             description="AI-predicted recovery timeline"
             icon={<TrendingUp className="h-5 w-5" />}
             defaultOpen={true}
           >
-            <div className="space-y-4">
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium">Overall Recovery</span>
-                  <span className="text-sm text-muted-foreground">75%</span>
+            <Card className="card-feature-group">
+              <CardContent className="p-6">
+                <div className="space-y-6">
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-sm font-semibold text-slate-700">Overall Recovery</span>
+                      <span className="text-2xl font-bold bg-gradient-to-r from-[#06b6d4] to-[#0891b2] bg-clip-text text-transparent">
+                        75%
+                      </span>
+                    </div>
+                    <div className="h-3 bg-slate-100 rounded-full overflow-hidden relative">
+                      <div 
+                        className="h-full bg-gradient-to-r from-[#06b6d4] to-[#0891b2] rounded-full transition-all duration-1000 ease-out relative overflow-hidden"
+                        style={{ width: "75%" }}
+                      >
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-gradient-to-br from-cyan-50 to-blue-50 rounded-xl border border-cyan-100">
+                    <p className="text-sm text-slate-700 leading-relaxed">
+                      <span className="font-semibold text-cyan-700">Great progress!</span> Based on your current treatment and recovery rate, you're expected to fully recover in approximately <span className="font-semibold text-cyan-700">5-7 days</span>.
+                    </p>
+                  </div>
+
+                  <Button className="w-full btn-gradient flex items-center justify-center gap-2">
+                    View Detailed Progress
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
                 </div>
-                <div className="h-2 bg-muted rounded-full overflow-hidden">
-                  <div className="h-full bg-primary rounded-full" style={{ width: "75%" }} />
-                </div>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Based on your current treatment, you're expected to fully recover in approximately 5-7 days.
-              </p>
-              <Button variant="outline" size="sm" className="w-full bg-transparent">
-                View Detailed Progress
-              </Button>
-            </div>
+              </CardContent>
+            </Card>
           </CollapsibleSection>
         </div>
       </div>
+
+      <style>{`
+        @keyframes shimmer {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(100%); }
+        }
+        
+        .animate-shimmer {
+          animation: shimmer 2s infinite;
+        }
+
+        @keyframes gradient {
+          0%, 100% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+        }
+        
+        .animate-gradient {
+          background-size: 200% 200%;
+          animation: gradient 3s ease infinite;
+        }
+      `}</style>
     </PatientLayout>
   )
 }

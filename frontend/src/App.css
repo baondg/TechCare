@@ -124,9 +124,19 @@
     @apply bg-background text-foreground;
   }
 
+  .network-bg {
+        position: fixed;
+        inset: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: 0;
+        pointer-events: none;
+        background: linear-gradient(135deg, #befbfee6 0%, #EFF6FFE6 50%, #e9d3ffe6 100%);
+    }
 
-  /*     BUTTON     */
-  .btn-gradient {
+
+  /*----------------------------------------     BUTTON     ----------------------------------------*/
+  .btn-gradient, .sidebar {
     @apply relative overflow-hidden font-semibold;
     @apply transition-transform duration-500; 
     @apply text-9xl;                            
@@ -147,33 +157,70 @@
       0 15px 12px rgba(6, 182, 212, 0.2);
   }
 
-  .btn-gradient:active {
+  .sidebar:hover {
+    background-size: 400% 400%;
+  }
+
+  .btn-gradient:active, .sidebar:active {
     transform: translateY(2px) scale(0.98); /* thay scale-3d bằng scale */
     box-shadow: 0 10px 20px rgba(6, 182, 212, 0.35);
   }
-  .btn-gradient::before {
+  .btn-gradient::before, .sidebar::before {
     content: "";
     @apply absolute inset-0 opacity-0 pointer-events-none;
     background: radial-gradient(circle at center, rgba(255,255,255,0.4) 0%, transparent 70%);
     transition: opacity 0.5s, transform 0.5s;
     transform: scale(0);
   }
-  .btn-gradient:hover::before {
+  .btn-gradient:hover::before, .sidebar:hover::before {
     opacity: 1;
     transform: scale(2);
   }
-  .btn-gradient::after {
+  .btn-gradient::after, .sidebar::after {
     content: "";
     @apply absolute inset-0 opacity-0 pointer-events-none;
     background: radial-gradient(circle at center, rgba(255,255,255,0.6) 0%, transparent 60%);
     transform: scale(0);
     transition: transform 0s, opacity 0s;
   }
-  .btn-gradient:active::after {
+  .btn-gradient:active::after, .sidebar:active:after {
     opacity: 1;
     transform: scale(4);
     transition: transform 0.6s ease-out, opacity 0.6s ease-out;
   }
+
+  nav a {
+  @apply relative flex items-center gap-3;
+}
+
+/* Chỉ underline dưới text */
+nav a .nav-text {
+  position: relative;
+  display: inline-block;
+}
+
+/* Underline mặc định (ẩn) */
+nav a .nav-text::after {
+  content: '';
+  position: absolute;
+
+  left: 50%;               /* nằm giữa chữ */
+  bottom: -2px;
+  height: 2px;
+  width: 0;                /* bắt đầu là 0 */
+  transform: translateX(-50%); /* căn giữa */
+
+  background: linear-gradient(to right, #0891b2, #06b6d4, #0891b2);
+  border-radius: 999px;
+
+  transition: width 0.3s ease-out;
+}
+
+/* Hover: underline dài bằng đúng chữ */
+nav a:not(.sidebar):hover .nav-text::after {
+  width: 100%;
+}
+
   /* NÚT OUTLINE – BAN ĐẦU: NỀN TRẮNG, CHỮ XANH */
   .btn-outline {
     @apply relative overflow-hidden font-bold text-9xl px-8 py-4 rounded-xl;
@@ -224,6 +271,444 @@
     transform: translateY(0);
   }
 
-  
-}
+  /*----------------------------------------     CARD     ----------------------------------------*/
+  .card-feature {
+      /* Nền sáng tinh tế phù hợp với tone trang */
+      @apply 
+          border 
+          border-slate-200/60
+          bg-white
+          rounded-2xl 
+          overflow-hidden
+          relative;
 
+      /* Shadow nhẹ nhàng, chuyên nghiệp */
+      box-shadow: 
+          0 4px 6px -1px rgba(0, 0, 0, 0.05),
+          0 2px 4px -1px rgba(0, 0, 0, 0.03);
+
+      /* Chuyển động mượt mà */
+      @apply 
+          transition-all 
+          duration-400 
+          ease-out;
+  }
+
+  /* Hiệu ứng gradient overlay tinh tế */
+  .card-feature::before {
+      content: '';
+      @apply 
+          absolute 
+          inset-0 
+          bg-linear-to-br 
+          from-cyan-50/0 
+          to-cyan-100/0 
+          rounded-2xl 
+          transition-all 
+          duration-400 
+          pointer-events-none;
+  }
+
+  .card-feature-hover:hover {
+      /* Nâng nhẹ card */
+      @apply 
+          -translate-y-2;
+
+      /* Viền cyan như CTA button */
+      @apply 
+          border-cyan-400/60;
+
+      /* Shadow cyan phù hợp với brand color */
+      box-shadow: 
+          0 20px 40px -10px rgba(6, 182, 212, 0.25),
+          0 10px 20px -5px rgba(6, 182, 212, 0.15),
+          0 0 0 1px rgba(6, 182, 212, 0.1);
+  }
+
+
+
+  /* Accent line top - màu cyan brand */
+  .card-feature::before {
+      content: '';
+      @apply absolute top-0 left-1 right-1 h-1 rounded-t-2xl;
+      
+  }
+
+  /* Khi hover → sáng mạnh hơn + nhanh hơn */
+  .card-feature-hover:hover::before {
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        #06b6d4 30%,
+        #0891b2 50%,
+        #06b6d4 70%,
+        transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: flowLine 3s linear infinite;
+  opacity: 1;
+  box-shadow: 0 0 100px rgba(6, 182, 212, 0.8);
+  }
+
+  /* Animation chảy liên tục */
+  @keyframes flowLine {
+      0% { background-position: 0% 0; }
+      0% { background-position: 200% 0; }
+  }
+  
+
+  .card-icon-wrapper {
+      @apply 
+          mb-5 
+          inline-flex 
+          h-16 
+          w-16 
+          items-center 
+          justify-center 
+          rounded-2xl 
+          relative
+          transition-all
+          duration-400;
+      
+      /* Gradient cyan giống như brand */
+      background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+      
+      /* Shadow cyan tinh tế */
+      box-shadow: 
+          0 8px 20px -4px rgba(6, 182, 212, 0.3),
+          0 4px 10px -2px rgba(6, 182, 212, 0.2);
+  }
+
+  /* Icon scale nhẹ khi hover */
+  .card-feature-hover:hover .card-icon-wrapper {
+      @apply 
+          scale-110;
+      
+      /* Shadow mạnh hơn khi hover */
+      box-shadow: 
+          0 12px 28px -6px rgba(6, 182, 212, 0.45),
+          0 6px 14px -3px rgba(6, 182, 212, 0.3),
+          0 0 24px rgba(6, 182, 212, 0.2);
+  }
+
+  /* Ring effect xung quanh icon */
+  .card-icon-wrapper::before {
+      content: '';
+      @apply 
+          absolute 
+          inset-0 
+          rounded-2xl 
+          transition-all 
+          duration-400;
+      border: 2px solid rgba(6, 182, 212, 0);
+  }
+
+  .card-feature-hover:hover .card-icon-wrapper::before {
+      border-color: rgba(6, 182, 212, 0.3);
+      transform: scale(1.2);
+  }
+
+  /* Icon color - trắng để nổi bật trên nền cyan */
+  .card-icon-wrapper svg,
+  .card-icon-wrapper i {
+      @apply 
+          text-white 
+          transition-transform 
+          duration-400;
+  }
+
+  .card-feature-hover:hover .card-icon-wrapper svg,
+  .card-feature-hover:hover .card-icon-wrapper i {
+      transform: scale(1.1);
+  }
+
+/* TITLE H3 – CÓ GẠCH CHÂN CHẠY KHI HOVER (SIÊU ĐẸP) */
+  .card-feature h3 {
+      @apply 
+          relative
+          inline-block
+          text-slate-900 
+          font-bold 
+          text-xl 
+          mb-3
+          left-3
+          -top-1
+          transition-all
+          duration-400
+          ease-out;
+      
+      /* Dòng gạch nền (luôn có, nhưng rất mờ) */
+      &::after {
+          content: '';
+          @apply 
+              
+              absolute 
+              left-0
+              -bottom-1 
+              w-0 
+              h-0.5 
+              bg-cyan-500 
+              rounded-full
+              transition-all 
+              duration-500 
+              ease-out;
+      }
+  }
+
+  /* Khi hover card → gạch chân chạy từ trái sang + sáng rực */
+  .card-feature-hover:hover h3 {
+      @apply text-cyan-600;
+
+      &::after {
+          @apply w-full;
+          background: linear-gradient(to right, #06b6d4, #0891b2);
+          box-shadow: 0 0 15px rgba(6, 182, 212, 0.6);
+      }
+  }
+
+  /* Description text - màu xám như body text */
+  .card-feature p {
+      @apply 
+          text-slate-600 
+          text-base 
+          leading-relaxed
+          transition-colors
+          duration-300;
+  }
+
+  .card-feature-hover:hover p {
+      @apply 
+          text-slate-700;
+  }
+
+  /* Padding cho card content */
+  .card-feature-content {
+      @apply 
+          p-8;
+  }
+
+  /* Responsive cho mobile */
+  @media (max-width: 640px) {
+      .card-feature-content {
+          @apply p-6;
+      }
+      
+      .card-icon-wrapper {
+          @apply h-14 w-14;
+      }
+  }
+
+  /* Optional: Thêm badge/tag nếu cần */
+  .card-badge {
+      @apply 
+          inline-flex 
+          items-center 
+          px-3 
+          py-1 
+          rounded-full 
+          text-xs 
+          font-medium 
+          bg-cyan-100 
+          text-cyan-700
+          mb-4;
+  }
+
+  /* Optional: Link/Button trong card */
+  .card-link {
+      @apply 
+          inline-flex 
+          items-center 
+          gap-2 
+          text-cyan-600 
+          font-medium 
+          mt-4
+          transition-all
+          duration-300;
+  }
+
+  .card-feature-hover:hover .card-link {
+      @apply 
+          text-cyan-700 
+          gap-3;
+  }
+
+  .card-link svg {
+      @apply 
+          transition-transform 
+          duration-300;
+  }
+
+  .card-feature-hover:hover .card-link svg {
+      transform: translateX(4px);
+  }
+
+  /*----------------------------- Input Fields -----------------------------*/
+    .custom-input {
+        @apply transition-all duration-100 border border-gray-300 rounded-xl;
+    }
+
+    .custom-input:focus {
+        @apply bg-white;
+        background: 
+            linear-gradient(#ffffff, #ffffff) padding-box,
+            linear-gradient(90deg, #06b6d4, #22d3ee) border-box !important;
+        border: 3px solid transparent;
+        border-radius: 12px;
+    }
+
+    .custom-input:hover {
+        @apply border-cyan-500 ring-4 ring-cyan-500/20 outline-none border-3;
+        box-shadow: 0 0 0 4px rgba(6, 182, 212, 0.15);
+    }
+
+  /*----------------------------- Tab triggers -----------------------------*/
+    .tabs-trigger {
+        @apply transition-all duration-300 rounded-xl;
+    }
+
+    .tabs-trigger:hover {
+        @apply bg-gray-100/80 border-2 border-[#06b6d4];
+    }
+
+    .tabs-trigger[data-state="active"] {
+        @apply bg-linear-to-br from-[#06b6d4] to-[#0891b2] shadow-2xl;
+        color: #EFEFEF !important;
+    }
+    .tabs-trigger:not([data-state="active"]) {
+        position: relative !important;
+    }
+    .tabs-trigger:not([data-state="active"]):hover {
+        @apply bg-white/95 shadow-xl;
+        color: #0891b2;
+    }
+    .tabs-trigger:not([data-state="active"]):hover {
+        box-shadow: 
+            0 0 0 2px #06b6d4,
+            0 0 20px rgba(6, 182, 212, 0.4);
+        outline: 2px solid transparent;
+        outline-offset: 2px;
+    }
+        .tabs-trigger:hover {
+        transform: translateY(-2px) scale(1.02);
+    }
+
+/* ================== POPOVER + SELECT ================== */
+    .custom-popover {
+        @apply relative overflow-hidden rounded-xl transition-all duration-100 cursor-pointer shadow-sm;
+        background: white;
+        outline: 1px solid #d1d3d6;
+        background-clip: padding-box;
+    }
+
+    /* HOVER – viền sáng + glow */
+    .custom-popover:hover {
+        @apply shadow-lg;
+        outline: 3px solid #e5e7eb;
+        outline-color: #06b6d4;
+        box-shadow: 0 0 0 4px rgba(6, 182, 212, 0.15);
+    }
+
+    .custom-popover[data-state="open"] {
+        background: 
+            linear-gradient(#ffffff, #ffffff) padding-box,
+            linear-gradient(90deg, #06b6d4, #22d3ee, #06b6d4) border-box !important;
+        outline: 3px solid #e5e7eb;
+        outline-color: #06b6d4 !important;
+    }
+
+    .custom-select {
+        @apply transition-all duration-200 rounded-xl;
+        border-radius: 12px !important;
+    }
+
+    .custom-select:hover {
+        @apply outline-3 outline-cyan-500;
+    }
+
+    .custom-select[data-state="open"] {
+        @apply bg-white;
+        background: 
+            linear-gradient(#ffffff, #ffffff) padding-box,
+            #06b6d4 border-box !important;
+        border: 3px solid transparent !important;
+    }
+
+    /* ================== CARD HOVER GROUP ================== */
+    .card-feature-group {
+        @apply 
+            border 
+            border-slate-200/60
+            bg-white
+            rounded-2xl 
+            overflow-hidden
+            relative;
+        box-shadow: 
+            0 4px 6px -1px rgba(0, 0, 0, 0.05),
+            0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    }
+
+    /*  ICON  */
+    .card-feature-group svg {
+        @apply 
+            transition-all 
+            duration-400
+            ease-out;
+        color: #64748b;
+    }
+    .card-feature-group:hover .icon-feature-card svg {
+        color: #06b6d4;
+        -webkit-background-clip: text;
+        background-clip: text;
+        filter: drop-shadow(0 0 8px rgba(6, 182, 212, 0.5));
+    }
+
+    /* Icon mặc định (không hover) */
+    .icon-feature-card svg {
+        @apply transition-all duration-500 ease-out;
+        color: #64748b;
+    }
+
+    /*  TITLE - ĐỔI MÀU + GẠCH CHÂN TỪ GIỮA  */
+    .card-feature-group .text-xl {
+        @apply relative inline-block transition-all duration-500 ease-out;
+        color: #64748b;
+        background: linear-gradient(135deg, #0f172a, #1e293b);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    /* Gạch chân gradient từ giữa */
+    .card-feature-group .text-xl::after {
+        content: '';
+        @apply absolute h-0.5 rounded-full transition-all duration-600 ease-out;
+        left: 50%;
+        bottom: -6px;
+        width: 0;
+        transform: translateX(-50%);
+        background: linear-gradient(to right, #06b6d4, #22d3ee);
+        box-shadow: 0 0 12px rgba(6, 182, 212, 0.6);
+        opacity: 0;
+    }
+
+    /* Hover title + gạch chân */
+    .card-feature-group:hover .text-xl {
+        background: linear-gradient(135deg, #06b6d4, #22d3ee);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .card-feature-group:hover .text-xl::after {
+        width: 100%;
+        opacity: 1;
+    }
+
+
+    .card-feature-group:hover {
+        box-shadow: 
+            0 8px 16px -4px rgba(0, 0, 0, 0.08),
+            0 4px 8px -2px rgba(0, 0, 0, 0.04);
+        
+    }
+}

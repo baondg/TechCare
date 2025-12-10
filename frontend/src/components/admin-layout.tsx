@@ -24,11 +24,15 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
           {/* Header */}
           <header className="w-full sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
             <div className="w-full flex h-16 items-center justify-between pl-4 pr-4">
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-                  <Activity className="h-5 w-5 text-primary-foreground" />
+              <div className="group flex items-center justify-center gap-2">
+                <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-linear-to-br from-[#06b6d4] to-[#0891b2] p-0.5 shadow-lg">
+                  <div className="flex h-full w-full items-center justify-center rounded-lg">
+                    <Activity className="h-6 w-6 text-[#FFFFFF]" />
+                  </div>
                 </div>
-                <span className="text-xl font-bold">TechCare</span>
+                <span className="text-2xl font-bold bg-linear-to-r from-[#06b6d4] to-[#0891b2] bg-clip-text text-transparent">
+                  TechCare
+                </span>
               </div>
     
               <div className="flex items-center gap-4">

@@ -31,9 +31,9 @@ export default function PatientDashboard() {
         </div>
 
         {/* Quick Stats Cards - Design mới với gradient border */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 ">
           <Link to="/patient/appointments">
-            <Card className="card-feature card-feature-hover cursor-pointer h-full group">
+            <Card className="card-feature card-feature-hover cursor-pointer h-full group border-r border-white/40 sticky top-16 bg-white/80 backdrop-blur-xl shadow-[4px_0_20px_rgba(0,0,0,0.05)] z-40">
               <CardContent className="p-6">
                 <div className="flex items-start justify-between mb-4">
                   <div className="card-icon-wrapper">
@@ -49,7 +49,7 @@ export default function PatientDashboard() {
           </Link>
 
           <Link to="/patient/medical-record">
-            <Card className="card-feature card-feature-hover cursor-pointer h-full group">
+            <Card className="card-feature card-feature-hover cursor-pointer h-full group border-r border-white/40 sticky top-16 bg-white/80 backdrop-blur-xl shadow-[4px_0_20px_rgba(0,0,0,0.05)] z-40">
               <CardContent className="p-6">
                 <div className="flex items-start justify-between mb-4">
                   <div className="card-icon-wrapper">
@@ -65,7 +65,7 @@ export default function PatientDashboard() {
           </Link>
 
           <Link to="/patient/records">
-            <Card className="card-feature card-feature-hover cursor-pointer h-full group">
+            <Card className="card-feature card-feature-hover cursor-pointer h-full group border-r border-white/40 sticky top-16 bg-white/80 backdrop-blur-xl shadow-[4px_0_20px_rgba(0,0,0,0.05)] z-40">
               <CardContent className="p-6">
                 <div className="flex items-start justify-between mb-4">
                   <div className="card-icon-wrapper">
@@ -81,7 +81,7 @@ export default function PatientDashboard() {
           </Link>
 
           <Link to="/patient/chatbot">
-            <Card className="card-feature card-feature-hover cursor-pointer h-full group">
+            <Card className="card-feature card-feature-hover cursor-pointer h-full group border-r border-white/40 sticky top-16 bg-white/80 backdrop-blur-xl shadow-[4px_0_20px_rgba(0,0,0,0.05)] z-40">
               <CardContent className="p-6">
                 <div className="flex items-start justify-between mb-4">
                   <div className="card-icon-wrapper">
@@ -166,7 +166,7 @@ export default function PatientDashboard() {
             </Card>
           </div>
 
-          <Button className="w-full mt-6 btn-outline" asChild>
+          <Button className="w-full mt-6 btn-gradient transition-transform duration-500" asChild>
             <Link to="/patient/appointments" className="flex items-center justify-center gap-2">
               View All Appointments
               <ChevronRight className="h-4 w-4" />
@@ -231,7 +231,7 @@ export default function PatientDashboard() {
               </Card>
             </div>
 
-            <Button variant="outline" size="sm" className="w-full mt-4 btn-outline">
+            <Button variant="outline" size="sm" className="w-full mt-4 btn-gradient transition-transform duration-500">
               View All Medications
             </Button>
           </CollapsibleSection>
@@ -269,7 +269,7 @@ export default function PatientDashboard() {
                     </p>
                   </div>
 
-                  <Button className="w-full btn-gradient flex items-center justify-center gap-2">
+                  <Button className="w-full btn-gradient transition-transform duration-500 flex items-center justify-center gap-2">
                     View Detailed Progress
                     <ChevronRight className="h-4 w-4" />
                   </Button>

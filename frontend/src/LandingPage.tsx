@@ -12,9 +12,9 @@ import MainCarousel from "@/components/MainCarousel";
 
 function App() {
   return (
-    <div className="relative max-h-screen -top-50">
+    <div className="relative h-370">
 
-      <div className="relative z-10">
+      <div className="relative z-10min-h-screen overflow-y-auto hide-scrollbar">
         <Header />
 
         <MainCarousel

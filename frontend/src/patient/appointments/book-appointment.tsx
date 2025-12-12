@@ -37,6 +37,7 @@ export default function BookAppointmentPage() {
     { value: "orthopedics", label: "Orthopedics" },
   ]
   const [selectedDiseaseGroup, setSelectedDiseaseGroup] = useState<string | null>(null)
+  const [checkedSymptom, setCheckedSymptom] = useState<"yes" | "no" | null>(null)
 
   // Mock time slots data
   const timeSlots: TimeSlot[] = [
@@ -130,6 +131,10 @@ export default function BookAppointmentPage() {
   for (let i = 0; i < days.length; i += 7) {
     weeks.push(days.slice(i, i + 7))
   }
+
+  const filteredSlots = timeSlots.filter(
+    slot => slot.department.toLowerCase() === selectedDepartment.toLowerCase()
+  )
 
   return (
     <PatientLayout>
@@ -238,92 +243,140 @@ export default function BookAppointmentPage() {
 
           {/* Time Slots Section - Right Side */}
           <Card className="flex-1 p-6 flex flex-col">
-            <div className="mb-4">
+            <div className="mb-6">
               <h3 className="text-xl font-semibold mb-4">
                 Available Slots - {selectedDate} {currentDate.toLocaleString("en-US", { month: "long" })}
               </h3>
-              
-              {/* Step 1: Disease Group Selector */}
-              <div className="mb-6">
-                <label className="text-sm font-medium text-muted-foreground">
-                  Select specialty
-                </label>
-                <Select
-                  value={selectedDepartment}
-                  onValueChange={(value) => {
-                    setSelectedDepartment(value)
-                  }}
-                >
-                  <SelectTrigger className="w-full mt-2">
-                    <SelectValue placeholder="Select specialty" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-96">
-                    {specialtyGroups.map((group) => (
-                      <SelectItem key={group.value} value={group.value}>
-                        {group.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
 
-            {/* Scrollable Time Slots List */}
-            <div className="flex-1 overflow-y-auto pr-2">
-              <div className="space-y-3">
-                {timeSlots.filter((slot) => {
-                      if (selectedDepartment === "all") return true
-                      // Map giá trị combobox về tên khoa tiếng Anh thực tế
-                      const departmentMap: Record<string, string> = {
-                        cardiology: "Cardiology",
-                        orthopedics: "Orthopedics",
-                        dermatology: "Dermatology",
-                        ophthalmology: "Ophthalmology",
-                        eye: "Ophthalmology",
-                        eye1: "Ophthalmology",
-                        eye2: "Ophthalmology",
-                        eye3: "Ophthalmology",
-                        ent: "Otorhinolaryngology", // nếu có khoa này
-                      }
-                      return slot.department === (departmentMap[selectedDepartment] || selectedDepartment)
-                    }).map((slot, index) => (
-                  <button
-                    key={index}
-                    onClick={() => handleBookSlot(slot)}
-                    disabled={!slot.available}
-                    className={`
-                      w-full p-4 rounded-lg border text-left transition-all flex items-center justify-between
-                      ${slot.available
-                        ? "border-border hover:border-primary hover:shadow-md cursor-pointer bg-card hover:bg-accent/50"
-                        : "border-border bg-muted/50 opacity-60 cursor-not-allowed"
-                      }
-                    `}
-                  >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="text-xl font-bold text-primary">{slot.time}</div>
-                        <span
-                          className={`
-                            text-xs px-2 py-1 rounded font-medium
-                            ${slot.available ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300" : "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"}
-                          `}
-                        >
-                          {slot.available ? "Available" : "Booked"}
-                        </span>
-                      </div>
-                      <div className="text-sm font-semibold mb-1">{slot.doctor}</div>
-                      <div className="text-xs text-muted-foreground">{slot.room}</div>
-                    </div>
-                    {slot.available && (
-                      <div className="ml-4">
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                          <ChevronRight className="w-4 h-4 text-primary" />
-                        </div>
-                      </div>
-                    )}
-                  </button>
-                ))}
+              {/* ❗ NEW — Question */}
+              <div className="mb-6 p-4 border rounded-lg bg-muted/40">
+                <p className="font-medium mb-3">
+                  Have you checked your symptoms and determined which department you should visit?
+                </p>
+
+                <div className="flex items-center gap-6">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="checkedSymptom"
+                      value="yes"
+                      checked={checkedSymptom === "yes"}
+                      onChange={() => {
+                        setCheckedSymptom("yes")
+                        setSelectedDepartment("")
+                      }}
+                    />
+                    <span>Yes, I know which department I should visit</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="checkedSymptom"
+                      value="no"
+                      checked={checkedSymptom === "no"}
+                      onChange={() => {
+                        setCheckedSymptom("no")
+                        setSelectedDepartment("outpatinent") // auto chọn tổng quát
+                      }}
+                    />
+                    <span>No, not yet</span>
+                  </label>
+                </div>
               </div>
+
+              {/* ❗ NEW — Dropdown chọn khoa phụ thuộc radio */}
+              {checkedSymptom !== null && (
+                <div className="mb-6">
+
+                  <Select
+                    value={selectedDepartment}
+                    onValueChange={(value) => setSelectedDepartment(value)}
+                  >
+                    <SelectTrigger className="w-full mt-2">
+                      <SelectValue placeholder="Select specialty" />
+                    </SelectTrigger>
+
+                    <SelectContent className="max-h-96">
+
+                      {/* Nếu người dùng chọn "Chưa" → chỉ hiển thị OPD */}
+                      {checkedSymptom === "no" && (
+                        <SelectItem value="outpatinent">Outpatient Department</SelectItem>
+                      )}
+
+                      {/* Nếu chọn "Có" → hiển thị toàn bộ */}
+                      {checkedSymptom === "yes" &&
+                        specialtyGroups.map((group) => (
+                          <SelectItem key={group.value} value={group.value}>
+                            {group.label}
+                          </SelectItem>
+                        ))
+                      }
+
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Timeslot */}
+              {checkedSymptom !== null && selectedDepartment !== "" && (
+                <div className="flex-1 overflow-y-auto pr-2">
+                  <div className="space-y-3">
+                    {timeSlots.filter((slot) => {
+                          if (selectedDepartment === "all") return true
+                          // Map giá trị combobox về tên khoa tiếng Anh thực tế
+                          const departmentMap: Record<string, string> = {
+                            cardiology: "Cardiology",
+                            orthopedics: "Orthopedics",
+                            dermatology: "Dermatology",
+                            ophthalmology: "Ophthalmology",
+                            eye: "Ophthalmology",
+                            eye1: "Ophthalmology",
+                            eye2: "Ophthalmology",
+                            eye3: "Ophthalmology",
+                            ent: "Otorhinolaryngology", // nếu có khoa này
+                          }
+                          return slot.department === (departmentMap[selectedDepartment] || selectedDepartment)
+                        }).map((slot, index) => (
+                      <button
+                        key={index}
+                        onClick={() => handleBookSlot(slot)}
+                        disabled={!slot.available}
+                        className={`
+                          w-full p-4 rounded-lg border text-left transition-all flex items-center justify-between
+                          ${slot.available
+                            ? "border-border hover:border-primary hover:shadow-md cursor-pointer bg-card hover:bg-accent/50"
+                            : "border-border bg-muted/50 opacity-60 cursor-not-allowed"
+                          }
+                        `}
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <div className="text-xl font-bold text-primary">{slot.time}</div>
+                            <span
+                              className={`
+                                text-xs px-2 py-1 rounded font-medium
+                                ${slot.available ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300" : "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"}
+                              `}
+                            >
+                              {slot.available ? "Available" : "Booked"}
+                            </span>
+                          </div>
+                          <div className="text-sm font-semibold mb-1">{slot.doctor}</div>
+                          <div className="text-xs text-muted-foreground">{slot.room}</div>
+                        </div>
+                        {slot.available && (
+                          <div className="ml-4">
+                            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                              <ChevronRight className="w-4 h-4 text-primary" />
+                            </div>
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </Card>
         </div>

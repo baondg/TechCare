@@ -119,120 +119,143 @@ export default function SymptomChecker() {
 
   return (
     <PatientLayout>
-      <div className="space-y-8 max-w-4xl mx-auto">
+      <div className="space-y-8 max-w-6xl">
         {/* Header */}
-        <div className="text-center">
-          <h2 className="text-4xl font-bold flex items-center justify-center gap-3">
-            <Activity className="h-10 w-10 text-primary" />
-            AI Symptom Checker
-          </h2>
-          <p className="text-muted-foreground mt-3 text-lg">
-            Tap on any symptom you're experiencing
-          </p>
+        <div className="flex items-center justify-between w-full">
+          {/* Header Left */}
+          <div>
+            <h2 className="text-3xl font-bold text-gray-900">Symptom checker</h2>
+            <p className="text-muted-foreground mt-3 text-lg">
+              Tap on any symptom you're experiencing
+            </p>
+          </div>
+
+          {/* Buttons Right */}
+          <div className="flex gap-4">
+            <Button
+              size="lg"
+              onClick={handleAnalyze}
+              disabled={selectedSymptoms.length === 0 || isAnalyzing}
+              className="min-w-56 text-lg py-5"
+            >
+              {isAnalyzing ? "Analyzing..." : `Analyze (${selectedSymptoms.length} symptoms)`}
+            </Button>
+
+            {selectedSymptoms.length > 0 && (
+              <Button size="lg" variant="outline" onClick={() => setSelectedSymptoms([])}>
+                Clear All
+              </Button>
+            )}
+          </div>
         </div>
 
-        {/* Selected Symptoms */}
-        {selectedSymptoms.length > 0 && (
-          <Card className="border-2 border-primary/20">
+        
+
+
+        <div className="grid grid-cols-2 max-w-full gap-6">
+        {/* Symptom Grid */}
+          <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Clock className="h-5 w-5" />
-                Your Symptoms ({selectedSymptoms.length})
-              </CardTitle>
+              <CardTitle>Select Your Symptoms</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex flex-wrap gap-3">
-                {selectedSymptoms.map((s) => {
-                  const durationLabel = durationOptions.find(d => d.value === s.duration)?.short
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {commonSymptoms.map((symptom) => {
+                  const isSelected = selectedSymptoms.some(s => s.name === symptom)
                   return (
-                    <Badge
-                      key={s.name}
-                      variant="secondary"
-                      className={`text-sm py-2 px-4 font-medium ${getSeverityColor(s.severity)}`}
+                    <Button
+                      key={symptom}
+                      variant={isSelected ? "default" : "outline"}
+                      className={`h-12 text-lg font-medium transition-all ${isSelected ? "ring-4 ring-primary/30" : ""}`}
+                      onClick={() => openDialog(symptom)}
                     >
-                      <span className="font-semibold">{s.name}</span>
-                      <span className="mx-1">•</span>
-                      <span className="uppercase">{s.severity}</span>
-                      <span className="mx-1">•</span>
-                      <span className="text-xs">{durationLabel}</span>
-                      <button onClick={() => removeSymptom(s.name)} className="ml-2 hover:opacity-70">
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </Badge>
+                      {symptom}
+                    </Button>
                   )
                 })}
               </div>
             </CardContent>
           </Card>
-        )}
 
-        {/* Symptom Grid */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Select Your Symptoms</CardTitle>
-            <CardDescription>Click any symptom you have</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {commonSymptoms.map((symptom) => {
-                const isSelected = selectedSymptoms.some(s => s.name === symptom)
-                return (
-                  <Button
-                    key={symptom}
-                    variant={isSelected ? "default" : "outline"}
-                    className={`h-24 text-lg font-medium transition-all ${isSelected ? "ring-4 ring-primary/30" : ""}`}
-                    onClick={() => openDialog(symptom)}
-                  >
-                    {symptom}
-                  </Button>
-                )
-              })}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Action */}
-        <div className="flex justify-center gap-6">
-          <Button
-            size="lg"
-            onClick={handleAnalyze}
-            disabled={selectedSymptoms.length === 0 || isAnalyzing}
-            className="min-w-64 text-lg py-6"
-          >
-            {isAnalyzing ? "Analyzing..." : `Analyze (${selectedSymptoms.length} symptoms)`}
-          </Button>
-          {selectedSymptoms.length > 0 && (
-            <Button size="lg" variant="outline" onClick={() => setSelectedSymptoms([])}>
-              Clear All
-            </Button>
-          )}
-        </div>
-
-        {/* Results */}
-        {results.length > 0 && (
           <div className="space-y-6">
-            <Alert className="border-red-300 bg-red-50">
-              <AlertCircle className="h-6 w-6 text-red-600" />
-              <AlertDescription className="text-red-900 font-medium text-lg">
-                This is not a medical diagnosis. Please consult a doctor for accurate assessment.
-              </AlertDescription>
-            </Alert>
-            {results.map((r, i) => (
-              <Card key={i} className={`border-2 ${r.severity === "high" ? "border-red-400 bg-red-50" : "border-amber-300"}`}>
+            {/* Selected Symptoms */}
+            <Card className="border-2 border-primary/20">
                 <CardHeader>
-                  <CardTitle className="text-2xl flex items-center gap-3">
-                    {r.severity === "high" ? <AlertCircle className="h-8 w-8 text-red-600" /> : null}
-                    {r.condition}
+                  <CardTitle className="flex items-center gap-2">
+                    <Clock className="h-5 w-5" />
+                    Your Symptoms ({selectedSymptoms.length})
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-3 text-lg">
-                  <p><strong>Recommendation:</strong> {r.recommendation}</p>
-                  <p>{r.details}</p>
+              {selectedSymptoms.length > 0 && (
+                <CardContent>
+                  <div className="flex flex-wrap gap-3">
+                    {selectedSymptoms.map((s) => {
+                      const durationLabel = durationOptions.find(d => d.value === s.duration)?.short
+                      return (
+                        <Badge
+                          key={s.name}
+                          variant="secondary"
+                          className={`text-sm py-2 px-4 font-medium ${getSeverityColor(s.severity)}`}
+                        >
+                          <span className="font-semibold">{s.name}</span>
+                          <span className="mx-1">•</span>
+                          <span className="uppercase">{s.severity}</span>
+                          <span className="mx-1">•</span>
+                          <span className="text-xs">{durationLabel}</span>
+                          <button onClick={() => removeSymptom(s.name)} className="ml-2 hover:opacity-70">
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </Badge>
+                      )
+                    })}
+                  </div>
                 </CardContent>
-              </Card>
-            ))}
+              )}
+            </Card>
+
+            {/* Results */}
+            {results.length > 0 && (
+              <>
+                <Alert className="border-red-300 bg-red-50">
+                  <AlertCircle className="h-6 w-6 text-red-600" />
+                  <AlertDescription className="text-red-900 font-medium text-md">
+                    This is not a medical diagnosis. Please consult a doctor for accurate assessment.
+                  </AlertDescription>
+                </Alert>
+
+                {results.map((r, i) => (
+                  <Card
+                    key={i}
+                    className={`border-2 ${
+                      r.severity === "high"
+                        ? "border-red-400 bg-red-50"
+                        : "border-amber-300"
+                    }`}
+                  >
+                    <CardHeader>
+                      <CardTitle className="text-xl flex items-center gap-3">
+                        {r.severity === "high" && (
+                          <AlertCircle className="h-8 w-8 text-red-600" />
+                        )}
+                        {r.condition}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3 text-md">
+                      <p>
+                        <strong>Recommendation:</strong> {r.recommendation}
+                      </p>
+                      <p>{r.details}</p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </>
+            )}
           </div>
-        )}
+        </div>
+
+        
+
+        
 
         {/* Dialog chọn mức độ + thời gian */}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

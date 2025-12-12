@@ -47,7 +47,7 @@ export function AIFeatures() {
             </span>
             <span className="text-sm font-medium text-primary">Powered by AI</span>
           </div>
-          <h2 className="text-3xl font-bold tracking-tight text-balance sm:text-4xl md:text-5xl mb-4">
+          <h2 className="text-3xl font-bold tracking-tight bottom-10 text-balance sm:text-4xl md:text-5xl mb-4">
             Intelligent Healthcare Automation
           </h2>
           <p className="text-lg text-muted-foreground text-pretty leading-relaxed">
@@ -57,7 +57,7 @@ export function AIFeatures() {
 
         <div className="grid gap-8 md:grid-cols-2">
           {aiFeatures.map((feature) => (
-            <Card key={feature.title} className="card-feature card-feature-hover border-border/40 bg-card w-150">
+            <Card key={feature.title} className="card-feature card-feature-hover w-150 border-r border-white/40 sticky bg-white/80 backdrop-blur-xl shadow-[4px_0_20px_rgba(0,0,0,0.05)] z-40">
               <CardContent className="pt-6">
                 <div className={`mb-4 inline-flex h-14 w-14 items-center justify-center rounded-lg ${feature.color}`}>
                   <feature.icon className="h-7 w-7" />

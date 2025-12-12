@@ -14,7 +14,7 @@ const navigation = [
   { name: "Appointments", href: "/patient/appointments", icon: Calendar },
   { name: "Symptom Checker", href: "/patient/symptom-checker", icon: ScanHeart },
   { name: "Health Info", href: "/patient/health-info", icon: Heart },
-  { name: "Medical Records", href: "/patient/records", icon: FileText },
+  { name: "History", href: "/patient/records", icon: FileText },
   { name: "AI Chatbot", href: "/patient/chatbot", icon: BotMessageSquare },
   { name: "Profile", href: "/patient/profile", icon: User },
   { name: "Feedback", href: "/patient/feedback", icon: MessageSquare },
@@ -27,7 +27,7 @@ export function PatientLayout({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen w-screen bg-background">
       
       {/* Header */}
-      <header className="w-full sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
+      <header className="w-screen sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
         <div className="w-full flex h-16 items-center justify-between pl-4 pr-4">
           <div className="group flex items-center justify-center gap-2">
             <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-linear-to-br from-[#06b6d4] to-[#0891b2] p-0.5 shadow-lg">
@@ -53,7 +53,7 @@ export function PatientLayout({ children }: { children: React.ReactNode }) {
 
       <div className="flex min-h-[calc(100vh-4rem)] w-full">
         {/* Sidebar - Desktop */}
-        <aside className="md:flex w-64 flex-col border-r border-white/40 h-[calc(100vh-4rem)] sticky top-16 bg-white/80 backdrop-blur-xl shadow-[4px_0_20px_rgba(0,0,0,0.05)] z-40">
+        <aside className="md:flex max-h-full w-64 flex-col border-r border-white/40 sticky top-16 bg-white/80 backdrop-blur-xl shadow-[4px_0_20px_rgba(0,0,0,0.05)] z-40">
           <nav className="flex-1 space-y-2 p-4">
             <div className="flex justify-center mb-8 mt-2">
               <div className="group relative">

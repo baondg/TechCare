@@ -13,7 +13,7 @@ export default function MainCarousel({ slides }: { slides: JSX.Element[] }) {
   }, []);
 
   return (
-    <div className="relative overflow-hidden w-full min-h-screen">
+    <div className="relative overflow-hidden w-full -top-48 min-h-screen">
       {/* Slide wrapper */}
       <div
         className="flex transition-transform duration-700 ease-out"
@@ -32,7 +32,7 @@ export default function MainCarousel({ slides }: { slides: JSX.Element[] }) {
       {/* Left Arrow */}
       <button
         onClick={prev}
-        className="btn-outline transition-transform duration-500 absolute left-6 top-1/2 -translate-y-1/2 bg-white/60 hover:bg-white shadow-md p-3 rounded-full backdrop-blur"
+        className="btn-gradient transition-transform duration-500 absolute left-6 top-1/2 -translate-y-1/2 bg-white/60 hover:bg-white shadow-md p-3 rounded-full backdrop-blur"
       >
         ←
       </button>
@@ -40,7 +40,7 @@ export default function MainCarousel({ slides }: { slides: JSX.Element[] }) {
       {/* Right Arrow */}
       <button
         onClick={next}
-        className="btn-outline transition-transform duration-500 absolute right-6 top-1/2 -translate-y-1/2 bg-white/60 hover:bg-white shadow-md p-3 rounded-full backdrop-blur"
+        className="btn-gradient transition-transform duration-500 absolute right-6 top-1/2 -translate-y-1/2 bg-white/60 hover:bg-white shadow-md p-3 rounded-full backdrop-blur"
       >
         →
       </button>

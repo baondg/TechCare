@@ -49,7 +49,7 @@ export function HowItWorks() {
           {steps.map((step) => (
             <Card 
               key={step.title} 
-              className="card-feature card-feature-hover border-border/40 bg-card relative overflow-visible">
+              className="card-feature card-feature-hover overflow-visible border-r border-white/40 sticky top-16 bg-white/80 backdrop-blur-xl shadow-[4px_0_20px_rgba(0,0,0,0.05)] z-40">
               <CardContent className="pt-10">
                 <div className="absolute -top-5 left-6 z-10 inline-flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground text-lg font-bold shadow-lg bg-linear-to-br from-[#06b6d4] to-[#0891b2] p-0.5">
                   {step.step}

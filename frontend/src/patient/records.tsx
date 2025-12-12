@@ -3,7 +3,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { PatientLayout } from "@/components/patient-layout"
-import { FileText, Download, Calendar, User, Pill } from "lucide-react"
+import { FileText, Download, Calendar, User, Pill,  AlertCircle } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 const visits = [
@@ -35,7 +35,7 @@ export default function RecordsPage() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-3xl font-bold">Medical Records</h2>
+            <h2 className="text-3xl font-bold">History</h2>
             <p className="text-muted-foreground">Your complete health history</p>
           </div>
           <Button variant="outline">
@@ -46,9 +46,10 @@ export default function RecordsPage() {
 
         <Tabs defaultValue="visits" className="space-y-4">
           <TabsList>
-            <TabsTrigger value="visits">Visit History</TabsTrigger>
+            <TabsTrigger value="visits">Medical records</TabsTrigger>
             <TabsTrigger value="prescriptions">Prescriptions</TabsTrigger>
             <TabsTrigger value="lab-results">Lab Results</TabsTrigger>
+            <TabsTrigger value="symptom-checker">Symptom checker</TabsTrigger>
           </TabsList>
 
           <TabsContent value="visits" className="space-y-4">
@@ -172,6 +173,36 @@ export default function RecordsPage() {
                     <span className="text-sm text-green-600 font-medium">Normal</span>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="symptom-checker" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>History symptom check</CardTitle>
+                <CardDescription>2025-12-10</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Card
+                    key="1"
+                    className={`border-2 ${
+                      "border-amber-300"
+                    }`}
+                  >
+                    <CardHeader>
+                      <CardTitle className="text-xl flex items-center gap-3">
+                        <AlertCircle className="h-8 w-8 text-red-600" />
+                        data:condition
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3 text-md">
+                      <p>
+                        <strong>Recommendation:</strong> data:recommendation
+                      </p>
+                      <p>data:details</p>
+                    </CardContent>
+                  </Card>
               </CardContent>
             </Card>
           </TabsContent>

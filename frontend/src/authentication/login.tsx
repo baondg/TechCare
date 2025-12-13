@@ -1,29 +1,36 @@
-import type React from "react";
-import NetworkBackground from "@/components/NetworkBackground";
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Activity, User, Stethoscope, Eye, EyeOff } from "lucide-react";
+"use client"
+
+import type React from "react"
+
+import { useState } from "react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Activity, User, Stethoscope, Eye, EyeOff } from "lucide-react"
 import { Link } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function LoginPage() {
-  const router = useNavigate();
-  const [role, setRole] = useState<"patient" | "hospital staff" | "admin">("patient");
+  const router = useNavigate()
+  const [role, setRole] = useState<"patient" | "hospital staff" | "admin">("patient")
   const [showPassword, setShowPassword] = useState(false);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
 
   const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
+    e.preventDefault()
     // Redirect based on role
     if (role === "patient") {
-      router("/patient/dashboard");
+      router("/patient/dashboard")
     } else if (role === "hospital staff" || role === "admin") {
-      router("/admin/dashboard"); //TODO
+      router("/admin/dashboard")        //TODO
     } 
-  };
+  }
 
   return (
     <div className="h-screen w-full flex items-center justify-center p-4">
@@ -63,12 +70,24 @@ export default function LoginPage() {
             </Tabs>
 
             <form onSubmit={handleLogin} className="space-y-4">
+              {error && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="username">Username</Label>
                 <Input
                   id="username"
-                  type="text"
-                  placeholder="Enter username"
+                  type="username"
+                  placeholder={
+                    role === "patient"
+                      ? "Enter username"
+                      : role === "hospital staff"
+                        ? "Enter username"
+                        : "Enter username"
+                  }
                   required
                   className="custom-input"
                 />
@@ -76,20 +95,20 @@ export default function LoginPage() {
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
                 <div className="relative"> 
-                  <Input 
-                    id="password" 
-                    type={showPassword ? "text" : "password"} 
-                    placeholder="Enter password" 
-                    required 
-                    className="custom-input"
-                  />
-                  <button
-                    type="button" 
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 flex items-center bg-transparent border-none pr-3 text-gray-500 hover:text-gray-700 focus:outline-none"
-                  >
-                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                  </button>
+                    <Input 
+                        id="password" 
+                        type={showPassword ? "text" : "password"} 
+                        placeholder="Enter password" 
+                        required 
+                        className="pr-10" // Thêm padding-right để nhường chỗ cho icon
+                    />
+                    <button
+                        type="button" 
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute bg-accent-foreground mx-1 my-1 inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground focus-visible:ring-0 focus:outline-none" // Loại bỏ viền focus khi click
+                    >
+                        {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    </button>
                 </div>
               </div>
               <div className="flex items-center justify-between text-sm">
@@ -103,23 +122,18 @@ export default function LoginPage() {
                               group-hover/item:w-full"/>
                 </a>
               </div>
-              <Button type="submit" size="default" className="w-full btn-gradient transition-transform duration-500">
+              <Button type="submit" size="default" className="w-full">
                 Sign In
               </Button>
             </form>
 
-            <div className="mt-6 text-center text-sm">
-              <span className="text-muted-foreground">Don't have an account? </span>
-              <a
-                href="/register"
-                className="group/item relative inline-block text-sm font-medium text-linear-to-r from-[#06b6d4] to-[#0891b2] hover:text-cyan-600 transition-all duration-400">
-                Register as patient
-                <span 
-                  className="absolute inset-x-0 bottom-0 mx-auto h-0.5 w-0 bg-linear-to-r from-[#06b6d4] to-[#0891b2] rounded-full 
-                            transition-all duration-500 ease-out origin-center
-                            group-hover/item:w-full"/>
-              </a>
-            </div>
+              <div className="mt-6 text-center text-sm">
+                <span className="text-muted-foreground">Don't have an account? </span>
+                <Link to="/register" className="text-primary hover:underline">
+                  Register as Patient
+                </Link>
+              </div>
+
           </CardContent>
         </Card>
 

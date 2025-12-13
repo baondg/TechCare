@@ -7,7 +7,7 @@ import { useLocation } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Activity, Calendar, FileText, MessageSquare, User, LogOut, Heart, BotMessageSquare, ScanHeart, Airplay, UserRound  } from "lucide-react"
 import { cn } from "@/lib/utils"
-
+import { useAuth } from "@/contexts/AuthContext"
 
 const navigation = [
   { name: "Dashboard", href: "/patient/dashboard", icon: Airplay },
@@ -22,6 +22,7 @@ const navigation = [
 
 export function PatientLayout({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation()
+  const { logout, user } = useAuth()
 
   return (
     <div className="min-h-screen w-screen bg-background">
@@ -41,11 +42,14 @@ export function PatientLayout({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex items-center gap-4">
-            <Button size="lg" asChild className="btn-outline transition-transform duration-500 text-xl">
-              <Link to="/">
-                <LogOut className="h-4 w-4 mr-2" />
-                Sign out
-              </Link>
+            {user && (
+              <span className="text-sm text-muted-foreground">
+                Welcome, {user.firstName || user.username}
+              </span>
+            )}
+            <Button variant="outline" size="lg" onClick={logout} className="text-destructive hover:bg-destructive">
+              <LogOut className="h-4 w-4 mr-2" />
+              Logout
             </Button>
           </div>
         </div>

@@ -1,6 +1,22 @@
 const { Sequelize } = require('sequelize');
-const sequelize = new Sequelize({
-  dialect: 'sqlite',
-  storage: './storage/data.db'
-});
+
+// MySQL Configuration
+const sequelize = new Sequelize(
+  process.env.DB_NAME || 'techcare',
+  process.env.DB_USER || 'root',
+  process.env.DB_PASSWORD || 'TechCare@2025',
+  {
+    host: process.env.DB_HOST || 'localhost',
+    port: process.env.DB_PORT || 3306,
+    dialect: 'mysql',
+    logging: console.log,
+    pool: {
+      max: 5,
+      min: 0,
+      acquire: 30000,
+      idle: 10000
+    }
+  }
+);
+
 module.exports = sequelize;

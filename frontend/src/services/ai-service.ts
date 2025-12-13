@@ -2,8 +2,12 @@
 // Supports ANY AI provider: OpenAI, Gemini, Anthropic, Cohere, Hugging Face, Azure, AWS, or custom backends
 
 const AI_API_ENDPOINT = import.meta.env.VITE_AI_API_ENDPOINT || 'http://localhost:3000/api/ai/chat'
-const AI_API_KEY = import.meta.env.VITE_AI_API_KEY || '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'
+const AI_API_KEY = import.meta.env.VITE_AI_API_KEY || 'AIzaSyDeBPklvZOIylsnXgtzqOXeYkkRNUW3z0Y'
 const AI_PROVIDER = import.meta.env.VITE_AI_PROVIDER || 'custom' // openai, gemini, anthropic, cohere, huggingface, custom
+
+// Cache for available models to avoid repeated API calls
+let cachedModels: any[] | null = null
+let selectedModel: string | null = null
 
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system'
@@ -13,6 +17,81 @@ export interface ChatMessage {
 export interface ChatResponse {
   message: string
   error?: string
+}
+
+/**
+ * Fetch available models from Gemini API
+ */
+async function getAvailableGeminiModels(): Promise<any[]> {
+  if (cachedModels) {
+    return cachedModels
+  }
+
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1/models?key=${AI_API_KEY}`,
+      {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
+    )
+
+    if (!response.ok) {
+      console.error('Failed to fetch Gemini models:', response.statusText)
+      return []
+    }
+
+    const data = await response.json()
+    cachedModels = data.models || []
+    console.log('📋 Available Gemini models:', cachedModels.map((m: any) => m.name))
+    return cachedModels
+  } catch (error) {
+    console.error('Error fetching Gemini models:', error)
+    return []
+  }
+}
+
+/**
+ * Select a valid Gemini model that supports generateContent
+ */
+async function pickGeminiModel(): Promise<string> {
+  if (selectedModel) {
+    return selectedModel
+  }
+
+  const models = await getAvailableGeminiModels()
+  
+  // Find a model that supports generateContent
+  const validModel = models.find((m: any) => 
+    m.supportedGenerationMethods?.includes('generateContent')
+  )
+
+  if (validModel) {
+    selectedModel = validModel.name
+    console.log('✅ Selected Gemini model:', selectedModel)
+    return selectedModel
+  }
+
+  // Fallback to gemini-1.5-flash if available
+  const fallback = models.find((m: any) => 
+    m.name.includes('gemini-1.5-flash') || m.name.includes('gemini-pro')
+  )
+
+  if (fallback) {
+    selectedModel = fallback.name
+    console.log('⚠️ Using fallback model:', selectedModel)
+    return selectedModel
+  }
+
+  // Last resort: use first available model
+  if (models.length > 0) {
+    selectedModel = models[0].name
+    console.log('⚠️ Using first available model:', selectedModel)
+    return selectedModel
+  }
+
+  throw new Error('No Gemini models available')
 }
 
 /**
@@ -41,13 +120,23 @@ Important guidelines:
 - Keep responses concise but informative
 - Use simple, easy-to-understand language`
 
+    // For Gemini, dynamically select a valid model
+    let endpoint = AI_API_ENDPOINT
+    if (AI_PROVIDER.toLowerCase() === 'gemini') {
+      const modelName = await pickGeminiModel()
+      // Extract base model name (e.g., "models/gemini-1.5-flash" -> "gemini-1.5-flash")
+      const modelId = modelName.replace('models/', '')
+      endpoint = `https://generativelanguage.googleapis.com/v1/models/${modelId}:generateContent?key=${AI_API_KEY}`
+      console.log('🔗 Using endpoint:', endpoint)
+    }
+
     // Build request body based on provider
     const requestBody = buildRequestBody(AI_PROVIDER, messages, userMessage, systemPrompt)
     
     // Build headers based on provider
     const headers = buildHeaders(AI_PROVIDER, AI_API_KEY)
 
-    const response = await fetch(AI_API_ENDPOINT, {
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers,
       body: JSON.stringify(requestBody)

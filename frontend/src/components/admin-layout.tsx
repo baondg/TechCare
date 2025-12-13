@@ -7,10 +7,12 @@ import { useLocation } from "react-router-dom"
 import { LayoutDashboard, Users, Settings, Building2, LogOut, MessageSquareText , Activity } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { useAuth } from "@/contexts/AuthContext"
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation()
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const { logout, user } = useAuth()
 
   const navigation = [
     { href: "/admin/dashboard", name: "Dashboard", icon: LayoutDashboard },
@@ -36,17 +38,18 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
               </div>
     
               <div className="flex items-center gap-4">
-                <Button variant="outline" size="lg" asChild className="text-destructive hover:bg-destructive">
-                  <Link to="/">
-                    <LogOut className="h-4 w-4 mr-2" />
-                    Logout
-                  </Link>
+                {user && (
+                  <span className="text-sm text-muted-foreground">
+                    Admin: {user.firstName || user.username}
+                  </span>
+                )}
+                <Button variant="outline" size="lg" onClick={logout} className="text-destructive hover:bg-destructive">
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Logout
                 </Button>
               </div>
             </div>
-          </header>
-    
-          <div className="flex min-h-[calc(100vh-4rem)] w-full">
+          </header>          <div className="flex min-h-[calc(100vh-4rem)] w-full">
             {/* Sidebar - Desktop */}
             <aside className="md:flex w-64 flex-col border-r bg-muted/30 h-[calc(100vh-4rem)] sticky top-16">
               <nav className="flex-1 space-y-1 p-4">

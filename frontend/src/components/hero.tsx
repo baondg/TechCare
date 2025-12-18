@@ -44,7 +44,7 @@ export function Hero() {
           <div className="flex flex-col gap-4 sm:flex-row sm:justify-center">
             <Button size="lg" className="text-xl btn-gradient transition-transform duration-500" asChild>
               <Link to="/login">
-                Get Started Free
+                Get Started
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>

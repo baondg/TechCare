@@ -1,18 +1,17 @@
 "use client"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Calendar, FileText, MessageSquare, Pill, Activity, Clock, TrendingUp, BotMessageSquare, HeartPlus, Bell,ChevronRight,User } from "lucide-react"
+import { Calendar, Pill, Activity, Clock, TrendingUp, BotMessageSquare, HeartPlus, Bell,ChevronRight,User } from "lucide-react"
 import { Link } from "react-router-dom";
 import { PatientLayout } from "@/components/patient-layout"
 import { CollapsibleSection } from "@/components/collapsible-section"
-import NetworkBackground from "@/components/NetworkBackground";
 
 export default function PatientDashboard() {
   return (
     <PatientLayout>
-      <NetworkBackground/>
-      <div className="relative z-10 space-y-8 pb-12">
+      
+      <div className="relative space-y-8 pb-12">
         {/* Header Section với gradient text */}
         
         <div className="relative">
@@ -142,7 +141,7 @@ export default function PatientDashboard() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4 flex-1">
                     <div className="icon-feature-card">
-                      <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-50 to-emerald-100">
+                      <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-linear-to-br from-emerald-50 to-emerald-100">
                         <Calendar className="h-7 w-7 text-emerald-600" />
                       </div>
                     </div>
@@ -189,7 +188,7 @@ export default function PatientDashboard() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="icon-feature-card">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gradient-to-br from-purple-50 to-purple-100">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-linear-to-br from-purple-50 to-purple-100">
                           <Pill className="h-6 w-6 text-purple-600" />
                         </div>
                       </div>
@@ -212,7 +211,7 @@ export default function PatientDashboard() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="icon-feature-card">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gradient-to-br from-orange-50 to-orange-100">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-linear-to-br from-orange-50 to-orange-100">
                           <Pill className="h-6 w-6 text-orange-600" />
                         </div>
                       </div>
@@ -249,21 +248,21 @@ export default function PatientDashboard() {
                   <div>
                     <div className="flex items-center justify-between mb-3">
                       <span className="text-sm font-semibold text-slate-700">Overall Recovery</span>
-                      <span className="text-2xl font-bold bg-gradient-to-r from-[#06b6d4] to-[#0891b2] bg-clip-text text-transparent">
+                      <span className="text-2xl font-bold bg-linear-to-r from-[#06b6d4] to-[#0891b2] bg-clip-text text-transparent">
                         75%
                       </span>
                     </div>
                     <div className="h-3 bg-slate-100 rounded-full overflow-hidden relative">
                       <div 
-                        className="h-full bg-gradient-to-r from-[#06b6d4] to-[#0891b2] rounded-full transition-all duration-1000 ease-out relative overflow-hidden"
+                        className="h-full bg-linear-to-r from-[#06b6d4] to-[#0891b2] rounded-full transition-all duration-1000 ease-out relative overflow-hidden"
                         style={{ width: "75%" }}
                       >
-                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer" />
+                        <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/30 to-transparent animate-shimmer" />
                       </div>
                     </div>
                   </div>
 
-                  <div className="p-4 bg-gradient-to-br from-cyan-50 to-blue-50 rounded-xl border border-cyan-100">
+                  <div className="p-4 bg-linear-to-br from-cyan-50 to-blue-50 rounded-xl border border-cyan-100">
                     <p className="text-sm text-slate-700 leading-relaxed">
                       <span className="font-semibold text-cyan-700">Great progress!</span> Based on your current treatment and recovery rate, you're expected to fully recover in approximately <span className="font-semibold text-cyan-700">5-7 days</span>.
                     </p>

@@ -5,9 +5,7 @@ import aiRoutes from './routes/ai';
 const authRoutes = require('./authorization/routes');
 const systemConfigRoutes = require('./routes/systemConfig');
 const sessionMiddleware = require('./middleware/sessionMiddleware');
-const rateLimitMiddleware = require('./middleware/rateLimitMiddleware');
 const sequelize = require('./common/database');
-const { initRedis } = require('./common/redis');
 
 // Load environment variables
 dotenv.config();
@@ -22,10 +20,6 @@ app.use(express.urlencoded({ extended: true }));
 
 // Session middleware for checking timeout
 app.use(sessionMiddleware.checkSessionTimeout);
-
-// Rate limiting middleware (apply to all routes except system-config)
-app.use('/api/ai', rateLimitMiddleware.apiRateLimit);
-app.use('/api/auth', rateLimitMiddleware.rateLimit);
 
 // Routes
 app.use('/api/ai', aiRoutes);
@@ -70,9 +64,6 @@ async function startServer() {
     // Sync database (create tables if they don't exist)
     await sequelize.sync({ alter: false });
     console.log('✅ Database synced successfully');
-    
-    // Initialize Redis (optional, will fallback to in-memory if not available)
-    await initRedis();
     
     app.listen(PORT, () => {
       console.log(`🚀 Server is running on http://localhost:${PORT}`);

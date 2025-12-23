@@ -1,10 +1,9 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
 import { Link } from "react-router-dom";
 import { useLocation } from "react-router-dom"
-import { LayoutDashboard, Users, Settings, Building2, LogOut, MessageSquareText , Activity } from "lucide-react"
+import { LayoutDashboard, Users, Settings,  LogOut, MessageSquareText , Activity } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/contexts/AuthContext"

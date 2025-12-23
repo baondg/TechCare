@@ -14,11 +14,7 @@ exports.getConfig = async (req, res) => {
     // Set default values if not exists
     const defaults = {
       maxConcurrentUsers: '500',
-      sessionTimeoutMinutes: '30',
-      rateLimitRequests: '100',
-      rateLimitWindowMinutes: '15',
-      apiRateLimitRequests: '60',
-      apiRateLimitWindowMinutes: '1'
+      sessionTimeoutMinutes: '30'
     };
     
     res.json({
@@ -33,14 +29,7 @@ exports.getConfig = async (req, res) => {
 // Cập nhật cấu hình hệ thống
 exports.updateConfig = async (req, res) => {
   try {
-    const { 
-      maxConcurrentUsers, 
-      sessionTimeoutMinutes,
-      rateLimitRequests,
-      rateLimitWindowMinutes,
-      apiRateLimitRequests,
-      apiRateLimitWindowMinutes
-    } = req.body;
+    const { maxConcurrentUsers, sessionTimeoutMinutes } = req.body;
     
     if (maxConcurrentUsers !== undefined) {
       await SystemConfig.upsert({
@@ -55,38 +44,6 @@ exports.updateConfig = async (req, res) => {
         key: 'sessionTimeoutMinutes',
         value: String(sessionTimeoutMinutes),
         description: 'Session timeout in minutes'
-      });
-    }
-    
-    if (rateLimitRequests !== undefined) {
-      await SystemConfig.upsert({
-        key: 'rateLimitRequests',
-        value: String(rateLimitRequests),
-        description: 'Maximum number of requests per time window (general)'
-      });
-    }
-    
-    if (rateLimitWindowMinutes !== undefined) {
-      await SystemConfig.upsert({
-        key: 'rateLimitWindowMinutes',
-        value: String(rateLimitWindowMinutes),
-        description: 'Rate limit time window in minutes (general)'
-      });
-    }
-    
-    if (apiRateLimitRequests !== undefined) {
-      await SystemConfig.upsert({
-        key: 'apiRateLimitRequests',
-        value: String(apiRateLimitRequests),
-        description: 'Maximum number of API requests per time window'
-      });
-    }
-    
-    if (apiRateLimitWindowMinutes !== undefined) {
-      await SystemConfig.upsert({
-        key: 'apiRateLimitWindowMinutes',
-        value: String(apiRateLimitWindowMinutes),
-        description: 'API rate limit time window in minutes'
       });
     }
     

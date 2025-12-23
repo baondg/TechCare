@@ -2,7 +2,7 @@ import { Link } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Activity } from "lucide-react"
 import { useState } from "react"
-import { ChevronDown, Menu, X } from "lucide-react"
+import { ChevronDown } from "lucide-react"
 
 const menuItems = [
   {
@@ -37,7 +37,6 @@ const menuItems = [
 
 export function Header() {
   const [openMenu, setOpenMenu] = useState<string | null>(null)
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
       <div className="w-full max-w-8xl mx-auto flex h-16 items-center justify-between px-4">

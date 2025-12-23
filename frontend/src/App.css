@@ -121,8 +121,9 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground overflow-y-scroll overflow-x-hidden;
+    @apply bg-background text-foreground overflow-x-hidden;
   }
+
   .network-bg {
         position: fixed;
         inset: 0;

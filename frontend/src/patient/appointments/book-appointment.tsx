@@ -2,11 +2,11 @@
 
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { ChevronLeft, ChevronRight, Check, Calendar } from "lucide-react"
+import { ChevronLeft, ChevronRight, Check, Calendar, Clock } from "lucide-react"
 import { PatientLayout } from "@/components/patient-layout"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import {Select,SelectContent,SelectItem,SelectTrigger,SelectValue} from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 type ViewMode = "month" | "week" | "day"
 
@@ -20,14 +20,14 @@ interface TimeSlot {
 
 export default function BookAppointmentPage() {
   const navigate = useNavigate()
-  const [currentDate, setCurrentDate] = useState(new Date(2025, 9)) // October 2025
+  const [currentDate, setCurrentDate] = useState(new Date(2025, 9))
   const [selectedDate, setSelectedDate] = useState(17)
   const [viewMode, setViewMode] = useState<ViewMode>("month")
-  const [selectedDepartment, setSelectedDepartment] = useState("Cardiology")
+  const [selectedDepartment, setSelectedDepartment] = useState("")
   const [showNotification, setShowNotification] = useState(false)
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null)
+  const [checkedSymptom, setCheckedSymptom] = useState<"yes" | "no" | null>(null)
 
-  const departments = ["Cardiology", "Orthopedics", "Dermatology", "Ophthalmology"]
   const specialtyGroups = [
     { value: "outpatinent", label: "Outpatient Department" },
     { value: "ophthalmology", label: "Ophthalmology" },
@@ -36,10 +36,7 @@ export default function BookAppointmentPage() {
     { value: "cardiology", label: "Cardiology" },
     { value: "orthopedics", label: "Orthopedics" },
   ]
-  const [selectedDiseaseGroup, setSelectedDiseaseGroup] = useState<string | null>(null)
-  const [checkedSymptom, setCheckedSymptom] = useState<"yes" | "no" | null>(null)
 
-  // Mock time slots data
   const timeSlots: TimeSlot[] = [
     { time: "11:00", doctor: "Dr. Trang Thanh Nghia", department: "Cardiology", room: "Room A1-102", available: true },
     { time: "11:30", doctor: "Dr. Nguyen Duc Dung", department: "Orthopedics", room: "Room B1-102", available: true },
@@ -47,12 +44,6 @@ export default function BookAppointmentPage() {
     { time: "11:30", doctor: "Dr. Tran Tien Minh", department: "Ophthalmology", room: "Room A1-102", available: true },
     { time: "11:40", doctor: "Dr. Trang Thanh Nghia", department: "Cardiology", room: "Room A1-102", available: true },
     { time: "11:40", doctor: "Dr. Nguyen Duc Dung", department: "Orthopedics", room: "Room B1-102", available: false },
-    { time: "11:40", doctor: "Dr. Nguyen Thi Van Anh", department: "Dermatology", room: "Room JA-04", available: true },
-    { time: "11:40", doctor: "Dr. Tran Tien Minh", department: "Ophthalmology", room: "Room A1-102", available: true },
-    { time: "11:50", doctor: "Dr. Trang Thanh Nghia", department: "Cardiology", room: "Room A1-102", available: true },
-    { time: "12:00", doctor: "Dr. Nguyen Duc Dung", department: "Orthopedics", room: "Room B1-102", available: true },
-    { time: "13:00", doctor: "Dr. Nguyen Thi Van Anh", department: "Dermatology", room: "Room JA-04", available: true },
-    { time: "13:10", doctor: "Dr. Tran Tien Minh", department: "Ophthalmology", room: "Room A1-102", available: true },
   ]
 
   const getDaysInMonth = () => {
@@ -63,35 +54,16 @@ export default function BookAppointmentPage() {
     const daysInPrevMonth = new Date(year, month, 0).getDate()
 
     const days = []
-
-    // Previous month days
     for (let i = firstDay - 1; i >= 0; i--) {
-      days.push({
-        day: daysInPrevMonth - i,
-        isCurrentMonth: false,
-        date: new Date(year, month - 1, daysInPrevMonth - i)
-      })
+      days.push({ day: daysInPrevMonth - i, isCurrentMonth: false, date: new Date(year, month - 1, daysInPrevMonth - i) })
     }
-
-    // Current month days
     for (let i = 1; i <= daysInMonth; i++) {
-      days.push({
-        day: i,
-        isCurrentMonth: true,
-        date: new Date(year, month, i)
-      })
+      days.push({ day: i, isCurrentMonth: true, date: new Date(year, month, i) })
     }
-
-    // Next month days
     const remainingDays = 42 - days.length
     for (let i = 1; i <= remainingDays; i++) {
-      days.push({
-        day: i,
-        isCurrentMonth: false,
-        date: new Date(year, month + 1, i)
-      })
+      days.push({ day: i, isCurrentMonth: false, date: new Date(year, month + 1, i) })
     }
-
     return days
   }
 
@@ -125,83 +97,72 @@ export default function BookAppointmentPage() {
 
   const days = getDaysInMonth()
   const monthName = currentDate.toLocaleString("en-US", { month: "long", year: "numeric" })
-
-  // Group days into weeks
   const weeks = []
   for (let i = 0; i < days.length; i += 7) {
     weeks.push(days.slice(i, i + 7))
   }
 
-  const filteredSlots = timeSlots.filter(
-    slot => slot.department.toLowerCase() === selectedDepartment.toLowerCase()
-  )
+  const departmentMap: Record<string, string> = {
+    cardiology: "Cardiology",
+    orthopedics: "Orthopedics",
+    dermatology: "Dermatology",
+    ophthalmology: "Ophthalmology",
+  }
+
+  const filteredSlots = timeSlots.filter(slot => {
+    if (!selectedDepartment) return false
+    if (selectedDepartment === "outpatinent") return true
+    return slot.department === (departmentMap[selectedDepartment] || selectedDepartment)
+  })
 
   return (
     <PatientLayout>
-      <div className="space-y-6">
-        {/* Header Section */}
+      <div className="space-y-8">
+        {/* Header với gradient */}
         <div>
-          <h2 className="text-3xl font-bold">Book Appointment</h2>
-          <p className="text-muted-foreground mt-1">Select a date and available time slot</p>
+          <h2 className="text-4xl font-bold bg-linear-to-r from-[#06b6d4] via-[#0891b2] to-[#06b6d4] bg-clip-text text-transparent mb-2">
+            Book Appointment
+          </h2>
+          <p className="text-slate-600 text-lg">Select your preferred date and time slot</p>
         </div>
 
-        {/* Calendar and Time Slots Side by Side */}
-        <div className="flex gap-6">
-          {/* Calendar Section - Left Side */}
-          <Card className="p-6 w-[500px] shrink-0">
+        {/* Calendar and Time Slots */}
+        <div className="grid gap-6 lg:grid-cols-5">
+          {/* Calendar Section */}
+          <Card className="card-feature lg:col-span-2 p-6">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-semibold">{monthName}</h3>
+              <h3 className="text-2xl font-bold text-slate-900">{monthName}</h3>
               <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handlePrevMonth}
-                >
+                <Button variant="ghost" size="icon" onClick={handlePrevMonth} className="hover:bg-cyan-50">
                   <ChevronLeft className="w-5 h-5" />
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleNextMonth}
-                >
+                <Button variant="ghost" size="icon" onClick={handleNextMonth} className="hover:bg-cyan-50">
                   <ChevronRight className="w-5 h-5" />
                 </Button>
               </div>
             </div>
 
             {/* View Mode Selector */}
-            <div className="flex gap-2 mb-6">
-              <Button
-                variant={viewMode === "month" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setViewMode("month")}
-              >
-                Month
-              </Button>
-              <Button
-                variant={viewMode === "week" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setViewMode("week")}
-              >
-                Week
-              </Button>
-              <Button
-                variant={viewMode === "day" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setViewMode("day")}
-              >
-                Day
-              </Button>
+            <div className="flex gap-2 mb-6 p-1 bg-slate-100 rounded-xl">
+              {(["month", "week", "day"] as ViewMode[]).map(mode => (
+                <Button
+                  key={mode}
+                  variant={viewMode === mode ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setViewMode(mode)}
+                  className={viewMode === mode ? "btn-gradient flex-1" : "flex-1"}
+                >
+                  {mode.charAt(0).toUpperCase() + mode.slice(1)}
+                </Button>
+              ))}
             </div>
 
             {/* Calendar Grid */}
             <div>
-              <div className="grid grid-cols-8 gap-2 mb-2">
-                <div className="text-xs text-muted-foreground text-center font-medium"></div>
-                {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-                  <div key={day} className="text-xs text-muted-foreground text-center font-medium">
-                    {day}
-                  </div>
+              <div className="grid grid-cols-8 gap-2 mb-3">
+                <div className="text-xs text-slate-500 text-center font-semibold">Week</div>
+                {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(day => (
+                  <div key={day} className="text-xs text-slate-600 text-center font-semibold">{day}</div>
                 ))}
               </div>
 
@@ -211,7 +172,7 @@ export default function BookAppointmentPage() {
                 
                 return (
                   <div key={weekIndex} className="grid grid-cols-8 gap-2 mb-2">
-                    <div className="flex items-center justify-center text-xs text-muted-foreground font-medium">
+                    <div className="flex items-center justify-center text-xs text-slate-500 font-semibold bg-slate-50 rounded">
                       {weekNumber}
                     </div>
                     {week.map((dayObj, dayIndex) => {
@@ -221,10 +182,14 @@ export default function BookAppointmentPage() {
                           key={dayIndex}
                           onClick={() => dayObj.isCurrentMonth && setSelectedDate(dayObj.day)}
                           className={`
-                            aspect-square flex items-center justify-center rounded-lg text-sm font-medium transition-colors
-                            ${!dayObj.isCurrentMonth ? "text-muted-foreground/30" : ""}
-                            ${isSelected ? "bg-primary text-primary-foreground font-bold" : "hover:bg-accent"}
-                            ${isSelectedWeek && !isSelected ? "bg-primary/5" : ""}
+                            aspect-square flex items-center justify-center rounded-lg text-sm font-semibold transition-all duration-300
+                            ${!dayObj.isCurrentMonth ? "text-slate-300" : ""}
+                            ${isSelected 
+                              ? "bg-linear-to-br from-[#06b6d4] to-[#0891b2] text-white shadow-lg scale-110" 
+                              : isSelectedWeek 
+                                ? "bg-cyan-50 text-cyan-700 hover:bg-cyan-100" 
+                                : "hover:bg-slate-100 text-slate-700"
+                            }
                           `}
                         >
                           {dayObj.day}
@@ -236,198 +201,172 @@ export default function BookAppointmentPage() {
               })}
             </div>
 
-            <div className="mt-4 text-xs text-muted-foreground text-center">
-              Week {getWeekNumber(weeks.find(w => w.some(d => d.day === selectedDate && d.isCurrentMonth))?.[0].date || new Date())}
+            <div className="mt-6 text-center p-3 bg-linear-to-r from-cyan-50 to-blue-50 rounded-xl">
+              <p className="text-sm text-slate-600">
+                <span className="font-semibold">Week {getWeekNumber(weeks.find(w => w.some(d => d.day === selectedDate && d.isCurrentMonth))?.[0].date || new Date())}</span>
+              </p>
             </div>
           </Card>
 
-          {/* Time Slots Section - Right Side */}
-          <Card className="flex-1 p-6 flex flex-col">
+          {/* Time Slots Section */}
+          <Card className="card-feature lg:col-span-3 p-6 flex flex-col">
             <div className="mb-6">
-              <h3 className="text-xl font-semibold mb-4">
-                Available Slots - {selectedDate} {currentDate.toLocaleString("en-US", { month: "long" })}
+              <h3 className="text-2xl font-bold text-slate-900 mb-1">
+                Available Slots
               </h3>
-
-              {/* ❗ NEW — Question */}
-              <div className="mb-6 p-4 border rounded-lg bg-muted/40">
-                <p className="font-medium mb-3">
-                  Have you checked your symptoms and determined which department you should visit?
-                </p>
-
-                <div className="flex items-center gap-6">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="checkedSymptom"
-                      value="yes"
-                      checked={checkedSymptom === "yes"}
-                      onChange={() => {
-                        setCheckedSymptom("yes")
-                        setSelectedDepartment("")
-                      }}
-                    />
-                    <span>Yes, I know which department I should visit</span>
-                  </label>
-
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="checkedSymptom"
-                      value="no"
-                      checked={checkedSymptom === "no"}
-                      onChange={() => {
-                        setCheckedSymptom("no")
-                        setSelectedDepartment("outpatinent") // auto chọn tổng quát
-                      }}
-                    />
-                    <span>No, not yet</span>
-                  </label>
-                </div>
-              </div>
-
-              {/* ❗ NEW — Dropdown chọn khoa phụ thuộc radio */}
-              {checkedSymptom !== null && (
-                <div className="mb-6">
-
-                  <Select
-                    value={selectedDepartment}
-                    onValueChange={(value) => setSelectedDepartment(value)}
-                  >
-                    <SelectTrigger className="w-full mt-2">
-                      <SelectValue placeholder="Select specialty" />
-                    </SelectTrigger>
-
-                    <SelectContent className="max-h-96">
-
-                      {/* Nếu người dùng chọn "Chưa" → chỉ hiển thị OPD */}
-                      {checkedSymptom === "no" && (
-                        <SelectItem value="outpatinent">Outpatient Department</SelectItem>
-                      )}
-
-                      {/* Nếu chọn "Có" → hiển thị toàn bộ */}
-                      {checkedSymptom === "yes" &&
-                        specialtyGroups.map((group) => (
-                          <SelectItem key={group.value} value={group.value}>
-                            {group.label}
-                          </SelectItem>
-                        ))
-                      }
-
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              {/* Timeslot */}
-              {checkedSymptom !== null && selectedDepartment !== "" && (
-                <div className="flex-1 overflow-y-auto pr-2">
-                  <div className="space-y-3">
-                    {timeSlots.filter((slot) => {
-                          if (selectedDepartment === "all") return true
-                          // Map giá trị combobox về tên khoa tiếng Anh thực tế
-                          const departmentMap: Record<string, string> = {
-                            cardiology: "Cardiology",
-                            orthopedics: "Orthopedics",
-                            dermatology: "Dermatology",
-                            ophthalmology: "Ophthalmology",
-                            eye: "Ophthalmology",
-                            eye1: "Ophthalmology",
-                            eye2: "Ophthalmology",
-                            eye3: "Ophthalmology",
-                            ent: "Otorhinolaryngology", // nếu có khoa này
-                          }
-                          return slot.department === (departmentMap[selectedDepartment] || selectedDepartment)
-                        }).map((slot, index) => (
-                      <button
-                        key={index}
-                        onClick={() => handleBookSlot(slot)}
-                        disabled={!slot.available}
-                        className={`
-                          w-full p-4 rounded-lg border text-left transition-all flex items-center justify-between
-                          ${slot.available
-                            ? "border-border hover:border-primary hover:shadow-md cursor-pointer bg-card hover:bg-accent/50"
-                            : "border-border bg-muted/50 opacity-60 cursor-not-allowed"
-                          }
-                        `}
-                      >
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <div className="text-xl font-bold text-primary">{slot.time}</div>
-                            <span
-                              className={`
-                                text-xs px-2 py-1 rounded font-medium
-                                ${slot.available ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300" : "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"}
-                              `}
-                            >
-                              {slot.available ? "Available" : "Booked"}
-                            </span>
-                          </div>
-                          <div className="text-sm font-semibold mb-1">{slot.doctor}</div>
-                          <div className="text-xs text-muted-foreground">{slot.room}</div>
-                        </div>
-                        {slot.available && (
-                          <div className="ml-4">
-                            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                              <ChevronRight className="w-4 h-4 text-primary" />
-                            </div>
-                          </div>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+              <p className="text-slate-600">
+                {selectedDate} {currentDate.toLocaleString("en-US", { month: "long", year: "numeric" })}
+              </p>
             </div>
+
+            {/* Question Section */}
+            <div className="mb-6 p-5 rounded-xl bg-linear-to-br from-cyan-50 to-blue-50 border border-cyan-100">
+              <p className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-cyan-600" />
+                Have you checked your symptoms?
+              </p>
+
+              <div className="space-y-3">
+                <label className="flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all hover:bg-white
+                  ${checkedSymptom === 'yes' ? 'border-cyan-500 bg-white shadow-md' : 'border-transparent bg-white/50'}">
+                  <input
+                    type="radio"
+                    name="checkedSymptom"
+                    value="yes"
+                    checked={checkedSymptom === "yes"}
+                    onChange={() => { setCheckedSymptom("yes"); setSelectedDepartment("") }}
+                    className="w-4 h-4 text-cyan-600"
+                  />
+                  <span className="font-medium text-slate-700">Yes, I know which department</span>
+                </label>
+
+                <label className="flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all hover:bg-white
+                  ${checkedSymptom === 'no' ? 'border-cyan-500 bg-white shadow-md' : 'border-transparent bg-white/50'}">
+                  <input
+                    type="radio"
+                    name="checkedSymptom"
+                    value="no"
+                    checked={checkedSymptom === "no"}
+                    onChange={() => { setCheckedSymptom("no"); setSelectedDepartment("outpatinent") }}
+                    className="w-4 h-4 text-cyan-600"
+                  />
+                  <span className="font-medium text-slate-700">No, not yet</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Department Selection */}
+            {checkedSymptom !== null && (
+              <div className="mb-6">
+                <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
+                  <SelectTrigger className="custom-select h-12">
+                    <SelectValue placeholder="Select specialty" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {checkedSymptom === "no" && (
+                      <SelectItem value="outpatinent">Outpatient Department</SelectItem>
+                    )}
+                    {checkedSymptom === "yes" && specialtyGroups.map(group => (
+                      <SelectItem key={group.value} value={group.value}>{group.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Time Slots List */}
+            {checkedSymptom !== null && selectedDepartment && (
+              <div className="flex-1 overflow-y-auto space-y-3 pr-2">
+                {filteredSlots.map((slot, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handleBookSlot(slot)}
+                    disabled={!slot.available}
+                    className={`
+                      card-feature-group w-full p-5 rounded-xl text-left transition-all duration-300
+                      ${slot.available
+                        ? "cursor-pointer hover:shadow-lg hover:scale-[1.02]"
+                        : "opacity-50 cursor-not-allowed bg-slate-50"
+                      }
+                    `}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-4 mb-3">
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-5 w-5 text-cyan-600" />
+                            <span className="text-2xl font-bold text-cyan-600">{slot.time}</span>
+                          </div>
+                          <span className={`text-xs px-3 py-1 rounded-full font-semibold ${
+                            slot.available 
+                              ? "bg-green-100 text-green-700" 
+                              : "bg-red-100 text-red-700"
+                          }`}>
+                            {slot.available ? "Available" : "Booked"}
+                          </span>
+                        </div>
+                        <p className="font-semibold text-slate-900 mb-1">{slot.doctor}</p>
+                        <p className="text-sm text-slate-600">{slot.room}</p>
+                      </div>
+                      {slot.available && (
+                        <div className="card-icon-wrapper h-12 w-12">
+                          <ChevronRight className="h-6 w-6" />
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                ))}
+                {filteredSlots.length === 0 && (
+                  <div className="text-center py-12 text-slate-500">
+                    <Calendar className="h-16 w-16 mx-auto mb-4 text-slate-300" />
+                    <p>No available slots for this selection</p>
+                  </div>
+                )}
+              </div>
+            )}
           </Card>
         </div>
       </div>
 
-      {/* Notification Modal */}
+      {/* Confirmation Modal */}
       {showNotification && selectedSlot && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <Card className="max-w-md w-full p-8 shadow-xl">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <Card className="max-w-md w-full p-8 shadow-2xl animate-in fade-in zoom-in duration-300">
             <div className="text-center mb-6">
-              <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Check className="w-8 h-8 text-primary" />
+              <div className="card-icon-wrapper h-20 w-20 mx-auto mb-4">
+                <Check className="h-10 w-10" />
               </div>
-              <h3 className="text-2xl font-bold mb-2">Confirmation</h3>
-              <p className="text-muted-foreground">Are you sure to book this appointment?</p>
+              <h3 className="text-3xl font-bold text-slate-900 mb-2">Confirm Booking</h3>
+              <p className="text-slate-600">Review your appointment details</p>
             </div>
 
-            <div className="bg-muted rounded-lg p-4 mb-6">
-              <ul className="space-y-2 text-sm">
-                <li className="flex items-start">
-                  <span className="text-primary mr-2">•</span>
-                  <span>{selectedSlot.doctor}</span>
+            <div className="bg-linear-to-br from-cyan-50 to-blue-50 rounded-xl p-5 mb-6 border border-cyan-100">
+              <ul className="space-y-3">
+                <li className="flex items-start gap-3">
+                  <span className="text-cyan-600 font-bold">•</span>
+                  <span className="text-slate-900 font-medium">{selectedSlot.doctor}</span>
                 </li>
-                <li className="flex items-start">
-                  <span className="text-primary mr-2">•</span>
-                  <span>Department of {selectedSlot.department}</span>
+                <li className="flex items-start gap-3">
+                  <span className="text-cyan-600 font-bold">•</span>
+                  <span className="text-slate-700">Department of {selectedSlot.department}</span>
                 </li>
-                <li className="flex items-start">
-                  <span className="text-primary mr-2">•</span>
-                  <span>{selectedSlot.room}</span>
+                <li className="flex items-start gap-3">
+                  <span className="text-cyan-600 font-bold">•</span>
+                  <span className="text-slate-700">{selectedSlot.room}</span>
                 </li>
-                <li className="flex items-start">
-                  <span className="text-primary mr-2">•</span>
-                  <span>At {selectedSlot.time}</span>
+                <li className="flex items-start gap-3">
+                  <span className="text-cyan-600 font-bold">•</span>
+                  <span className="text-slate-700">At {selectedSlot.time}</span>
                 </li>
               </ul>
             </div>
 
             <div className="flex gap-3">
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() => setShowNotification(false)}
-              >
+              <Button variant="outline" className="flex-1 h-12" onClick={() => setShowNotification(false)}>
                 Cancel
               </Button>
-              <Button
-                className="flex-1 bg-primary hover:bg-primary/90"
-                onClick={handleConfirmBooking}
-              >
-                Confirm
+              <Button className="flex-1 h-12 btn-gradient" onClick={handleConfirmBooking}>
+                Confirm Booking
               </Button>
             </div>
           </Card>

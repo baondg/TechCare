@@ -42,13 +42,13 @@
  */
 
 import { useState } from "react"
-import {Card,CardContent,CardHeader,CardTitle,CardDescription,} from "@/components/ui/card"
+import {Card,CardContent,CardHeader,CardTitle} from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {Dialog,DialogContent,DialogHeader,DialogTitle,DialogDescription,DialogFooter,} from "@/components/ui/dialog"
 import { PatientLayout } from "@/components/patient-layout"
-import { Activity, AlertCircle, X, Clock, Stethoscope, AlertTriangle, CheckCircle } from "lucide-react"
+import { AlertCircle, X, Clock, Stethoscope, AlertTriangle, CheckCircle } from "lucide-react"
 import { analyzeSymptoms, SymptomInput, SymptomAnalysisResult } from "@/services/ai-service"
 
 // ==================== TYPE DEFINITIONS ====================

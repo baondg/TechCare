@@ -6,8 +6,6 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Separator } from "@/components/ui/separator"
 import { UserPlus, Trash2, Save, X, Edit3, CheckCircle, ChevronLeft, ChevronRight } from "lucide-react"
 import { AdminLayout } from "@/components/admin-layout"
 

@@ -1,36 +1,20 @@
 "use client"
 
-import type React from "react"
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Activity, CircleUserRound, CalendarIcon, Phone, KeyRound, IdCard, Check, X, Eye, EyeOff, AlertCircle } from "lucide-react"
+import { Activity, CircleUserRound, CalendarIcon, Phone, KeyRound, IdCard, Check, X, Eye, EyeOff } from "lucide-react"
 import { Link } from "react-router-dom";
-import { useNavigate } from "react-router-dom";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns"
 import { Select, SelectTrigger, SelectValue, SelectItem, SelectContent } from "@/components/ui/select";
-import { useAuth } from "@/contexts/AuthContext";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 
 
 export default function RegisterPage() {
-    const router = useNavigate();
-    const { register, isLoading } = useAuth();
-    const [error, setError] = useState("");
-    const [success, setSuccess] = useState(false);
-    
-    // Basic fields
-    const [username, setUsername] = useState("");
-    const [email, setEmail] = useState("");
-    const [firstName, setFirstName] = useState("");
-    const [lastName, setLastName] = useState("");
-    
     const [dob, setDob] = useState<Date | undefined>();
     const age = dob ? calculateAge(dob) : "";
     const [dobRelative, setDobRelative] = useState<Date | undefined>();
@@ -48,45 +32,6 @@ export default function RegisterPage() {
     const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+/.test(password);
     const passwordsMatch = password === confirmPassword && password.length > 0;
     const [showPassword, setShowPassword] = useState(false);
-    
-    const handleRegister = async (e: React.FormEvent) => {
-      e.preventDefault();
-      setError("");
-      
-      if (!username || !email || !password || !firstName || !lastName) {
-        setError("Please fill in all required fields");
-        return;
-      }
-      
-      if (!passwordsMatch) {
-        setError("Passwords do not match");
-        return;
-      }
-      
-      if (!has8Chars || !hasUppercase || !hasDigit || !hasSpecial) {
-        setError("Password does not meet requirements");
-        return;
-      }
-      
-      const result = await register({
-        username,
-        email,
-        password,
-        firstName,
-        lastName,
-        age: parseInt(age) || undefined,
-        role: 'patient'
-      });
-      
-      if (result.success) {
-        setSuccess(true);
-        setTimeout(() => {
-          router("/patient/dashboard");
-        }, 1500);
-      } else {
-        setError(result.error || "Registration failed. Please try again.");
-      }
-    };
     const [showPassword2, setShowPassword2] = useState(false);
 
   return (
@@ -98,7 +43,7 @@ export default function RegisterPage() {
               <Activity className="h-6 w-6 text-[#FFFFFF]" />
             </div>
           </div>
-          <span className="text-2xl font-bold bg-linear-to-r from-[#06b6d4] to-[#0891b2] bg-clip-text text-transparent">
+          <span className="text-2xl z-50 font-bold bg-linear-to-r from-[#06b6d4] to-[#0891b2] bg-clip-text text-transparent">
             TechCare
           </span>
         </Link>
@@ -106,20 +51,6 @@ export default function RegisterPage() {
 
 
       <div className="w-full max-w-6xl flex flex-col gap-6">
-        <form onSubmit={handleRegister} className="flex flex-col gap-6">
-          {error && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-          
-          {success && (
-            <Alert className="bg-green-50 text-green-900 border-green-200">
-              <Check className="h-4 w-4" />
-              <AlertDescription>Registration successful! Redirecting...</AlertDescription>
-            </Alert>
-          )}
 
         {/* PERSONAL INFO */}
         <Card className="card-feature-group card-feature-hover-group">
@@ -142,21 +73,8 @@ export default function RegisterPage() {
 
             
             <div>
-              <Label>First Name *</Label>
-              <Input 
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                required
-              />
-            </div>
-
-            <div>
-              <Label>Last Name *</Label>
-              <Input 
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                required
-              />
+              <Label>Name</Label>
+              <Input className="custom-input"/>
             </div>
 
 
@@ -217,14 +135,8 @@ export default function RegisterPage() {
             </div>
 
             <div className="md:col-span-2">
-              <Label>Email *</Label>
-              <Input 
-                placeholder="user@example.com" 
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
+              <Label>Email</Label>
+              <Input placeholder="user@example.com" className="custom-input"/>
             </div>
           </CardContent>
         </Card>
@@ -343,24 +255,22 @@ export default function RegisterPage() {
           <CardContent className="grid grid-cols-2 md:grid-cols-2 gap-4">
           <div className="col-span-1 md:col-span-3 flex flex-col gap-1 mt-2">
             <div>
-              <Label>Username *</Label>
-              <Input 
-                placeholder="Enter username" 
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
+              <Label>Username</Label>
+              <Input placeholder="Enter National ID" 
+                value={nationalId}
+                disabled
+                className="rounded-2xl ring-1 ring-gray-200"
               />
             </div>
 
             <div>
-              <Label>Password *</Label>
+              <Label>Password</Label>
               <div className="relative">
                 <Input
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="pr-10"
-                  required
+                  className="pr-10 custom-input"
                 />
                 <button
                     type="button"
@@ -373,14 +283,13 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <Label>Re-enter password *</Label>
+              <Label>Re-enter password</Label>
               <div className="relative">
               <Input 
                     type={showPassword2 ? "text" : "password"}
                     value={confirmPassword} 
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="pr-10"
-                    required
+                    className="pr-10 custom-input"
                 />
                 <button
                     type="button" 
@@ -476,14 +385,11 @@ export default function RegisterPage() {
 
         {/* BUTTONS */}
         <div className="flex justify-between mt-4">
-          <Button size="default" variant="outline" className="bg-transparent text-gray-500" asChild type="button">
-            <Link to="/login">← Back to Login</Link>
+          <Button className="btn-outline transition-transform duration-500 px-7 py-4 text-base" asChild>
+            <Link to="/">← Back</Link>
           </Button>
-          <Button type="submit" disabled={isLoading}>
-            {isLoading ? "Registering..." : "Register!"}
-          </Button>
+          <Button className="btn-gradient border-none transition-transform duration-500 text-xl px-7 py-4">Register!</Button>
         </div>
-        </form>
       </div>
     </div>
   )
@@ -529,7 +435,7 @@ function ValidationRow({ ok, text }: { ok: boolean; text: string }) {
   return (
     <div className="group flex items-center gap-3 py-2.5 px-1 rounded-lg transition-all duration-400 hover:bg-cyan-50/50">
       {/* Icon với hiệu ứng scale + glow */}
-      <div className={`relative flex h-6 w-6 items-center justify-center rounded-full transition-all duration-500 ${ok ? "bg-gradient-to-br from-green-500 to-emerald-500 shadow-lg shadow-green-500/30" : "bg-gray-200/80"}`}>
+      <div className={`relative flex h-6 w-6 items-center justify-center rounded-full transition-all duration-500 ${ok ? "bg-linear-to-br from-green-500 to-emerald-500 shadow-lg shadow-green-500/30" : "bg-gray-200/80"}`}>
         <div className={`absolute inset-0 rounded-full ${ok ? "animate-ping bg-green-500/30" : ""}`} />
         {ok ? (
           <Check className="h-4 w-4 text-white relative z-10" strokeWidth={3} />

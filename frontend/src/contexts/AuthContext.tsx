@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+// Simplified auth hook - no AuthProvider needed
+// Returns mock user data for development
 
 interface User {
   id: number;
@@ -27,82 +27,25 @@ interface AuthContextType {
   logout: () => void;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+// Mock user for development
+const mockUser: User = {
+  id: 1,
+  username: 'demo_user',
+  email: 'demo@techcare.com',
+  firstName: 'Demo',
+  lastName: 'User',
+  role: 'patient'
+};
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const navigate = useNavigate();
-
-  const logout = async () => {
-    const token = localStorage.getItem('authToken');
-    
-    // Call logout endpoint to clear session on server
-    if (token) {
-      try {
-        await fetch('http://localhost:3000/api/auth/logout', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          }
-        });
-      } catch (error) {
-        console.error('Error logging out on server:', error);
-      }
-    }
-    
+export const useAuth = (): AuthContextType => {
+  const logout = () => {
     localStorage.removeItem('authToken');
     localStorage.removeItem('user');
     localStorage.removeItem('sessionExpiresAt');
-    setUser(null);
-    navigate('/login');
+    window.location.href = '/login';
   };
 
-  // Check session timeout
-  useEffect(() => {
-    const checkSessionTimeout = () => {
-      const expiresAt = localStorage.getItem('sessionExpiresAt');
-      if (expiresAt) {
-        const expirationTime = new Date(expiresAt).getTime();
-        const now = new Date().getTime();
-        
-        if (now >= expirationTime) {
-          // Session expired
-          logout();
-          return;
-        }
-        
-        // Set timeout to logout when session expires
-        const timeUntilExpiry = expirationTime - now;
-        const timeoutId = setTimeout(() => {
-          logout();
-        }, timeUntilExpiry);
-        
-        return () => clearTimeout(timeoutId);
-      }
-    };
-
-    const token = localStorage.getItem('authToken');
-    const savedUser = localStorage.getItem('user');
-    
-    if (token && savedUser) {
-      try {
-        setUser(JSON.parse(savedUser));
-        checkSessionTimeout();
-      } catch (error) {
-        console.error('Error parsing saved user:', error);
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('user');
-        localStorage.removeItem('sessionExpiresAt');
-      }
-    }
-    
-    setIsLoading(false);
-  }, []);
-
   const login = async (username: string, password: string): Promise<{ success: boolean; error?: string }> => {
-    setIsLoading(true);
     try {
       const response = await fetch('http://localhost:3000/api/auth/login', {
         method: 'POST',
@@ -120,15 +63,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (data.expiresAt) {
           localStorage.setItem('sessionExpiresAt', data.expiresAt);
         }
-        setUser(data.user);
-        setIsLoading(false);
         return { success: true };
       } else {
-        setIsLoading(false);
         return { success: false, error: data.error || 'Login failed' };
       }
     } catch (error) {
-      setIsLoading(false);
       return { success: false, error: 'Network error. Please try again.' };
     }
   };
@@ -142,7 +81,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     age?: number;
     role?: string;
   }): Promise<{ success: boolean; error?: string }> => {
-    setIsLoading(true);
     try {
       const response = await fetch('http://localhost:3000/api/auth/signup', {
         method: 'POST',
@@ -157,39 +95,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (response.ok && data.success) {
         localStorage.setItem('authToken', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));
-        setUser(data.user);
-        setIsLoading(false);
         return { success: true };
       } else {
-        setIsLoading(false);
         return { success: false, error: data.error || 'Registration failed' };
       }
     } catch (error) {
-      setIsLoading(false);
       return { success: false, error: 'Network error. Please try again.' };
     }
   };
 
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        isLoading,
-        isAuthenticated: !!user,
-        login,
-        register,
-        logout,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
-};
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
+  // Return mock data - always authenticated for development
+  return {
+    user: mockUser,
+    isLoading: false,
+    isAuthenticated: true,
+    login,
+    register,
+    logout,
+  };
 };

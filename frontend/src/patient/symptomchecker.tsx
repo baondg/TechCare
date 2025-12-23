@@ -1,5 +1,46 @@
 "use client"
 
+/**
+ * =============================================================================
+ * AI SYMPTOM CHECKER PAGE - TechCare Medical Assistant
+ * =============================================================================
+ * 
+ * This component provides an AI-powered symptom analysis tool that helps patients
+ * understand their symptoms and receive preliminary health guidance. It uses
+ * Google Gemini API for intelligent symptom pattern recognition.
+ * 
+ * FEATURES:
+ * - Interactive symptom selection grid (16 common symptoms)
+ * - Severity selection (mild/moderate/severe)
+ * - Duration tracking (< 24h to > 1 week)
+ * - AI-powered analysis with multiple possible conditions
+ * - Color-coded urgency levels (green/yellow/red)
+ * - Medical disclaimers and "when to seek help" guidance
+ * - Fallback rule-based analysis when AI is unavailable
+ * 
+ * USER FLOW:
+ * 1. Patient clicks on symptoms they're experiencing
+ * 2. Dialog opens to specify severity and duration
+ * 3. Selected symptoms appear as badges with details
+ * 4. Patient clicks "Analyze" to get AI assessment
+ * 5. Results show possible conditions with recommendations
+ * 
+ * AI RESPONSE STRUCTURE:
+ * - Condition name (e.g., "Common Cold", "Flu")
+ * - Severity level (low/medium/high)
+ * - Recommendation (what to do)
+ * - Detailed explanation
+ * - Possible causes
+ * - When to seek immediate help
+ * 
+ * IMPORTANT DISCLAIMER:
+ * This tool is NOT a substitute for professional medical advice.
+ * Always consult a healthcare provider for proper diagnosis.
+ * 
+ * @author TechCare Development Team
+ * @version 1.0.0
+ */
+
 import { useState } from "react"
 import {Card,CardContent,CardHeader,CardTitle,CardDescription,} from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -7,27 +48,50 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {Dialog,DialogContent,DialogHeader,DialogTitle,DialogDescription,DialogFooter,} from "@/components/ui/dialog"
 import { PatientLayout } from "@/components/patient-layout"
-import { Activity, AlertCircle, X, Clock } from "lucide-react"
+import { Activity, AlertCircle, X, Clock, Stethoscope, AlertTriangle, CheckCircle } from "lucide-react"
+import { analyzeSymptoms, SymptomInput, SymptomAnalysisResult } from "@/services/ai-service"
 
+// ==================== TYPE DEFINITIONS ====================
+
+/**
+ * SelectedSymptom Interface
+ * Represents a symptom selected by the patient with additional context
+ * 
+ * @property name - The symptom name (e.g., "Headache", "Fever")
+ * @property severity - How intense the symptom is:
+ *   - "mild": Noticeable but doesn't affect daily activities
+ *   - "moderate": Affects daily life and comfort
+ *   - "severe": Very intense, significantly impacts function
+ * @property duration - How long the symptom has been present:
+ *   - "less24h": Less than 24 hours (acute onset)
+ *   - "1to3days": 1-3 days (short-term)
+ *   - "3to7days": 3-7 days (medium-term)
+ *   - "moreThanWeek": More than a week (persistent)
+ */
 interface SelectedSymptom {
   name: string
   severity: "mild" | "moderate" | "severe"
   duration: "less24h" | "1to3days" | "3to7days" | "moreThanWeek"
 }
 
-interface SymptomResult {
-  condition: string
-  severity: "low" | "medium" | "high"
-  recommendation: string
-  details: string
-}
+// ==================== CONSTANTS ====================
 
+/**
+ * Common Symptoms List
+ * Pre-defined list of frequently reported symptoms for quick selection.
+ * These cover a wide range of conditions from respiratory to gastrointestinal.
+ */
 const commonSymptoms = [
   "Headache", "Fever", "Cough", "Sore Throat", "Fatigue", "Nausea",
   "Body Aches", "Runny Nose", "Shortness of Breath", "Chest Pain",
   "Dizziness", "Loss of Taste/Smell", "Diarrhea", "Rash", "Joint Pain", "Vomiting"
 ]
 
+/**
+ * Duration Options
+ * Time periods for how long a symptom has been present.
+ * Duration helps AI determine if condition is acute or chronic.
+ */
 const durationOptions = [
   { value: "less24h", label: "Less than 24 hours", short: "< 1 day" },
   { value: "1to3days", label: "1-3 days", short: "1-3 days" },
@@ -35,21 +99,63 @@ const durationOptions = [
   { value: "moreThanWeek", label: "More than a week", short: "> 1 week" },
 ]
 
+// ==================== MAIN COMPONENT ====================
+
+/**
+ * SymptomChecker Component
+ * 
+ * Main symptom analysis interface. Allows patients to select symptoms,
+ * specify their severity and duration, and receive AI-powered analysis.
+ * 
+ * STATE OVERVIEW:
+ * - selectedSymptoms: Array of symptoms with severity/duration
+ * - dialogOpen: Controls the severity/duration selection modal
+ * - currentSymptom: Which symptom is being configured in the dialog
+ * - tempSeverity/tempDuration: Temporary values during dialog editing
+ * - isAnalyzing: Loading state while AI processes symptoms
+ * - results: Array of possible conditions from AI analysis
+ * - disclaimer: Medical disclaimer text from AI
+ * - analysisError: Error message if analysis fails
+ * 
+ * @returns JSX.Element - Complete symptom checker page
+ */
 export default function SymptomChecker() {
+  // ==================== STATE MANAGEMENT ====================
+  
+  // Array of symptoms selected by the patient with their details
   const [selectedSymptoms, setSelectedSymptoms] = useState<SelectedSymptom[]>([])
+  
+  // Dialog state for configuring symptom severity and duration
   const [dialogOpen, setDialogOpen] = useState(false)
   const [currentSymptom, setCurrentSymptom] = useState("")
+  
+  // Temporary values while editing in dialog (before confirmation)
   const [tempSeverity, setTempSeverity] = useState<"mild" | "moderate" | "severe">("moderate")
   const [tempDuration, setTempDuration] = useState<SelectedSymptom["duration"]>("1to3days")
+  
+  // Analysis state
   const [isAnalyzing, setIsAnalyzing] = useState(false)
-  const [results, setResults] = useState<SymptomResult[]>([])
+  const [results, setResults] = useState<SymptomAnalysisResult[]>([])
+  const [disclaimer, setDisclaimer] = useState<string>("")
+  const [analysisError, setAnalysisError] = useState<string>("")
 
+  // ==================== EVENT HANDLERS ====================
+
+  /**
+   * openDialog - Opens the symptom configuration dialog
+   * If symptom was previously selected, loads its existing values.
+   * Otherwise, uses default values (moderate severity, 1-3 days).
+   * 
+   * @param symptom - The symptom name to configure
+   */
   const openDialog = (symptom: string) => {
     const existing = selectedSymptoms.find(s => s.name === symptom)
     if (existing) {
+      // Load existing values for editing
       setTempSeverity(existing.severity)
       setTempDuration(existing.duration)
     } else {
+      // Set default values for new symptom
       setTempSeverity("moderate")
       setTempDuration("1to3days")
     }
@@ -57,6 +163,10 @@ export default function SymptomChecker() {
     setDialogOpen(true)
   }
 
+  /**
+   * confirmSelection - Saves the symptom with configured severity/duration
+   * Removes any existing entry for this symptom and adds the updated one.
+   */
   const confirmSelection = () => {
     setSelectedSymptoms(prev => {
       const filtered = prev.filter(s => s.name !== currentSymptom)
@@ -65,47 +175,57 @@ export default function SymptomChecker() {
     setDialogOpen(false)
   }
 
+  /**
+   * removeSymptom - Removes a symptom from the selected list
+   * @param name - The symptom name to remove
+   */
   const removeSymptom = (name: string) => {
     setSelectedSymptoms(prev => prev.filter(s => s.name !== name))
   }
 
-  const handleAnalyze = () => {
+  /**
+   * handleAnalyze - Triggers AI analysis of selected symptoms
+   * 
+   * FLOW:
+   * 1. Validate at least one symptom is selected
+   * 2. Set loading state and clear previous results
+   * 3. Convert symptoms to AI service format
+   * 4. Call analyzeSymptoms() from ai-service.ts
+   * 5. Update results and disclaimer from AI response
+   * 6. Handle errors with user-friendly message
+   * 
+   * @async
+   */
+  const handleAnalyze = async () => {
     if (selectedSymptoms.length === 0) return
     setIsAnalyzing(true)
+    setAnalysisError("")
+    setResults([])
+    setDisclaimer("")
 
-    setTimeout(() => {
-      const hasSevere = selectedSymptoms.some(s => s.severity === "severe")
-      const hasChestPainSevere = selectedSymptoms.some(s => s.name === "Chest Pain" && s.severity === "severe")
-      const hasSOBSevere = selectedSymptoms.some(s => s.name === "Shortness of Breath" && s.severity === "severe")
+    try {
+      // Convert selected symptoms to AI service format
+      const symptomsForAnalysis: SymptomInput[] = selectedSymptoms.map(s => ({
+        name: s.name,
+        severity: s.severity,
+        duration: s.duration
+      }))
 
-      const mockResults: SymptomResult[] = []
+      // Call AI service for symptom analysis
+      const response = await analyzeSymptoms(symptomsForAnalysis)
 
-      if (hasChestPainSevere || hasSOBSevere) {
-        mockResults.push({
-          condition: "Emergency Symptoms Detected",
-          severity: "high",
-          recommendation: "Go to emergency room immediately",
-          details: "Severe chest pain or shortness of breath requires urgent evaluation. Do not delay."
-        })
-      } else if (hasSevere) {
-        mockResults.push({
-          condition: "Significant Symptoms",
-          severity: "medium",
-          recommendation: "See a doctor within 24-48 hours",
-          details: "Your symptoms are concerning and should be evaluated soon."
-        })
-      } else {
-        mockResults.push({
-          condition: "Likely Mild Condition",
-          severity: "low",
-          recommendation: "Monitor at home",
-          details: "Continue rest and hydration. Seek care if symptoms worsen."
-        })
+      if (response.error) {
+        setAnalysisError(response.error)
       }
 
-      setResults(mockResults)
+      setResults(response.results)
+      setDisclaimer(response.disclaimer)
+    } catch (error) {
+      console.error('Error analyzing symptoms:', error)
+      setAnalysisError('Failed to analyze symptoms. Please try again.')
+    } finally {
       setIsAnalyzing(false)
-    }, 2000)
+    }
   }
 
   const getSeverityColor = (sev: string) => {
@@ -216,12 +336,21 @@ export default function SymptomChecker() {
             {/* Results */}
             {results.length > 0 && (
               <>
-                <Alert className="border-red-300 bg-red-50">
-                  <AlertCircle className="h-6 w-6 text-red-600" />
-                  <AlertDescription className="text-red-900 font-medium text-md">
-                    This is not a medical diagnosis. Please consult a doctor for accurate assessment.
+                <Alert className="border-amber-300 bg-amber-50">
+                  <AlertTriangle className="h-6 w-6 text-amber-600" />
+                  <AlertDescription className="text-amber-900 font-medium text-md">
+                    {disclaimer || "This is not a medical diagnosis. Please consult a doctor for accurate assessment."}
                   </AlertDescription>
                 </Alert>
+
+                {analysisError && (
+                  <Alert className="border-red-300 bg-red-50">
+                    <AlertCircle className="h-5 w-5 text-red-600" />
+                    <AlertDescription className="text-red-800">
+                      {analysisError}
+                    </AlertDescription>
+                  </Alert>
+                )}
 
                 {results.map((r, i) => (
                   <Card
@@ -229,7 +358,9 @@ export default function SymptomChecker() {
                     className={`border-2 ${
                       r.severity === "high"
                         ? "border-red-400 bg-red-50"
-                        : "border-amber-300"
+                        : r.severity === "medium"
+                        ? "border-amber-300 bg-amber-50"
+                        : "border-green-300 bg-green-50"
                     }`}
                   >
                     <CardHeader>
@@ -237,14 +368,59 @@ export default function SymptomChecker() {
                         {r.severity === "high" && (
                           <AlertCircle className="h-8 w-8 text-red-600" />
                         )}
+                        {r.severity === "medium" && (
+                          <AlertTriangle className="h-8 w-8 text-amber-600" />
+                        )}
+                        {r.severity === "low" && (
+                          <CheckCircle className="h-8 w-8 text-green-600" />
+                        )}
                         {r.condition}
                       </CardTitle>
+                      <CardDescription>
+                        <Badge 
+                          variant="outline" 
+                          className={
+                            r.severity === "high" 
+                              ? "bg-red-100 text-red-800 border-red-300" 
+                              : r.severity === "medium"
+                              ? "bg-amber-100 text-amber-800 border-amber-300"
+                              : "bg-green-100 text-green-800 border-green-300"
+                          }
+                        >
+                          {r.severity === "high" ? "Urgent" : r.severity === "medium" ? "Moderate Priority" : "Low Priority"}
+                        </Badge>
+                      </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-3 text-md">
-                      <p>
-                        <strong>Recommendation:</strong> {r.recommendation}
-                      </p>
-                      <p>{r.details}</p>
+                    <CardContent className="space-y-4 text-md">
+                      <div>
+                        <p className="font-semibold text-gray-700 mb-1">Recommendation:</p>
+                        <p className="text-gray-800">{r.recommendation}</p>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-700 mb-1">Details:</p>
+                        <p className="text-gray-600">{r.details}</p>
+                      </div>
+                      {r.possibleCauses && r.possibleCauses.length > 0 && (
+                        <div>
+                          <p className="font-semibold text-gray-700 mb-2">Possible Causes:</p>
+                          <div className="flex flex-wrap gap-2">
+                            {r.possibleCauses.map((cause, idx) => (
+                              <Badge key={idx} variant="secondary" className="bg-gray-100">
+                                {cause}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {r.whenToSeekHelp && (
+                        <div className="mt-4 p-3 bg-white/50 rounded-lg border border-gray-200">
+                          <p className="font-semibold text-gray-700 mb-1 flex items-center gap-2">
+                            <Stethoscope className="h-4 w-4" />
+                            When to Seek Help:
+                          </p>
+                          <p className="text-gray-600 text-sm">{r.whenToSeekHelp}</p>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 ))}

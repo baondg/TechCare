@@ -1,5 +1,39 @@
 "use client"
 
+/**
+ * =============================================================================
+ * AI CHATBOT PAGE - TechCare Medical Assistant
+ * =============================================================================
+ * 
+ * This component provides a conversational AI interface for patients to interact
+ * with TechCare's medical assistant. It uses Google Gemini API for natural
+ * language processing and response generation.
+ * 
+ * FEATURES:
+ * - Real-time chat interface with message history
+ * - Typing indicators while AI is generating responses
+ * - Auto-scroll to latest messages
+ * - Quick question buttons for common queries
+ * - Feedback buttons (thumbs up/down) for AI responses
+ * - Error handling with graceful fallback messages
+ * 
+ * ARCHITECTURE:
+ * 1. User types message → handleSend() is triggered
+ * 2. Message added to UI → Loading indicator shown
+ * 3. Conversation history sent to AI service (ai-service.ts)
+ * 4. AI service calls Gemini API with medical assistant context
+ * 5. Response received → Loading replaced with AI message
+ * 
+ * AI CAPABILITIES:
+ * - Medication information and reminders
+ * - Appointment scheduling assistance
+ * - General health questions and wellness tips
+ * - Post-treatment care instructions
+ * 
+ * @author TechCare Development Team
+ * @version 1.0.0
+ */
+
 import { useState, useRef, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -9,6 +43,14 @@ import { Bot, Send, ThumbsUp, ThumbsDown } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { sendChatMessage, type ChatMessage as AIMessage } from "@/services/ai-service"
 
+/**
+ * Message type definition for chat messages
+ * @property id - Unique identifier for React key prop
+ * @property role - Who sent the message: "user" or "assistant"
+ * @property content - The actual message text
+ * @property timestamp - When the message was sent
+ * @property isLoading - Optional flag to show typing indicator
+ */
 type Message = {
   id: string
   role: "user" | "assistant"
@@ -17,7 +59,24 @@ type Message = {
   isLoading?: boolean
 }
 
+/**
+ * ChatbotPage Component
+ * 
+ * Main chat interface for patient-AI interaction. Manages conversation state,
+ * handles message sending, and renders the chat UI with real-time updates.
+ * 
+ * STATE MANAGEMENT:
+ * - messages: Array of all chat messages (user + assistant)
+ * - input: Current text in the input field
+ * - isLoading: Whether AI is currently generating a response
+ * - scrollAreaRef: Reference to scroll container for auto-scroll
+ * 
+ * @returns JSX.Element - The complete chatbot page wrapped in PatientLayout
+ */
 export default function ChatbotPage() {
+  // ==================== STATE MANAGEMENT ====================
+  
+  // Chat message history - initialized with welcome message from AI
   const [messages, setMessages] = useState<Message[]>([
     {
       id: `msg-${Date.now()}-1`,
@@ -27,11 +86,23 @@ export default function ChatbotPage() {
       timestamp: new Date(),
     },
   ])
+  
+  // Current user input text
   const [input, setInput] = useState("")
+  
+  // Loading state - prevents multiple simultaneous requests
   const [isLoading, setIsLoading] = useState(false)
+  
+  // Reference to scroll container for programmatic scrolling
   const scrollAreaRef = useRef<HTMLDivElement>(null)
 
-  // Auto-scroll to bottom when new messages arrive
+  // ==================== SIDE EFFECTS ====================
+  
+  /**
+   * Auto-scroll Effect
+   * Automatically scrolls the chat container to the bottom whenever
+   * new messages are added, ensuring the latest message is always visible.
+   */
   useEffect(() => {
     if (scrollAreaRef.current) {
       const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]')
@@ -41,7 +112,24 @@ export default function ChatbotPage() {
     }
   }, [messages])
 
+  // ==================== EVENT HANDLERS ====================
+  
+  /**
+   * handleSend - Processes user message and gets AI response
+   * 
+   * FLOW:
+   * 1. Validate input (not empty, not already loading)
+   * 2. Add user message to chat immediately (optimistic UI)
+   * 3. Clear input field and show loading indicator
+   * 4. Build conversation history for context
+   * 5. Call AI service with history + new message
+   * 6. Replace loading with actual AI response
+   * 7. Handle errors gracefully with user-friendly message
+   * 
+   * @async
+   */
   const handleSend = async () => {
+    // Guard: Prevent empty messages or concurrent requests
     if (!input.trim() || isLoading) return
 
     const userMessageId = `msg-${Date.now()}-user`

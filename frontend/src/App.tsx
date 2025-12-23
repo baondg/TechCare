@@ -16,14 +16,12 @@ import SymptomCheckerPage from "./patient/symptomchecker"
 import AdminDashboardPage from "./admin/dashboard"
 import SystemConfig from "./admin/config"
 import UserManagement from "./admin/accountMng"
-import { AuthProvider } from "@/contexts/AuthContext"
 import HospitalInfo from "./admin/hospital-info"
 
 
 
 function App() {
   return (
-    <AuthProvider>
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
@@ -46,7 +44,6 @@ function App() {
         <Route path="/admin/hospital-info" element={<HospitalInfo />} />
         <Route path="/admin/users" element={<UserManagement />} />
       </Routes>
-    </AuthProvider>
   )
 }
 

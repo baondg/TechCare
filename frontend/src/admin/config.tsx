@@ -10,12 +10,17 @@ import { Save, Settings, Loader2, CheckCircle2, AlertCircle } from "lucide-react
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export default function SystemConfig() {
+  const { user } = useAuth();
   const [config, setConfig] = useState({
     apiKey: "****-****-****-****",
     emailServer: "smtp.hospital.com",
     aiModel: "gpt-4-turbo",
     maxUsers: "500",
     sessionTimeout: "30",
+    rateLimitRequests: "100",
+    rateLimitWindow: "15",
+    apiRateLimitRequests: "60",
+    apiRateLimitWindow: "1",
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)

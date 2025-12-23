@@ -10,6 +10,7 @@ import { useAuth } from "@/contexts/AuthContext"
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation()
+  const [sidebarOpen, setSidebarOpen] = useState(true)
   const { logout, user } = useAuth()
 
   const navigation = [

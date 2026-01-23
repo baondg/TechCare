@@ -124,7 +124,8 @@ export default function HealthInfoPage() {
     setValues: (v: string[]) => void,
     disabled: boolean
   }) {
-    const updateValue = (index: number, v: string) => {
+
+  const updateValue = (index: number, v: string) => {
       const newValues = [...values]
       newValues[index] = v
       setValues(newValues)

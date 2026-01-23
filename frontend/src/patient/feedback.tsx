@@ -124,7 +124,7 @@ export default function FeedbackPage() {
           <div className="space-y-6">
             {/* Category Selection */}
             <Card className="card-feature border-slate-200/60">
-              <CardHeader className="bg-gradient-to-r from-cyan-50/50 to-transparent">
+              <CardHeader className="bg-linear-to-r from-cyan-50/50 to-transparent">
                 <CardTitle className="text-slate-900">Feedback Category</CardTitle>
                 <CardDescription>Tell us what your feedback is about</CardDescription>
               </CardHeader>
@@ -151,8 +151,8 @@ export default function FeedbackPage() {
                         <div className={`icon-feature-card ${isSelected ? "scale-110" : ""}`}>
                           <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${
                             isSelected 
-                              ? "bg-gradient-to-br from-cyan-500 to-cyan-600" 
-                              : "bg-gradient-to-br from-slate-100 to-slate-200"
+                              ? "bg-linear-to-br from-cyan-500 to-cyan-600" 
+                              : "bg-linear-to-br from-slate-100 to-slate-200"
                           }`}>
                             <Icon className={`h-6 w-6 ${isSelected ? "text-white" : "text-slate-600"}`} />
                           </div>
@@ -171,7 +171,7 @@ export default function FeedbackPage() {
 
             {/* Rating Selection */}
             <Card className="card-feature border-slate-200/60">
-              <CardHeader className="bg-gradient-to-r from-amber-50/50 to-transparent">
+              <CardHeader className="bg-linear-to-r from-amber-50/50 to-transparent">
                 <CardTitle className="text-slate-900">Rate Your Experience</CardTitle>
                 <CardDescription>How would you rate this experience?</CardDescription>
               </CardHeader>
@@ -205,7 +205,7 @@ export default function FeedbackPage() {
 
             {/* Feedback Text */}
             <Card className="card-feature border-slate-200/60">
-              <CardHeader className="bg-gradient-to-r from-blue-50/50 to-transparent">
+              <CardHeader className="bg-linear-to-r from-blue-50/50 to-transparent">
                 <CardTitle className="text-slate-900">Your Feedback</CardTitle>
                 <CardDescription>Share your detailed thoughts and suggestions</CardDescription>
               </CardHeader>
@@ -225,7 +225,7 @@ export default function FeedbackPage() {
                   Submit Feedback
                 </Button>
                 {submitted && (
-                  <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl flex items-center gap-3">
+                  <div className="p-4 bg-linear-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl flex items-center gap-3">
                     <CheckCircle className="h-5 w-5 text-green-600" />
                     <span className="text-green-700 font-medium">
                       Thank you! Your feedback has been submitted successfully.
@@ -255,9 +255,9 @@ export default function FeedbackPage() {
                       <div className="flex items-start gap-4 flex-1">
                         <div className="icon-feature-card">
                           <div className={`flex h-14 w-14 items-center justify-center rounded-xl ${
-                            rec.type === "appointment" ? "bg-gradient-to-br from-blue-500 to-blue-600" :
-                            rec.type === "chatbot" ? "bg-gradient-to-br from-purple-500 to-purple-600" :
-                            "bg-gradient-to-br from-green-500 to-green-600"
+                            rec.type === "appointment" ? "bg-linear-to-br from-blue-500 to-blue-600" :
+                            rec.type === "chatbot" ? "bg-linear-to-br from-purple-500 to-purple-600" :
+                            "bg-linear-to-br from-green-500 to-green-600"
                           }`}>
                             {rec.type === "appointment" && <Calendar className="h-7 w-7 text-white" />}
                             {rec.type === "chatbot" && <MessageSquare className="h-7 w-7 text-white" />}
@@ -271,14 +271,14 @@ export default function FeedbackPage() {
                         </div>
                       </div>
                       <div className="shrink-0">
-                        <div className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-full text-sm font-bold shadow-md">
+                        <div className="inline-flex items-center px-4 py-2 bg-linear-to-r from-cyan-500 to-blue-500 text-white rounded-full text-sm font-bold shadow-md">
                           {rec.confidence}% confidence
                         </div>
                       </div>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="p-5 bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl border border-slate-200">
+                    <div className="p-5 bg-linear-to-br from-slate-50 to-slate-100 rounded-xl border border-slate-200">
                       <p className="text-sm text-slate-600 font-semibold mb-2 flex items-center gap-2">
                         <Sparkles className="h-4 w-4 text-cyan-600" />
                         AI Recommendation:
@@ -309,8 +309,8 @@ export default function FeedbackPage() {
                       <div
                         className={`p-4 rounded-xl flex items-center gap-3 ${
                           rec.userResponse === "accepted"
-                            ? "bg-gradient-to-r from-green-50 to-emerald-50 text-green-700 border border-green-200"
-                            : "bg-gradient-to-r from-red-50 to-rose-50 text-red-700 border border-red-200"
+                            ? "bg-linear-to-r from-green-50 to-emerald-50 text-green-700 border border-green-200"
+                            : "bg-linear-to-r from-red-50 to-rose-50 text-red-700 border border-red-200"
                         }`}
                       >
                         {rec.userResponse === "accepted" ? (

@@ -3,7 +3,7 @@
 
 const AI_API_ENDPOINT = import.meta.env.VITE_AI_API_ENDPOINT || 'http://localhost:3000/api/ai/chat'
 const AI_API_KEY = import.meta.env.VITE_AI_API_KEY || 'AIzaSyDeBPklvZOIylsnXgtzqOXeYkkRNUW3z0Y'
-const AI_PROVIDER = import.meta.env.VITE_AI_PROVIDER || 'custom' // openai, gemini, anthropic, cohere, huggingface, custom
+const AI_PROVIDER = import.meta.env.VITE_AI_PROVIDER || 'gemini' // openai, gemini, anthropic, cohere, huggingface, custom
 
 // Cache for available models to avoid repeated API calls
 let cachedModels: any[] | null = null
@@ -16,6 +16,29 @@ export interface ChatMessage {
 
 export interface ChatResponse {
   message: string
+  error?: string
+}
+
+// ============ SYMPTOM CHECKER TYPES ============
+
+export interface SymptomInput {
+  name: string
+  severity: 'mild' | 'moderate' | 'severe'
+  duration: 'less24h' | '1to3days' | '3to7days' | 'moreThanWeek'
+}
+
+export interface SymptomAnalysisResult {
+  condition: string
+  severity: 'low' | 'medium' | 'high'
+  recommendation: string
+  details: string
+  possibleCauses?: string[]
+  whenToSeekHelp?: string
+}
+
+export interface SymptomAnalysisResponse {
+  results: SymptomAnalysisResult[]
+  disclaimer: string
   error?: string
 }
 
@@ -429,3 +452,272 @@ export async function sendChatMessageGemini(
   }
 }
 */
+
+// ============ SYMPTOM CHECKER AI ANALYSIS ============
+
+/**
+ * Analyze symptoms using AI and return possible conditions
+ * @param symptoms - Array of symptoms with severity and duration
+ * @returns Analysis results with recommendations
+ */
+export async function analyzeSymptoms(
+  symptoms: SymptomInput[]
+): Promise<SymptomAnalysisResponse> {
+  if (symptoms.length === 0) {
+    return {
+      results: [],
+      disclaimer: 'No symptoms provided for analysis.',
+      error: 'Please select at least one symptom.'
+    }
+  }
+
+  const durationMap: Record<string, string> = {
+    'less24h': 'less than 24 hours',
+    '1to3days': '1 to 3 days',
+    '3to7days': '3 to 7 days',
+    'moreThanWeek': 'more than a week'
+  }
+
+  // Format symptoms for AI prompt
+  const symptomDescription = symptoms
+    .map(s => `- ${s.name}: severity is ${s.severity}, duration is ${durationMap[s.duration]}`)
+    .join('\n')
+
+  const systemPrompt = `You are a medical symptom analysis assistant for TechCare hospital. 
+Your role is to analyze patient symptoms and provide preliminary assessments.
+
+IMPORTANT GUIDELINES:
+1. Always emphasize that this is NOT a medical diagnosis
+2. Recommend professional consultation for serious symptoms
+3. Be empathetic and clear in your explanations
+4. Consider symptom combinations and their interactions
+5. Prioritize patient safety - err on the side of caution
+
+You MUST respond in valid JSON format with this exact structure:
+{
+  "results": [
+    {
+      "condition": "Possible condition name",
+      "severity": "low" | "medium" | "high",
+      "recommendation": "What the patient should do",
+      "details": "Detailed explanation",
+      "possibleCauses": ["cause1", "cause2"],
+      "whenToSeekHelp": "When to see a doctor immediately"
+    }
+  ],
+  "disclaimer": "Medical disclaimer message"
+}
+
+Severity levels:
+- "high": Requires immediate medical attention (ER visit)
+- "medium": Should see a doctor within 24-48 hours
+- "low": Can monitor at home, seek care if worsening`
+
+  const userMessage = `Please analyze these symptoms and provide your assessment:
+
+${symptomDescription}
+
+Patient has ${symptoms.length} symptom(s) total.
+Provide 1-3 possible conditions based on these symptoms, prioritized by likelihood.
+Respond ONLY with valid JSON, no additional text.`
+
+  try {
+    // For Gemini, dynamically select a valid model
+    let endpoint = AI_API_ENDPOINT
+    if (AI_PROVIDER.toLowerCase() === 'gemini') {
+      const modelName = await pickGeminiModel()
+      const modelId = modelName.replace('models/', '')
+      endpoint = `https://generativelanguage.googleapis.com/v1/models/${modelId}:generateContent?key=${AI_API_KEY}`
+    }
+
+    const requestBody = buildSymptomAnalysisRequestBody(AI_PROVIDER, systemPrompt, userMessage)
+    const headers = buildHeaders(AI_PROVIDER, AI_API_KEY)
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(requestBody)
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('Symptom Analysis API Error:', errorText)
+      throw new Error(`API error: ${response.status}`)
+    }
+
+    const data = await response.json()
+    const messageContent = extractMessage(AI_PROVIDER, data)
+
+    // Parse JSON from AI response
+    const jsonMatch = messageContent.match(/\{[\s\S]*\}/)
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0])
+      return {
+        results: parsed.results || [],
+        disclaimer: parsed.disclaimer || 'This is not a medical diagnosis. Please consult a healthcare professional.',
+      }
+    }
+
+    throw new Error('Could not parse AI response')
+
+  } catch (error) {
+    console.error('Symptom Analysis Error:', error)
+    
+    // Fallback to rule-based analysis
+    return getFallbackSymptomAnalysis(symptoms)
+  }
+}
+
+/**
+ * Build request body for symptom analysis based on provider
+ */
+function buildSymptomAnalysisRequestBody(
+  provider: string,
+  systemPrompt: string,
+  userMessage: string
+): unknown {
+  switch (provider.toLowerCase()) {
+    case 'openai':
+    case 'azure-openai':
+      return {
+        model: 'gpt-4',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessage }
+        ],
+        temperature: 0.3, // Lower temperature for more consistent medical advice
+        max_tokens: 1000
+      }
+
+    case 'anthropic':
+    case 'claude':
+      return {
+        model: 'claude-3-sonnet-20240229',
+        messages: [{ role: 'user', content: userMessage }],
+        system: systemPrompt,
+        max_tokens: 1000
+      }
+
+    case 'gemini':
+      return {
+        contents: [{
+          parts: [{
+            text: `${systemPrompt}\n\n${userMessage}`
+          }]
+        }],
+        generationConfig: {
+          temperature: 0.3,
+          maxOutputTokens: 1000
+        }
+      }
+
+    default:
+      return {
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessage }
+        ]
+      }
+  }
+}
+
+/**
+ * Fallback symptom analysis when AI service is unavailable
+ */
+function getFallbackSymptomAnalysis(symptoms: SymptomInput[]): SymptomAnalysisResponse {
+  const results: SymptomAnalysisResult[] = []
+  
+  const hasSevere = symptoms.some(s => s.severity === 'severe')
+  const hasChestPain = symptoms.some(s => s.name.toLowerCase().includes('chest pain'))
+  const hasSOB = symptoms.some(s => s.name.toLowerCase().includes('shortness of breath'))
+  const hasFever = symptoms.some(s => s.name.toLowerCase().includes('fever'))
+  const hasCough = symptoms.some(s => s.name.toLowerCase().includes('cough'))
+  const hasHeadache = symptoms.some(s => s.name.toLowerCase().includes('headache'))
+  const hasNausea = symptoms.some(s => s.name.toLowerCase().includes('nausea') || s.name.toLowerCase().includes('vomiting'))
+  const hasDizziness = symptoms.some(s => s.name.toLowerCase().includes('dizziness'))
+  const longDuration = symptoms.some(s => s.duration === '3to7days' || s.duration === 'moreThanWeek')
+
+  // Emergency symptoms check
+  if ((hasChestPain && hasSevere) || (hasSOB && hasSevere)) {
+    results.push({
+      condition: 'Emergency Symptoms Detected',
+      severity: 'high',
+      recommendation: 'Seek emergency medical care immediately',
+      details: 'Severe chest pain or shortness of breath can indicate serious conditions such as heart attack, pulmonary embolism, or severe respiratory distress that require immediate medical evaluation.',
+      possibleCauses: ['Cardiac issues', 'Pulmonary conditions', 'Anxiety/panic attack'],
+      whenToSeekHelp: 'Call emergency services (911) or go to the nearest emergency room immediately.'
+    })
+    return {
+      results,
+      disclaimer: 'This is not a medical diagnosis. Given the severity of your symptoms, please seek immediate medical attention.'
+    }
+  }
+
+  // Flu-like symptoms
+  if (hasFever && hasCough) {
+    results.push({
+      condition: 'Possible Respiratory Infection',
+      severity: hasSevere || longDuration ? 'medium' : 'low',
+      recommendation: hasSevere ? 'See a doctor within 24 hours' : 'Rest and monitor symptoms',
+      details: 'Your combination of fever and cough may indicate a respiratory infection such as the flu, common cold, or COVID-19. Monitor your temperature and stay hydrated.',
+      possibleCauses: ['Influenza (Flu)', 'Common cold', 'COVID-19', 'Bronchitis'],
+      whenToSeekHelp: 'Seek medical care if fever exceeds 103°F (39.4°C), symptoms worsen, or you have difficulty breathing.'
+    })
+  }
+
+  // Headache with other symptoms
+  if (hasHeadache && hasSevere) {
+    results.push({
+      condition: 'Severe Headache Assessment Needed',
+      severity: 'medium',
+      recommendation: 'Consult a healthcare provider soon',
+      details: 'Severe headaches, especially with sudden onset or accompanied by other symptoms, should be evaluated by a medical professional to rule out serious conditions.',
+      possibleCauses: ['Migraine', 'Tension headache', 'Dehydration', 'Hypertension'],
+      whenToSeekHelp: 'Seek immediate care if headache is sudden and severe ("worst headache of your life"), accompanied by confusion, vision changes, or stiff neck.'
+    })
+  }
+
+  // Gastrointestinal symptoms
+  if (hasNausea) {
+    results.push({
+      condition: 'Gastrointestinal Symptoms',
+      severity: hasSevere ? 'medium' : 'low',
+      recommendation: hasSevere ? 'See a doctor if symptoms persist' : 'Stay hydrated and rest',
+      details: 'Nausea and vomiting can have many causes including viral infections, food poisoning, or medication side effects. Focus on staying hydrated with small sips of water or electrolyte drinks.',
+      possibleCauses: ['Viral gastroenteritis', 'Food poisoning', 'Medication side effects', 'Motion sickness'],
+      whenToSeekHelp: 'Seek care if unable to keep fluids down for 24 hours, see blood in vomit, or have severe abdominal pain.'
+    })
+  }
+
+  // Dizziness
+  if (hasDizziness && hasSevere) {
+    results.push({
+      condition: 'Dizziness Evaluation Recommended',
+      severity: 'medium',
+      recommendation: 'Schedule a medical appointment',
+      details: 'Severe dizziness can affect balance and safety. It may be related to inner ear problems, blood pressure changes, or other conditions that should be evaluated.',
+      possibleCauses: ['Vertigo', 'Low blood pressure', 'Dehydration', 'Inner ear infection'],
+      whenToSeekHelp: 'Seek immediate care if dizziness is accompanied by chest pain, severe headache, numbness, or difficulty speaking.'
+    })
+  }
+
+  // Default result if no specific patterns matched
+  if (results.length === 0) {
+    const overallSeverity = hasSevere ? 'medium' : (longDuration ? 'medium' : 'low')
+    results.push({
+      condition: hasSevere ? 'Symptoms Require Attention' : 'General Symptoms Assessment',
+      severity: overallSeverity,
+      recommendation: hasSevere 
+        ? 'Consider scheduling an appointment with your doctor' 
+        : 'Monitor symptoms at home and rest',
+      details: `Based on the ${symptoms.length} symptom(s) you reported, ${hasSevere ? 'given the severity level, a medical evaluation is recommended' : 'these appear to be manageable with home care'}. Continue to track your symptoms and note any changes.`,
+      possibleCauses: ['Various conditions possible', 'Further evaluation may be needed'],
+      whenToSeekHelp: 'Seek medical care if symptoms worsen, new symptoms develop, or you feel significantly unwell.'
+    })
+  }
+
+  return {
+    results,
+    disclaimer: 'This is an automated assessment and NOT a medical diagnosis. Always consult with a qualified healthcare professional for proper evaluation and treatment.'
+  }
+}

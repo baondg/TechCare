@@ -6,10 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Activity, CircleUserRound, CalendarIcon, Phone, KeyRound, IdCard, Check, X, Eye, EyeOff } from "lucide-react"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Activity, CircleUserRound, CalendarIcon, Phone, KeyRound, IdCard, Check, X, Eye, EyeOff, AlertCircle } from "lucide-react"
-import { Link } from "react-router-dom";
+import { Link, useNavigate  } from "react-router-dom";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns"
@@ -40,7 +38,7 @@ export default function RegisterPage() {
     // check length of password
     const has8Chars = password.length >= 8;
     // check password must have Upper char
-    // const hasUppercase = /[A-Z]/.test(password);
+    const hasUppercase = /[A-Z]/.test(password);
     // check password must have at least one digit
     const hasDigit = /\d/.test(password);
     // check password must have at least 1 special character (non-alphanumeric, non-whitespace)

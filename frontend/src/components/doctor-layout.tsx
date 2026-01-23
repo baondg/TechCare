@@ -3,20 +3,21 @@
 import type React from "react"
 import { Link } from "react-router-dom";
 import { useLocation } from "react-router-dom"
-import { LayoutDashboard, Users, Settings,  LogOut, MessageSquareText , Activity, UserRound } from "lucide-react"
+import { Users,  LogOut , Activity, UserRound, Calendar, FileText } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/contexts/AuthContext"
 
-export function AdminLayout({ children }: { children: React.ReactNode }) {
+export function DoctorLayout({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation()
   const { logout, user } = useAuth()
 
   const navigation = [
-    { href: "/admin/dashboard", name: "Dashboard", icon: LayoutDashboard },
-    { href: "/admin/users", name: "Account Management", icon: Users },
-    { href: "/admin/config", name: "System Configuration", icon: Settings },
-    { href: "/admin/feedback", name: "Feedback", icon: MessageSquareText },
+    { name: "Dashboard", href: "/doctor/dashboard", icon: Activity },
+    { name: "Patients", href: "/doctor/patients", icon: Users },
+    { name: "Appointments", href: "/doctor/appointments", icon: Calendar },
+    { name: "Feedback", href: "/doctor/feedback", icon: FileText },
+    { name: "Schedule", href: "/doctor/schedule", icon: Calendar },
   ]
   return (
     <div className="min-h-screen w-screen bg-background">
@@ -61,7 +62,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                 <div className="relative flex items-center gap-2 rounded-full bg-linear-to-r from-[#06b6d4] to-[#11adc9] dark:bg-gray-900 px-5 py-2.5 ">
                   <UserRound className="h-4 w-4 text-white" strokeWidth={2.5} />
                   <span className="font-bold text-sm tracking-wider text-white dark:text-cyan-500">
-                    Admin Portal
+                    Doctor Portal
                   </span>
                 </div>
               </div>

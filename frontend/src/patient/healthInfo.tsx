@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { PatientLayout } from "@/components/patient-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Activity, Heart, AlertCircle, FileText, Save, ChevronRight, ChevronLeft, History, X } from "lucide-react"
+import { Activity, Heart, AlertCircle, FileText, Save, History, X } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { CollapsibleSection } from "@/components/collapsible-section"
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
@@ -48,7 +48,7 @@ export default function HealthInfoPage() {
     return (w / ((h / 100) ** 2)).toFixed(1)
   }, [height, weight])
 
-  const [healthHistory, setHealthHistory] = useState<HealthRecord[]>([
+  const [healthHistory] = useState<HealthRecord[]>([
     {
       id: 1,
       updatedAt: new Date("2025-11-20T10:30:00"),
@@ -113,27 +113,6 @@ export default function HealthInfoPage() {
   const [vaccinations, setVaccinations] = useState(["Tetanus and diphtheria"])
   const [substanceAbuse, setSubstanceAbuse] = useState(["Alcohol"])
 
-  const handleSave = () => {
-    const newRecord: HealthRecord = {
-      id: Date.now(),
-      updatedAt: new Date(),
-      height: parseFloat(height) || 0,
-      weight: parseFloat(weight) || 0,
-      bmi: parseFloat(bmi) || 0,
-      bloodPressure: `${bpSys}/${bpDia}`,
-      heartRate: parseInt(heartRate) || 0,
-      respiratoryRate: parseInt(respiratoryRate) || 0,
-      temperature: parseFloat(temperature) || 0,
-      spo2: parseInt(spo2) || 0,
-      symptoms: symptoms,
-      updatedBy: "Patient",
-    }
-
-    setHealthHistory([newRecord, ...healthHistory])
-    setSelectedRecord(null)
-    setIsEditing(false)
-  }
-
   function InputList({
     label,
     values,
@@ -145,7 +124,8 @@ export default function HealthInfoPage() {
     setValues: (v: string[]) => void,
     disabled: boolean
   }) {
-    const updateValue = (index: number, v: string) => {
+
+  const updateValue = (index: number, v: string) => {
       const newValues = [...values]
       newValues[index] = v
       setValues(newValues)
@@ -207,7 +187,7 @@ export default function HealthInfoPage() {
     <PatientLayout>
       <div className="space-y-6">
         {/* Data table */}
-        <Card className="flex flex-col h-[520px]">
+        <Card className="flex flex-col h-fit">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-xl">
               <History className="h-5 w-5" />
@@ -593,13 +573,13 @@ export default function HealthInfoPage() {
   )
 }
 
-const calculateBMI = (weightStr: string, heightStr: string): number | null => {
-  // Chuyển chuỗi thành số. Nếu chuỗi rỗng hoặc không hợp lệ, trả về 0.
-  const weightKg = parseFloat(weightStr);
-  const heightCm = parseFloat(heightStr);
+// const calculateBMI = (weightStr: string, heightStr: string): number | null => {
+//   // Chuyển chuỗi thành số. Nếu chuỗi rỗng hoặc không hợp lệ, trả về 0.
+//   const weightKg = parseFloat(weightStr);
+//   const heightCm = parseFloat(heightStr);
   
-  if (isNaN(weightKg) || isNaN(heightCm) || weightKg <= 0 || heightCm <= 0) return null;
+//   if (isNaN(weightKg) || isNaN(heightCm) || weightKg <= 0 || heightCm <= 0) return null;
   
-  const heightMeters = heightCm / 100;
-  return weightKg / (heightMeters * heightMeters);
-}
+//   const heightMeters = heightCm / 100;
+//   return weightKg / (heightMeters * heightMeters);
+// }

@@ -4,30 +4,13 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Calendar, Pill, Activity, Clock, TrendingUp, BotMessageSquare, HeartPlus, Bell,ChevronRight,User } from "lucide-react"
 import { Link } from "react-router-dom";
-import { PatientLayout } from "@/components/patient-layout"
 import { CollapsibleSection } from "@/components/collapsible-section"
 
-export default function PatientDashboard() {
+export default function ViewingPatientDashboard() {
   return (
-    <PatientLayout>
-      
+    <>
       <div className="relative space-y-8 pb-12">
         {/* Header Section với gradient text */}
-        
-        <div className="relative">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-4xl font-bold mb-2 bg-linear-to-r from-[#06b6d4] via-[#0891b2] to-[#06b6d4] bg-clip-text text-transparent animate-gradient">
-                Welcome, Data:user!
-              </h2>
-              <p className="text-slate-600 text-lg">Here's your health overview for today</p>
-            </div>
-            <Button className="btn-gradient flex items-center gap-2 h-12">
-              <Bell className="h-5 w-5" />
-              <span className="hidden sm:inline">Notifications</span>
-            </Button>
-          </div>
-        </div>
 
         {/* Quick Stats Cards - Design mới với gradient border */}
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 ">
@@ -299,6 +282,6 @@ export default function PatientDashboard() {
           animation: gradient 3s ease infinite;
         }
       `}</style>
-    </PatientLayout>
+    </>
   )
 }

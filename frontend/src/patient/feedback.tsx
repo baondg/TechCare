@@ -1,12 +1,10 @@
 "use client"
 
 import { useState } from "react"
-import { Link } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import {
-  ChevronLeft,
   Send,
   Sparkles,
   MessageSquare,
@@ -15,8 +13,9 @@ import {
   ThumbsUp,
   ThumbsDown,
   Star,
+  CheckCircle,
 } from "lucide-react"
-import { PatientLayout } from "@/components/patient-layout";
+import { PatientLayout } from "@/components/patient-layout"
 
 type FeedbackCategory = "ai-chatbot" | "ai-schedule" | "ai-recovery" | "general"
 type FeedbackRating = 1 | 2 | 3 | 4 | 5
@@ -39,7 +38,6 @@ export default function FeedbackPage() {
   const [feedbackRating, setFeedbackRating] = useState<FeedbackRating | null>(null)
   const [submitted, setSubmitted] = useState(false)
 
-  // Mock AI recommendations
   const [aiRecommendations] = useState<AIRecommendation[]>([
     {
       id: "1",
@@ -85,54 +83,39 @@ export default function FeedbackPage() {
     console.log(`AI recommendation ${id} ${response}`)
   }
 
-  const getCategoryIcon = (category: FeedbackCategory) => {
-    switch (category) {
-      case "ai-chatbot":
-        return <MessageSquare className="h-5 w-5" />
-      case "ai-schedule":
-        return <Calendar className="h-5 w-5" />
-      case "ai-recovery":
-        return <TrendingUp className="h-5 w-5" />
-      default:
-        return <MessageSquare className="h-5 w-5" />
-    }
-  }
-
   return (
     <PatientLayout>
-      <div className="w-full px-4">
-        {/* Header */}
-        <div className="mb-8">
-          <Link to="/patient/dashboard" className="inline-flex items-center text-blue-600 hover:text-blue-700 mb-4">
-            <ChevronLeft className="h-4 w-4 mr-1" />
-            Back to Dashboard
-          </Link>
-          <h2 className="text-3xl font-bold text-gray-900">Feedback</h2>
-          <p className="text-gray-600 mt-2">Share your experience and review your feedback</p>
+      <div className="w-full space-y-6">
+        {/* Header với gradient */}
+        <div>
+          <h2 className="h-12 text-4xl font-bold bg-linear-to-r from-[#06b6d4] via-[#0891b2] to-[#06b6d4] bg-clip-text text-transparent mb-2">
+            Feedback & AI Suggestions
+          </h2>
+          <p className="text-slate-600 text-lg">Share your experience and review AI recommendations</p>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="flex gap-4 mb-6 border-b border-gray-200">
+        {/* Tab Navigation với style mới */}
+        <div className="flex gap-2 p-1 bg-slate-100 rounded-xl w-fit">
           <button
             onClick={() => setActiveTab("feedback")}
-            className={`px-4 py-2 font-medium transition-colors ${
+            className={`px-6 py-2.5 rounded-lg font-medium transition-all duration-300 ${
               activeTab === "feedback"
-                ? "text-blue-600 border-b-2 border-blue-600"
-                : "text-gray-600 hover:text-gray-900"
+                ? "bg-white text-cyan-600 shadow-md"
+                : "text-slate-600 hover:text-slate-900"
             }`}
           >
             Submit Feedback
           </button>
           <button
             onClick={() => setActiveTab("ai-suggestions")}
-            className={`px-4 py-2 font-medium transition-colors flex items-center gap-2 ${
+            className={`px-6 py-2.5 rounded-lg font-medium transition-all duration-300 flex items-center gap-2 ${
               activeTab === "ai-suggestions"
-                ? "text-blue-600 border-b-2 border-blue-600"
-                : "text-gray-600 hover:text-gray-900"
+                ? "bg-white text-cyan-600 shadow-md"
+                : "text-slate-600 hover:text-slate-900"
             }`}
           >
             <Sparkles className="h-4 w-4" />
-            Response ({aiRecommendations.length})
+            AI Suggestions ({aiRecommendations.length})
           </button>
         </div>
 
@@ -140,12 +123,12 @@ export default function FeedbackPage() {
         {activeTab === "feedback" && (
           <div className="space-y-6">
             {/* Category Selection */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Feedback Category</CardTitle>
+            <Card className="card-feature border-slate-200/60">
+              <CardHeader className="bg-linear-to-r from-cyan-50/50 to-transparent">
+                <CardTitle className="text-slate-900">Feedback Category</CardTitle>
                 <CardDescription>Tell us what your feedback is about</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {[
                     { value: "general" as FeedbackCategory, label: "General Experience", icon: MessageSquare },
@@ -154,18 +137,31 @@ export default function FeedbackPage() {
                     { value: "ai-recovery" as FeedbackCategory, label: "Recovery Predictions", icon: TrendingUp },
                   ].map((cat) => {
                     const Icon = cat.icon
+                    const isSelected = selectedCategory === cat.value
                     return (
                       <button
                         key={cat.value}
                         onClick={() => setSelectedCategory(cat.value)}
-                        className={`p-4 rounded-lg border-2 transition-all flex items-center gap-3 ${
-                          selectedCategory === cat.value
-                            ? "border-blue-500 bg-blue-50"
-                            : "border-gray-200 bg-white hover:border-gray-300"
+                        className={`card-feature-group p-5 rounded-xl transition-all duration-300 flex items-center gap-4 ${
+                          isSelected
+                            ? "border-cyan-500 bg-cyan-50/50 shadow-lg"
+                            : "hover:shadow-md"
                         }`}
                       >
-                        <Icon className="h-5 w-5" />
-                        <span className="font-medium text-left">{cat.label}</span>
+                        <div className={`icon-feature-card ${isSelected ? "scale-110" : ""}`}>
+                          <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${
+                            isSelected 
+                              ? "bg-linear-to-br from-cyan-500 to-cyan-600" 
+                              : "bg-linear-to-br from-slate-100 to-slate-200"
+                          }`}>
+                            <Icon className={`h-6 w-6 ${isSelected ? "text-white" : "text-slate-600"}`} />
+                          </div>
+                        </div>
+                        <span className={`font-semibold text-left ${
+                          isSelected ? "text-cyan-700" : "text-slate-700"
+                        }`}>
+                          {cat.label}
+                        </span>
                       </button>
                     )
                   })}
@@ -174,55 +170,66 @@ export default function FeedbackPage() {
             </Card>
 
             {/* Rating Selection */}
-            <Card>
-              <CardHeader>
-                <CardTitle>How would you rate your experience?</CardTitle>
+            <Card className="card-feature border-slate-200/60">
+              <CardHeader className="bg-linear-to-r from-amber-50/50 to-transparent">
+                <CardTitle className="text-slate-900">Rate Your Experience</CardTitle>
+                <CardDescription>How would you rate this experience?</CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="flex gap-2">
+              <CardContent className="pt-6">
+                <div className="flex gap-3 justify-center">
                   {[1, 2, 3, 4, 5].map((star) => (
                     <button
                       key={star}
                       onClick={() => setFeedbackRating(star as FeedbackRating)}
-                      className="transition-transform hover:scale-110"
+                      className="transition-all duration-300 hover:scale-125"
                       aria-label={`Rate ${star} stars`}
                     >
                       <Star
-                        className={`h-10 w-10 transition-colors ${
-                          feedbackRating && feedbackRating >= star ? "fill-yellow-400 text-yellow-400" : "text-gray-300"
+                        className={`h-12 w-12 transition-all duration-300 ${
+                          feedbackRating && feedbackRating >= star 
+                            ? "fill-amber-400 text-amber-400 scale-110" 
+                            : "text-slate-300 hover:text-amber-300"
                         }`}
                       />
                     </button>
                   ))}
                 </div>
                 {feedbackRating && (
-                  <p className="mt-3 text-sm text-gray-600">
-                    You rated this experience <span className="font-semibold">{feedbackRating} out of 5 stars</span>
+                  <p className="mt-4 text-center text-slate-600">
+                    You rated this experience{" "}
+                    <span className="font-bold text-amber-600">{feedbackRating} out of 5 stars</span>
                   </p>
                 )}
               </CardContent>
             </Card>
 
             {/* Feedback Text */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Your Feedback</CardTitle>
-                <CardDescription>Please provide detailed comments (optional)</CardDescription>
+            <Card className="card-feature border-slate-200/60">
+              <CardHeader className="bg-linear-to-r from-blue-50/50 to-transparent">
+                <CardTitle className="text-slate-900">Your Feedback</CardTitle>
+                <CardDescription>Share your detailed thoughts and suggestions</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 pt-6">
                 <Textarea
-                  placeholder="Share your thoughts, suggestions, or concerns..."
+                  placeholder="Tell us about your experience, what went well, and what could be improved..."
                   value={feedbackText}
                   onChange={(e) => setFeedbackText(e.target.value)}
-                  className="min-h-32 resize-none"
+                  className="min-h-40 resize-none custom-input"
                 />
-                <Button onClick={handleSubmitFeedback} className="w-full bg-blue-600 hover:bg-blue-700">
-                  <Send className="h-4 w-4 mr-2" />
+                <Button 
+                  onClick={handleSubmitFeedback} 
+                  className="w-full btn-gradient h-12 text-base"
+                  disabled={!feedbackRating}
+                >
+                  <Send className="h-5 w-5 mr-2" />
                   Submit Feedback
                 </Button>
                 {submitted && (
-                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg text-green-700">
-                    Thank you! Your feedback has been submitted successfully.
+                  <div className="p-4 bg-linear-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl flex items-center gap-3">
+                    <CheckCircle className="h-5 w-5 text-green-600" />
+                    <span className="text-green-700 font-medium">
+                      Thank you! Your feedback has been submitted successfully.
+                    </span>
                   </div>
                 )}
               </CardContent>
@@ -234,77 +241,87 @@ export default function FeedbackPage() {
         {activeTab === "ai-suggestions" && (
           <div className="space-y-4">
             {aiRecommendations.length === 0 ? (
-              <Card>
-                <CardContent className="pt-6 text-center text-gray-500">
-                  No AI suggestions at this time. Check back later!
+              <Card className="card-feature">
+                <CardContent className="pt-12 pb-12 text-center">
+                  <Sparkles className="h-16 w-16 text-slate-300 mx-auto mb-4" />
+                  <p className="text-slate-500 text-lg">No AI suggestions at this time. Check back later!</p>
                 </CardContent>
               </Card>
             ) : (
               aiRecommendations.map((rec) => (
-                <Card key={rec.id} className="border-l-4 border-l-blue-500 hover:shadow-md transition-shadow">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start gap-3 flex-1">
-                        <div className="mt-1">
-                          {rec.type === "appointment" && <Calendar className="h-5 w-5 text-blue-600" />}
-                          {rec.type === "chatbot" && <MessageSquare className="h-5 w-5 text-purple-600" />}
-                          {rec.type === "recovery" && <TrendingUp className="h-5 w-5 text-green-600" />}
+                <Card key={rec.id} className="card-feature-group border-l-4 border-l-cyan-500 hover:shadow-lg transition-all duration-300">
+                  <CardHeader className="pb-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start gap-4 flex-1">
+                        <div className="icon-feature-card">
+                          <div className={`flex h-14 w-14 items-center justify-center rounded-xl ${
+                            rec.type === "appointment" ? "bg-linear-to-br from-blue-500 to-blue-600" :
+                            rec.type === "chatbot" ? "bg-linear-to-br from-purple-500 to-purple-600" :
+                            "bg-linear-to-br from-green-500 to-green-600"
+                          }`}>
+                            {rec.type === "appointment" && <Calendar className="h-7 w-7 text-white" />}
+                            {rec.type === "chatbot" && <MessageSquare className="h-7 w-7 text-white" />}
+                            {rec.type === "recovery" && <TrendingUp className="h-7 w-7 text-white" />}
+                          </div>
                         </div>
                         <div className="flex-1">
-                          <CardTitle className="text-lg">{rec.title}</CardTitle>
-                          <CardDescription>{rec.description}</CardDescription>
-                          <p className="text-xs text-gray-400 mt-1">{rec.timestamp}</p>
+                          <CardTitle className="text-xl text-slate-900 mb-1">{rec.title}</CardTitle>
+                          <CardDescription className="text-slate-600">{rec.description}</CardDescription>
+                          <p className="text-xs text-slate-400 mt-2">{rec.timestamp}</p>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="inline-block px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
+                      <div className="shrink-0">
+                        <div className="inline-flex items-center px-4 py-2 bg-linear-to-r from-cyan-500 to-blue-500 text-white rounded-full text-sm font-bold shadow-md">
                           {rec.confidence}% confidence
                         </div>
                       </div>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
-                      <p className="text-sm text-gray-700 font-medium mb-2">AI Recommendation:</p>
-                      <p className="text-gray-900">{rec.suggestion}</p>
+                    <div className="p-5 bg-linear-to-br from-slate-50 to-slate-100 rounded-xl border border-slate-200">
+                      <p className="text-sm text-slate-600 font-semibold mb-2 flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-cyan-600" />
+                        AI Recommendation:
+                      </p>
+                      <p className="text-slate-900 leading-relaxed">{rec.suggestion}</p>
                     </div>
 
                     {rec.userResponse === "pending" ? (
                       <div className="flex gap-3">
                         <Button
                           variant="outline"
-                          className="flex-1 border-green-300 text-green-700 hover:bg-green-50 bg-transparent"
+                          className="flex-1 btn-outline border-green-300 text-green-700 hover:bg-green-50"
                           onClick={() => handleAIResponse(rec.id, "accepted")}
                         >
                           <ThumbsUp className="h-4 w-4 mr-2" />
-                          Accept
+                          Accept Suggestion
                         </Button>
                         <Button
                           variant="outline"
-                          className="flex-1 border-red-300 text-red-700 hover:bg-red-50 bg-transparent"
+                          className="flex-1 border-red-300 text-red-700 hover:bg-red-50"
                           onClick={() => handleAIResponse(rec.id, "rejected")}
                         >
                           <ThumbsDown className="h-4 w-4 mr-2" />
-                          Reject
+                          Decline
                         </Button>
                       </div>
                     ) : (
                       <div
-                        className={`p-3 rounded-lg flex items-center gap-2 ${
+                        className={`p-4 rounded-xl flex items-center gap-3 ${
                           rec.userResponse === "accepted"
-                            ? "bg-green-50 text-green-700 border border-green-200"
-                            : "bg-red-50 text-red-700 border border-red-200"
+                            ? "bg-linear-to-r from-green-50 to-emerald-50 text-green-700 border border-green-200"
+                            : "bg-linear-to-r from-red-50 to-rose-50 text-red-700 border border-red-200"
                         }`}
                       >
                         {rec.userResponse === "accepted" ? (
-                          <ThumbsUp className="h-4 w-4" />
+                          <ThumbsUp className="h-5 w-5" />
                         ) : (
-                          <ThumbsDown className="h-4 w-4" />
+                          <ThumbsDown className="h-5 w-5" />
                         )}
-                        <span className="text-sm font-medium capitalize">
+                        <span className="font-semibold">
                           {rec.userResponse === "accepted"
                             ? "You accepted this suggestion"
-                            : "You rejected this suggestion"}
+                            : "You declined this suggestion"}
                         </span>
                       </div>
                     )}

@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
 import { Link } from "react-router-dom";
 import { useLocation } from "react-router-dom"
 import { Button } from "@/components/ui/button"
@@ -42,11 +41,11 @@ export function PatientLayout({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex items-center gap-4">
-            {user && (
+            {/* {user && (
               <span className="text-sm text-muted-foreground">
-                Welcome, {user.firstName || user.username}
+                {user.firstName || user.username}
               </span>
-            )}
+            )} */}
             <Button variant="outline" size="lg" onClick={logout} className="text-destructive hover:bg-destructive">
               <LogOut className="h-4 w-4 mr-2" />
               Logout
@@ -57,7 +56,7 @@ export function PatientLayout({ children }: { children: React.ReactNode }) {
 
       <div className="flex min-h-[calc(100vh-4rem)] w-full">
         {/* Sidebar - Desktop */}
-        <aside className="md:flex max-h-full w-64 flex-col border-r border-white/40 sticky top-16 bg-white/80 backdrop-blur-xl shadow-[4px_0_20px_rgba(0,0,0,0.05)] z-40">
+        <aside className="md:flex max-h-full w-64 flex-col border-r border-white/40 sticky top-16 bg-white/80 backdrop-blur-xl h-[calc(100vh-4rem)] shadow-[4px_0_20px_rgba(0,0,0,0.05)] z-40">
           <nav className="flex-1 space-y-2 p-4">
             <div className="flex justify-center mb-8 mt-2">
               <div className="group relative">
@@ -94,7 +93,7 @@ export function PatientLayout({ children }: { children: React.ReactNode }) {
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 w-full p-0 md:p-4 overflow-x-hidden">
+        <main className="flex-1 w-full p-0 md:p-4 overflow-y-auto overflow-x-hidden relative z-10">
           <div className="w-full">{children}</div>
         </main>
       </div>

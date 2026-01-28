@@ -1,3 +1,4 @@
+// config.tsx
 "use client"
 
 import { useState, useEffect } from "react"
@@ -8,7 +9,6 @@ import { Label } from "@/components/ui/label"
 import { AdminLayout } from "@/components/admin-layout"
 import { Save, Settings, Loader2, CheckCircle2, AlertCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { useAuth } from "@/contexts/AuthContext"
 
 export default function SystemConfig() {
   const { user } = useAuth();
@@ -18,6 +18,10 @@ export default function SystemConfig() {
     aiModel: "gpt-4-turbo",
     maxUsers: "500",
     sessionTimeout: "30",
+    rateLimitRequests: "100",
+    rateLimitWindow: "15",
+    apiRateLimitRequests: "60",
+    apiRateLimitWindow: "1",
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -122,7 +126,7 @@ export default function SystemConfig() {
         )}
 
         {/* API Configuration */}
-        <Card>
+        <Card className="card-feature-group">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Settings className="h-5 w-5" />
@@ -138,6 +142,7 @@ export default function SystemConfig() {
                 type="password"
                 value={config.apiKey}
                 onChange={(e) => handleChange("apiKey", e.target.value)}
+                className="custom-input"
               />
             </div>
             <div className="space-y-2">
@@ -146,9 +151,10 @@ export default function SystemConfig() {
                 id="emailServer"
                 value={config.emailServer}
                 onChange={(e) => handleChange("emailServer", e.target.value)}
+                className="custom-input"
               />
             </div>
-            <Button className="gap-2">
+            <Button className="gap-2 btn-gradient">
               <Save size={20} />
               Save API Config
             </Button>
@@ -156,7 +162,7 @@ export default function SystemConfig() {
         </Card>
 
         {/* AI Model Configuration */}
-        <Card>
+        <Card className="card-feature-group">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Settings className="h-5 w-5" />
@@ -167,9 +173,9 @@ export default function SystemConfig() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="aiModel">AI Model Version</Label>
-              <Input id="aiModel" value={config.aiModel} onChange={(e) => handleChange("aiModel", e.target.value)} />
+              <Input id="aiModel" value={config.aiModel} onChange={(e) => handleChange("aiModel", e.target.value)} className="custom-input" />
             </div>
-            <Button className="gap-2">
+            <Button className="gap-2 btn-gradient">
               <Save size={20} />
               Save AI Config
             </Button>
@@ -177,7 +183,7 @@ export default function SystemConfig() {
         </Card>
 
         {/* System Limits */}
-        <Card>
+        <Card className="card-feature-group">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Settings className="h-5 w-5" />
@@ -194,6 +200,7 @@ export default function SystemConfig() {
                   type="number"
                   value={config.maxUsers}
                   onChange={(e) => handleChange("maxUsers", e.target.value)}
+                  className="custom-input"
                 />
               </div>
               <div className="space-y-2">
@@ -203,11 +210,12 @@ export default function SystemConfig() {
                   type="number"
                   value={config.sessionTimeout}
                   onChange={(e) => handleChange("sessionTimeout", e.target.value)}
+                  className="custom-input"
                 />
               </div>
             </div>
             <Button 
-              className="gap-2" 
+              className="gap-2 btn-gradient" 
               onClick={handleSaveSystemConfig}
               disabled={saving}
             >

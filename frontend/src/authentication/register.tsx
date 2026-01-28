@@ -1,16 +1,13 @@
 "use client"
 
-import type React from "react"
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Activity, CircleUserRound, CalendarIcon, Phone, KeyRound, IdCard, Check, X, Eye, EyeOff, AlertCircle } from "lucide-react"
-import { Link } from "react-router-dom";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate  } from "react-router-dom";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns"
@@ -41,7 +38,7 @@ export default function RegisterPage() {
     // check length of password
     const has8Chars = password.length >= 8;
     // check password must have Upper char
-    // const hasUppercase = /[A-Z]/.test(password);
+    const hasUppercase = /[A-Z]/.test(password);
     // check password must have at least one digit
     const hasDigit = /\d/.test(password);
     // check password must have at least 1 special character (non-alphanumeric, non-whitespace)
@@ -98,7 +95,7 @@ export default function RegisterPage() {
               <Activity className="h-6 w-6 text-[#FFFFFF]" />
             </div>
           </div>
-          <span className="text-2xl font-bold bg-linear-to-r from-[#06b6d4] to-[#0891b2] bg-clip-text text-transparent">
+          <span className="text-2xl z-50 font-bold bg-linear-to-r from-[#06b6d4] to-[#0891b2] bg-clip-text text-transparent">
             TechCare
           </span>
         </Link>
@@ -529,7 +526,7 @@ function ValidationRow({ ok, text }: { ok: boolean; text: string }) {
   return (
     <div className="group flex items-center gap-3 py-2.5 px-1 rounded-lg transition-all duration-400 hover:bg-cyan-50/50">
       {/* Icon với hiệu ứng scale + glow */}
-      <div className={`relative flex h-6 w-6 items-center justify-center rounded-full transition-all duration-500 ${ok ? "bg-gradient-to-br from-green-500 to-emerald-500 shadow-lg shadow-green-500/30" : "bg-gray-200/80"}`}>
+      <div className={`relative flex h-6 w-6 items-center justify-center rounded-full transition-all duration-500 ${ok ? "bg-linear-to-br from-green-500 to-emerald-500 shadow-lg shadow-green-500/30" : "bg-gray-200/80"}`}>
         <div className={`absolute inset-0 rounded-full ${ok ? "animate-ping bg-green-500/30" : ""}`} />
         {ok ? (
           <Check className="h-4 w-4 text-white relative z-10" strokeWidth={3} />

@@ -6,8 +6,6 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Separator } from "@/components/ui/separator"
 import { UserPlus, Trash2, Save, X, Edit3, CheckCircle, ChevronLeft, ChevronRight } from "lucide-react"
 import { AdminLayout } from "@/components/admin-layout"
 
@@ -94,12 +92,12 @@ export default function UserManagement() {
         <div className="flex justify-between items-center">
           <h2 className="text-3xl font-bold text-gray-900">Account Management</h2>
           <div className="flex gap-3">
-            <Button className="bg-[#0086C4] hover:bg-[#06b6d4]">
+            <Button className="btn-gradient transition-transform duration-500 text-xl px-7 py-4">
               <UserPlus className="w-5 h-5 mr-2" /> Add New Account
             </Button>
-            <Button variant="outline"><Trash2 className="w-5 h-5 mr-2" /> Clear</Button>
-            <Button className="bg-[#0086C4] hover:bg-[#06b6d4]"><Save className="w-5 h-5 mr-2" /> Save</Button>
-            <Button className="bg-[#0086C4] hover:bg-[#06b6d4]"><X className="w-5 h-5 mr-2" /> Cancel</Button>
+            <Button className="btn-outline transition-transform duration-500 text-xl px-7 py-4"><Trash2 className="w-5 h-5 mr-2" /> Clear</Button>
+            <Button className="btn-gradient transition-transform duration-500 text-xl px-7 py-4"><Save className="w-5 h-5 mr-2" /> Save</Button>
+            <Button className="btn-gradient transition-transform duration-500 text-xl px-7 py-4"><X className="w-5 h-5 mr-2" /> Cancel</Button>
           </div>
         </div>
 
@@ -319,7 +317,7 @@ export default function UserManagement() {
                   Account Information
                 </CardTitle>
                 <div className="flex gap-3 items-center">
-                  <Button size="sm" className="bg-[#0086C4] hover:bg-[#06b6d4]">
+                  <Button size="sm" className="btn-gradient transition-transform duration-500 text-xl px-7 py-4">
                     <Edit3 className="w-4 h-4 mr-2" /> Edit
                   </Button>
 

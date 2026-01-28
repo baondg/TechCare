@@ -32,7 +32,7 @@ export default function MainCarousel({ slides }: { slides: JSX.Element[] }) {
       {/* Left Arrow */}
       <button
         onClick={prev}
-        className="btn-gradient transition-transform duration-500 absolute left-6 top-1/2 -translate-y-1/2 bg-white/60 hover:bg-white shadow-md p-3 rounded-full backdrop-blur"
+        className="btn-gradient transition-transform duration-500 absolute left-6 top-1/2 -translate-y-1/2 bg-white/60 hover:bg-white hover:border-none shadow-md p-3 rounded-full backdrop-blur"
       >
         ←
       </button>
@@ -40,7 +40,7 @@ export default function MainCarousel({ slides }: { slides: JSX.Element[] }) {
       {/* Right Arrow */}
       <button
         onClick={next}
-        className="btn-gradient transition-transform duration-500 absolute right-6 top-1/2 -translate-y-1/2 bg-white/60 hover:bg-white shadow-md p-3 rounded-full backdrop-blur"
+        className="btn-gradient transition-transform duration-500 absolute right-6 top-1/2 -translate-y-1/2 bg-white/60 hover:bg-white hover:border-none shadow-md p-3 rounded-full backdrop-blur"
       >
         →
       </button>

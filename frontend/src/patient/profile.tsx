@@ -1,22 +1,179 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { PatientLayout } from "@/components/patient-layout"
-import { User, CreditCard, Edit, Save, X, RotateCcw, Users, CalendarIcon, CircleAlert } from "lucide-react"
+import { User, CreditCard, Edit, Save, X, RotateCcw, Users, CalendarIcon, CircleAlert, Loader2 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
-import { format } from "date-fns"
+import { format, parseISO } from "date-fns"
+import { useAuth } from "@/contexts/AuthContext"
+import { profileService } from "@/services/profile-service"
+import type { PatientProfile } from "@/services/profile-service"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export default function ProfilePage() {
+  const { user } = useAuth()
+  const [isEditing, setIsEditing] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+
+  // Personal information
+  const [fullName, setFullName] = useState("")
   const [dob, setDob] = useState<Date | undefined>()
-  const age = dob ? calculateAge(dob) : ""
+  const [sex, setSex] = useState("Male")
+  const [phone, setPhone] = useState("")
+  const [email, setEmail] = useState("")
+  const [nationalId, setNationalId] = useState("")
+
+  // Relative information
+  const [relativeName, setRelativeName] = useState("")
+  const [relationship, setRelationship] = useState("Mother")
   const [reDob, setReDob] = useState<Date | undefined>()
+  const [reSex, setReSex] = useState("Female")
+  const [rePhone, setRePhone] = useState("")
+  const [reEmail, setReEmail] = useState("")
+  const [reNationalId, setReNationalId] = useState("")
+
+  // Insurance information
+  const [insuranceId, setInsuranceId] = useState("")
+  const [insuranceProvider, setInsuranceProvider] = useState("")
+  const [insuranceExpiry, setInsuranceExpiry] = useState("")
+
+  // Original values for cancel
+  const [originalData, setOriginalData] = useState<PatientProfile | null>(null)
+
+  const age = dob ? calculateAge(dob) : ""
   const reAge = reDob ? calculateAge(reDob) : ""
+
+  useEffect(() => {
+    loadProfile()
+  }, [user])
+
+  const loadProfile = async () => {
+    if (!user?.id) return
+
+    setLoading(true)
+    setError(null)
+    try {
+      const profile = await profileService.getProfile(user.id)
+      populateForm(profile)
+      setOriginalData(profile)
+    } catch (err) {
+      console.error("Failed to load profile:", err)
+      // Profile may not exist yet, that's ok
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const populateForm = (profile: PatientProfile) => {
+    setFullName(profile.fullName || "")
+    setDob(profile.dateOfBirth ? parseISO(profile.dateOfBirth) : undefined)
+    setSex(profile.sex || "Male")
+    setPhone(profile.phone || "")
+    setEmail(profile.email || "")
+    setNationalId(profile.nationalId || "")
+
+    setRelativeName(profile.relativeName || "")
+    setRelationship(profile.relativeRelationship || "Mother")
+    setReDob(profile.relativeDateOfBirth ? parseISO(profile.relativeDateOfBirth) : undefined)
+    setReSex(profile.relativeSex || "Female")
+    setRePhone(profile.relativePhone || "")
+    setReEmail(profile.relativeEmail || "")
+    setReNationalId(profile.relativeNationalId || "")
+
+    setInsuranceId(profile.insuranceId || "")
+    setInsuranceProvider(profile.insuranceProvider || "")
+    setInsuranceExpiry(profile.insuranceExpiry || "")
+  }
+
+  const handleSave = async () => {
+    if (!user?.id) return
+
+    setSaving(true)
+    setError(null)
+    setSuccess(null)
+
+    try {
+      const profileData: Partial<PatientProfile> = {
+        fullName,
+        dateOfBirth: dob ? format(dob, "yyyy-MM-dd") : undefined,
+        sex,
+        phone,
+        email,
+        nationalId,
+        relativeName,
+        relativeRelationship: relationship,
+        relativeDateOfBirth: reDob ? format(reDob, "yyyy-MM-dd") : undefined,
+        relativeSex: reSex,
+        relativePhone: rePhone,
+        relativeEmail: reEmail,
+        relativeNationalId: reNationalId,
+        insuranceId,
+        insuranceProvider,
+        insuranceExpiry,
+      }
+
+      const updatedProfile = await profileService.updateProfile(user.id, profileData)
+      setOriginalData(updatedProfile)
+      setIsEditing(false)
+      setSuccess("Profile saved successfully!")
+      setTimeout(() => setSuccess(null), 3000)
+    } catch (err: any) {
+      setError(err.message || "Failed to save profile")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleCancel = () => {
+    if (originalData) {
+      populateForm(originalData)
+    } else {
+      handleClear()
+    }
+    setIsEditing(false)
+    setError(null)
+  }
+
+  const handleClear = () => {
+    setFullName("")
+    setDob(undefined)
+    setSex("Male")
+    setPhone("")
+    setEmail("")
+    setNationalId("")
+    setRelativeName("")
+    setRelationship("Mother")
+    setReDob(undefined)
+    setReSex("Female")
+    setRePhone("")
+    setReEmail("")
+    setReNationalId("")
+    setInsuranceId("")
+    setInsuranceProvider("")
+    setInsuranceExpiry("")
+  }
+
+  if (loading) {
+    return (
+      <PatientLayout>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <Loader2 className="h-8 w-8 animate-spin text-cyan-600 mx-auto mb-4" />
+            <p className="text-slate-600">Loading profile...</p>
+          </div>
+        </div>
+      </PatientLayout>
+    )
+  }
 
   return (
     <PatientLayout>
@@ -40,21 +197,48 @@ export default function ProfilePage() {
                 Personal Information
               </CardTitle>
               <div className="flex gap-2 flex-wrap">
-                <Button variant="outline" size="sm" className="btn-outline">
-                  <Edit className="h-4 w-4 mr-1" /> Edit
-                </Button>
-                <Button variant="outline" size="sm" className="hover:bg-slate-100">
-                  <RotateCcw className="h-4 w-4 mr-1" /> Clear
-                </Button>
-                <Button size="sm" className="btn-gradient">
-                  <Save className="h-4 w-4 mr-1" /> Save
-                </Button>
-                <Button variant="destructive" size="sm">
-                  <X className="h-4 w-4 mr-1" /> Cancel
-                </Button>
+                {!isEditing ? (
+                  <>
+                    <Button variant="outline" size="sm" className="btn-outline" onClick={() => setIsEditing(true)}>
+                      <Edit className="h-4 w-4 mr-1" /> Edit
+                    </Button>
+                    <Button variant="outline" size="sm" className="hover:bg-slate-100" onClick={handleClear}>
+                      <RotateCcw className="h-4 w-4 mr-1" /> Clear
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button size="sm" className="btn-gradient" onClick={handleSave} disabled={saving}>
+                      {saving ? (
+                        <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Saving...</>
+                      ) : (
+                        <><Save className="h-4 w-4 mr-1" /> Save</>
+                      )}
+                    </Button>
+                    <Button variant="destructive" size="sm" onClick={handleCancel} disabled={saving}>
+                      <X className="h-4 w-4 mr-1" /> Cancel
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
           </CardHeader>
+
+          {error && (
+            <div className="px-6">
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            </div>
+          )}
+
+          {success && (
+            <div className="px-6">
+              <Alert className="bg-green-50 border-green-200 text-green-800">
+                <AlertDescription>{success}</AlertDescription>
+              </Alert>
+            </div>
+          )}
           <CardContent className="pt-6">
             <form className="space-y-6">
               {/* Name */}
@@ -66,6 +250,9 @@ export default function ProfilePage() {
                   id="name" 
                   placeholder="Enter your full name" 
                   className="custom-input"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  disabled={!isEditing}
                 />
               </div>
 
@@ -76,8 +263,8 @@ export default function ProfilePage() {
                     Date of Birth
                   </Label>
                   <Popover>
-                    <PopoverTrigger asChild>
-                      <div className="custom-popover w-full flex items-center justify-between px-3 py-2 text-sm">
+                    <PopoverTrigger asChild disabled={!isEditing}>
+                      <div className={`custom-popover w-full flex items-center justify-between px-3 py-2 text-sm ${!isEditing ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}>
                         <span className={dob ? "text-slate-900" : "text-slate-400"}>
                           {dob ? format(dob, "dd/MM/yyyy") : "dd/mm/yyyy"}
                         </span>
@@ -111,7 +298,7 @@ export default function ProfilePage() {
                   <Label htmlFor="sex" className="text-sm font-semibold text-slate-700">
                     Sex
                   </Label>
-                  <Select defaultValue="Male">
+                  <Select value={sex} onValueChange={setSex} disabled={!isEditing}>
                     <SelectTrigger id="sex" className="custom-select">
                       <SelectValue />
                     </SelectTrigger>
@@ -135,6 +322,9 @@ export default function ProfilePage() {
                     type="tel" 
                     placeholder="+84 xxx xxx xxx" 
                     className="custom-input"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    disabled={!isEditing}
                   />
                 </div>
                 <div className="space-y-2">
@@ -146,6 +336,9 @@ export default function ProfilePage() {
                     type="email" 
                     placeholder="your.email@example.com" 
                     className="custom-input"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    disabled={!isEditing}
                   />
                 </div>
               </div>
@@ -159,6 +352,9 @@ export default function ProfilePage() {
                   id="national-id" 
                   placeholder="Enter your ID number" 
                   className="custom-input"
+                  value={nationalId}
+                  onChange={(e) => setNationalId(e.target.value)}
+                  disabled={!isEditing}
                 />
               </div>
 
@@ -186,6 +382,9 @@ export default function ProfilePage() {
                   id="relative-name" 
                   placeholder="Enter relative's name" 
                   className="custom-input"
+                  value={relativeName}
+                  onChange={(e) => setRelativeName(e.target.value)}
+                  disabled={!isEditing}
                 />
               </div>
 
@@ -194,7 +393,7 @@ export default function ProfilePage() {
                 <Label htmlFor="relationship" className="text-sm font-semibold text-slate-700">
                   Relationship
                 </Label>
-                <Select defaultValue="Mother">
+                <Select value={relationship} onValueChange={setRelationship} disabled={!isEditing}>
                   <SelectTrigger id="relationship" className="custom-select">
                     <SelectValue />
                   </SelectTrigger>
@@ -215,8 +414,8 @@ export default function ProfilePage() {
                     Date of Birth
                   </Label>
                   <Popover>
-                    <PopoverTrigger asChild>
-                      <div className="custom-popover w-full flex items-center justify-between px-3 py-2 text-sm">
+                    <PopoverTrigger asChild disabled={!isEditing}>
+                      <div className={`custom-popover w-full flex items-center justify-between px-3 py-2 text-sm ${!isEditing ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}>
                         <span className={reDob ? "text-slate-900" : "text-slate-400"}>
                           {reDob ? format(reDob, "dd/MM/yyyy") : "dd/mm/yyyy"}
                         </span>
@@ -245,7 +444,7 @@ export default function ProfilePage() {
                 
                 <div className="space-y-2 col-span-2">
                   <Label className="text-sm font-semibold text-slate-700">Sex</Label>
-                  <Select defaultValue="Female">
+                  <Select value={reSex} onValueChange={setReSex} disabled={!isEditing}>
                     <SelectTrigger className="custom-select">
                       <SelectValue />
                     </SelectTrigger>
@@ -268,6 +467,9 @@ export default function ProfilePage() {
                     type="tel" 
                     placeholder="+84 xxx xxx xxx" 
                     className="custom-input"
+                    value={rePhone}
+                    onChange={(e) => setRePhone(e.target.value)}
+                    disabled={!isEditing}
                   />
                 </div>
                 <div className="space-y-2">
@@ -278,6 +480,9 @@ export default function ProfilePage() {
                     type="email" 
                     placeholder="relative@example.com" 
                     className="custom-input"
+                    value={reEmail}
+                    onChange={(e) => setReEmail(e.target.value)}
+                    disabled={!isEditing}
                   />
                 </div>
               </div>
@@ -290,6 +495,9 @@ export default function ProfilePage() {
                 <Input 
                   placeholder="Enter ID number" 
                   className="custom-input"
+                  value={reNationalId}
+                  onChange={(e) => setReNationalId(e.target.value)}
+                  disabled={!isEditing}
                 />
               </div>
             </form>
@@ -317,9 +525,11 @@ export default function ProfilePage() {
                     Insurance ID
                   </Label>
                   <Input 
-                    defaultValue="VN123456789" 
-                    disabled 
-                    className="custom-input bg-slate-50"
+                    value={insuranceId}
+                    onChange={(e) => setInsuranceId(e.target.value)}
+                    placeholder="Enter insurance ID"
+                    disabled={!isEditing}
+                    className={`custom-input ${!isEditing ? 'bg-slate-50' : ''}`}
                   />
                 </div>
                 <div className="space-y-2">
@@ -327,9 +537,11 @@ export default function ProfilePage() {
                     Insurance Provider
                   </Label>
                   <Input 
-                    defaultValue="Vietnam Social Security" 
-                    disabled 
-                    className="custom-input bg-slate-50"
+                    value={insuranceProvider}
+                    onChange={(e) => setInsuranceProvider(e.target.value)}
+                    placeholder="Enter insurance provider"
+                    disabled={!isEditing}
+                    className={`custom-input ${!isEditing ? 'bg-slate-50' : ''}`}
                   />
                 </div>
               </div>
@@ -339,9 +551,11 @@ export default function ProfilePage() {
                   Expiry Date
                 </Label>
                 <Input 
-                  defaultValue="31/12/2026" 
-                  disabled 
-                  className="custom-input bg-slate-50"
+                  value={insuranceExpiry}
+                  onChange={(e) => setInsuranceExpiry(e.target.value)}
+                  placeholder="dd/mm/yyyy"
+                  disabled={!isEditing}
+                  className={`custom-input ${!isEditing ? 'bg-slate-50' : ''}`}
                 />
               </div>
 

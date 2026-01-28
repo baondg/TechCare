@@ -42,7 +42,7 @@
  */
 
 import { useState } from "react"
-import {Card,CardContent,CardHeader,CardTitle} from "@/components/ui/card"
+import {Card,CardContent,CardHeader,CardTitle,CardDescription} from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -70,8 +70,8 @@ import { analyzeSymptoms, SymptomInput, SymptomAnalysisResult } from "@/services
  */
 interface SelectedSymptom {
   name: string
-  severity: "mild" | "moderate" | "severe"
-  duration: "less24h" | "1to3days" | "3to7days" | "moreThanWeek"
+  severity: 'mild' | 'moderate' | 'severe'
+  duration: 'less24h' | '1to3days' | '3to7days' | 'moreThanWeek'
 }
 
 // ==================== CONSTANTS ====================
@@ -256,7 +256,7 @@ export default function SymptomChecker() {
               size="lg"
               onClick={handleAnalyze}
               disabled={selectedSymptoms.length === 0 || isAnalyzing}
-              className="min-w-56 text-lg py-5"
+              className="min-w-56 text-lg py-5 bg-linear-to-br from-[#06b6d4] to-[#0891b2] text-white border-none hover:opacity-90 shadow-md transition-all hover:scale-105"
             >
               {isAnalyzing ? "Analyzing..." : `Analyze (${selectedSymptoms.length} symptoms)`}
             </Button>
@@ -286,7 +286,11 @@ export default function SymptomChecker() {
                     <Button
                       key={symptom}
                       variant={isSelected ? "default" : "outline"}
-                      className={`h-12 text-lg font-medium transition-all ${isSelected ? "ring-4 ring-primary/30" : ""}`}
+                      className={`h-12 text-lg font-medium transition-all ${
+                        isSelected 
+                          ? "bg-linear-to-br from-[#06b6d4] to-[#0891b2] text-white border-none ring-4 ring-[#06b6d4]/30 shadow-md" 
+                          : "hover:border-[#06b6d4] hover:text-[#06b6d4] hover:bg-[#06b6d4]/5"
+                      }`}
                       onClick={() => openDialog(symptom)}
                     >
                       {symptom}
@@ -334,6 +338,15 @@ export default function SymptomChecker() {
             </Card>
 
             {/* Results */}
+            {analysisError && (
+              <Alert className="border-red-300 bg-red-50 mb-6">
+                <AlertCircle className="h-5 w-5 text-red-600" />
+                <AlertDescription className="text-red-800">
+                  {analysisError}
+                </AlertDescription>
+              </Alert>
+            )}
+
             {results.length > 0 && (
               <>
                 <Alert className="border-amber-300 bg-amber-50">
@@ -452,7 +465,11 @@ export default function SymptomChecker() {
                     <Button
                       key={level}
                       variant={tempSeverity === level ? "default" : "outline"}
-                      className={"h-20"}
+                      className={`h-20 transition-all ${
+                        tempSeverity === level 
+                          ? "bg-linear-to-br from-[#06b6d4] to-[#0891b2] text-white border-none shadow-md" 
+                          : "hover:border-[#06b6d4] hover:text-[#06b6d4] hover:bg-[#06b6d4]/5"
+                      }`}
                       onClick={() => setTempSeverity(level as any)}
                     >
                       <div>
@@ -474,7 +491,11 @@ export default function SymptomChecker() {
                     <Button
                       key={opt.value}
                       variant={tempDuration === opt.value ? "default" : "outline"}
-                      className="h-16 justify-start"
+                      className={`h-16 justify-start transition-all ${
+                        tempDuration === opt.value 
+                          ? "bg-linear-to-br from-[#06b6d4] to-[#0891b2] text-white border-none shadow-md" 
+                          : "hover:border-[#06b6d4] hover:text-[#06b6d4] hover:bg-[#06b6d4]/5"
+                      }`}
                       onClick={() => setTempDuration(opt.value as any)}
                     >
                       <Clock className="h-5 w-5 mr-3" />
@@ -486,10 +507,10 @@ export default function SymptomChecker() {
             </div>
 
             <DialogFooter className="grid grid-cols-2 gap-4 mt-6">
-              <Button variant="outline" onClick={() => setDialogOpen(false)} className="h-12">
+              <Button variant="outline" onClick={() => setDialogOpen(false)} className="h-12 hover:bg-gray-100 hover:text-gray-900">
                 Cancel
               </Button>
-              <Button onClick={confirmSelection} className="h-12">
+              <Button onClick={confirmSelection} className="h-12 bg-linear-to-br from-[#06b6d4] to-[#0891b2] text-white border-none hover:opacity-90 shadow-md">
                 Confirm
               </Button>
             </DialogFooter>

@@ -1,8 +1,8 @@
 const CUSTOM_AI_API_KEY = import.meta.env.VITE_CUSTOM_AI_API_KEY || '';
 const CUSTOM_AI_API_ENDPOINT = import.meta.env.VITE_CUSTOM_AI_API_ENDPOINT || '';
 const AI_API_ENDPOINT = import.meta.env.VITE_AI_API_ENDPOINT || 'http://localhost:3000/api/ai/chat'
-const AI_API_KEY = import.meta.env.VITE_AI_API_KEY || 'AIzaSyBlKrTSWrqhtqJDTcdt4JAfSRxX_mkYmMs'
-const AI_PROVIDER = import.meta.env.VITE_AI_PROVIDER || 'gemini' 
+const AI_API_KEY = import.meta.env.VITE_AI_API_KEY || 'AIzaSyDeBPklvZOIylsnXgtzqOXeYkkRNUW3z0Y'
+const AI_PROVIDER = import.meta.env.VITE_AI_PROVIDER || 'gemini' // openai, gemini, anthropic, cohere, huggingface, custom
 
 // Cache for available models to avoid repeated API calls
 let cachedModels: any[] | null = null
@@ -18,6 +18,29 @@ export type {
 } from './ai-types'
 
 import type { ChatMessage, SymptomInput, SymptomAnalysisResult, SymptomAnalysisResponse } from './ai-types'
+
+// ============ SYMPTOM CHECKER TYPES ============
+
+export interface SymptomInput {
+  name: string
+  severity: 'mild' | 'moderate' | 'severe'
+  duration: 'less24h' | '1to3days' | '3to7days' | 'moreThanWeek'
+}
+
+export interface SymptomAnalysisResult {
+  condition: string
+  severity: 'low' | 'medium' | 'high'
+  recommendation: string
+  details: string
+  possibleCauses?: string[]
+  whenToSeekHelp?: string
+}
+
+export interface SymptomAnalysisResponse {
+  results: SymptomAnalysisResult[]
+  disclaimer: string
+  error?: string
+}
 
 /**
  * Fetch available models from Gemini API
@@ -684,7 +707,7 @@ function buildSymptomAnalysisRequestBody(
     case 'openai':
     case 'azure-openai':
       return {
-        model: 'gpt-3.5-turbo',
+        model: 'gpt-4',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userMessage }

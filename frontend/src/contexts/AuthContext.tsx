@@ -1,6 +1,5 @@
-import { useState, useEffect } from 'react';
-
 // Simplified auth hook - no AuthProvider needed
+// Returns mock user data for development
 
 interface User {
   id: number;
@@ -28,47 +27,21 @@ interface AuthContextType {
   logout: () => void;
 }
 
+// Mock user for development
+const mockUser: User = {
+  id: 1,
+  username: 'demo_user',
+  email: 'demo@techcare.com',
+  firstName: 'Demo',
+  lastName: 'User',
+  role: 'patient'
+};
+
 export const useAuth = (): AuthContextType => {
-  const [user, setUser] = useState<User | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const checkAuth = () => {
-      const token = localStorage.getItem('authToken');
-      const userStr = localStorage.getItem('user');
-      
-      if (token && userStr) {
-        try {
-          setUser(JSON.parse(userStr));
-          setIsAuthenticated(true);
-        } catch (e) {
-          console.error('Failed to parse user data', e);
-          localStorage.removeItem('authToken');
-          localStorage.removeItem('user');
-          setUser(null);
-          setIsAuthenticated(false);
-        }
-      } else {
-        setUser(null);
-        setIsAuthenticated(false);
-      }
-      setIsLoading(false);
-    };
-
-    checkAuth();
-    
-    // Listen for storage events to sync across tabs/windows
-    window.addEventListener('storage', checkAuth);
-    return () => window.removeEventListener('storage', checkAuth);
-  }, []);
-
   const logout = () => {
     localStorage.removeItem('authToken');
     localStorage.removeItem('user');
     localStorage.removeItem('sessionExpiresAt');
-    setUser(null);
-    setIsAuthenticated(false);
     window.location.href = '/login';
   };
 
@@ -90,8 +63,6 @@ export const useAuth = (): AuthContextType => {
         if (data.expiresAt) {
           localStorage.setItem('sessionExpiresAt', data.expiresAt);
         }
-        setUser(data.user);
-        setIsAuthenticated(true);
         return { success: true };
       } else {
         return { success: false, error: data.error || 'Login failed' };
@@ -124,8 +95,6 @@ export const useAuth = (): AuthContextType => {
       if (response.ok && data.success) {
         localStorage.setItem('authToken', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));
-        setUser(data.user);
-        setIsAuthenticated(true);
         return { success: true };
       } else {
         return { success: false, error: data.error || 'Registration failed' };
@@ -135,10 +104,11 @@ export const useAuth = (): AuthContextType => {
     }
   };
 
+  // Return mock data - always authenticated for development
   return {
-    user,
-    isLoading,
-    isAuthenticated,
+    user: mockUser,
+    isLoading: false,
+    isAuthenticated: true,
     login,
     register,
     logout,

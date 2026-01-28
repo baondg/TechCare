@@ -4,6 +4,8 @@ import dotenv from 'dotenv';
 import aiRoutes from './routes/ai';
 const authRoutes = require('./authorization/routes');
 const systemConfigRoutes = require('./routes/systemConfig');
+const appointmentRoutes = require('./routes/appointmentRoutes');
+const profileRoutes = require('./routes/profileRoutes');
 const sessionMiddleware = require('./middleware/sessionMiddleware');
 const sequelize = require('./common/database');
 
@@ -25,6 +27,10 @@ app.use(sessionMiddleware.checkSessionTimeout);
 app.use('/api/ai', aiRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/system-config', systemConfigRoutes);
+app.use('/api/appointments', appointmentRoutes);
+app.use('/api/profile', profileRoutes);
+const chatbotRoutes = require('./routes/chatbot');
+app.use('/api/chatbot', chatbotRoutes);
 
 // Health check endpoint
 app.get('/health', (req: Request, res: Response) => {

@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { AdminLayout } from "@/components/admin-layout"
 import { Save, Settings, Loader2, CheckCircle2, AlertCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { useAuth } from "@/contexts/AuthContext"
 
 export default function SystemConfig() {
   const { user } = useAuth();

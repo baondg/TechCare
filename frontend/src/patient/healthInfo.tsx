@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -8,12 +8,18 @@ import { Textarea } from "@/components/ui/textarea"
 import { PatientLayout } from "@/components/patient-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Activity, Heart, AlertCircle, FileText, Save, History, X } from "lucide-react"
+import { Activity, Heart, AlertCircle, FileText, Save, History, X, Loader2, Stethoscope } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { CollapsibleSection } from "@/components/collapsible-section"
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
+import { Badge } from "@/components/ui/badge"
+import { healthInfoService } from "@/services/health-info-service"
+import type { HealthInfo } from "@/services/health-info-service"
+import { useAuth } from "@/contexts/AuthContext"
 
 export default function HealthInfoPage() {
+  const { user } = useAuth()
+
   type HealthRecord = {
     id: number
     updatedAt: Date
@@ -29,16 +35,26 @@ export default function HealthInfoPage() {
     updatedBy: string
   }
 
+  // Loading states
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+
   const [isEditing, setIsEditing] = useState(false)
-  const [height, setHeight] = useState("174")
-  const [weight, setWeight] = useState("84")
-  const [bpSys, setBpSys] = useState("118")
-  const [bpDia, setBpDia] = useState("76")
-  const [heartRate, setHeartRate] = useState("84")
-  const [respiratoryRate, setRespiratoryRate] = useState("18")
-  const [temperature, setTemperature] = useState("36.8")
-  const [spo2, setSpo2] = useState("97")
-  const [symptoms, setSymptoms] = useState("Mild headache, occasional dizziness")
+  const [height, setHeight] = useState("")
+  const [weight, setWeight] = useState("")
+  const [bpSys, setBpSys] = useState("")
+  const [bpDia, setBpDia] = useState("")
+  const [heartRate, setHeartRate] = useState("")
+  const [respiratoryRate, setRespiratoryRate] = useState("")
+  const [temperature, setTemperature] = useState("")
+  const [spo2, setSpo2] = useState("")
+  const [bloodType, setBloodType] = useState("O+")
+  const [symptoms, setSymptoms] = useState("")
+
+  // Current health info ID for updates
+  const [currentHealthInfoId, setCurrentHealthInfoId] = useState<number | null>(null)
 
 
   const bmi = useMemo(() => {
@@ -48,36 +64,8 @@ export default function HealthInfoPage() {
     return (w / ((h / 100) ** 2)).toFixed(1)
   }, [height, weight])
 
-  const [healthHistory] = useState<HealthRecord[]>([
-    {
-      id: 1,
-      updatedAt: new Date("2025-11-20T10:30:00"),
-      height: 174,
-      weight: 82,
-      bmi: 27.1,
-      bloodPressure: "120/78",
-      heartRate: 80,
-      respiratoryRate: 16,
-      temperature: 36.7,
-      spo2: 98,
-      symptoms: "Sore throat, mild fever",
-      updatedBy: "Patient",
-    },
-    {
-      id: 2,
-      updatedAt: new Date("2025-10-15T14:20:00"),
-      height: 174,
-      weight: 85,
-      bmi: 28.0,
-      bloodPressure: "118/76",
-      heartRate: 84,
-      respiratoryRate: 18,
-      temperature: 36.8,
-      spo2: 97,
-      symptoms: "Headache, fatigue",
-      updatedBy: "Patient",
-    },
-  ])
+  const [healthHistory, setHealthHistory] = useState<HealthRecord[]>([])
+  const [historyPagination, setHistoryPagination] = useState({ total: 0, page: 1, limit: 10, totalPages: 1 })
 
   const [selectedRecord, setSelectedRecord] = useState<HealthRecord | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
@@ -85,6 +73,133 @@ export default function HealthInfoPage() {
 
   const pageCount = Math.ceil(healthHistory.length / pageSize)
   const paginated = healthHistory.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+
+  // Load health info on mount
+  useEffect(() => {
+    loadHealthInfo()
+    loadHealthHistory()
+  }, [user])
+
+  const loadHealthInfo = async () => {
+    if (!user?.id) return
+    
+    setLoading(true)
+    setError(null)
+    
+    try {
+      const result = await healthInfoService.getHealthInfo()
+      if (result.success && result.healthInfo) {
+        const info = result.healthInfo
+        setCurrentHealthInfoId(info.id)
+        setHeight(info.height?.toString() || "")
+        setWeight(info.weight?.toString() || "")
+        setBpSys(info.bloodPressureSys?.toString() || "")
+        setBpDia(info.bloodPressureDia?.toString() || "")
+        setHeartRate(info.heartRate?.toString() || "")
+        setRespiratoryRate(info.respiratoryRate?.toString() || "")
+        setTemperature(info.temperature?.toString() || "")
+        setSpo2(info.spo2?.toString() || "")
+        setBloodType(info.bloodType || "O+")
+        setSymptoms(info.currentSymptoms || "")
+        
+        // Set allergies
+        if (info.drugAllergies) setDrugAllergies(info.drugAllergies)
+        if (info.foodAllergies) setFoodAllergies(info.foodAllergies)
+        if (info.otherAllergies) setOtherAllergies(info.otherAllergies)
+        
+        // Set medical history
+        if (info.chronicConditions) setChronicConditions(info.chronicConditions)
+        if (info.pastSurgeries) setPastSurgeries(info.pastSurgeries)
+        if (info.familyHistory) setFamilyHistory(info.familyHistory)
+        if (info.pastIllnesses) setPastIllnesses(info.pastIllnesses)
+        if (info.vaccinations) setVaccinations(info.vaccinations)
+        if (info.substanceAbuse) setSubstanceAbuse(info.substanceAbuse)
+      }
+    } catch (err) {
+      console.error("Failed to load health info:", err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loadHealthHistory = async () => {
+    try {
+      const result = await healthInfoService.getHealthHistory(1, 100)
+      if (result.success && result.history) {
+        const records: HealthRecord[] = result.history.map((h, i) => ({
+          id: h.id,
+          updatedAt: new Date(h.updatedAt || h.createdAt || Date.now()),
+          height: h.height || 0,
+          weight: h.weight || 0,
+          bmi: h.bmi || 0,
+          bloodPressure: `${h.bloodPressureSys || 0}/${h.bloodPressureDia || 0}`,
+          heartRate: h.heartRate || 0,
+          respiratoryRate: h.respiratoryRate || 0,
+          temperature: h.temperature || 0,
+          spo2: h.spo2 || 0,
+          symptoms: h.currentSymptoms || "",
+          updatedBy: h.updatedBy || "Patient"
+        }))
+        setHealthHistory(records)
+        if (result.pagination) {
+          setHistoryPagination(result.pagination)
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load health history:", err)
+    }
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    setError(null)
+    setSuccess(null)
+
+    try {
+      const healthData = {
+        height: height ? parseFloat(height) : undefined,
+        weight: weight ? parseFloat(weight) : undefined,
+        bloodPressureSys: bpSys ? parseInt(bpSys) : undefined,
+        bloodPressureDia: bpDia ? parseInt(bpDia) : undefined,
+        heartRate: heartRate ? parseInt(heartRate) : undefined,
+        respiratoryRate: respiratoryRate ? parseInt(respiratoryRate) : undefined,
+        temperature: temperature ? parseFloat(temperature) : undefined,
+        spo2: spo2 ? parseInt(spo2) : undefined,
+        bloodType: bloodType as any,
+        currentSymptoms: symptoms,
+        drugAllergies,
+        foodAllergies,
+        otherAllergies,
+        chronicConditions,
+        pastSurgeries,
+        familyHistory,
+        pastIllnesses,
+        vaccinations,
+        substanceAbuse,
+        updatedBy: "Patient"
+      }
+
+      let result
+      if (currentHealthInfoId) {
+        result = await healthInfoService.updateHealthInfo(currentHealthInfoId, healthData)
+      } else {
+        result = await healthInfoService.createHealthInfo(healthData)
+      }
+
+      if (result.success) {
+        setSuccess("Health information saved successfully!")
+        setIsEditing(false)
+        loadHealthHistory()
+        setTimeout(() => setSuccess(null), 3000)
+      } else {
+        setError(result.error || "Failed to save health information")
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to save health information")
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const loadRecordToForm = (record: HealthRecord) => {
     setHeight(record.height.toString())
@@ -102,16 +217,16 @@ export default function HealthInfoPage() {
     setIsEditing(true) // tự động bật edit để người dùng có thể sửa tiếp
   }
 
-  const [drugAllergies, setDrugAllergies] = useState(["Penicillin"])
-  const [foodAllergies, setFoodAllergies] = useState(["Shrimp"])
-  const [otherAllergies, setOtherAllergies] = useState(["Butterfly flower"])
+  const [drugAllergies, setDrugAllergies] = useState<string[]>([])
+  const [foodAllergies, setFoodAllergies] = useState<string[]>([])
+  const [otherAllergies, setOtherAllergies] = useState<string[]>([])
 
-  const [chronicConditions, setChronicConditions] = useState(["Hypertension (controlled)"])
-  const [pastSurgeries, setPastSurgeries] = useState(["Appendectomy (2018)"])
-  const [familyHistory, setFamilyHistory] = useState(["Father: Heart disease, Mother: Diabetes"])
-  const [pastIllnesses, setPastIllnesses] = useState(["Mumps"])
-  const [vaccinations, setVaccinations] = useState(["Tetanus and diphtheria"])
-  const [substanceAbuse, setSubstanceAbuse] = useState(["Alcohol"])
+  const [chronicConditions, setChronicConditions] = useState<string[]>([])
+  const [pastSurgeries, setPastSurgeries] = useState<string[]>([])
+  const [familyHistory, setFamilyHistory] = useState<string[]>([])
+  const [pastIllnesses, setPastIllnesses] = useState<string[]>([])
+  const [vaccinations, setVaccinations] = useState<string[]>([])
+  const [substanceAbuse, setSubstanceAbuse] = useState<string[]>([])
 
   function InputList({
     label,
@@ -181,6 +296,19 @@ export default function HealthInfoPage() {
     )
   }
 
+
+  if (loading) {
+    return (
+      <PatientLayout>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <Loader2 className="h-8 w-8 animate-spin text-cyan-600 mx-auto mb-4" />
+            <p className="text-slate-600">Loading health information...</p>
+          </div>
+        </div>
+      </PatientLayout>
+    )
+  }
 
   return (
     <PatientLayout>
@@ -316,8 +444,13 @@ export default function HealthInfoPage() {
             <h2 className="text-3xl font-bold">Health Information</h2>
             <p className="text-muted-foreground">Update your health data before your visit</p>
           </div>
-          <Button onClick={() => setIsEditing(!isEditing)}>
-            {isEditing ? (
+          <Button onClick={() => isEditing ? handleSave() : setIsEditing(true)} disabled={saving}>
+            {saving ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : isEditing ? (
               <>
                 <Save className="h-4 w-4 mr-2" />
                 Save Changes
@@ -327,6 +460,19 @@ export default function HealthInfoPage() {
             )}
           </Button>
         </div>
+
+        {/* Success/Error Messages */}
+        {success && (
+          <Alert className="bg-green-50 border-green-200 text-green-800">
+            <AlertDescription>{success}</AlertDescription>
+          </Alert>
+        )}
+
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
 
         {/* Alert */}
         <Alert>
@@ -439,7 +585,7 @@ export default function HealthInfoPage() {
             {/* Blood Type */}
             <div className="space-y-2 ">
               <Label>Blood Type</Label>
-              <Select defaultValue="O+" disabled={!isEditing}>
+              <Select value={bloodType} onValueChange={setBloodType} disabled={!isEditing}>
                 <SelectTrigger>
                 <div className="text-sm font-normal bg-background text-muted-foreground">
                     <SelectValue placeholder="Select blood type" />
@@ -499,16 +645,17 @@ export default function HealthInfoPage() {
         <CollapsibleSection
           title="Current Symptoms"
           icon={<Heart className="h-5 w-5" />}
-          description="Describe any symptoms you're experiencing"
+          description="Record your current symptoms"
           defaultOpen={true}
         >
-          <div className="space-y-2 text-sm font-normal bg-background text-muted-foreground">
+          <div className="space-y-2">
             <Label>Symptoms</Label>
             <Textarea
               value={symptoms}
               onChange={(e) => setSymptoms(e.target.value)}
               disabled={!isEditing}
-              rows={3}
+              rows={4}
+              placeholder="Describe any current symptoms you are experiencing..."
             />
           </div>
         </CollapsibleSection>

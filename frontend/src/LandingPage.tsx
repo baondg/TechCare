@@ -13,7 +13,7 @@ function App() {
   return (
     <div className="relative h-370">
 
-      <div className="relative z-10min-h-screen overflow-y-auto hide-scrollbar">
+      <div className="relative z-10 min-h-screen overflow-y-auto hide-scrollbar">
         <Header />
 
         <MainCarousel

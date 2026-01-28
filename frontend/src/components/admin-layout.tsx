@@ -1,9 +1,10 @@
 "use client"
 
 import type React from "react"
+import { useState } from "react"
 import { Link } from "react-router-dom";
 import { useLocation } from "react-router-dom"
-import { LayoutDashboard, Users, Settings,  LogOut, MessageSquareText , Activity } from "lucide-react"
+import { LayoutDashboard, Users, Settings,  LogOut, MessageSquareText , Activity, Shield, Database } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/contexts/AuthContext"
@@ -15,8 +16,10 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
 
   const navigation = [
     { href: "/admin/dashboard", name: "Dashboard", icon: LayoutDashboard },
-    { href: "/admin/user-management", name: "Account Management", icon: Users },
+    { href: "/admin/users", name: "Account Management", icon: Users },
     { href: "/admin/system-config", name: "System Config", icon: Settings },
+    { href: "/admin/rate-limit", name: "Rate Limit", icon: Shield },
+    { href: "/admin/backup", name: "Backup", icon: Database },
     { href: "/admin/feedback", name: "Feedback", icon: MessageSquareText },
   ]
 

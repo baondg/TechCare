@@ -1,46 +1,23 @@
-// AI Service for chatbot integration
-// Supports ANY AI provider: OpenAI, Gemini, Anthropic, Cohere, Hugging Face, Azure, AWS, or custom backends
-
+const CUSTOM_AI_API_KEY = import.meta.env.VITE_CUSTOM_AI_API_KEY || '';
+const CUSTOM_AI_API_ENDPOINT = import.meta.env.VITE_CUSTOM_AI_API_ENDPOINT || '';
 const AI_API_ENDPOINT = import.meta.env.VITE_AI_API_ENDPOINT || 'http://localhost:3000/api/ai/chat'
-const AI_API_KEY = import.meta.env.VITE_AI_API_KEY || 'AIzaSyDeBPklvZOIylsnXgtzqOXeYkkRNUW3z0Y'
-const AI_PROVIDER = import.meta.env.VITE_AI_PROVIDER || 'gemini' // openai, gemini, anthropic, cohere, huggingface, custom
+const AI_API_KEY = import.meta.env.VITE_AI_API_KEY || 'AIzaSyBlKrTSWrqhtqJDTcdt4JAfSRxX_mkYmMs'
+const AI_PROVIDER = import.meta.env.VITE_AI_PROVIDER || 'gemini' 
 
 // Cache for available models to avoid repeated API calls
 let cachedModels: any[] | null = null
 let selectedModel: string | null = null
 
-export interface ChatMessage {
-  role: 'user' | 'assistant' | 'system'
-  content: string
-}
+// Re-export types from ai-types.ts
+export type {
+  ChatMessage,
+  ChatResponse,
+  SymptomInput,
+  SymptomAnalysisResult,
+  SymptomAnalysisResponse
+} from './ai-types'
 
-export interface ChatResponse {
-  message: string
-  error?: string
-}
-
-// ============ SYMPTOM CHECKER TYPES ============
-
-export interface SymptomInput {
-  name: string
-  severity: 'mild' | 'moderate' | 'severe'
-  duration: 'less24h' | '1to3days' | '3to7days' | 'moreThanWeek'
-}
-
-export interface SymptomAnalysisResult {
-  condition: string
-  severity: 'low' | 'medium' | 'high'
-  recommendation: string
-  details: string
-  possibleCauses?: string[]
-  whenToSeekHelp?: string
-}
-
-export interface SymptomAnalysisResponse {
-  results: SymptomAnalysisResult[]
-  disclaimer: string
-  error?: string
-}
+import type { ChatMessage, SymptomInput, SymptomAnalysisResult, SymptomAnalysisResponse } from './ai-types'
 
 /**
  * Fetch available models from Gemini API
@@ -85,6 +62,28 @@ async function pickGeminiModel(): Promise<string> {
 
   const models = await getAvailableGeminiModels()
   
+  // Priority list of models
+  const priorityModels = [
+    'gemini-2.5-pro', // High priority as requested
+    'gemini-2.0-flash',
+    'gemini-1.5-pro',
+    'gemini-1.5-flash',
+    'gemini-pro'
+  ]
+
+  // Try to find a model from the priority list
+  for (const modelName of priorityModels) {
+    const found = models.find((m: any) => 
+      (m.name === `models/${modelName}` || m.name === modelName) &&
+      m.supportedGenerationMethods?.includes('generateContent')
+    )
+    if (found) {
+      selectedModel = found.name
+      console.log('✅ Selected Gemini model (priority):', selectedModel)
+      return selectedModel
+    }
+  }
+  
   // Find a model that supports generateContent
   const validModel = models.find((m: any) => 
     m.supportedGenerationMethods?.includes('generateContent')
@@ -128,8 +127,7 @@ export async function sendChatMessage(
   messages: ChatMessage[],
   userMessage: string
 ): Promise<ChatResponse> {
-  try {
-    const systemPrompt = `You are a helpful medical assistant for TechCare hospital. 
+  const systemPrompt = `You are a helpful medical assistant for TechCare hospital. 
 You can help patients with:
 - Medication information and reminders
 - Appointment scheduling and information
@@ -143,47 +141,153 @@ Important guidelines:
 - Keep responses concise but informative
 - Use simple, easy-to-understand language`
 
-    // For Gemini, dynamically select a valid model
-    let endpoint = AI_API_ENDPOINT
-    if (AI_PROVIDER.toLowerCase() === 'gemini') {
-      const modelName = await pickGeminiModel()
-      // Extract base model name (e.g., "models/gemini-1.5-flash" -> "gemini-1.5-flash")
-      const modelId = modelName.replace('models/', '')
-      endpoint = `https://generativelanguage.googleapis.com/v1/models/${modelId}:generateContent?key=${AI_API_KEY}`
-      console.log('🔗 Using endpoint:', endpoint)
+  // Try Gemini first if selected
+  if (AI_PROVIDER && AI_PROVIDER.toLowerCase() === 'custom') {
+    try {
+      console.log('🔗 Calling custom AI API:', CUSTOM_AI_API_ENDPOINT);
+      const endpoint = CUSTOM_AI_API_ENDPOINT;
+      const apiKey = CUSTOM_AI_API_KEY;
+      const requestBody = buildRequestBody('custom', messages, userMessage, systemPrompt);
+      const headers = buildHeaders('custom', apiKey);
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestBody)
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Custom API error: ${response.status} - ${errorText}`);
+      }
+      const data = await response.json();
+      console.log('Custom AI API raw response:', data);
+      const message = extractMessage('custom', data);
+      return { message };
+    } catch (error) {
+      console.error('Custom API failed:', error);
+      return {
+        message: getFallbackResponse(userMessage),
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
     }
-
-    // Build request body based on provider
-    const requestBody = buildRequestBody(AI_PROVIDER, messages, userMessage, systemPrompt)
-    
-    // Build headers based on provider
-    const headers = buildHeaders(AI_PROVIDER, AI_API_KEY)
-
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(requestBody)
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error('API Error Response:', errorText)
-      throw new Error(`API error: ${response.status} - ${errorText}`)
+  }
+  if (AI_PROVIDER.toLowerCase() === 'gemini') {
+    // Lấy danh sách model ưu tiên
+    const modelsToTry = [
+      'gemini-2.5-pro',
+      'gemini-2.0-flash',
+      'gemini-1.5-pro',
+      'gemini-1.5-flash',
+      'gemini-pro'
+    ];
+    let lastGeminiError = null;
+    for (const modelName of modelsToTry) {
+      try {
+        const modelId = modelName;
+        const endpoint = `https://generativelanguage.googleapis.com/v1/models/${modelId}:generateContent?key=${AI_API_KEY}`;
+        console.log('🔗 Trying Gemini model:', modelId);
+        const requestBody = buildRequestBody('gemini', messages, userMessage, systemPrompt);
+        const headers = buildHeaders('gemini', AI_API_KEY);
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(requestBody)
+        });
+        if (!response.ok) {
+          const errorText = await response.text();
+          lastGeminiError = errorText;
+          // Nếu lỗi quota hoặc model không khả dụng, thử model tiếp theo
+          if (response.status === 429 || response.status === 404 || errorText.includes('quota') || errorText.includes('RESOURCE_EXHAUSTED')) {
+            console.warn(`Gemini model ${modelId} failed:`, errorText);
+            continue;
+          } else {
+            throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
+          }
+        }
+        const data = await response.json();
+        const message = extractMessage('gemini', data);
+        return { message };
+      } catch (error) {
+        lastGeminiError = error;
+        console.warn(`Gemini model ${modelName} error:`, error);
+        continue;
+      }
     }
-
-    const data = await response.json()
-    
-    // Extract message from response based on provider format
-    const message = extractMessage(AI_PROVIDER, data)
-    
-    return { message }
-  } catch (error) {
-    console.error('AI Service Error:', error)
-    
-    // Fallback to rule-based responses if API fails
-    return {
-      message: getFallbackResponse(userMessage),
-      error: error instanceof Error ? error.message : 'Unknown error'
+    // Nếu tất cả model Gemini đều lỗi, thử OpenAI, nếu OpenAI cũng lỗi thì gọi custom API
+    console.error('All Gemini models failed, trying OpenAI:', lastGeminiError);
+    try {
+      const openaiEndpoint = 'https://api.openai.com/v1/chat/completions';
+      const openaiKey = import.meta.env.VITE_OPENAI_API_KEY || '';
+      const requestBody = buildRequestBody('openai', messages, userMessage, systemPrompt);
+      const headers = buildHeaders('openai', openaiKey);
+      const response = await fetch(openaiEndpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestBody)
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
+      }
+      const data = await response.json();
+      const message = extractMessage('openai', data);
+      return { message };
+    } catch (openaiError) {
+      console.error('OpenAI fallback also failed, trying custom API:', openaiError);
+      try {
+        console.log('🔗 Calling custom AI API:', CUSTOM_AI_API_ENDPOINT);
+        const endpoint = CUSTOM_AI_API_ENDPOINT;
+        const apiKey = CUSTOM_AI_API_KEY;
+        const requestBody = buildRequestBody('custom', messages, userMessage, systemPrompt);
+        const headers = buildHeaders('custom', apiKey);
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(requestBody)
+        });
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Custom API error: ${response.status} - ${errorText}`);
+        }
+        const data = await response.json();
+        const message = extractMessage('custom', data);
+        return { message };
+      } catch (customError) {
+        console.error('Custom API also failed:', customError);
+        return {
+          message: getFallbackResponse(userMessage),
+          error: customError instanceof Error ? customError.message : 'Unknown error'
+        };
+      }
+    }
+  } else {
+    // Use selected provider (OpenAI, etc.)
+    try {
+      let endpoint = AI_API_ENDPOINT;
+      let apiKey = AI_API_KEY;
+      if (AI_PROVIDER.toLowerCase() === 'openai') {
+        endpoint = 'https://api.openai.com/v1/chat/completions';
+        apiKey = import.meta.env.VITE_OPENAI_API_KEY || '';
+      }
+      const requestBody = buildRequestBody(AI_PROVIDER, messages, userMessage, systemPrompt);
+      const headers = buildHeaders(AI_PROVIDER, apiKey);
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestBody)
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API error: ${response.status} - ${errorText}`);
+      }
+      const data = await response.json();
+      const message = extractMessage(AI_PROVIDER, data);
+      return { message };
+    } catch (error) {
+      console.error('AI Service Error:', error);
+      return {
+        message: getFallbackResponse(userMessage),
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
     }
   }
 }
@@ -237,7 +341,7 @@ function buildRequestBody(
     case 'openai':
     case 'azure-openai':
       return {
-        model: 'gpt-4',
+        model: 'gpt-3.5-turbo',
         messages: fullMessages,
         temperature: 0.7,
         max_tokens: 500
@@ -281,9 +385,9 @@ function buildRequestBody(
       }
 
     default:
-      // Custom format - standard OpenAI-like format
+      // Custom API expects { message: userMessage }
       return {
-        messages: fullMessages
+        message: userMessage
       }
   }
 }
@@ -328,8 +432,8 @@ function buildHeaders(provider: string, apiKey: string): Record<string, string> 
       break
 
     default:
-      // Custom - use Bearer token by default
-      headers['Authorization'] = `Bearer ${apiKey}`
+      // Custom - use x-api-key header for custom AI/ML API
+      headers['x-api-key'] = apiKey
       break
   }
 
@@ -360,8 +464,8 @@ function extractMessage(provider: string, data: unknown): string {
         return data.candidates?.[0]?.content?.parts?.[0]?.text || data.message || 'No response'
 
       default:
-        // Try common response field names
-        return data.message || data.response || data.content || data.text || data.output || 'No response from AI'
+        // Try common response field names, including custom API { reply }
+        return data.reply || data.message || data.response || data.content || data.text || data.output || 'No response from AI'
     }
   } catch (error) {
     console.error('Error extracting message:', error)
@@ -580,7 +684,7 @@ function buildSymptomAnalysisRequestBody(
     case 'openai':
     case 'azure-openai':
       return {
-        model: 'gpt-4',
+        model: 'gpt-3.5-turbo',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userMessage }

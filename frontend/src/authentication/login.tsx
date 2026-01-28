@@ -8,26 +8,32 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Activity, User, Stethoscope, Eye, EyeOff, AlertCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { authService } from "@/services/auth-service";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function LoginPage() {
   const router = useNavigate();
+  const { login } = useAuth();
   const [role, setRole] = useState<"patient" | "hospital staff" | "admin">("patient");
   const [showPassword, setShowPassword] = useState(false);
-  const [error] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Redirect based on role
-    if (role === "patient") {
-      router("/patient/dashboard");
-    } else if (role === "hospital staff" || role === "admin") {
-      router("/admin/dashboard"); //TODO
-    } 
+    setError("");
+    const result = await login(username, password);
+    if (result.success) {
+      if (role === "patient") {
+        router("/patient/dashboard");
+      } else {
+        router("/admin/dashboard");
+      }
+    } else {
+      setError(result.error || "Login failed");
+    }
   };
 
   return (
@@ -82,6 +88,8 @@ export default function LoginPage() {
                   placeholder="Enter username"
                   required
                   className="custom-input"
+                  value={username}
+                  onChange={e => setUsername(e.target.value)}
                 />
               </div>
               <div className="space-y-2">
@@ -93,6 +101,8 @@ export default function LoginPage() {
                     placeholder="Enter password" 
                     required 
                     className="custom-input"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
                   />
                   <button
                     type="button" 

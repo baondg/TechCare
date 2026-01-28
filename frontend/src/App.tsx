@@ -14,12 +14,16 @@ import AppointmentsPage from "./patient/appointments"
 import BookAppointmentPage from "./patient/appointments/book-appointment"
 import HealthInfoPage from "./patient/healthInfo"
 import RecordsPage from "./patient/records"
-import SymptomCheckerPage from "./patient/symptomchecker"
+// import SymptomCheckerPage from "./patient/symptomchecker"
 import AdminDashboardPage from "./admin/dashboard"
 import SystemConfig from "./admin/config"
 import UserManagement from "./admin/accountMng"
-import RateLimitConfig from "./admin/ratelimit"
-import BackupManagement from "./admin/backup"
+import FeedbackManagement from "./admin/feedback"
+import DoctorDashboard from "./doctor/dashboard"
+import DoctorPatients from "./doctor/patients"
+
+import { PatientLayout } from "@/components/patient-layout-onclick"
+import ViewingPatientDashboard from "./doctor/medical_records/dashboard"
 
 
 
@@ -28,90 +32,46 @@ import { ProtectedRoute } from "@/components/ProtectedRoute"
 function App() {
   return (
     <FadeTransition>
-      <div className="fixed inset-0 z-0 pointer-events-none">
+      <div className="inset-0 -z-50 pointer-events-none">
         <NetworkBackground />
       </div>
-      <div className="relative z-10 min-h-screen">
+
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
 
           {/* Protected Patient Routes */}
-          <Route path="/patient/dashboard" element={
-            <ProtectedRoute>
-              <DashBoardPage />
-            </ProtectedRoute>
-          } />
-          <Route path="/patient/feedback" element={
-            <ProtectedRoute>
-              <FeedBackPage />
-            </ProtectedRoute>
-          } />
-          <Route path="/patient/profile" element={
-            <ProtectedRoute>
-              <ProfilePage />
-            </ProtectedRoute>
-          } />
-          <Route path="/patient/chatbot" element={
-            <ProtectedRoute>
-              <ChatbotPage />
-            </ProtectedRoute>
-          } />
-          <Route path="/patient/appointments" element={
-            <ProtectedRoute>
-              <AppointmentsPage />
-            </ProtectedRoute>
-          } />
-          <Route path="/patient/appointments/book-appointment" element={
-            <ProtectedRoute>
-              <BookAppointmentPage />
-            </ProtectedRoute>
-          } />
-          <Route path="/patient/health-info" element={
-            <ProtectedRoute>
-              <HealthInfoPage />
-            </ProtectedRoute>
-          } />
-          <Route path="/patient/records" element={
-            <ProtectedRoute>
-              <RecordsPage />
-            </ProtectedRoute>
-          } />
-          <Route path="/patient/symptom-checker" element={
-            <ProtectedRoute>
-              <SymptomCheckerPage />
-            </ProtectedRoute>
-          } />
+          <Route path="/patient/dashboard" element={<DashBoardPage />} />
+          <Route path="/patient/feedback" element={<FeedBackPage />} />
+          <Route path="/patient/profile" element={<ProfilePage />} />
+          <Route path="/patient/chatbot" element={<ChatbotPage />} />
+          <Route path="/patient/appointments" element={<AppointmentsPage />} />
+          <Route path="/patient/appointments/book-appointment" element={<BookAppointmentPage />} />
+          <Route path="/patient/health-info" element={<HealthInfoPage />} />
+          <Route path="/patient/records" element={<RecordsPage />} />
+          {/* <Route path="/patient/symptom-checker" element={<SymptomCheckerPage />} /> */}
 
           {/* Protected Admin Routes */}
-          <Route path="/admin/dashboard" element={
-            <ProtectedRoute requiredRole="admin">
-              <AdminDashboardPage />
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/system-config" element={
-            <ProtectedRoute requiredRole="admin">
-              <SystemConfig />
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/users" element={
-            <ProtectedRoute requiredRole="admin">
-              <UserManagement />
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/rate-limit" element={
-            <ProtectedRoute requiredRole="admin">
-              <RateLimitConfig />
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/backup" element={
-            <ProtectedRoute requiredRole="admin">
-              <BackupManagement />
-            </ProtectedRoute>
-          } />
+          <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
+          <Route path="/admin/config" element={<SystemConfig />} />
+          <Route path="/admin/users" element={<UserManagement />} />
+          <Route path="/admin/feedback" element={<FeedbackManagement />} />
+
+          {/* Protected doctor Routes */}
+          <Route path="/doctor/dashboard" element={<DoctorDashboard />} />
+          <Route path="/doctor/patients" element={<DoctorPatients />} />
+          <Route path="/doctor/medical_records/:patientId" element={<PatientLayout />}>
+            <Route index element={<ViewingPatientDashboard />} />
+            {/* <Route path="health-info" element={<div>ViewingHealthInfoPage</div>} />
+            <Route path="laboratory" element={<div>Laboratory</div>} />
+            <Route path="diagnosis" element={<div>Diagnosis</div>} />
+            <Route path="surgery" element={<div>Surgery</div>} />
+            <Route path="prescription" element={<div>Prescription</div>} />
+            <Route path="history" element={<div>History</div>} /> */}
+          </Route>
         </Routes>
-      </div>
+
     </FadeTransition>
   )
 }

@@ -41,11 +41,11 @@ export function PatientLayout({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex items-center gap-4">
-            {user && (
+            {/* {user && (
               <span className="text-sm text-muted-foreground">
-                Welcome, {user.firstName || user.username}
+                {user.firstName || user.username}
               </span>
-            )}
+            )} */}
             <Button variant="outline" size="lg" onClick={logout} className="text-destructive hover:bg-destructive">
               <LogOut className="h-4 w-4 mr-2" />
               Logout

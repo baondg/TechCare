@@ -17,23 +17,19 @@ export default function LoginPage() {
   const { login } = useAuth();
   const [role, setRole] = useState<"patient" | "hospital staff" | "admin">("patient");
   const [showPassword, setShowPassword] = useState(false);
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [error] = useState("");
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
-    const result = await login(username, password);
-    if (result.success) {
-      if (role === "patient") {
-        router("/patient/dashboard");
-      } else {
-        router("/admin/dashboard");
-      }
-    } else {
-      setError(result.error || "Login failed");
+    // Redirect based on role
+    if (role === "patient") {
+      router("/patient/dashboard");
+    } else if (role === "admin") {
+      router("/admin/dashboard"); 
+    } else if (role === "hospital staff") {
+      router("/doctor/dashboard")
     }
+
   };
 
   return (

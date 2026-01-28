@@ -7,6 +7,9 @@ import { PatientLayout } from "@/components/patient-layout"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { appointmentService } from "@/services/appointment-service"
+import { useAuth } from "@/contexts/AuthContext"
+import { format, isSameDay, startOfDay } from "date-fns"
 
 type ViewMode = "month" | "week" | "day"
 
@@ -20,8 +23,14 @@ interface TimeSlot {
 
 export default function BookAppointmentPage() {
   const navigate = useNavigate()
-  const [currentDate, setCurrentDate] = useState(new Date(2025, 9))
-  const [selectedDate, setSelectedDate] = useState(17)
+  const { user } = useAuth()
+  
+  // viewDate controls the month currently being viewed in the calendar
+  const [viewDate, setViewDate] = useState(new Date())
+  
+  // selectedDate is the specific date selected for the appointment
+  const [selectedDate, setSelectedDate] = useState(new Date())
+  
   const [viewMode, setViewMode] = useState<ViewMode>("month")
   const [selectedDepartment, setSelectedDepartment] = useState("")
   const [showNotification, setShowNotification] = useState(false)
@@ -38,17 +47,46 @@ export default function BookAppointmentPage() {
   ]
 
   const timeSlots: TimeSlot[] = [
+    // Cardiology
+    { time: "08:00", doctor: "Dr. Trang Thanh Nghia", department: "Cardiology", room: "Room A1-102", available: true },
+    { time: "09:30", doctor: "Dr. Le Van Tim", department: "Cardiology", room: "Room A1-104", available: true },
     { time: "11:00", doctor: "Dr. Trang Thanh Nghia", department: "Cardiology", room: "Room A1-102", available: true },
-    { time: "11:30", doctor: "Dr. Nguyen Duc Dung", department: "Orthopedics", room: "Room B1-102", available: true },
-    { time: "11:30", doctor: "Dr. Nguyen Thi Van Anh", department: "Dermatology", room: "Room JA-04", available: false },
-    { time: "11:30", doctor: "Dr. Tran Tien Minh", department: "Ophthalmology", room: "Room A1-102", available: true },
     { time: "11:40", doctor: "Dr. Trang Thanh Nghia", department: "Cardiology", room: "Room A1-102", available: true },
+    { time: "14:00", doctor: "Dr. Le Van Tim", department: "Cardiology", room: "Room A1-104", available: false },
+    
+    // Orthopedics
+    { time: "08:30", doctor: "Dr. Nguyen Duc Dung", department: "Orthopedics", room: "Room B1-102", available: true },
+    { time: "10:00", doctor: "Dr. Pham Van Xuong", department: "Orthopedics", room: "Room B1-105", available: true },
+    { time: "11:30", doctor: "Dr. Nguyen Duc Dung", department: "Orthopedics", room: "Room B1-102", available: true },
     { time: "11:40", doctor: "Dr. Nguyen Duc Dung", department: "Orthopedics", room: "Room B1-102", available: false },
+    { time: "15:30", doctor: "Dr. Pham Van Xuong", department: "Orthopedics", room: "Room B1-105", available: true },
+
+    // Dermatology
+    { time: "09:00", doctor: "Dr. Nguyen Thi Van Anh", department: "Dermatology", room: "Room JA-04", available: true },
+    { time: "10:30", doctor: "Dr. Tran Thi Da", department: "Dermatology", room: "Room JA-05", available: true },
+    { time: "11:30", doctor: "Dr. Nguyen Thi Van Anh", department: "Dermatology", room: "Room JA-04", available: false },
+    { time: "14:30", doctor: "Dr. Tran Thi Da", department: "Dermatology", room: "Room JA-05", available: true },
+
+    // Ophthalmology
+    { time: "08:15", doctor: "Dr. Tran Tien Minh", department: "Ophthalmology", room: "Room A1-102", available: true },
+    { time: "10:45", doctor: "Dr. Le Thi Mat", department: "Ophthalmology", room: "Room A1-103", available: true },
+    { time: "11:30", doctor: "Dr. Tran Tien Minh", department: "Ophthalmology", room: "Room A1-102", available: true },
+    { time: "16:00", doctor: "Dr. Le Thi Mat", department: "Ophthalmology", room: "Room A1-103", available: false },
+
+    // Otolaryngology (ENT)
+    { time: "09:15", doctor: "Dr. Hoang Van Tai", department: "Otolaryngology", room: "Room C1-201", available: true },
+    { time: "13:30", doctor: "Dr. Hoang Van Tai", department: "Otolaryngology", room: "Room C1-201", available: true },
+    { time: "15:00", doctor: "Dr. Nguyen Thi Mui", department: "Otolaryngology", room: "Room C1-202", available: true },
+
+    // Outpatient / General Medicine
+    { time: "07:30", doctor: "Dr. Vo Van Tong", department: "General Medicine", room: "Room G1-001", available: true },
+    { time: "10:00", doctor: "Dr. Vo Van Tong", department: "General Medicine", room: "Room G1-001", available: false },
+    { time: "13:00", doctor: "Dr. Phan Thi Quat", department: "General Medicine", room: "Room G1-002", available: true },
   ]
 
   const getDaysInMonth = () => {
-    const year = currentDate.getFullYear()
-    const month = currentDate.getMonth()
+    const year = viewDate.getFullYear()
+    const month = viewDate.getMonth()
     const firstDay = new Date(year, month, 1).getDay()
     const daysInMonth = new Date(year, month + 1, 0).getDate()
     const daysInPrevMonth = new Date(year, month, 0).getDate()
@@ -76,11 +114,11 @@ export default function BookAppointmentPage() {
   }
 
   const handlePrevMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1))
+    setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1))
   }
 
   const handleNextMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1))
+    setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1))
   }
 
   const handleBookSlot = (slot: TimeSlot) => {
@@ -89,14 +127,35 @@ export default function BookAppointmentPage() {
     setShowNotification(true)
   }
 
-  const handleConfirmBooking = () => {
-    console.log("Booking confirmed:", selectedSlot)
-    setShowNotification(false)
-    navigate("/patient/appointments")
+  const handleConfirmBooking = async () => {
+    if (!selectedSlot || !user?.id) return
+
+    try {
+      const formattedDate = format(selectedDate, 'yyyy-MM-dd')
+      
+      // Format time to HH:mm:ss
+      const formattedTime = `${selectedSlot.time}:00`
+
+      await appointmentService.createAppointment({
+        doctor: selectedSlot.doctor,
+        department: selectedSlot.department,
+        date: formattedDate,
+        time: formattedTime,
+        room: selectedSlot.room,
+        symptoms: checkedSymptom === 'yes' ? 'Patient reported symptoms' : 'No symptoms reported',
+        notes: 'Booked via web portal'
+      })
+
+      setShowNotification(false)
+      navigate("/patient/appointments")
+    } catch (error: any) {
+      console.error("Booking failed:", error)
+      alert(error.message || "Failed to book appointment. Please try again.")
+    }
   }
 
   const days = getDaysInMonth()
-  const monthName = currentDate.toLocaleString("en-US", { month: "long", year: "numeric" })
+  const monthName = viewDate.toLocaleString("en-US", { month: "long", year: "numeric" })
   const weeks = []
   for (let i = 0; i < days.length; i += 7) {
     weeks.push(days.slice(i, i + 7))
@@ -107,11 +166,12 @@ export default function BookAppointmentPage() {
     orthopedics: "Orthopedics",
     dermatology: "Dermatology",
     ophthalmology: "Ophthalmology",
+    otolaryngology: "Otolaryngology",
+    outpatinent: "General Medicine",
   }
 
   const filteredSlots = timeSlots.filter(slot => {
     if (!selectedDepartment) return false
-    if (selectedDepartment === "outpatinent") return true
     return slot.department === (departmentMap[selectedDepartment] || selectedDepartment)
   })
 
@@ -168,7 +228,7 @@ export default function BookAppointmentPage() {
 
               {weeks.map((week, weekIndex) => {
                 const weekNumber = getWeekNumber(week[0].date)
-                const isSelectedWeek = week.some(d => d.day === selectedDate && d.isCurrentMonth)
+                const isSelectedWeek = week.some(d => isSameDay(d.date, selectedDate))
                 
                 return (
                   <div key={weekIndex} className="grid grid-cols-8 gap-2 mb-2">
@@ -176,19 +236,24 @@ export default function BookAppointmentPage() {
                       {weekNumber}
                     </div>
                     {week.map((dayObj, dayIndex) => {
-                      const isSelected = dayObj.day === selectedDate && dayObj.isCurrentMonth
+                      const isSelected = isSameDay(dayObj.date, selectedDate)
+                      const today = new Date()
+                      today.setHours(0, 0, 0, 0)
+                      const isPast = dayObj.date < today
+                      
                       return (
                         <button
                           key={dayIndex}
-                          onClick={() => dayObj.isCurrentMonth && setSelectedDate(dayObj.day)}
+                          disabled={isPast || !dayObj.isCurrentMonth}
+                          onClick={() => dayObj.isCurrentMonth && setSelectedDate(dayObj.date)}
                           className={`
                             aspect-square flex items-center justify-center rounded-lg text-sm font-semibold transition-all duration-300
-                            ${!dayObj.isCurrentMonth ? "text-slate-300" : ""}
+                            ${!dayObj.isCurrentMonth || isPast ? "text-slate-300 cursor-not-allowed" : ""}
                             ${isSelected 
                               ? "bg-linear-to-br from-[#06b6d4] to-[#0891b2] text-white shadow-lg scale-110" 
-                              : isSelectedWeek 
+                              : isSelectedWeek && !isPast
                                 ? "bg-cyan-50 text-cyan-700 hover:bg-cyan-100" 
-                                : "hover:bg-slate-100 text-slate-700"
+                                : !isPast && dayObj.isCurrentMonth ? "hover:bg-slate-100 text-slate-700" : ""
                             }
                           `}
                         >
@@ -203,7 +268,7 @@ export default function BookAppointmentPage() {
 
             <div className="mt-6 text-center p-3 bg-linear-to-r from-cyan-50 to-blue-50 rounded-xl">
               <p className="text-sm text-slate-600">
-                <span className="font-semibold">Week {getWeekNumber(weeks.find(w => w.some(d => d.day === selectedDate && d.isCurrentMonth))?.[0].date || new Date())}</span>
+                <span className="font-semibold">Week {getWeekNumber(weeks.find(w => w.some(d => isSameDay(d.date, selectedDate)))?.[0].date || new Date())}</span>
               </p>
             </div>
           </Card>
@@ -215,7 +280,7 @@ export default function BookAppointmentPage() {
                 Available Slots
               </h3>
               <p className="text-slate-600">
-                {selectedDate} {currentDate.toLocaleString("en-US", { month: "long", year: "numeric" })}
+                {format(selectedDate, "MMMM d, yyyy")}
               </p>
             </div>
 

@@ -6,8 +6,9 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { UserPlus, Trash2, Save, X, Edit3, CheckCircle, ChevronLeft, ChevronRight } from "lucide-react"
+import { UserPlus, Trash2, Save, X, Edit3, CheckCircle, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react"
 import { AdminLayout } from "@/components/admin-layout"
+import { Checkbox } from "@/components/ui/checkbox"
 
 interface Patient {
   id: string
@@ -72,10 +73,6 @@ export default function UserManagement() {
   }, [patients, filters])
 
   const totalPages = Math.max(1, Math.ceil(filteredPatients.length / pageSize))
-  const paginatedPatients = useMemo(() => {
-    const start = (currentPage - 1) * pageSize
-    return filteredPatients.slice(start, start + pageSize)
-  }, [filteredPatients, currentPage])
 
   useEffect(() => setCurrentPage(1), [filters])
   useEffect(() => {
@@ -85,12 +82,220 @@ export default function UserManagement() {
   const startItem = (currentPage - 1) * pageSize + 1
   const endItem = Math.min(currentPage * pageSize, filteredPatients.length)
 
+  type ColumnKey = keyof Patient | "no"
+
+  const columns: {
+    key: ColumnKey
+    label: string
+  }[] = [
+    { key: "no", label: "No." },
+    { key: "nationalId", label: "National ID" },
+    { key: "name", label: "Name" },
+    { key: "username", label: "Username" },
+    { key: "sex", label: "Sex" },
+    { key: "dob", label: "DOB" },
+    { key: "phone", label: "Phone" },
+    { key: "email", label: "Email" },
+  ]
+
+  const [visibleColumns, setVisibleColumns] = useState<ColumnKey[]>(
+    columns.map(c => c.key) // mặc định hiện hết
+  )
+
+  type SortKey = keyof Patient | "no"
+
+  const [sortConfig, setSortConfig] = useState<{
+    key: SortKey
+    direction: "asc" | "desc"
+  } | null>(null)
+
+  const handleSort = (key: SortKey) => {
+    setSortConfig(prev => {
+      if (prev?.key === key) {
+        return {
+          key,
+          direction: prev.direction === "asc" ? "desc" : "asc",
+        }
+      }
+      return { key, direction: "asc" }
+    })
+  }
+
+  const sortedPatients = useMemo(() => {
+    if (!sortConfig) return filteredPatients
+
+    const { key, direction } = sortConfig
+
+    return [...filteredPatients].sort((a, b) => {
+      let aValue: any
+      let bValue: any
+
+      if (key === "no") {
+        aValue = a.id
+        bValue = b.id
+      } else {
+        aValue = a[key]
+        bValue = b[key]
+      }
+
+      if (aValue == null) return 1
+      if (bValue == null) return -1
+
+      if (typeof aValue === "string") {
+        return direction === "asc"
+          ? aValue.localeCompare(bValue)
+          : bValue.localeCompare(aValue)
+      }
+
+      return direction === "asc"
+        ? aValue > bValue ? 1 : -1
+        : aValue < bValue ? 1 : -1
+    })
+  }, [filteredPatients, sortConfig])
+
+
+  const paginatedPatients = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return sortedPatients.slice(start, start + pageSize)
+  }, [sortedPatients, currentPage, pageSize])
+
+  const SortIcon = ({ column }: { column: SortKey }) => {
+    if (sortConfig?.key !== column) return <span className="ml-1">⇅</span>
+    return (
+      <span className="ml-1">
+        {sortConfig.direction === "asc" 
+    ? <ArrowUp className="w-3 h-3" />
+    : <ArrowDown className="w-3 h-3" /> }
+      </span>
+    )
+  }
+
+  const renderFilterCell = (key: ColumnKey) => {
+    switch (key) {
+      case "no":
+        return null
+
+      case "nationalId":
+        return (
+          <Input
+            placeholder="Search ID..."
+            value={filters.nationalId}
+            onChange={e =>
+              setFilters(f => ({ ...f, nationalId: e.target.value }))
+            }
+            className="h-8 text-xs"
+          />
+        )
+
+      case "name":
+        return (
+          <Input
+            placeholder="Name..."
+            value={filters.name}
+            onChange={e =>
+              setFilters(f => ({ ...f, name: e.target.value }))
+            }
+            className="h-8 text-xs"
+          />
+        )
+
+      case "username":
+        return (
+          <Input
+            placeholder="Username..."
+            value={filters.username}
+            onChange={e =>
+              setFilters(f => ({ ...f, username: e.target.value }))
+            }
+            className="h-8 text-xs"
+          />
+        )
+
+      case "sex":
+        return (
+          <Select
+            value={filters.sex || "ALL"}
+            onValueChange={v =>
+              setFilters(f => ({ ...f, sex: v === "ALL" ? "" : v }))
+            }
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="All" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">All</SelectItem>
+              <SelectItem value="Male">Male</SelectItem>
+              <SelectItem value="Female">Female</SelectItem>
+            </SelectContent>
+          </Select>
+        )
+
+      case "dob":
+        return (
+          <Input
+            placeholder="dd/mm/yyyy"
+            value={filters.dob}
+            onChange={e =>
+              setFilters(f => ({ ...f, dob: e.target.value }))
+            }
+            className="h-8 text-xs"
+          />
+        )
+
+      case "phone":
+        return (
+          <Input
+            placeholder="Phone..."
+            value={filters.phone}
+            onChange={e =>
+              setFilters(f => ({ ...f, phone: e.target.value }))
+            }
+            className="h-8 text-xs"
+          />
+        )
+
+      case "email":
+        return (
+          <Input
+            placeholder="Email..."
+            value={filters.email}
+            onChange={e =>
+              setFilters(f => ({ ...f, email: e.target.value }))
+            }
+            className="h-8 text-xs"
+          />
+        )
+
+      default:
+        return null
+    }
+  }
+
+
+
   return (
   <AdminLayout>
-    <div className="max-w-7xl space-y-6">
+    <div className="max-w-7xl space-y-1">
         {/* Header */}
         <div className="flex justify-between items-center">
-          <h2 className="text-3xl font-bold text-gray-900">Account Management</h2>
+          <div className="p-4">
+            <div className="flex flex-wrap gap-4">
+              {columns.map(col => (
+                <Checkbox
+                  key={col.key}
+                  label={col.label}
+                  checked={visibleColumns.includes(col.key)}
+                  onChange={(checked) =>
+                    setVisibleColumns(prev =>
+                      checked
+                        ? [...prev, col.key]
+                        : prev.filter(k => k !== col.key)
+                    )
+                  }
+                />
+              ))}
+            </div>
+          </div>
           <div className="flex gap-3">
             <Button className="btn-gradient transition-transform duration-500 text-xl px-7 py-4">
               <UserPlus className="w-5 h-5 mr-2" /> Add New Account
@@ -103,88 +308,75 @@ export default function UserManagement() {
 
         {/* Grid 2 cột */}
         <div className="grid lg:grid-cols-2 gap-6">
-          <Card className="flex flex-col h-[820px]">
+          <Card className="flex flex-col h-[560px]">
             <CardContent className="flex-1 p-0 overflow-hidden">
-              {/* Dùng div với overflow thay vì ScrollArea để tránh bug layout */}
-              <div className="h-full overflow-auto">
-                <Table>
+              <div className="h-full overflow-y-auto">
+                <Table className="">
                   {/* Header cố định */}
-                  <TableHeader className="sticky top-0 z-10 bg-gray-50 border-b">
+                  <TableHeader className="sticky top-0 z-20 bg-gray-50">
                     <TableRow>
-                      <TableHead className="w-16 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">No.</TableHead>
-                      <TableHead className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">National ID</TableHead>
-                      <TableHead className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</TableHead>
-                      <TableHead className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Username</TableHead>
-                      <TableHead className="w-24 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sex</TableHead>
-                      <TableHead className="w-32 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">DOB</TableHead>
-                      <TableHead className="w-40 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</TableHead>
-                      <TableHead className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</TableHead>
+                      {columns.map(col =>
+                        visibleColumns.includes(col.key) ? (
+                          <TableHead
+                            key={col.key}
+                            onClick={() => handleSort(col.key)}
+                            className="cursor-pointer select-none"
+                          >
+                            {col.label}
+                            <SortIcon column={col.key} />
+                          </TableHead>
+                        ) : null
+                      )}
                     </TableRow>
-                    <TableRow>
-                      <TableHead className="px-2 py-2"></TableHead>
-                      <TableHead className="px-2 py-2">
-                        <Input placeholder="Search ID..." value={filters.nationalId} onChange={e => setFilters(f => ({...f, nationalId: e.target.value}))} className="h-8 text-xs" />
-                      </TableHead>
-                      <TableHead className="px-2 py-2">
-                        <Input placeholder="Name..." value={filters.name} onChange={e => setFilters(f => ({...f, name: e.target.value}))} className="h-8 text-xs" />
-                      </TableHead>
-                      <TableHead className="px-2 py-2">
-                        <Input placeholder="Username..." value={filters.username} onChange={e => setFilters(f => ({...f, username: e.target.value}))} className="h-8 text-xs" />
-                      </TableHead>
-                      <TableHead className="px-2 py-2">
-                        <Select value={filters.sex} onValueChange={v => setFilters(f => ({...f, sex: v}))}>
-                          <SelectTrigger className="h-8 text-xs">
-                            <SelectValue placeholder="All" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="All">All</SelectItem>
-                            <SelectItem value="Male">Male</SelectItem>
-                            <SelectItem value="Female">Female</SelectItem>
-                            <SelectItem value="Other">Other</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </TableHead>
-                      <TableHead className="px-2 py-2">
-                        <Input placeholder="dd/mm/yyyy" value={filters.dob} onChange={e => setFilters(f => ({...f, dob: e.target.value}))} className="h-8 text-xs" />
-                      </TableHead>
-                      <TableHead className="px-2 py-2">
-                        <Input placeholder="Phone..." value={filters.phone} onChange={e => setFilters(f => ({...f, phone: e.target.value}))} className="h-8 text-xs" />
-                      </TableHead>
-                      <TableHead className="px-2 py-2">
-                        <Input placeholder="Email..." value={filters.email} onChange={e => setFilters(f => ({...f, email: e.target.value}))} className="h-8 text-xs" />
-                      </TableHead>
+                    <TableRow className="border-b">
+                      {columns.map(col =>
+                        visibleColumns.includes(col.key) ? (
+                          <TableHead key={col.key} className="px-2 py-2">
+                            {renderFilterCell(col.key)}
+                          </TableHead>
+                        ) : null
+                      )}
                     </TableRow>
                   </TableHeader>
 
                   <TableBody>
-                    {paginatedPatients.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={8} className="text-center py-10 text-gray-500">
-                          No patients found.
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      paginatedPatients.map((patient, idx) => (
-                        <TableRow
-                          key={patient.id}
-                          onClick={() => setSelectedPatient(patient)}
-                          className={`cursor-pointer transition-colors h-14 hover:bg-muted/50 ${
-                            selectedPatient?.id === patient.id ? "bg-cyan-50 border-l-4 border-[#06b6d4]" : ""
-                          }`}
-                        >
-                          <TableCell className="px-4 py-3 text-sm font-medium">{startItem + idx}</TableCell>
-                          <TableCell className="px-4 py-3 text-sm">{patient.nationalId}</TableCell>
-                          <TableCell className="px-4 py-3 text-sm font-medium">{patient.name}</TableCell>
-                          <TableCell className="px-4 py-3 text-sm">{patient.username}</TableCell>
-                          <TableCell className="px-4 py-3 text-sm">{patient.sex || "-"}</TableCell>
-                          <TableCell className="px-4 py-3 text-sm">{patient.dob}</TableCell>
-                          <TableCell className="px-4 py-3 text-sm">{patient.phone}</TableCell>
-                          <TableCell className="px-4 py-3 text-sm truncate max-w-xs" title={patient.email}>
+                    {paginatedPatients.map((patient, idx) => (
+                      <TableRow key={patient.id}>
+                        {visibleColumns.includes("no") && (
+                          <TableCell>{startItem + idx}</TableCell>
+                        )}
+
+                        {visibleColumns.includes("nationalId") && (
+                          <TableCell>{patient.nationalId}</TableCell>
+                        )}
+
+                        {visibleColumns.includes("name") && (
+                          <TableCell className="font-medium">{patient.name}</TableCell>
+                        )}
+
+                        {visibleColumns.includes("username") && (
+                          <TableCell>{patient.username}</TableCell>
+                        )}
+
+                        {visibleColumns.includes("sex") && (
+                          <TableCell>{patient.sex}</TableCell>
+                        )}
+
+                        {visibleColumns.includes("dob") && (
+                          <TableCell>{patient.dob}</TableCell>
+                        )}
+
+                        {visibleColumns.includes("phone") && (
+                          <TableCell>{patient.phone}</TableCell>
+                        )}
+
+                        {visibleColumns.includes("email") && (
+                          <TableCell className="truncate max-w-xs">
                             {patient.email}
                           </TableCell>
-                        </TableRow>
-                      ))
-                    )}
+                        )}
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
                 {/* PHÂN TRANG */}
@@ -267,7 +459,7 @@ export default function UserManagement() {
               </div>
 
               {/* Pagination */}
-              <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-t text-sm">
+              <div className="flex flex-wrap items-center justify-start gap-4 px-6 py-4 bg-gray-50 border-t text-sm">
                 <div className="text-gray-700">
                   Showing {startItem} - {endItem} of {filteredPatients.length} patients
                 </div>

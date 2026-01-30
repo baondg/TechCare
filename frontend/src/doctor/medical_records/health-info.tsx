@@ -5,15 +5,13 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { PatientLayout } from "@/components/patient-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Activity, Heart, AlertCircle, FileText, Save, History, X } from "lucide-react"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Activity, Heart, AlertCircle, FileText, History, X } from "lucide-react"
 import { CollapsibleSection } from "@/components/collapsible-section"
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 
-export default function HealthInfoPage() {
+export default function ViewingPatientHealthInfo() {
   type HealthRecord = {
     id: number
     updatedAt: Date
@@ -184,7 +182,7 @@ export default function HealthInfoPage() {
 
 
   return (
-    <PatientLayout>
+    <>
       <div className="space-y-6">
         {/* Data table */}
         <Card className="flex flex-col h-fit">
@@ -309,39 +307,11 @@ export default function HealthInfoPage() {
           </CardContent>
         </Card>
 
-
-
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-3xl font-bold">Health Information</h2>
-            <p className="text-muted-foreground">Update your health data before your visit</p>
-          </div>
-          <Button onClick={() => setIsEditing(!isEditing)}>
-            {isEditing ? (
-              <>
-                <Save className="h-4 w-4 mr-2" />
-                Save Changes
-              </>
-            ) : (
-              "Edit Information"
-            )}
-          </Button>
-        </div>
-
-        {/* Alert */}
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            Keeping your health information up-to-date helps doctors provide better care and reduces wait time at the hospital.
-          </AlertDescription>
-        </Alert>
-
         {/* ------------------- VITAL SIGNS ------------------- */}
         <CollapsibleSection
           title="Vital Signs"
           icon={<Activity className="h-5 w-5" />}
-          description="Your current vital measurements"
+          description="Current vital measurements"
           defaultOpen={true}
         >
           <div className="grid gap-4 md:grid-cols-2">
@@ -518,7 +488,7 @@ export default function HealthInfoPage() {
         <CollapsibleSection
           title="Medical History"
           icon={<FileText className="h-5 w-5" />}
-          description="Your past medical conditions and treatments"
+          description="Past medical conditions and treatments"
           defaultOpen={true}
         >
           <div className="space-y-4 text-sm font-normal bg-background text-muted-foreground">
@@ -569,6 +539,6 @@ export default function HealthInfoPage() {
         </CollapsibleSection>
 
       </div>
-    </PatientLayout>
+    </>
   )
 }

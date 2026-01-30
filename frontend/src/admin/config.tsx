@@ -11,7 +11,6 @@ import { Save, Settings, Loader2, CheckCircle2, AlertCircle } from "lucide-react
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export default function SystemConfig() {
-  const { user } = useAuth();
   const [config, setConfig] = useState({
     apiKey: "****-****-****-****",
     emailServer: "smtp.hospital.com",

@@ -12,7 +12,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAuth } from "@/contexts/AuthContext"
 
 export default function SystemConfig() {
-  const { user } = useAuth();
   const [config, setConfig] = useState({
     apiKey: "****-****-****-****",
     emailServer: "smtp.hospital.com",

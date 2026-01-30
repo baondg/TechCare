@@ -3,11 +3,10 @@
 import { useState, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent} from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Search, ChevronLeft, ChevronRight, CalendarIcon } from "lucide-react"
+import { ChevronLeft, ChevronRight, CalendarIcon } from "lucide-react"
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
-import { PatientLayout } from "@/components/patient-layout"  // giữ nguyên nếu bạn đang dùng
 import { DoctorLayout } from "@/components/doctor-layout"
 import { Popover,  PopoverContent,  PopoverTrigger} from "@/components/ui/popover"
 import { format } from "date-fns"
@@ -15,6 +14,8 @@ import { vi } from "date-fns/locale"
 import { cn } from "@/lib/utils"
 import { Calendar } from "@/components/ui/calendar"
 import { useNavigate } from "react-router-dom"
+import { Checkbox } from "@/components/ui/checkbox"
+import {Tooltip,TooltipContent,TooltipProvider,TooltipTrigger,} from "@/components/ui/tooltip"
 
 
 type Patient = {
@@ -28,6 +29,39 @@ type Patient = {
   recoverDays: number
   recoverPercent: number
 }
+
+type ColumnKey = keyof Patient | "no"
+
+const columns: {
+  key: ColumnKey
+  label: string
+  sortable?: boolean
+}[] = [
+  { key: "no", label: "No." },
+  { key: "id", label: "Patient ID", sortable: true },
+  { key: "name", label: "Name", sortable: true },
+  { key: "sex", label: "Sex", sortable: true },
+  { key: "age", label: "Age", sortable: true },
+  { key: "latestVisit", label: "Latest visit", sortable: true },
+  { key: "diagnosis", label: "Diagnosis", sortable: true },
+  { key: "doctor", label: "Doctor", sortable: true },
+  { key: "recoverDays", label: "Remaining days", sortable: true },
+  { key: "recoverPercent", label: "Progress", sortable: true },
+]
+
+const ICD10_MAP: Record<string, string> = {
+  "Z59.1": "Housing and economic circumstances",
+  "J45.9": "Asthma, unspecified",
+  "I10": "Essential (primary) hypertension",
+  "E11.9": "Type 2 diabetes mellitus without complications",
+  "K29.5": "Chronic gastritis, unspecified",
+  "M79.1": "Myalgia",
+  "J06.9": "Acute upper respiratory infection, unspecified",
+  "I50.9": "Heart failure, unspecified",
+  "N39.0": "Urinary tract infection, site not specified",
+  "R51": "Headache",
+}
+
 
 export default function PatientListPage() {
     const navigate = useNavigate()
@@ -50,6 +84,7 @@ export default function PatientListPage() {
         sex: "All",
         age: "",
         recoverDays: "",
+        recoverPercent: "",
         latestVisit: null as Date | null,
         diagnosis: "",
         doctor: "",
@@ -66,32 +101,111 @@ export default function PatientListPage() {
             const matchRecoverDays =
             !filters.recoverDays || p.recoverDays === Number(filters.recoverDays)
 
+            const matchRecoverPercent =
+            !filters.recoverPercent || p.recoverPercent === Number(filters.recoverPercent)
+
             return (
             p.id.toLowerCase().includes(filters.patientId.toLowerCase()) &&
             p.name.toLowerCase().includes(filters.name.toLowerCase()) &&
             p.diagnosis.toLowerCase().includes(filters.diagnosis.toLowerCase()) &&
             p.doctor.toLowerCase().includes(filters.doctor.toLowerCase()) &&
             matchAge &&
-            matchRecoverDays
+            matchRecoverDays &&
+            matchRecoverPercent
             )
         })
     }, [patients, filters])
 
-    const paginatedPatients = filteredPatients.slice(
-        (currentPage - 1) * pageSize,
-        currentPage * pageSize
+    const totalPages = Math.ceil(filteredPatients.length / pageSize)
+
+    type SortKey = ColumnKey
+
+    const [sortConfig, setSortConfig] = useState<{
+      key: SortKey
+      direction: "asc" | "desc"
+    } | null>(null)
+
+    const handleSort = (key: SortKey) => {
+      setSortConfig(prev => {
+        if (prev?.key === key) {
+          return {
+            key,
+            direction: prev.direction === "asc" ? "desc" : "asc",
+          }
+        }
+        return { key, direction: "asc" }
+      })
+    }
+
+    const [visibleColumns, setVisibleColumns] = useState<ColumnKey[]>(
+      columns.map(c => c.key)
     )
 
-    const totalPages = Math.ceil(filteredPatients.length / pageSize)
+    const sortedPatients = useMemo(() => {
+      if (!sortConfig) return filteredPatients
+
+      const { key, direction } = sortConfig
+
+      return [...filteredPatients].sort((a, b) => {
+        let aValue: any
+        let bValue: any
+
+        if (key === "no") return 0
+
+        aValue = a[key]
+        bValue = b[key]
+
+        if (aValue == null) return 1
+        if (bValue == null) return -1
+
+        if (typeof aValue === "string") {
+          return direction === "asc"
+            ? aValue.localeCompare(bValue)
+            : bValue.localeCompare(aValue)
+        }
+
+        return direction === "asc"
+          ? aValue > bValue ? 1 : -1
+          : aValue < bValue ? 1 : -1
+      })
+    }, [filteredPatients, sortConfig])
+
+    const paginatedPatients = sortedPatients.slice(
+      (currentPage - 1) * pageSize,
+      currentPage * pageSize
+    )
+
+    const SortIcon = ({ column }: { column: SortKey }) => {
+      if (sortConfig?.key !== column) return <span className="ml-1">⇅</span>
+      return <span className="ml-1">{sortConfig.direction === "asc" ? "↑" : "↓"}</span>
+    }
+
+
+
 
   return (
     <DoctorLayout>
-      <div className="p-6 space-y-6">
+      <div className="p-1 space-y-1">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold">Patient List</h2>
-            <p className="text-muted-foreground">View and manage patient records</p>
+            <div className="flex flex-wrap gap-4">
+              {columns.map(col => (
+                <Checkbox
+                  key={col.key}
+                  label={col.label}
+                  checked={visibleColumns.includes(col.key)}
+                  onChange={(checked) =>
+                    setVisibleColumns(prev =>
+                      checked
+                        ? [...prev, col.key]
+                        : prev.filter(k => k !== col.key)
+                    )
+                  }
+                />
+              ))}
+            </div>
           </div>
           <div className="flex items-center gap-4">
             <Select defaultValue="All">
@@ -108,232 +222,305 @@ export default function PatientListPage() {
         </div>
 
         {/* Bảng chính */}
-        <Card className="overflow-hidden">
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader className="bg-gray-50 sticky top-0 z-10">
+        <div className="">
+          <Card className="h-[560px]">
+            <CardContent className="p-0 h-full flex flex-col">
+              <div className="flex-1 overflow-y-auto">
+                <Table>
+                  <TableHeader className="bg-gray-50 sticky top-0 z-10">
                     <TableRow>
-                        <TableHead className="w-12 text-center">No.</TableHead>
-                        <TableHead className="w-40">Patient ID</TableHead>
-                        <TableHead className="w-24 text-center">Name</TableHead>
-                        <TableHead className="w-24 text-center">Sex</TableHead>
-                        <TableHead className="w-20 text-center">Age</TableHead>
-                        <TableHead className="w-32 text-center">Lastest visit</TableHead>
-                        <TableHead className="w-24 text-center">Diagnosis</TableHead>
-                        <TableHead className="text-center">Doctor</TableHead>
-                        <TableHead className="w-28">No of recover days</TableHead>
+                      {columns.map(col =>
+                        visibleColumns.includes(col.key) ? (
+                          <TableHead
+                            key={col.key}
+                            onClick={() => col.sortable && handleSort(col.key)}
+                            className={cn(
+                              col.sortable && "cursor-pointer select-none"
+                            )}
+                          >
+                            {col.label}
+                            {col.sortable && <SortIcon column={col.key} />}
+                          </TableHead>
+                        ) : null
+                      )}
                     </TableRow>
-                  <TableRow>
-                    <TableHead className="w-16 text-center"></TableHead>
-                    <TableHead className="min-w-[140px]">
-                      <div className="mt-1">
-                        <Input
-                          placeholder="Search ID..."
-                          value={filters.patientId}
-                          onChange={(e) => setFilters({ ...filters, patientId: e.target.value })}
-                          className="h-8 text-xs"
-                        />
-                      </div>
-                    </TableHead>
-                    <TableHead className="min-w-[180px]">
-                      <div className="mt-1">
-                        <Input
-                          placeholder="Search name..."
-                          value={filters.name}
-                          onChange={(e) => setFilters({ ...filters, name: e.target.value })}
-                          className="h-8 text-xs"
-                        />
-                      </div>
-                    </TableHead>
-                    <TableHead className="w-20 text-center">
-                        <Select
-                        value={filters.sex}
-                        onValueChange={(value) => setFilters({ ...filters, sex: value })}
-                      >
-                        <SelectTrigger className="h-8 text-xs w-16 mx-auto">
-                          <SelectValue placeholder="All" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="All">All</SelectItem>
-                          <SelectItem value="M">M</SelectItem>
-                          <SelectItem value="F">F</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </TableHead>
-                    <TableHead className="w-20 text-center">
-                        <div className="mt-1">
-                            <Input
-                            type="number"
-                            placeholder="Age"
-                            value={filters.age}
-                            onChange={(e) =>
-                                setFilters({ ...filters, age: e.target.value })
-                            }
-                            className="h-8 text-xs text-center"
-                            />
-                        </div>
-                    </TableHead>
-                    <TableHead className="min-w-[110px] text-center">
-                        <Popover>
-                            <PopoverTrigger asChild>
-                                <Button
-                                variant="outline"
-                                size="sm"
-                                className={cn(
-                                    "h-8 w-full justify-start text-left font-normal text-xs",
-                                    !filters.latestVisit && "text-muted-foreground"
-                                )}
-                                >
-                                <CalendarIcon className="mr-2 h-4 w-4" />
-                                {filters.latestVisit
-                                    ? format(filters.latestVisit, "dd/MM/yyyy", { locale: vi })
-                                    : "Select"}
-                                </Button>
-                            </PopoverTrigger>
+                    <TableRow>
+                      {columns.map(col =>
+                        visibleColumns.includes(col.key) ? (
+                          <TableHead key={col.key}>
+                            {col.key === "no" && null}
 
-                            <PopoverContent className="w-auto p-0" align="start">
-                                <Calendar
-                                mode="single"
-                                selected={filters.latestVisit ?? undefined}   
-                                onSelect={(date) => {
-                                    setFilters({ ...filters, latestVisit: date ?? null })
-                                }}
-                                initialFocus
-                                locale={vi}               
-                                />
-                            </PopoverContent>
-                        </Popover>
-                    </TableHead>
-                    <TableHead className="min-w-[100px]">
-                      <div className="mt-1">
-                        <Input
-                          placeholder="Search..."
-                          value={filters.diagnosis}
-                          onChange={(e) => setFilters({ ...filters, diagnosis: e.target.value })}
-                          className="h-8 text-xs"
-                        />
-                      </div>
-                    </TableHead>
-                    <TableHead className="min-w-40">
-                      <div className="mt-1">
-                        <Input
-                          placeholder="Search doctor..."
-                          value={filters.doctor}
-                          onChange={(e) => setFilters({ ...filters, doctor: e.target.value })}
-                          className="h-8 text-xs"
-                        />
-                      </div>
-                    </TableHead>
-                    <TableHead className="min-w-[140px] text-center">
-                        <div className="mt-1">
-                            <Input
-                            type="number"
-                            placeholder="Days"
-                            value={filters.recoverDays}
-                            onChange={(e) =>
-                                setFilters({ ...filters, recoverDays: e.target.value })
-                            }
-                            className="h-8 text-xs text-center"
-                            />
-                        </div>
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
+                            {col.key === "id" && (
+                              <Input
+                                placeholder="Search ID..."
+                                value={filters.patientId}
+                                onChange={(e) =>
+                                  setFilters({ ...filters, patientId: e.target.value })
+                                }
+                                className="h-8 text-xs"
+                              />
+                            )}
 
-                <TableBody>
-                  {paginatedPatients.map((patient, index) => (
-                    <TableRow
+                            {col.key === "name" && (
+                              <Input
+                                placeholder="Search name..."
+                                value={filters.name}
+                                onChange={(e) =>
+                                  setFilters({ ...filters, name: e.target.value })
+                                }
+                                className="h-8 text-xs"
+                              />
+                            )}
+
+                            {col.key === "sex" && (
+                              <Select
+                                value={filters.sex}
+                                onValueChange={(value) =>
+                                  setFilters({ ...filters, sex: value })
+                                }
+                              >
+                                <SelectTrigger className="h-8 text-xs w-16 mx-auto">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="All">All</SelectItem>
+                                  <SelectItem value="M">M</SelectItem>
+                                  <SelectItem value="F">F</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            )}
+
+                            {col.key === "age" && (
+                              <Input
+                                type="number"
+                                placeholder="Age"
+                                value={filters.age}
+                                onChange={(e) =>
+                                  setFilters({ ...filters, age: e.target.value })
+                                }
+                                className="h-8 text-xs text-center"
+                              />
+                            )}
+
+                            {col.key === "latestVisit" && (
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-8 w-full text-xs justify-start"
+                                  >
+                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                    {filters.latestVisit
+                                      ? format(filters.latestVisit, "dd/MM/yyyy", { locale: vi })
+                                      : "Select"}
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0">
+                                  <Calendar
+                                    mode="single"
+                                    selected={filters.latestVisit ?? undefined}
+                                    onSelect={(date) =>
+                                      setFilters({ ...filters, latestVisit: date ?? null })
+                                    }
+                                    locale={vi}
+                                  />
+                                </PopoverContent>
+                              </Popover>
+                            )}
+
+                            {col.key === "diagnosis" && (
+                              <Input
+                                placeholder="Search..."
+                                value={filters.diagnosis}
+                                onChange={(e) =>
+                                  setFilters({ ...filters, diagnosis: e.target.value })
+                                }
+                                className="h-8 text-xs"
+                              />
+                            )}
+
+                            {col.key === "doctor" && (
+                              <Input
+                                placeholder="Search doctor..."
+                                value={filters.doctor}
+                                onChange={(e) =>
+                                  setFilters({ ...filters, doctor: e.target.value })
+                                }
+                                className="h-8 text-xs"
+                              />
+                            )}
+
+                            {col.key === "recoverDays" && (
+                              <Input
+                                type="number"
+                                placeholder="Days"
+                                value={filters.recoverDays}
+                                onChange={(e) =>
+                                  setFilters({ ...filters, recoverDays: e.target.value })
+                                }
+                                className="h-8 text-xs text-center"
+                              />
+                            )}
+
+                            {col.key === "recoverPercent" && (
+                              <Input
+                                type="number"
+                                placeholder="%"
+                                value={filters.recoverPercent}
+                                onChange={(e) =>
+                                  setFilters({ ...filters, recoverPercent: e.target.value })
+                                }
+                                className="h-8 text-xs text-center"
+                              />
+                            )}
+                          </TableHead>
+                        ) : null
+                      )}
+                    </TableRow>
+                  </TableHeader>
+
+                  <TableBody>
+                    {paginatedPatients.map((patient, index) => (
+                      <TableRow
                         key={patient.id}
                         onClick={() =>
-                            navigate(`/doctor/medical_records/${patient.id}`)
+                          navigate(`/doctor/medical_records/${patient.id}/dashboard`)
                         }
                         className="hover:bg-muted/50 cursor-pointer h-14 transition-colors"
-                        >
-                      <TableCell className="text-center font-medium">
-                        {(currentPage - 1) * pageSize + index + 1}
-                      </TableCell>
-                      <TableCell className="font-medium">{patient.id}</TableCell>
-                      <TableCell>{patient.name}</TableCell>
-                      <TableCell className="text-center">{patient.sex}</TableCell>
-                      <TableCell className="text-center">{patient.age}</TableCell>
-                      <TableCell className="text-center">{patient.latestVisit}</TableCell>
-                      <TableCell className="text-center">{patient.diagnosis}</TableCell>
-                      <TableCell>{patient.doctor}</TableCell>
-                      <TableCell className="text-center">
-                        {patient.recoverDays} days ({patient.recoverPercent}%)
-                      </TableCell>
-                    </TableRow>
+                      >
+                        {visibleColumns.includes("no") && (
+                          <TableCell className="text-center font-medium">
+                            {(currentPage - 1) * pageSize + index + 1}
+                          </TableCell>
+                        )}
+
+                        {visibleColumns.includes("id") && (
+                          <TableCell className="font-medium">{patient.id}</TableCell>
+                        )}
+
+                        {visibleColumns.includes("name") && (
+                          <TableCell>{patient.name}</TableCell>
+                        )}
+
+                        {visibleColumns.includes("sex") && (
+                          <TableCell className="text-center">{patient.sex}</TableCell>
+                        )}
+
+                        {visibleColumns.includes("age") && (
+                          <TableCell className="text-center">{patient.age}</TableCell>
+                        )}
+
+                        {visibleColumns.includes("latestVisit") && (
+                          <TableCell className="text-center">{patient.latestVisit}</TableCell>
+                        )}
+
+                        {visibleColumns.includes("diagnosis") && (
+                          <TableCell className="text-center">
+                            <TooltipProvider delayDuration={0}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="cursor-help underline decoration-dotted">
+                                    {patient.diagnosis}
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="bg-linear-to-br from-[#06b6d4] to-[#0891b2]">
+                                  <b className="text-sm max-w-xs ">
+                                    {ICD10_MAP[patient.diagnosis] ?? "No description"}
+                                  </b>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </TableCell>
+                        )}
+
+                        {visibleColumns.includes("doctor") && (
+                          <TableCell>{patient.doctor}</TableCell>
+                        )}
+
+                        {visibleColumns.includes("recoverDays") && (
+                          <TableCell className="text-center">
+                            {patient.recoverDays} days
+                          </TableCell>
+                        )}
+
+                        {visibleColumns.includes("recoverPercent") && (
+                          <TableCell className="text-center">
+                            {patient.recoverPercent}%
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    ))}
+
+                    {paginatedPatients.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={visibleColumns.length} className="text-center py-10 text-muted-foreground">
+                          No patients found.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Pagination */}
+              <div className="flex items-center justify-between px-6 py-4 bg-gray-50 border-t text-sm">
+                <div className="flex items-center gap-3">
+                  <span>Show</span>
+                  <Select
+                    value={pageSize.toString()}
+                    onValueChange={(v) => {
+                      setPageSize(Number(v))
+                      setCurrentPage(1)
+                    }}
+                  >
+                    <SelectTrigger className="w-20 h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="25">25</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <span>entries</span>
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                    <Button
+                      key={page}
+                      variant={currentPage === page ? "default" : "outline"}
+                      size="sm"
+                      className={currentPage === page ? "bg-primary hover:bg-primary/90" : ""}
+                      onClick={() => setCurrentPage(page)}
+                    >
+                      {page}
+                    </Button>
                   ))}
 
-                  {paginatedPatients.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">
-                        No patients found.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-
-            {/* Pagination */}
-            <div className="flex items-center justify-between px-6 py-4 bg-gray-50 border-t text-sm">
-              <div className="flex items-center gap-3">
-                <span>Show</span>
-                <Select
-                  value={pageSize.toString()}
-                  onValueChange={(v) => {
-                    setPageSize(Number(v))
-                    setCurrentPage(1)
-                  }}
-                >
-                  <SelectTrigger className="w-20 h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="10">10</SelectItem>
-                    <SelectItem value="25">25</SelectItem>
-                    <SelectItem value="50">50</SelectItem>
-                  </SelectContent>
-                </Select>
-                <span>entries</span>
-              </div>
-
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={currentPage === 1}
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
                   <Button
-                    key={page}
-                    variant={currentPage === page ? "default" : "outline"}
+                    variant="outline"
                     size="sm"
-                    className={currentPage === page ? "bg-primary hover:bg-primary/90" : ""}
-                    onClick={() => setCurrentPage(page)}
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                   >
-                    {page}
+                    <ChevronRight className="h-4 w-4" />
                   </Button>
-                ))}
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={currentPage === totalPages}
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </DoctorLayout>
   )

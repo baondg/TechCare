@@ -61,14 +61,8 @@ function App() {
           {/* Protected doctor Routes */}
           <Route path="/doctor/dashboard" element={<DoctorDashboard />} />
           <Route path="/doctor/patients" element={<DoctorPatients />} />
-          <Route path="/doctor/medical_records/:patientId" element={<PatientLayout />}>
+          <Route path="/doctor/medical_records/:patientId/:tab" element={<PatientLayout />}>
             <Route index element={<ViewingPatientDashboard />} />
-            {/* <Route path="health-info" element={<div>ViewingHealthInfoPage</div>} />
-            <Route path="laboratory" element={<div>Laboratory</div>} />
-            <Route path="diagnosis" element={<div>Diagnosis</div>} />
-            <Route path="surgery" element={<div>Surgery</div>} />
-            <Route path="prescription" element={<div>Prescription</div>} />
-            <Route path="history" element={<div>History</div>} /> */}
           </Route>
         </Routes>
 

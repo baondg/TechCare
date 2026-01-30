@@ -1,68 +1,87 @@
-import { NavLink, Outlet, useParams } from "react-router-dom"
+import { useNavigate, useParams } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import { DoctorLayout } from "./doctor-layout"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import ViewingPatientDashboard from "@/doctor/medical_records/dashboard"
+import ViewingPatientHealthInfo from "@/doctor/medical_records/health-info"
+import PatientPrescription from "@/doctor/medical_records/prescription"
+import PatientDiagnosis from "@/doctor/medical_records/diagnosis"
+import PatientSurgery from "@/doctor/medical_records/surgery"
+import PatientLab from "@/doctor/medical_records/lab"
 
 const tabs = [
-  { label: "Dashboard", path: "" },
-  { label: "Health info", path: "health-info" },
-  { label: "Laboratory", path: "laboratory" },
-  { label: "Diagnosis", path: "diagnosis" },
-  { label: "Surgery", path: "surgery" },
-  { label: "Prescription", path: "prescription" },
-  { label: "History", path: "history" },
+  { label: "Dashboard", value: "dashboard" },
+  { label: "Health info", value: "health-info" },
+  { label: "Laboratory", value: "lab" },
+  { label: "Diagnosis", value: "diagnosis" },
+  { label: "Surgery", value: "surgery" },
+  { label: "Prescription", value: "prescription" },
+  { label: "History", value: "history" },
 ]
 
 export function PatientLayout() {
-  const { patientId } = useParams()
+  const navigate = useNavigate()
+  const { tab = "dashboard", patientId } = useParams()
+
+  const setActiveTab = (value: string) => {
+    navigate(`/doctor/medical_records/${patientId}/${value}`)
+  }
 
   return (
-    <div className="space-y-6 w-full">  {/* ← thêm bg-white & relative z-0 */}
-      {/* ===== Patient Info Header ===== */}
-      <Card className="p-4 flex items-center justify-between shadow-md sticky bg-white">  {/* ← thêm shadow & sticky + bg-white */}
+    <DoctorLayout>
+      <div className="space-y-6 w-full">
+        {/* ===== Patient Info Header ===== */}
+        <Card className="p-4 flex items-center justify-between border-r border-white/40 sticky bg-white/80 backdrop-blur-xl shadow-[4px_0_20px_rgba(0,0,0,0.05)] z-40">
+          <div>
+            <p className="font-semibold text-lg">
+              Nguyen Van An – OP123456789 | 46 Male | BMI: 25.77
+            </p>
+            <p className="text-sm text-slate-600">
+              Diagnosis: Z59.1 – Housing & economic problems
+            </p>
+            <p className="text-sm text-slate-500">
+              Department: Cardiology
+            </p>
+          </div>
+
+          <div className="flex gap-2">
+            <Button size="sm" className="btn-gradient transition-transform duration-500 text-xl px-7 py-4">+ Add Follow-up Appointment</Button>
+            <Button size="sm" className="btn-outline transition-transform duration-500 text-xl px-7 py-4">
+              Finish Examination
+            </Button>
+          </div>
+        </Card>
+
+        {/* ===== Tabs (GIỐNG LOGIN) ===== */}
+        <div className="sticky z-10 bg-white rounded-md w-fit">
+          <Tabs value={tab} onValueChange={setActiveTab}>
+            <TabsList className="inline-flex rounded-xl bg-tr p-1 gap-1">
+              {tabs.map(t => (
+                <TabsTrigger
+                  key={t.value}
+                  value={t.value}
+                  className="
+                    tabs-trigger gap-2 h-7 transition duration-500
+                  "
+                >
+                  {t.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+        </div>
+
+        {/* ===== Tab Content ===== */}
         <div>
-          <p className="font-semibold text-lg">
-            Nguyen Van An – OP123456789 | 46 Male | BMI: 25.77
-          </p>
-          <p className="text-sm text-slate-600">
-            Diagnosis: Z59.1 – Housing & economic problems
-          </p>
-          <p className="text-sm text-slate-500">
-            Department: Cardiology
-          </p>
+          {tab === "dashboard" && <ViewingPatientDashboard />}
+          {tab === "health-info" && <ViewingPatientHealthInfo />}
+          {tab === "prescription" && <PatientPrescription />}
+          {tab === "diagnosis" && <PatientDiagnosis />}
+          {tab === "surgery" && <PatientSurgery />}
+          {tab === "lab" && <PatientLab />}
         </div>
-
-        <div className="flex gap-2">
-          <Button size="sm">+ Add Follow-up Appointment</Button>
-          <Button size="sm" variant="outline">
-            Finish Examination
-          </Button>
-        </div>
-      </Card>
-
-      {/* ===== Tabs ===== */}
-      <div className="border-b flex gap-6 bg-white sticky z-10">  {/* ← thêm bg-white & sticky */}
-        {tabs.map(tab => (
-          <NavLink
-            key={tab.label}
-            to={`/doctor/medical_records/${patientId}/${tab.path}`}
-            end
-            className={({ isActive }) =>
-              `pb-3 text-sm font-medium ${
-                isActive
-                  ? "border-b-2 border-cyan-500 text-cyan-600"
-                  : "text-slate-500 hover:text-slate-700"
-              }`
-            }
-          >
-            {tab.label}
-          </NavLink>
-        ))}
       </div>
-
-      {/* ===== Tab Content ===== */}
-      <div className="px-6 pb-6 bg-white">  {/* ← thêm padding & bg-white cho nội dung */}
-        <Outlet />
-      </div>
-    </div>
+    </DoctorLayout>
   )
 }

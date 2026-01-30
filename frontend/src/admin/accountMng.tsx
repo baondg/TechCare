@@ -75,9 +75,6 @@ export default function UserManagement() {
   const totalPages = Math.max(1, Math.ceil(filteredPatients.length / pageSize))
 
   useEffect(() => setCurrentPage(1), [filters])
-  useEffect(() => {
-    if (patients.length > 0 && !selectedPatient) setSelectedPatient(patients[0])
-  }, [patients, selectedPatient])
 
   const startItem = (currentPage - 1) * pageSize + 1
   const endItem = Math.min(currentPage * pageSize, filteredPatients.length)
@@ -306,9 +303,9 @@ export default function UserManagement() {
           </div>
         </div>
 
-        {/* Grid 2 cột */}
-        <div className="grid lg:grid-cols-2 gap-6">
-          <Card className="flex flex-col h-[560px]">
+        {/* Grid 2 cột - chỉ hiện khi có selectedPatient */}
+        <div className={`grid gap-6 ${selectedPatient ? 'lg:grid-cols-2' : 'grid-cols-1'}`}>
+          <Card className="flex flex-col h-[820px]">
             <CardContent className="flex-1 p-0 overflow-hidden">
               <div className="h-full overflow-y-auto">
                 <Table className="">
@@ -340,43 +337,34 @@ export default function UserManagement() {
                   </TableHeader>
 
                   <TableBody>
-                    {paginatedPatients.map((patient, idx) => (
-                      <TableRow key={patient.id}>
-                        {visibleColumns.includes("no") && (
-                          <TableCell>{startItem + idx}</TableCell>
-                        )}
-
-                        {visibleColumns.includes("nationalId") && (
-                          <TableCell>{patient.nationalId}</TableCell>
-                        )}
-
-                        {visibleColumns.includes("name") && (
-                          <TableCell className="font-medium">{patient.name}</TableCell>
-                        )}
-
-                        {visibleColumns.includes("username") && (
-                          <TableCell>{patient.username}</TableCell>
-                        )}
-
-                        {visibleColumns.includes("sex") && (
-                          <TableCell>{patient.sex}</TableCell>
-                        )}
-
-                        {visibleColumns.includes("dob") && (
-                          <TableCell>{patient.dob}</TableCell>
-                        )}
-
-                        {visibleColumns.includes("phone") && (
-                          <TableCell>{patient.phone}</TableCell>
-                        )}
-
-                        {visibleColumns.includes("email") && (
-                          <TableCell className="truncate max-w-xs">
+                    {paginatedPatients.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center py-10 text-gray-500">
+                          No patients found.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      paginatedPatients.map((patient, idx) => (
+                        <TableRow
+                          key={patient.id}
+                          onClick={() => setSelectedPatient(selectedPatient?.id === patient.id ? null : patient)}
+                          className={`cursor-pointer transition-colors h-14 hover:bg-muted/50 ${
+                            selectedPatient?.id === patient.id ? "bg-cyan-50 border-l-4 border-[#06b6d4]" : ""
+                          }`}
+                        >
+                          <TableCell className="px-4 py-3 text-sm font-medium">{startItem + idx}</TableCell>
+                          <TableCell className="px-4 py-3 text-sm">{patient.nationalId}</TableCell>
+                          <TableCell className="px-4 py-3 text-sm font-medium">{patient.name}</TableCell>
+                          <TableCell className="px-4 py-3 text-sm">{patient.username}</TableCell>
+                          <TableCell className="px-4 py-3 text-sm">{patient.sex || "-"}</TableCell>
+                          <TableCell className="px-4 py-3 text-sm">{patient.dob}</TableCell>
+                          <TableCell className="px-4 py-3 text-sm">{patient.phone}</TableCell>
+                          <TableCell className="px-4 py-3 text-sm truncate max-w-xs" title={patient.email}>
                             {patient.email}
                           </TableCell>
-                        )}
-                      </TableRow>
-                    ))}
+                        </TableRow>
+                        ))
+                    )}
                   </TableBody>
                 </Table>
                 {/* PHÂN TRANG */}
@@ -424,7 +412,7 @@ export default function UserManagement() {
                       const pages = []
                       const maxVisible = 5
                       let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2))
-                      let endPage = Math.min(totalPages, startPage + maxVisible - 1)
+                      const endPage = Math.min(totalPages, startPage + maxVisible - 1)
                       if (endPage - startPage + 1 < maxVisible) {
                         startPage = Math.max(1, endPage - maxVisible + 1)
                       }
@@ -512,108 +500,118 @@ export default function UserManagement() {
                   <Button size="sm" className="btn-gradient transition-transform duration-500 text-xl px-7 py-4">
                     <Edit3 className="w-4 h-4 mr-2" /> Edit
                   </Button>
-
-                  {/* TOGGLE ENABLE/DISABLE */}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className={`relative w-30 overflow-hidden font-medium transition-all duration-200 border
-                      ${selectedPatient?.enabled
-                        ? "bg-[#E9FFE9] hover:bg-[#388E3C] text-[#388E3C]"
-                        : "bg-[#FFEBEB] hover:bg-[#D32F2F] text-[#D32F2F]"
-                      }`}
-                    onClick={() => {
-                      if (selectedPatient) {
-                        setSelectedPatient({ ...selectedPatient, enabled: !selectedPatient.enabled })
-                      }
-                    }}
-                  >
-                    {/* Overlay làm nền đậm khi hover */}
-                    <span className="absolute inset-0 bg-black opacity-0 hover:opacity-30 transition-opacity" />
-
-                    {/* Icon và Text – luôn trắng khi hover */}
-                    <CheckCircle className="w-4 h-4 mr-2 transition-colors duration-200 group-hover:text-white" />
-                    <span className="relative z-10 transition-colors duration-200 group-hover:text-white">
-                      {selectedPatient?.enabled ? "Enabled" : "Disabled"}
-                    </span>
-                  </Button>
                 </div>
               </div>
             </CardHeader>
-
-            <CardContent className="space-y-5">
-              {selectedPatient ? (
-                <>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">User ID</label>
-                      <Input value={selectedPatient.id} disabled className="bg-gray-50" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
-                      <Input value="Patient" disabled className="bg-gray-50" />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
-                    <Input value={selectedPatient.name} disabled className="bg-gray-50" />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Username</label>
-                      <Input value={selectedPatient.username} disabled className="bg-gray-50" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
-                      <Input type="password" value="********" disabled className="bg-gray-50" />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Sex</label>
-                      <Input value={selectedPatient.sex || ""} disabled className="bg-gray-50" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Date of Birth</label>
-                      <Input value={selectedPatient.dob} disabled className="bg-gray-50" />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
-                      <Input value={selectedPatient.phone} disabled className="bg-gray-50" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                      <Input value={selectedPatient.email} disabled className="bg-gray-50" />
-                    </div>
-                  </div>
-
-                  {/* Trạng thái tài khoản */}
-                  <div className="pt-4 border-t">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-700">Account Status</span>
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                        selectedPatient.enabled 
-                          ? "bg-green-100 text-[#388E3C]" 
-                          : "bg-red-100 text-[#D32F2F]"
-                      }`}>
-                        {selectedPatient.enabled ? "Active" : "Inactive"}
-                      </span>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div className="text-center py-12 text-gray-500">
-                  Select a patient to view details
-                </div>
-              )}
-            </CardContent>
           </Card>
+          {/* Chi tiết bệnh nhân - chỉ hiện khi có selectedPatient */}
+          {selectedPatient ? (
+            <Card>
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <CardTitle className="flex items-center gap-3">
+                    <UserPlus className="w-6 h-6 text-gray-700" />
+                    Account Information
+                  </CardTitle>
+                  <div className="flex gap-3 items-center">
+                    <Button size="sm" className="bg-[#0086C4] hover:bg-[#06b6d4]">
+                      <Edit3 className="w-4 h-4 mr-2" /> Edit
+                    </Button>
+
+                    {/* TOGGLE ENABLE/DISABLE */}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className={`relative w-30 overflow-hidden font-medium transition-all duration-200 border
+                        ${selectedPatient?.enabled
+                          ? "bg-[#E9FFE9] hover:bg-[#388E3C] text-[#388E3C]"
+                          : "bg-[#FFEBEB] hover:bg-[#D32F2F] text-[#D32F2F]"
+                        }`}
+                      onClick={() => {
+                        if (selectedPatient) {
+                          setSelectedPatient({ ...selectedPatient, enabled: !selectedPatient.enabled })
+                        }
+                      }}
+                    >
+                      {/* Overlay làm nền đậm khi hover */}
+                      <span className="absolute inset-0 bg-black opacity-0 hover:opacity-30 transition-opacity" />
+
+                      {/* Icon và Text – luôn trắng khi hover */}
+                      <CheckCircle className="w-4 h-4 mr-2 transition-colors duration-200 group-hover:text-white" />
+                      <span className="relative z-10 transition-colors duration-200 group-hover:text-white">
+                        {selectedPatient?.enabled ? "Enabled" : "Disabled"}
+                      </span>
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+
+              <CardContent className="space-y-5">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">User ID</label>
+                    <Input value={selectedPatient.id} disabled className="bg-gray-50" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
+                    <Input value="Patient" disabled className="bg-gray-50" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
+                  <Input value={selectedPatient.name} disabled className="bg-gray-50" />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Username</label>
+                    <Input value={selectedPatient.username} disabled className="bg-gray-50" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                    <Input type="password" value="********" disabled className="bg-gray-50" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Sex</label>
+                    <Input value={selectedPatient.sex || ""} disabled className="bg-gray-50" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Date of Birth</label>
+                    <Input value={selectedPatient.dob} disabled className="bg-gray-50" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
+                    <Input value={selectedPatient.phone} disabled className="bg-gray-50" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                    <Input value={selectedPatient.email} disabled className="bg-gray-50" />
+                  </div>
+                </div>
+
+                {/* Trạng thái tài khoản */}
+                <div className="pt-4 border-t">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-700">Account Status</span>
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                      selectedPatient.enabled 
+                        ? "bg-green-100 text-[#388E3C]" 
+                        : "bg-red-100 text-[#D32F2F]"
+                    }`}>
+                      {selectedPatient.enabled ? "Active" : "Inactive"}
+                    </span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ) : null}
         </div>
     </div>
   </AdminLayout>

@@ -9,14 +9,17 @@ import { Activity, User, Stethoscope, Eye, EyeOff, AlertCircle } from "lucide-re
 import { Link } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { authService } from "@/services/auth-service";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function LoginPage() {
   const router = useNavigate();
+  const { login } = useAuth();
   const [role, setRole] = useState<"patient" | "hospital staff" | "admin">("patient");
   const [showPassword, setShowPassword] = useState(false);
   const [error] = useState("");
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     // Redirect based on role
     if (role === "patient") {
@@ -81,6 +84,8 @@ export default function LoginPage() {
                   placeholder="Enter username"
                   required
                   className="custom-input"
+                  value={username}
+                  onChange={e => setUsername(e.target.value)}
                 />
               </div>
               <div className="space-y-2">
@@ -92,6 +97,8 @@ export default function LoginPage() {
                     placeholder="Enter password" 
                     required 
                     className="custom-input"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
                   />
                   <button
                     type="button" 

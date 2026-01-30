@@ -26,6 +26,9 @@ import { PatientLayout } from "@/components/patient-layout-onclick"
 import ViewingPatientDashboard from "./doctor/medical_records/dashboard"
 
 
+
+import { ProtectedRoute } from "@/components/ProtectedRoute"
+
 function App() {
   return (
     <FadeTransition>

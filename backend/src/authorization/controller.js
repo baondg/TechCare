@@ -4,9 +4,11 @@ const sequelize = require('../common/database');
 const defineUser = require('../models/User');
 const defineSession = require('../models/Session');
 const defineSystemConfig = require('../models/SystemConfig');
+const defineProfile = require('../models/Profile');
 const User = defineUser(sequelize);
 const Session = defineSession(sequelize);
 const SystemConfig = defineSystemConfig(sequelize);
+const Profile = defineProfile(sequelize);
 
 const encryptPassword = (password) =>
   crypto.createHash('sha256').update(password).digest('hex');
@@ -16,8 +18,10 @@ const generateAccessToken = (username, userId) =>
 
 exports.register = async (req, res) => {
   try {
-    const { username, email, password, firstName, lastName, age, role } = req.body;
+    const { username, email, password, firstName, lastName, age } = req.body;
     const encryptedPassword = encryptPassword(password);
+    
+    // SECURITY: Always create as 'patient', never allow role to be set from request
     const user = await User.create({
       username,
       email,
@@ -25,8 +29,12 @@ exports.register = async (req, res) => {
       firstName,
       lastName,
       age,
-      role: role || 'patient'
+      role: 'patient' // Force patient role for public registration
     });
+    
+    // Create empty profile for new user
+    await Profile.create({ userId: user.id, email: user.email });
+    
     const accessToken = generateAccessToken(username, user.id);
     res.status(201).json({
       success: true,

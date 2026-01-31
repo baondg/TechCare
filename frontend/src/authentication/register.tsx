@@ -101,7 +101,7 @@ export default function RegisterPage() {
 
 
 
-      <div className="w-full max-w-6xl flex flex-col gap-6">
+      <div className="w-full max-w-6xl flex flex-col gap-6 mx-auto">
         <form onSubmit={handleRegister} className="flex flex-col gap-6">
           {error && (
             <Alert variant="destructive">
@@ -471,11 +471,11 @@ export default function RegisterPage() {
         </Card>
 
         {/* BUTTONS */}
-        <div className="flex justify-between mt-4">
-          <Button size="default" variant="outline" className="bg-transparent text-gray-500" asChild type="button">
+        <div className="flex justify-between mt-4 z-10">
+          <Button size="default" className="btn-outline transition-transform duration-500 text-sm px-7 py-4" asChild type="button">
             <Link to="/login">← Back to Login</Link>
           </Button>
-          <Button type="submit" disabled={isLoading}>
+          <Button type="submit" disabled={isLoading} className="btn-gradient transition-transform duration-500 text-lg px-7 py-4">
             {isLoading ? "Registering..." : "Register!"}
           </Button>
         </div>

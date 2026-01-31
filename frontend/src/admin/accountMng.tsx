@@ -303,9 +303,9 @@ export default function UserManagement() {
           </div>
         </div>
 
-        {/* Grid 2 cột - chỉ hiện khi có selectedPatient */}
-        <div className={`grid gap-6 ${selectedPatient ? 'lg:grid-cols-2' : 'grid-cols-1'}`}>
-          <Card className="flex flex-col h-[820px]">
+        {/* Grid 2 cột */}
+        <div className="grid lg:grid-cols-2 gap-6">
+          <Card className="flex flex-col h-[560px]">
             <CardContent className="flex-1 p-0 overflow-hidden">
               <div className="h-full overflow-y-auto">
                 <Table className="">
@@ -337,34 +337,48 @@ export default function UserManagement() {
                   </TableHeader>
 
                   <TableBody>
-                    {paginatedPatients.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={8} className="text-center py-10 text-gray-500">
-                          No patients found.
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      paginatedPatients.map((patient, idx) => (
-                        <TableRow
-                          key={patient.id}
-                          onClick={() => setSelectedPatient(selectedPatient?.id === patient.id ? null : patient)}
-                          className={`cursor-pointer transition-colors h-14 hover:bg-muted/50 ${
-                            selectedPatient?.id === patient.id ? "bg-cyan-50 border-l-4 border-[#06b6d4]" : ""
-                          }`}
-                        >
-                          <TableCell className="px-4 py-3 text-sm font-medium">{startItem + idx}</TableCell>
-                          <TableCell className="px-4 py-3 text-sm">{patient.nationalId}</TableCell>
-                          <TableCell className="px-4 py-3 text-sm font-medium">{patient.name}</TableCell>
-                          <TableCell className="px-4 py-3 text-sm">{patient.username}</TableCell>
-                          <TableCell className="px-4 py-3 text-sm">{patient.sex || "-"}</TableCell>
-                          <TableCell className="px-4 py-3 text-sm">{patient.dob}</TableCell>
-                          <TableCell className="px-4 py-3 text-sm">{patient.phone}</TableCell>
-                          <TableCell className="px-4 py-3 text-sm truncate max-w-xs" title={patient.email}>
+                    {paginatedPatients.map((patient, idx) => (
+                      <TableRow key={patient.id} 
+                        onClick={() => setSelectedPatient(patient)} 
+                        className={`cursor-pointer hover:bg-gray-100 ${
+                          selectedPatient?.id === patient.id ? "bg-cyan-50" : ""
+                        }`}
+                      > 
+                        {visibleColumns.includes("no") && (
+                          <TableCell>{startItem + idx}</TableCell>
+                        )}
+
+                        {visibleColumns.includes("nationalId") && (
+                          <TableCell>{patient.nationalId}</TableCell>
+                        )}
+
+                        {visibleColumns.includes("name") && (
+                          <TableCell className="font-medium">{patient.name}</TableCell>
+                        )}
+
+                        {visibleColumns.includes("username") && (
+                          <TableCell>{patient.username}</TableCell>
+                        )}
+
+                        {visibleColumns.includes("sex") && (
+                          <TableCell>{patient.sex}</TableCell>
+                        )}
+
+                        {visibleColumns.includes("dob") && (
+                          <TableCell>{patient.dob}</TableCell>
+                        )}
+
+                        {visibleColumns.includes("phone") && (
+                          <TableCell>{patient.phone}</TableCell>
+                        )}
+
+                        {visibleColumns.includes("email") && (
+                          <TableCell className="truncate max-w-xs">
                             {patient.email}
                           </TableCell>
-                        </TableRow>
-                        ))
-                    )}
+                        )}
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
                 {/* PHÂN TRANG */}
@@ -402,7 +416,7 @@ export default function UserManagement() {
                       size="sm"
                       onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                       disabled={currentPage === 1}
-                      className="h-9 px-3"
+                      className="btn-outline transition-transform duration-500 text-xl px-7 py-4"
                     >
                       Previous
                     </Button>
@@ -423,7 +437,7 @@ export default function UserManagement() {
                             key={i}
                             variant={currentPage === i ? "default" : "outline"}
                             size="sm"
-                            className={`h-9 w-9 ${currentPage === i ? "bg-[#06b6d4] hover:bg-[#0891b2]" : ""}`}
+                            className={`h-9 w-9 ${currentPage === i ? "btn-gradient text-xl py-4" : "btn-outline transition-transform duration-500 text-xl px-7 py-4"}`}
                             onClick={() => setCurrentPage(i)}
                           >
                             {i}
@@ -438,7 +452,7 @@ export default function UserManagement() {
                       size="sm"
                       onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                       disabled={currentPage === totalPages}
-                      className="h-9 px-3"
+                      className="btn-outline transition-transform duration-500 text-xl px-7 py-4"
                     >
                       Next
                     </Button>
@@ -487,23 +501,6 @@ export default function UserManagement() {
               </div>
             </CardContent>
           </Card>
-
-          {/* Chi tiết bệnh nhân */}
-          <Card>
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <CardTitle className="flex items-center gap-3">
-                  <UserPlus className="w-6 h-6 text-gray-700" />
-                  Account Information
-                </CardTitle>
-                <div className="flex gap-3 items-center">
-                  <Button size="sm" className="btn-gradient transition-transform duration-500 text-xl px-7 py-4">
-                    <Edit3 className="w-4 h-4 mr-2" /> Edit
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-          </Card>
           {/* Chi tiết bệnh nhân - chỉ hiện khi có selectedPatient */}
           {selectedPatient ? (
             <Card>
@@ -514,7 +511,7 @@ export default function UserManagement() {
                     Account Information
                   </CardTitle>
                   <div className="flex gap-3 items-center">
-                    <Button size="sm" className="bg-[#0086C4] hover:bg-[#06b6d4]">
+                    <Button size="sm" className="btn-gradient transition-transform duration-500 text-xl px-7 py-4">
                       <Edit3 className="w-4 h-4 mr-2" /> Edit
                     </Button>
 

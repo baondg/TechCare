@@ -18,6 +18,8 @@ export default function LoginPage() {
   const [role, setRole] = useState<"patient" | "hospital staff" | "admin">("patient");
   const [showPassword, setShowPassword] = useState(false);
   const [error] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

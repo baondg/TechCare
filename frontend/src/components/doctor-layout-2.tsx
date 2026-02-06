@@ -20,7 +20,7 @@ const tabs = [
   { label: "History", value: "history" },
 ]
 
-export function PatientLayout() {
+export function DoctorLayout2() {
   const navigate = useNavigate()
   const { tab = "dashboard", patientId } = useParams()
 
@@ -85,3 +85,5 @@ export function PatientLayout() {
     </DoctorLayout>
   )
 }
+export { DoctorLayout }
+

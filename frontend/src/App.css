@@ -561,9 +561,10 @@ nav a:not(.sidebar):hover .nav-text::after {
         box-shadow: 0 0 0 4px rgba(6, 182, 212, 0.15);
     }
 
-  /*----------------------------- Tab triggers -----------------------------*/
+    /* ================== TAB TRIGGERS ================== */
+
     .tabs-trigger {
-        @apply transition-all duration-300 rounded-xl;
+        @apply transition-all duration-500 rounded-xl;
     }
 
     .tabs-trigger:hover {
@@ -589,7 +590,8 @@ nav a:not(.sidebar):hover .nav-text::after {
         outline-offset: 2px;
     }
         .tabs-trigger:hover {
-        transform: translateY(-2px) scale(1.02);
+        transform: translateY(-2px);
+        animation-duration: 500ms;
     }
 
 /* ================== POPOVER + SELECT ================== */

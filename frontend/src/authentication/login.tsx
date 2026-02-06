@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Activity, User, Stethoscope, Eye, EyeOff, AlertCircle } from "lucide-react";
+import { Activity, User, Stethoscope, Eye, EyeOff, AlertCircle, UserStar } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -54,18 +54,18 @@ export default function LoginPage() {
             <CardDescription>Sign in to your TechCare account</CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs value={role} onValueChange={(v) => setRole(v as any)} className="mb-6">
+            <Tabs value={role} onValueChange={(v) => setRole(v as any)} className="mb-6 transition duration-500">
               <TabsList className="grid w-full grid-cols-3 gap-2">
-                <TabsTrigger value="patient" className="tabs-trigger gap-2 h-7 transition duration-500">
+                <TabsTrigger value="patient" className="tabs-trigger gap-2 h-7">
                   <User className="h-4 w-4" />
                   Patient
                 </TabsTrigger>
-                <TabsTrigger value="hospital staff" className="tabs-trigger gap-2 h-7 transition duration-500">
+                <TabsTrigger value="hospital staff" className="tabs-trigger gap-2 h-7">
                   <Stethoscope className="h-4 w-4" />
                   Staff
                 </TabsTrigger>
-                <TabsTrigger value="admin" className=" tabs-trigger gap-2 h-7 transition duration-500">
-                  <Stethoscope className="h-4 w-4" />
+                <TabsTrigger value="admin" className="tabs-trigger gap-2 h-7 ">
+                  <UserStar className="h-4 w-4" />
                   Admin
                 </TabsTrigger>
               </TabsList>
@@ -102,13 +102,12 @@ export default function LoginPage() {
                     value={password}
                     onChange={e => setPassword(e.target.value)}
                   />
-                  <button
-                    type="button" 
+                  <div
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 flex items-center bg-transparent border-none pr-3 text-gray-500 hover:text-gray-700 focus:outline-none"
+                    className="absolute inset-y-0 right-0 flex items-center bg-none border-none pr-3 text-gray-500 hover:text-gray-700 focus:outline-none"
                   >
                     {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                  </button>
+                  </div>
                 </div>
               </div>
               <div className="flex items-center justify-between text-sm">

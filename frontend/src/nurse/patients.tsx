@@ -7,7 +7,7 @@ import { Card, CardContent} from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ChevronLeft, ChevronRight, CalendarIcon } from "lucide-react"
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
-import { DoctorLayout } from "@/components/doctor-layout"
+import { NurseLayout } from "@/components/nurse-layout"
 import { Popover,  PopoverContent,  PopoverTrigger} from "@/components/ui/popover"
 import { format } from "date-fns"
 import { vi } from "date-fns/locale"
@@ -63,7 +63,7 @@ const ICD10_MAP: Record<string, string> = {
 }
 
 
-export default function DoctorPatients() {
+export default function NursePatients() {
     const navigate = useNavigate()
     const [patients] = useState<Patient[]>([
         { id: "OP123456789", name: "Nguyễn Văn An", sex: "M", age: 46, latestVisit: "07/10/2025", diagnosis: "Z59.1", doctor: "Dr. Trần Thanh Nghiệp", recoverDays: 2, recoverPercent: 70 },
@@ -184,7 +184,7 @@ export default function DoctorPatients() {
 
 
   return (
-    <DoctorLayout>
+    <NurseLayout>
       <div className="p-1 space-y-1">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -385,7 +385,7 @@ export default function DoctorPatients() {
                       <TableRow
                         key={patient.id}
                         onClick={() =>
-                          navigate(`/doctor/medical_records/${patient.id}/dashboard`)
+                          navigate(`/nurse/medical_records/${patient.id}/dashboard`)
                         }
                         className="hover:bg-muted/50 cursor-pointer h-14 transition-colors"
                       >
@@ -521,6 +521,6 @@ export default function DoctorPatients() {
           </Card>
         </div>
       </div>
-    </DoctorLayout>
+    </NurseLayout>
   )
 }

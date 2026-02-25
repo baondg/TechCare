@@ -23,17 +23,20 @@ import DoctorDashboard from "./doctor/dashboard"
 import DoctorPatients from "./doctor/patients"
 import { DoctorLayout2 } from "@/components/doctor-layout-2"
 import Doctor_EMRManagement from "./doctor/medical_records/dashboard"
+import DoctorAppointment from "./doctor/appointment"
 import DoctorFeedback from "./doctor/feedback"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
 import NurseDashboard from './nurse/dashboard'
 import NursePatients from "./nurse/patients"
 import { NurseLayout2 } from "@/components/nurse-layout-2"
 import Nurse_EMRManagement from "./nurse/medical_records/dashboard"
+import NurseAppointment from "./nurse/appointment"
 import NurseFeedback from "./nurse/feedback"
 import TechnicianDashboard from './technician/dashboard'
 import TechnicianPatients from './technician/patients'
 import { TechnicianLayout2 } from "@/components/technician-layout-2"
 import Technician_EMRManagement from "./technician/medical_records/lab"
+import TechnicianFeedback from "./doctor/feedback"
 
 function App() {
   return (
@@ -70,6 +73,7 @@ function App() {
           <Route path="/doctor/medical_records/:patientId/:tab" element={<DoctorLayout2 />}>
             <Route index element={<Doctor_EMRManagement />} />
           </Route>
+          <Route path="/doctor/appointments" element={<DoctorAppointment />} />
           <Route path="/doctor/feedback" element={<DoctorFeedback />} />
 
           {/* Protected nurse Routes */}
@@ -78,6 +82,7 @@ function App() {
           <Route path="/nurse/medical_records/:patientId/:tab" element={<NurseLayout2 />}>
             <Route index element={<Nurse_EMRManagement />} />
           </Route>
+          <Route path="/nurse/appointments" element={<NurseAppointment />} />
           <Route path="/nurse/feedback" element={<NurseFeedback />} />
 
           {/* Protected technician Routes */}
@@ -86,6 +91,7 @@ function App() {
           <Route path="/technician/medical_records/:patientId/:tab" element={<TechnicianLayout2 />}>
             <Route index element={<Technician_EMRManagement />} />
           </Route>
+          <Route path="/technician/feedback" element={<TechnicianFeedback />} />
         </Routes>
 
     </FadeTransition>

@@ -6,7 +6,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import ViewingPatientLab from "@/technician/medical_records/lab"
 
 const tabs = [
-  { label: "Dashboard", value: "lab" },
+  { label: "Test results", value: "lab" },
+  { label: "History", value: "history"},
 ]
 
 export function TechnicianLayout2() {
@@ -41,6 +42,24 @@ export function TechnicianLayout2() {
             </Button>
           </div>
         </Card>
+
+        <div className="sticky z-10 bg-white rounded-md w-fit">
+          <Tabs value={tab} onValueChange={setActiveTab}>
+            <TabsList className="inline-flex rounded-xl bg-tr p-1 gap-1">
+              {tabs.map(t => (
+                <TabsTrigger
+                  key={t.value}
+                  value={t.value}
+                  className="
+                    tabs-trigger gap-2 h-7 transition duration-500
+                  "
+                >
+                  {t.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+        </div>
 
         {/* ===== Tab Content ===== */}
         <div>

@@ -15,7 +15,7 @@ import {
   Star,
   CheckCircle,
 } from "lucide-react"
-import { NurseLayout } from "@/components/nurse-layout"
+import { TechnicianLayout } from "@/components/technician-layout"
 
 type FeedbackCategory = "ai-chatbot" | "ai-schedule" | "ai-recovery" | "general"
 type FeedbackRating = 1 | 2 | 3 | 4 | 5
@@ -86,13 +86,13 @@ export default function DoctorFeedback() {
       }
 
   return (
-    <NurseLayout>
+    <TechnicianLayout>
       <div className="w-full space-y-6">
         {/* Header với gradient */}
         <div>
-          <h3 className="h-12 text-3xl font-bold bg-linear-to-r from-[#06b6d4] via-[#0891b2] to-[#06b6d4] bg-clip-text text-transparent mb-2">
-            Feedback
-          </h3>
+          <h2 className="h-12 text-4xl font-bold bg-linear-to-r from-[#06b6d4] via-[#0891b2] to-[#06b6d4] bg-clip-text text-transparent mb-2">
+            Feedback & AI Suggestions
+          </h2>
           <p className="text-slate-600 text-lg">Share your experience and review AI recommendations</p>
         </div>
 
@@ -244,6 +244,6 @@ export default function DoctorFeedback() {
             <div></div>
         )}
       </div>
-    </NurseLayout>
+    </TechnicianLayout>
   )
 }

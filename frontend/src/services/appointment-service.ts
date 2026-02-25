@@ -4,10 +4,11 @@ export interface Appointment {
   id: number;
   userId: number;
   doctor: string;
+  patient: string;
   department: string;
   date: string;
   time: string;
-  status: 'Upcoming' | 'Done' | 'Cancelled';
+  status: 'Upcoming' | 'Done' | 'Cancelled' | "Confirmed" | "Rejected" | "Pending";
   room?: string;
   symptoms?: string;
   notes?: string;
@@ -108,3 +109,5 @@ export const appointmentService = {
     }
   }
 };
+
+

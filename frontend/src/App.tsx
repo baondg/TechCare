@@ -25,6 +25,7 @@ import { DoctorLayout2 } from "@/components/doctor-layout-2"
 import Doctor_EMRManagement from "./doctor/medical_records/dashboard"
 import DoctorAppointment from "./doctor/appointment"
 import DoctorFeedback from "./doctor/feedback"
+import DoctorProfile from "./doctor/profile"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
 import NurseDashboard from './nurse/dashboard'
 import NursePatients from "./nurse/patients"
@@ -75,6 +76,7 @@ function App() {
           </Route>
           <Route path="/doctor/appointments" element={<DoctorAppointment />} />
           <Route path="/doctor/feedback" element={<DoctorFeedback />} />
+          <Route path="/doctor/profile" element={<DoctorProfile />} />
 
           {/* Protected nurse Routes */}
           <Route path="/nurse/dashboard" element={<NurseDashboard />} />

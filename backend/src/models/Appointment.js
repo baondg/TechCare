@@ -31,9 +31,13 @@ const Appointment = sequelize.define('Appointment', {
     type: DataTypes.TIME,
     allowNull: false
   },
+  patient: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
   status: {
-    type: DataTypes.ENUM('Upcoming', 'Done', 'Cancelled'),
-    defaultValue: 'Upcoming'
+    type: DataTypes.ENUM('Pending', 'Confirmed', 'Done', 'Cancelled', 'Rejected'),
+    defaultValue: 'Pending'
   },
   room: {
     type: DataTypes.STRING,

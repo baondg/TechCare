@@ -3,8 +3,14 @@ const router = express.Router();
 const appointmentController = require('../controllers/appointmentController');
 const authenticateToken = require('../middleware/authMiddleware');
 
-// Apply authentication middleware to all routes
+// Public-ish routes (still require auth)
 router.use(authenticateToken);
+
+// Get available doctors (for booking page)
+router.get('/doctors', appointmentController.getDoctors);
+
+// Get already-booked slots for a date
+router.get('/booked-slots', appointmentController.getBookedSlots);
 
 // Create a new appointment
 router.post('/', appointmentController.createAppointment);

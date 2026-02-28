@@ -1,86 +1,28 @@
 const sequelize = require('../common/database');
 const defineSystemConfig = require('../models/SystemConfig');
 const SystemConfig = defineSystemConfig(sequelize);
-const { getRedisClient, isRedisAvailable } = require('../common/redis');
 
-// Fallback: In-memory store nếu Redis không khả dụng
+// In-memory rate limit store
 const rateLimitStore = new Map();
 
-// Làm sạch các entry cũ định kỳ (chỉ cho in-memory)
+// Clean up expired entries every minute
 setInterval(() => {
-  if (!isRedisAvailable()) {
-    const now = Date.now();
-    for (const [key, value] of rateLimitStore.entries()) {
-      if (value.resetTime < now) {
-        rateLimitStore.delete(key);
-      }
+  const now = Date.now();
+  for (const [key, value] of rateLimitStore.entries()) {
+    if (value.resetTime < now) {
+      rateLimitStore.delete(key);
     }
   }
-}, 60000); // Cleanup mỗi phút
+}, 60000);
 
-// Helper function để lấy count và reset time từ Redis hoặc memory
-const getRateLimitInfo = async (key) => {
-  const redis = getRedisClient();
-  
-  if (isRedisAvailable() && redis) {
-    try {
-      const count = await redis.get(key);
-      const ttl = await redis.ttl(key);
-      
-      if (count !== null) {
-        const now = Date.now();
-        const resetTime = now + (ttl * 1000);
-        return {
-          count: parseInt(count),
-          resetTime: resetTime
-        };
-      }
-      return null;
-    } catch (error) {
-      console.error('Redis get error:', error);
-      const record = rateLimitStore.get(key);
-      return record ? { count: record.count, resetTime: record.resetTime } : null;
-    }
-  }
-  
+// Get rate limit info from memory
+const getRateLimitInfo = (key) => {
   const record = rateLimitStore.get(key);
   return record ? { count: record.count, resetTime: record.resetTime } : null;
 };
 
-// Helper function để tăng counter và set TTL
-const incrementRateLimit = async (key, ttlSeconds) => {
-  const redis = getRedisClient();
-  
-  if (isRedisAvailable() && redis) {
-    try {
-      const count = await redis.incr(key);
-      if (count === 1) {
-        // Set TTL cho key mới
-        await redis.expire(key, ttlSeconds);
-      }
-      return count;
-    } catch (error) {
-      console.error('Redis increment error:', error);
-      // Fallback to memory
-      const record = rateLimitStore.get(key);
-      if (record) {
-        record.count++;
-        rateLimitStore.set(key, record);
-        return record.count;
-      } else {
-        const now = Date.now();
-        const newRecord = {
-          count: 1,
-          resetTime: now + (ttlSeconds * 1000),
-          firstRequest: now
-        };
-        rateLimitStore.set(key, newRecord);
-        return 1;
-      }
-    }
-  }
-  
-  // In-memory fallback
+// Increment counter in memory
+const incrementRateLimit = (key, ttlSeconds) => {
   const record = rateLimitStore.get(key);
   if (record) {
     record.count++;
@@ -98,7 +40,7 @@ const incrementRateLimit = async (key, ttlSeconds) => {
   }
 };
 
-// Middleware rate limiting có thể cấu hình với Redis
+// Middleware rate limiting (in-memory)
 exports.rateLimit = async (req, res, next) => {
   try {
     // Lấy cấu hình rate limit từ database
@@ -132,11 +74,11 @@ exports.rateLimit = async (req, res, next) => {
     const now = Date.now();
     
     // Kiểm tra record hiện tại
-    const record = await getRateLimitInfo(key);
+    const record = getRateLimitInfo(key);
     
     if (!record || now > record.resetTime) {
-      // Tạo record mới hoặc reset - increment sẽ tự tạo key mới
-      const count = await incrementRateLimit(key, windowSeconds);
+      // Tạo record mới hoặc reset
+      const count = incrementRateLimit(key, windowSeconds);
       const resetTime = now + windowMs;
       
       res.setHeader('X-RateLimit-Limit', maxRequests);
@@ -146,7 +88,7 @@ exports.rateLimit = async (req, res, next) => {
     }
     
     // Tăng counter
-    const count = await incrementRateLimit(key, windowSeconds);
+    const count = incrementRateLimit(key, windowSeconds);
     
     if (count > maxRequests) {
       const retryAfter = Math.ceil((record.resetTime - now) / 1000);
@@ -172,7 +114,7 @@ exports.rateLimit = async (req, res, next) => {
   }
 };
 
-// Rate limit cho API endpoints cụ thể với Redis
+// Rate limit cho API endpoints (in-memory)
 exports.apiRateLimit = async (req, res, next) => {
   try {
     // Lấy cấu hình riêng cho API endpoints
@@ -204,11 +146,11 @@ exports.apiRateLimit = async (req, res, next) => {
     const key = `apiratelimit:${req.path}:${identifier}`;
     const now = Date.now();
     
-    const record = await getRateLimitInfo(key);
+    const record = getRateLimitInfo(key);
     
     if (!record || now > record.resetTime) {
       // Tạo record mới hoặc reset
-      const count = await incrementRateLimit(key, windowSeconds);
+      const count = incrementRateLimit(key, windowSeconds);
       const resetTime = now + windowMs;
       
       res.setHeader('X-RateLimit-Limit', maxRequests);
@@ -217,7 +159,7 @@ exports.apiRateLimit = async (req, res, next) => {
       return next();
     }
     
-    const count = await incrementRateLimit(key, windowSeconds);
+    const count = incrementRateLimit(key, windowSeconds);
     
     if (count > maxRequests) {
       const retryAfter = Math.ceil((record.resetTime - now) / 1000);
@@ -241,4 +183,4 @@ exports.apiRateLimit = async (req, res, next) => {
   }
 };
 
-// Middleware quản lý rate limiting với Redis: giới hạn số lượng request trong một khoảng thời gian, tự động fallback về in-memory nếu Redis không khả dụng
+// Middleware quản lý rate limiting: giới hạn số lượng request trong một khoảng thời gian (in-memory store)

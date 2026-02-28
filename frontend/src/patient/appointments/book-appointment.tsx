@@ -1,89 +1,132 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { ChevronLeft, ChevronRight, Check, Calendar, Clock } from "lucide-react"
+import { ChevronLeft, ChevronRight, Check, Calendar, Clock, Loader2 } from "lucide-react"
 import { PatientLayout } from "@/components/patient-layout"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { appointmentService } from "@/services/appointment-service"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  appointmentService,
+  type Doctor,
+  type BookedSlot,
+} from "@/services/appointment-service"
 import { useAuth } from "@/contexts/AuthContext"
-import { format, isSameDay, startOfDay } from "date-fns"
+import { format, isSameDay } from "date-fns"
 
 type ViewMode = "month" | "week" | "day"
 
 interface TimeSlot {
   time: string
-  doctor: string
+  doctor: string        // doctor username (sent to backend)
+  doctorLabel: string   // display name
   department: string
   room: string
   available: boolean
 }
 
+// Standard consultation times
+const SLOT_TIMES = [
+  "08:00", "08:30", "09:00", "09:30", "10:00", "10:30",
+  "11:00", "11:30", "13:00", "13:30", "14:00", "14:30",
+  "15:00", "15:30", "16:00",
+]
+
 export default function BookAppointmentPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
-  
-  // viewDate controls the month currently being viewed in the calendar
+
   const [viewDate, setViewDate] = useState(new Date())
-  
-  // selectedDate is the specific date selected for the appointment
   const [selectedDate, setSelectedDate] = useState(new Date())
-  
   const [viewMode, setViewMode] = useState<ViewMode>("month")
   const [selectedDepartment, setSelectedDepartment] = useState("")
   const [showNotification, setShowNotification] = useState(false)
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null)
   const [checkedSymptom, setCheckedSymptom] = useState<"yes" | "no" | null>(null)
+  const [booking, setBooking] = useState(false)
 
-  const specialtyGroups = [
-    { value: "outpatinent", label: "Outpatient Department" },
-    { value: "ophthalmology", label: "Ophthalmology" },
-    { value: "otolaryngology", label: "Otolaryngology" },
-    { value: "dermatology", label: "Dermatology" },
-    { value: "cardiology", label: "Cardiology" },
-    { value: "orthopedics", label: "Orthopedics" },
-  ]
+  // Real data from the API
+  const [doctors, setDoctors] = useState<Doctor[]>([])
+  const [bookedSlots, setBookedSlots] = useState<BookedSlot[]>([])
+  const [loadingDoctors, setLoadingDoctors] = useState(true)
 
-  const timeSlots: TimeSlot[] = [
-    // Cardiology
-    { time: "08:00", doctor: "Dr. Trang Thanh Nghia", department: "Cardiology", room: "Room A1-102", available: true },
-    { time: "09:30", doctor: "Dr. Le Van Tim", department: "Cardiology", room: "Room A1-104", available: true },
-    { time: "11:00", doctor: "Dr. Trang Thanh Nghia", department: "Cardiology", room: "Room A1-102", available: true },
-    { time: "11:40", doctor: "Dr. Trang Thanh Nghia", department: "Cardiology", room: "Room A1-102", available: true },
-    { time: "14:00", doctor: "Dr. Le Van Tim", department: "Cardiology", room: "Room A1-104", available: false },
-    
-    // Orthopedics
-    { time: "08:30", doctor: "Dr. Nguyen Duc Dung", department: "Orthopedics", room: "Room B1-102", available: true },
-    { time: "10:00", doctor: "Dr. Pham Van Xuong", department: "Orthopedics", room: "Room B1-105", available: true },
-    { time: "11:30", doctor: "Dr. Nguyen Duc Dung", department: "Orthopedics", room: "Room B1-102", available: true },
-    { time: "11:40", doctor: "Dr. Nguyen Duc Dung", department: "Orthopedics", room: "Room B1-102", available: false },
-    { time: "15:30", doctor: "Dr. Pham Van Xuong", department: "Orthopedics", room: "Room B1-105", available: true },
+  // ── Fetch doctors on mount ──
+  useEffect(() => {
+    appointmentService.getDoctors()
+      .then((d) => setDoctors(d))
+      .catch(() => setDoctors([]))
+      .finally(() => setLoadingDoctors(false))
+  }, [])
 
-    // Dermatology
-    { time: "09:00", doctor: "Dr. Nguyen Thi Van Anh", department: "Dermatology", room: "Room JA-04", available: true },
-    { time: "10:30", doctor: "Dr. Tran Thi Da", department: "Dermatology", room: "Room JA-05", available: true },
-    { time: "11:30", doctor: "Dr. Nguyen Thi Van Anh", department: "Dermatology", room: "Room JA-04", available: false },
-    { time: "14:30", doctor: "Dr. Tran Thi Da", department: "Dermatology", room: "Room JA-05", available: true },
+  // ── Fetch booked slots whenever selected date changes ──
+  useEffect(() => {
+    const dateStr = format(selectedDate, "yyyy-MM-dd")
+    appointmentService.getBookedSlots(dateStr)
+      .then((s) => setBookedSlots(s))
+      .catch(() => setBookedSlots([]))
+  }, [selectedDate])
 
-    // Ophthalmology
-    { time: "08:15", doctor: "Dr. Tran Tien Minh", department: "Ophthalmology", room: "Room A1-102", available: true },
-    { time: "10:45", doctor: "Dr. Le Thi Mat", department: "Ophthalmology", room: "Room A1-103", available: true },
-    { time: "11:30", doctor: "Dr. Tran Tien Minh", department: "Ophthalmology", room: "Room A1-102", available: true },
-    { time: "16:00", doctor: "Dr. Le Thi Mat", department: "Ophthalmology", room: "Room A1-103", available: false },
+  // ── Derive departments from real doctors ──
+  const departments = Array.from(
+    new Set(
+      doctors
+        .map((d) => d.department)
+        .filter(Boolean) as string[]
+    )
+  ).sort()
 
-    // Otolaryngology (ENT)
-    { time: "09:15", doctor: "Dr. Hoang Van Tai", department: "Otolaryngology", room: "Room C1-201", available: true },
-    { time: "13:30", doctor: "Dr. Hoang Van Tai", department: "Otolaryngology", room: "Room C1-201", available: true },
-    { time: "15:00", doctor: "Dr. Nguyen Thi Mui", department: "Otolaryngology", room: "Room C1-202", available: true },
+  // ── Build time slots from real doctors + booked data ──
+  const buildTimeSlots = (): TimeSlot[] => {
+    if (!selectedDepartment) return []
 
-    // Outpatient / General Medicine
-    { time: "07:30", doctor: "Dr. Vo Van Tong", department: "General Medicine", room: "Room G1-001", available: true },
-    { time: "10:00", doctor: "Dr. Vo Van Tong", department: "General Medicine", room: "Room G1-001", available: false },
-    { time: "13:00", doctor: "Dr. Phan Thi Quat", department: "General Medicine", room: "Room G1-002", available: true },
-  ]
+    const dept =
+      selectedDepartment === "outpatient" ? "General Medicine" : selectedDepartment
 
+    const deptDoctors = doctors.filter(
+      (d) => (d.department || "").toLowerCase() === dept.toLowerCase()
+    )
+
+    if (deptDoctors.length === 0) return []
+
+    const slots: TimeSlot[] = []
+
+    for (const doc of deptDoctors) {
+      const fullName =
+        [doc.firstName, doc.lastName].filter(Boolean).join(" ") || doc.username
+
+      for (const time of SLOT_TIMES) {
+        const isBooked = bookedSlots.some(
+          (bs) =>
+            bs.doctor === doc.username &&
+            bs.time.substring(0, 5) === time
+        )
+
+        slots.push({
+          time,
+          doctor: doc.username,
+          doctorLabel: `Dr. ${fullName}`,
+          department: dept,
+          room: `Room ${doc.id}01`,
+          available: !isBooked,
+        })
+      }
+    }
+
+    // Sort by time then doctor
+    slots.sort((a, b) => a.time.localeCompare(b.time) || a.doctor.localeCompare(b.doctor))
+    return slots
+  }
+
+  const filteredSlots = buildTimeSlots()
+
+  // ── Calendar helpers ──
   const getDaysInMonth = () => {
     const year = viewDate.getFullYear()
     const month = viewDate.getMonth()
@@ -113,13 +156,8 @@ export default function BookAppointmentPage() {
     return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
   }
 
-  const handlePrevMonth = () => {
-    setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1))
-  }
-
-  const handleNextMonth = () => {
-    setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1))
-  }
+  const handlePrevMonth = () => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1))
+  const handleNextMonth = () => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1))
 
   const handleBookSlot = (slot: TimeSlot) => {
     if (!slot.available) return
@@ -129,56 +167,37 @@ export default function BookAppointmentPage() {
 
   const handleConfirmBooking = async () => {
     if (!selectedSlot || !user?.id) return
+    setBooking(true)
 
     try {
-      const formattedDate = format(selectedDate, 'yyyy-MM-dd')
-      
-      // Format time to HH:mm:ss
-      const formattedTime = `${selectedSlot.time}:00`
-
       await appointmentService.createAppointment({
         doctor: selectedSlot.doctor,
         department: selectedSlot.department,
-        date: formattedDate,
-        time: formattedTime,
+        date: format(selectedDate, "yyyy-MM-dd"),
+        time: `${selectedSlot.time}:00`,
         room: selectedSlot.room,
-        symptoms: checkedSymptom === 'yes' ? 'Patient reported symptoms' : 'No symptoms reported',
-        notes: 'Booked via web portal'
+        symptoms: checkedSymptom === "yes" ? "Patient reported symptoms" : "No symptoms reported",
+        notes: "Booked via web portal",
       })
-
       setShowNotification(false)
       navigate("/patient/appointments")
-    } catch (error: any) {
-      console.error("Booking failed:", error)
-      alert(error.message || "Failed to book appointment. Please try again.")
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "Failed to book appointment"
+      alert(msg)
+    } finally {
+      setBooking(false)
     }
   }
 
   const days = getDaysInMonth()
   const monthName = viewDate.toLocaleString("en-US", { month: "long", year: "numeric" })
-  const weeks = []
-  for (let i = 0; i < days.length; i += 7) {
-    weeks.push(days.slice(i, i + 7))
-  }
-
-  const departmentMap: Record<string, string> = {
-    cardiology: "Cardiology",
-    orthopedics: "Orthopedics",
-    dermatology: "Dermatology",
-    ophthalmology: "Ophthalmology",
-    otolaryngology: "Otolaryngology",
-    outpatinent: "General Medicine",
-  }
-
-  const filteredSlots = timeSlots.filter(slot => {
-    if (!selectedDepartment) return false
-    return slot.department === (departmentMap[selectedDepartment] || selectedDepartment)
-  })
+  const weeks: typeof days[] = []
+  for (let i = 0; i < days.length; i += 7) weeks.push(days.slice(i, i + 7))
 
   return (
     <PatientLayout>
       <div className="space-y-8">
-        {/* Header với gradient */}
+        {/* Header */}
         <div>
           <h2 className="text-4xl font-bold bg-linear-to-r from-[#06b6d4] via-[#0891b2] to-[#06b6d4] bg-clip-text text-transparent mb-2">
             Book Appointment
@@ -186,9 +205,9 @@ export default function BookAppointmentPage() {
           <p className="text-slate-600 text-lg">Select your preferred date and time slot</p>
         </div>
 
-        {/* Calendar and Time Slots */}
+        {/* Calendar + Time Slots */}
         <div className="grid gap-6 lg:grid-cols-5">
-          {/* Calendar Section */}
+          {/* ── Calendar ── */}
           <Card className="card-feature lg:col-span-2 p-6">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-2xl font-bold text-slate-900">{monthName}</h3>
@@ -202,9 +221,9 @@ export default function BookAppointmentPage() {
               </div>
             </div>
 
-            {/* View Mode Selector */}
+            {/* View Mode */}
             <div className="flex gap-2 mb-6 p-1 bg-slate-100 rounded-xl">
-              {(["month", "week", "day"] as ViewMode[]).map(mode => (
+              {(["month", "week", "day"] as ViewMode[]).map((mode) => (
                 <Button
                   key={mode}
                   variant={viewMode === mode ? "default" : "ghost"}
@@ -221,38 +240,38 @@ export default function BookAppointmentPage() {
             <div>
               <div className="grid grid-cols-8 gap-2 mb-3">
                 <div className="text-xs text-slate-500 text-center font-semibold">Week</div>
-                {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(day => (
-                  <div key={day} className="text-xs text-slate-600 text-center font-semibold">{day}</div>
+                {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+                  <div key={d} className="text-xs text-slate-600 text-center font-semibold">{d}</div>
                 ))}
               </div>
 
-              {weeks.map((week, weekIndex) => {
+              {weeks.map((week, wi) => {
                 const weekNumber = getWeekNumber(week[0].date)
-                const isSelectedWeek = week.some(d => isSameDay(d.date, selectedDate))
-                
+                const isSelectedWeek = week.some((d) => isSameDay(d.date, selectedDate))
+
                 return (
-                  <div key={weekIndex} className="grid grid-cols-8 gap-2 mb-2">
+                  <div key={wi} className="grid grid-cols-8 gap-2 mb-2">
                     <div className="flex items-center justify-center text-xs text-slate-500 font-semibold bg-slate-50 rounded">
                       {weekNumber}
                     </div>
-                    {week.map((dayObj, dayIndex) => {
+                    {week.map((dayObj, di) => {
                       const isSelected = isSameDay(dayObj.date, selectedDate)
                       const today = new Date()
                       today.setHours(0, 0, 0, 0)
                       const isPast = dayObj.date < today
-                      
+
                       return (
                         <button
-                          key={dayIndex}
+                          key={di}
                           disabled={isPast || !dayObj.isCurrentMonth}
                           onClick={() => dayObj.isCurrentMonth && setSelectedDate(dayObj.date)}
                           className={`
                             aspect-square flex items-center justify-center rounded-lg text-sm font-semibold transition-all duration-300
                             ${!dayObj.isCurrentMonth || isPast ? "text-slate-300 cursor-not-allowed" : ""}
-                            ${isSelected 
-                              ? "bg-linear-to-br from-[#06b6d4] to-[#0891b2] text-white shadow-lg scale-110" 
+                            ${isSelected
+                              ? "bg-linear-to-br from-[#06b6d4] to-[#0891b2] text-white shadow-lg scale-110"
                               : isSelectedWeek && !isPast
-                                ? "bg-cyan-50 text-cyan-700 hover:bg-cyan-100" 
+                                ? "bg-cyan-50 text-cyan-700 hover:bg-cyan-100"
                                 : !isPast && dayObj.isCurrentMonth ? "hover:bg-slate-100 text-slate-700" : ""
                             }
                           `}
@@ -268,53 +287,33 @@ export default function BookAppointmentPage() {
 
             <div className="mt-6 text-center p-3 bg-linear-to-r from-cyan-50 to-blue-50 rounded-xl">
               <p className="text-sm text-slate-600">
-                <span className="font-semibold">Week {getWeekNumber(weeks.find(w => w.some(d => isSameDay(d.date, selectedDate)))?.[0].date || new Date())}</span>
+                <span className="font-semibold">
+                  Week {getWeekNumber(weeks.find((w) => w.some((d) => isSameDay(d.date, selectedDate)))?.[0].date || new Date())}
+                </span>
               </p>
             </div>
           </Card>
 
-          {/* Time Slots Section */}
+          {/* ── Time Slots ── */}
           <Card className="card-feature lg:col-span-3 p-6 flex flex-col">
             <div className="mb-6">
-              <h3 className="text-2xl font-bold text-slate-900 mb-1">
-                Available Slots
-              </h3>
-              <p className="text-slate-600">
-                {format(selectedDate, "MMMM d, yyyy")}
-              </p>
+              <h3 className="text-2xl font-bold text-slate-900 mb-1">Available Slots</h3>
+              <p className="text-slate-600">{format(selectedDate, "MMMM d, yyyy")}</p>
             </div>
 
-            {/* Question Section */}
+            {/* Symptom Question */}
             <div className="mb-6 p-5 rounded-xl bg-linear-to-br from-cyan-50 to-blue-50 border border-cyan-100">
               <p className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
                 <Calendar className="h-5 w-5 text-cyan-600" />
                 Have you checked your symptoms?
               </p>
-
               <div className="space-y-3">
-                <label className="flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all hover:bg-white
-                  ${checkedSymptom === 'yes' ? 'border-cyan-500 bg-white shadow-md' : 'border-transparent bg-white/50'}">
-                  <input
-                    type="radio"
-                    name="checkedSymptom"
-                    value="yes"
-                    checked={checkedSymptom === "yes"}
-                    onChange={() => { setCheckedSymptom("yes"); setSelectedDepartment("") }}
-                    className="w-4 h-4 text-cyan-600"
-                  />
+                <label className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all hover:bg-white ${checkedSymptom === "yes" ? "border-cyan-500 bg-white shadow-md" : "border-transparent bg-white/50"}`}>
+                  <input type="radio" name="checkedSymptom" value="yes" checked={checkedSymptom === "yes"} onChange={() => { setCheckedSymptom("yes"); setSelectedDepartment("") }} className="w-4 h-4 text-cyan-600" />
                   <span className="font-medium text-slate-700">Yes, I know which department</span>
                 </label>
-
-                <label className="flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all hover:bg-white
-                  ${checkedSymptom === 'no' ? 'border-cyan-500 bg-white shadow-md' : 'border-transparent bg-white/50'}">
-                  <input
-                    type="radio"
-                    name="checkedSymptom"
-                    value="no"
-                    checked={checkedSymptom === "no"}
-                    onChange={() => { setCheckedSymptom("no"); setSelectedDepartment("outpatinent") }}
-                    className="w-4 h-4 text-cyan-600"
-                  />
+                <label className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all hover:bg-white ${checkedSymptom === "no" ? "border-cyan-500 bg-white shadow-md" : "border-transparent bg-white/50"}`}>
+                  <input type="radio" name="checkedSymptom" value="no" checked={checkedSymptom === "no"} onChange={() => { setCheckedSymptom("no"); setSelectedDepartment("outpatient") }} className="w-4 h-4 text-cyan-600" />
                   <span className="font-medium text-slate-700">No, not yet</span>
                 </label>
               </div>
@@ -323,69 +322,73 @@ export default function BookAppointmentPage() {
             {/* Department Selection */}
             {checkedSymptom !== null && (
               <div className="mb-6">
-                <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
-                  <SelectTrigger className="custom-select h-12">
-                    <SelectValue placeholder="Select specialty" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {checkedSymptom === "no" && (
-                      <SelectItem value="outpatinent">Outpatient Department</SelectItem>
-                    )}
-                    {checkedSymptom === "yes" && specialtyGroups.map(group => (
-                      <SelectItem key={group.value} value={group.value}>{group.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {loadingDoctors ? (
+                  <div className="flex items-center gap-2 text-slate-500 text-sm">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Loading departments…
+                  </div>
+                ) : (
+                  <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
+                    <SelectTrigger className="custom-select h-12">
+                      <SelectValue placeholder="Select specialty" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {checkedSymptom === "no" && (
+                        <SelectItem value="outpatient">Outpatient (General Medicine)</SelectItem>
+                      )}
+                      {checkedSymptom === "yes" &&
+                        departments.map((dept) => (
+                          <SelectItem key={dept} value={dept}>
+                            {dept}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
             )}
 
             {/* Time Slots List */}
             {checkedSymptom !== null && selectedDepartment && (
               <div className="flex-1 overflow-y-auto space-y-3 pr-2">
-                {filteredSlots.map((slot, index) => (
-                  <button
-                    key={index}
-                    onClick={() => handleBookSlot(slot)}
-                    disabled={!slot.available}
-                    className={`
-                      card-feature-group w-full p-5 rounded-xl text-left transition-all duration-300
-                      ${slot.available
-                        ? "cursor-pointer hover:shadow-lg hover:scale-[1.02]"
-                        : "opacity-50 cursor-not-allowed bg-slate-50"
-                      }
-                    `}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-4 mb-3">
-                          <div className="flex items-center gap-2">
-                            <Clock className="h-5 w-5 text-cyan-600" />
-                            <span className="text-2xl font-bold text-cyan-600">{slot.time}</span>
-                          </div>
-                          <span className={`text-xs px-3 py-1 rounded-full font-semibold ${
-                            slot.available 
-                              ? "bg-green-100 text-green-700" 
-                              : "bg-red-100 text-red-700"
-                          }`}>
-                            {slot.available ? "Available" : "Booked"}
-                          </span>
-                        </div>
-                        <p className="font-semibold text-slate-900 mb-1">{slot.doctor}</p>
-                        <p className="text-sm text-slate-600">{slot.room}</p>
-                      </div>
-                      {slot.available && (
-                        <div className="card-icon-wrapper h-12 w-12">
-                          <ChevronRight className="h-6 w-6" />
-                        </div>
-                      )}
-                    </div>
-                  </button>
-                ))}
-                {filteredSlots.length === 0 && (
+                {filteredSlots.length === 0 ? (
                   <div className="text-center py-12 text-slate-500">
                     <Calendar className="h-16 w-16 mx-auto mb-4 text-slate-300" />
-                    <p>No available slots for this selection</p>
+                    <p>No doctors available in this department yet</p>
                   </div>
+                ) : (
+                  filteredSlots.map((slot, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => handleBookSlot(slot)}
+                      disabled={!slot.available}
+                      className={`card-feature-group w-full p-5 rounded-xl text-left transition-all duration-300 ${
+                        slot.available ? "cursor-pointer hover:shadow-lg hover:scale-[1.02]" : "opacity-50 cursor-not-allowed bg-slate-50"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-4 mb-3">
+                            <div className="flex items-center gap-2">
+                              <Clock className="h-5 w-5 text-cyan-600" />
+                              <span className="text-2xl font-bold text-cyan-600">{slot.time}</span>
+                            </div>
+                            <span className={`text-xs px-3 py-1 rounded-full font-semibold ${
+                              slot.available ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                            }`}>
+                              {slot.available ? "Available" : "Booked"}
+                            </span>
+                          </div>
+                          <p className="font-semibold text-slate-900 mb-1">{slot.doctorLabel}</p>
+                          <p className="text-sm text-slate-600">{slot.room}</p>
+                        </div>
+                        {slot.available && (
+                          <div className="card-icon-wrapper h-12 w-12">
+                            <ChevronRight className="h-6 w-6" />
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  ))
                 )}
               </div>
             )}
@@ -393,7 +396,7 @@ export default function BookAppointmentPage() {
         </div>
       </div>
 
-      {/* Confirmation Modal */}
+      {/* ── Confirmation Modal ── */}
       {showNotification && selectedSlot && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <Card className="max-w-md w-full p-8 shadow-2xl animate-in fade-in zoom-in duration-300">
@@ -409,7 +412,7 @@ export default function BookAppointmentPage() {
               <ul className="space-y-3">
                 <li className="flex items-start gap-3">
                   <span className="text-cyan-600 font-bold">•</span>
-                  <span className="text-slate-900 font-medium">{selectedSlot.doctor}</span>
+                  <span className="text-slate-900 font-medium">{selectedSlot.doctorLabel}</span>
                 </li>
                 <li className="flex items-start gap-3">
                   <span className="text-cyan-600 font-bold">•</span>
@@ -421,7 +424,9 @@ export default function BookAppointmentPage() {
                 </li>
                 <li className="flex items-start gap-3">
                   <span className="text-cyan-600 font-bold">•</span>
-                  <span className="text-slate-700">At {selectedSlot.time}</span>
+                  <span className="text-slate-700">
+                    {format(selectedDate, "MMMM d, yyyy")} at {selectedSlot.time}
+                  </span>
                 </li>
               </ul>
             </div>
@@ -430,7 +435,8 @@ export default function BookAppointmentPage() {
               <Button variant="outline" className="flex-1 h-12" onClick={() => setShowNotification(false)}>
                 Cancel
               </Button>
-              <Button className="flex-1 h-12 btn-gradient" onClick={handleConfirmBooking}>
+              <Button className="flex-1 h-12 btn-gradient" onClick={handleConfirmBooking} disabled={booking}>
+                {booking && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                 Confirm Booking
               </Button>
             </div>

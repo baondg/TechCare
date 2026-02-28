@@ -83,11 +83,6 @@ export default function AppointmentsPage() {
     }
   }
 
-  const handleFeedback = (id: number) => {
-    console.log("Provide feedback for appointment:", id)
-    navigate("/patient/feedback", { state: { appointmentId: id } })
-  }
-
   return (
     <PatientLayout>
       <div className="space-y-8">
@@ -175,10 +170,14 @@ export default function AppointmentsPage() {
                           </div>
                         </div>
                         <div className={`mt-2 md:mt-0 px-4 py-1.5 rounded-full text-sm font-medium ${
-                          appointment.status === "Upcoming" 
-                            ? "bg-cyan-50 text-cyan-700 border border-cyan-100" 
+                          appointment.status === "Pending"
+                            ? "bg-yellow-50 text-yellow-700 border border-yellow-100"
+                            : appointment.status === "Confirmed"
+                            ? "bg-cyan-50 text-cyan-700 border border-cyan-100"
                             : appointment.status === "Done"
                             ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
+                            : appointment.status === "Rejected"
+                            ? "bg-orange-50 text-orange-700 border border-orange-100"
                             : "bg-red-50 text-red-700 border border-red-100"
                         }`}>
                           {appointment.status}
@@ -197,7 +196,7 @@ export default function AppointmentsPage() {
                       </div>
 
                       <div className="flex gap-3">
-                        {appointment.status === "Upcoming" ? (
+                        {(appointment.status === "Pending" || appointment.status === "Confirmed") ? (
                           <>
                             <Button 
                               variant="outline" 
@@ -217,7 +216,7 @@ export default function AppointmentsPage() {
                         ) : appointment.status === "Done" ? (
                           <Button 
                             className="bg-cyan-600 hover:bg-cyan-700 text-white border-none"
-                            onClick={() => handleFeedback(appointment.id)}
+                            onClick={() => navigate("/patient/feedback", { state: { appointmentId: appointment.id } })}
                           >
                             Give Feedback
                           </Button>

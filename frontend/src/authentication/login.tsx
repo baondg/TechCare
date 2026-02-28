@@ -17,21 +17,66 @@ export default function LoginPage() {
   const { login } = useAuth();
   const [role, setRole] = useState<"patient" | "hospital staff" | "admin">("patient");
   const [showPassword, setShowPassword] = useState(false);
-  const [error] = useState("");
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Redirect based on role
-    if (role === "patient") {
-      router("/patient/dashboard");
-    } else if (role === "admin") {
-      router("/admin/dashboard"); 
-    } else if (role === "hospital staff") {
-      router("/doctor/dashboard")
-    }
+    
+    // Clear any previous errors
+    setError("");
+    setIsLoading(true);
 
+    try {
+      // Actually authenticate with the backend
+      const result = await login(username, password);
+
+      if (result.success) {
+        // Get the user data to check their role
+        const userData = JSON.parse(localStorage.getItem('user') || '{}');
+        const actualRole = userData.role;
+
+        // Validate selected role tab matches the user's actual role
+        const isRoleMatch =
+          (role === 'patient' && actualRole === 'patient') ||
+          (role === 'hospital staff' && ['doctor', 'nurse', 'technician'].includes(actualRole)) ||
+          (role === 'admin' && actualRole === 'admin');
+
+        if (!isRoleMatch) {
+          // Role mismatch — log out the session and show error
+          localStorage.removeItem('authToken');
+          localStorage.removeItem('refreshToken');
+          localStorage.removeItem('user');
+          localStorage.removeItem('sessionExpiresAt');
+
+          const roleLabel =
+            role === 'patient' ? 'Patient' : role === 'hospital staff' ? 'Staff' : 'Admin';
+          setError(`This account is not a ${roleLabel} account. Please select the correct role tab.`);
+          setIsLoading(false);
+          return;
+        }
+        
+        // Redirect based on the user's actual role from the backend
+        if (actualRole === 'patient') {
+          router("/patient/dashboard");
+        } else if (actualRole === 'admin') {
+          router("/admin/dashboard");
+        } else if (actualRole === 'doctor' || actualRole === 'nurse' || actualRole === 'technician') {
+          router("/doctor/dashboard");
+        } else {
+          router("/patient/dashboard");
+        }
+      } else {
+        setError(result.error || "Login failed. Please check your credentials.");
+      }
+    } catch (err) {
+      setError("Network error. Please try again.");
+      console.error("Login error:", err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -121,8 +166,13 @@ export default function LoginPage() {
                               group-hover/item:w-full"/>
                 </a>
               </div>
-              <Button type="submit" size="default" className="w-full btn-gradient transition-transform duration-500">
-                Sign In
+              <Button 
+                type="submit" 
+                size="default" 
+                className="w-full btn-gradient transition-transform duration-500"
+                disabled={isLoading}
+              >
+                {isLoading ? "Signing in..." : "Sign In"}
               </Button>
             </form>
 

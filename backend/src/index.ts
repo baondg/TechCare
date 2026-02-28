@@ -6,8 +6,14 @@ const authRoutes = require('./authorization/routes');
 const systemConfigRoutes = require('./routes/systemConfig');
 const appointmentRoutes = require('./routes/appointmentRoutes');
 const profileRoutes = require('./routes/profileRoutes');
+const doctorRoutes = require('./routes/doctorRoutes');
 const sessionMiddleware = require('./middleware/sessionMiddleware');
 const sequelize = require('./common/database');
+
+// Import models so they sync
+require('./models/HealthInfo');
+require('./models/Diagnosis');
+require('./models/Prescription');
 
 // Load environment variables
 dotenv.config();
@@ -29,6 +35,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/system-config', systemConfigRoutes);
 app.use('/api/appointments', appointmentRoutes);
 app.use('/api/profile', profileRoutes);
+app.use('/api/doctor', doctorRoutes);
 const chatbotRoutes = require('./routes/chatbot');
 app.use('/api/chatbot', chatbotRoutes);
 
@@ -68,7 +75,7 @@ app.use((err: Error, req: Request, res: Response, next: Function) => {
 async function startServer() {
   try {
     // Sync database (create tables if they don't exist)
-    await sequelize.sync({ alter: false });
+    await sequelize.sync();
     console.log('✅ Database synced successfully');
     
     app.listen(PORT, () => {

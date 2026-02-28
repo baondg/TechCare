@@ -1,14 +1,64 @@
 const Appointment = require('../models/Appointment');
+const { Op } = require('sequelize');
+const sequelize = require('../common/database');
+const User = sequelize.models.user || require('../models/User')(sequelize);
+
+/**
+ * GET /api/appointments/doctors
+ * Return all active doctors (for patient booking)
+ */
+exports.getDoctors = async (req, res) => {
+  try {
+    const doctors = await User.findAll({
+      where: { role: 'doctor', isActive: true },
+      attributes: ['id', 'username', 'firstName', 'lastName', 'department'],
+      order: [['department', 'ASC'], ['firstName', 'ASC']]
+    });
+    res.json({ success: true, doctors });
+  } catch (error) {
+    console.error('Get doctors error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+/**
+ * GET /api/appointments/booked-slots?date=YYYY-MM-DD
+ * Return already-booked (time, doctor) pairs for a given date.
+ */
+exports.getBookedSlots = async (req, res) => {
+  try {
+    const { date } = req.query;
+    if (!date) return res.status(400).json({ message: 'date query param required' });
+
+    const booked = await Appointment.findAll({
+      where: {
+        date,
+        status: { [Op.in]: ['Pending', 'Confirmed'] }
+      },
+      attributes: ['doctor', 'time']
+    });
+
+    res.json({ success: true, slots: booked.map(b => ({ doctor: b.doctor, time: b.time })) });
+  } catch (error) {
+    console.error('Get booked slots error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
 
 exports.createAppointment = async (req, res) => {
   try {
     const { doctor, department, date, time, room, symptoms, notes } = req.body;
-    const userId = req.user.userId; // Get userId from authenticated token
-    
-    // Basic validation
+    const userId = req.user.userId;
+
     if (!doctor || !department || !date || !time) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
+
+    // Look up patient for display
+    const patientUser = await User.findByPk(userId, { attributes: ['username', 'firstName', 'lastName'] });
+    const patientName = patientUser 
+      ? `${patientUser.firstName || ''} ${patientUser.lastName || ''}`.trim() || patientUser.username
+      : String(userId);
 
     // Check for double booking
     const existingAppointment = await Appointment.findOne({
@@ -16,7 +66,7 @@ exports.createAppointment = async (req, res) => {
         doctor,
         date,
         time,
-        status: 'Upcoming' // Only check active appointments
+        status: { [Op.in]: ['Pending', 'Confirmed'] }
       }
     });
 
@@ -27,13 +77,14 @@ exports.createAppointment = async (req, res) => {
     const appointment = await Appointment.create({
       userId,
       doctor,
+      patient: patientName,
       department,
       date,
       time,
       room,
       symptoms,
       notes,
-      status: 'Upcoming'
+      status: 'Pending'
     });
 
     res.status(201).json({ success: true, appointment });
@@ -52,7 +103,27 @@ exports.getAppointments = async (req, res) => {
       order: [['date', 'DESC'], ['time', 'DESC']]
     });
 
-    res.status(200).json({ success: true, appointments });
+    // Enrich appointments with doctor full name
+    const enriched = await Promise.all(appointments.map(async (appt) => {
+      const a = appt.toJSON();
+      
+      // Find doctor by username and get full name
+      if (a.doctor) {
+        const doctorUser = await User.findOne({
+          where: { username: a.doctor },
+          attributes: ['id', 'username', 'firstName', 'lastName']
+        });
+        if (doctorUser) {
+          a.doctorFullName = `${doctorUser.firstName || ''} ${doctorUser.lastName || ''}`.trim() || doctorUser.username;
+          // Keep original doctor field for backward compatibility
+          a.doctor = a.doctorFullName;
+        }
+      }
+      
+      return a;
+    }));
+
+    res.status(200).json({ success: true, appointments: enriched });
   } catch (error) {
     console.error('Get appointments error:', error);
     res.status(500).json({ message: 'Internal server error', error: error.message });

@@ -4,11 +4,12 @@ import { useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Trash2, History, Pill } from "lucide-react"
+import {  Table,  TableHeader,  TableBody,  TableHead,  TableRow,  TableCell} from "@/components/ui/table"
 
 type Medication = {
   name: string
-  frequency: string
   quantity: string
+  frequency: string
   instruction: string
   note?: string
 }
@@ -17,7 +18,6 @@ type Prescription = {
   id: string
   date: string
   doctor: string
-  department: string
   medications: Medication[]
   isDraft?: boolean
 }
@@ -27,19 +27,18 @@ const MOCK_PRESCRIPTIONS: Prescription[] = [
     id: "rx-1",
     date: "16/10/2025 14:00",
     doctor: "Dr. Trang Thanh Nghiep",
-    department: "Cardiology",
     medications: [
       {
         name: "Paracetamol",
+        quantity: "14",
         frequency: "3 times daily",
-        quantity: "1 tablet each time",
         instruction: "After meal",
         note: "Use with caution in patients with drug allergies",
       },
       {
         name: "Vitamin C",
         frequency: "Once daily",
-        quantity: "1 tablet",
+        quantity: "12",
         instruction: "After meal",
       },
     ],
@@ -48,7 +47,6 @@ const MOCK_PRESCRIPTIONS: Prescription[] = [
     id: "rx-2",
     date: "10/10/2025 09:30",
     doctor: "Dr. Nguyen Van B",
-    department: "Internal Medicine",
     medications: [
       {
         name: "Amoxicillin",
@@ -97,7 +95,6 @@ export default function PatientPrescription() {
         id: "new",
         date: "New prescription",
         doctor: "Current doctor",
-        department: "Cardiology",
         medications: [],
         isDraft: true,
     }
@@ -147,34 +144,48 @@ export default function PatientPrescription() {
       {/* ===== LEFT: Prescription List ===== */}
       <Card className="col-span-4">
         <CardContent className="p-4 space-y-3">
-            <div className="flex">
-                <History></History>
-                <h3 className="font-semibold text-lg flex items-center gap-2 ml-2">
-                    History
-                </h3>
-            </div>
-          {MOCK_PRESCRIPTIONS.map(rx => (
-            <div
-              key={rx.id}
-              onClick={() => {
-                setSelectedRx({ ...rx, isDraft: false })
-                setDraftMeds([])
+          <div className="flex items-center gap-2">
+            <History size={18} />
+            <h3 className="font-semibold text-lg">Prescription History</h3>
+          </div>
+
+          <div className="overflow-x-auto border rounded-lg">
+            <Table className="min-w-[500px] w-full text-sm">
+              <TableHeader
+                className="text-white"
+                style={{
+                  background:
+                    "linear-gradient(135deg, #06b6d4 0%, #0891b2 50%, #06b6d4 100%)",
                 }}
-              className={`
-                cursor-pointer rounded-lg border p-3 transition
-                ${
-                  selectedRx.id === rx.id
-                    ? "bg-cyan-50 border-cyan-400"
-                    : "hover:bg-slate-50"
-                }
-              `}
-            >
-              <p className="font-medium">{rx.date}</p>
-              <p className="text-sm text-slate-600">
-                {rx.doctor} - {rx.department}
-              </p>
-            </div>
-          ))}
+              >
+                <TableRow>
+                  <TableHead className="p-2 text-left w-[100px] text-white">Date</TableHead>
+                  <TableHead className="p-2 text-left w-[200px] text-white">Doctor</TableHead>
+                </TableRow>
+              </TableHeader>
+
+              <TableBody>
+                {prescriptions.map(rx => (
+                  <TableRow
+                    key={rx.id}
+                    onClick={() => {
+                      setSelectedRx({ ...rx, isDraft: false })
+                      setDraftMeds([])
+                    }}
+                    className={`border-t cursor-pointer
+                      ${
+                        selectedRx.id === rx.id
+                          ? "bg-cyan-50"
+                          : ""
+                      }`}
+                  >
+                    <TableCell className="p-2">{rx.date}</TableCell>
+                    <TableCell className="p-2">{rx.doctor}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
 
@@ -202,27 +213,52 @@ export default function PatientPrescription() {
           </div>
 
           <div className="overflow-x-auto border rounded-lg">
-            <table className="w-full text-sm">
-              <thead className="bg-cyan-50 text-slate-600">
-                <tr>
-                  <th className="p-2 text-left">No.</th>
-                  <th className="p-2 text-left">Medication Name</th>
-                  <th className="p-2 text-left">Frequency</th>
-                  <th className="p-2 text-left">Quantity</th>
-                  <th className="p-2 text-left">Usage Instruction</th>
-                  <th className="p-2 text-left">Note</th>
-                  <th className="p-2"></th>
-                </tr>
-              </thead>
+            <Table className="w-full text-sm">
+              <TableHeader>
+                {/* HEADER ROW 1 */}
+                <TableRow
+                  style={{
+                    background:
+                      "linear-gradient(135deg, #06b6d4 0%, #0891b2 50%, #06b6d4 100%)",
+                  }}
+                >
+                  <TableHead rowSpan={2} className="p-2 text-white">No.</TableHead>
 
-                <tbody>
+                  <TableHead rowSpan={2} className="p-2 text-white whitespace-nowrap">
+                    Medication Name
+                  </TableHead>
+
+                  <TableHead rowSpan={2} className="p-2 text-white">
+                    Quantity
+                  </TableHead>
+
+                  <TableHead colSpan={3} className="p-2 text-center text-white">
+                    Instruction
+                  </TableHead>
+
+                  <TableHead rowSpan={2}></TableHead>
+                </TableRow>
+
+                {/* HEADER ROW 2 */}
+                <TableRow
+                  style={{
+                    background:
+                      "linear-gradient(135deg, #06b6d4 0%, #0891b2 50%, #06b6d4 100%)",
+                  }}
+                >
+                  <TableHead className="p-2 text-white text-center">Frequency (per day)</TableHead>
+                  <TableHead className="p-2 text-white text-center">Usage</TableHead>
+                  <TableHead className="p-2 text-white text-center">Note</TableHead>
+                </TableRow>
+              </TableHeader>
+                <TableBody>
                     {/* ===== MODE: CREATE NEW PRESCRIPTION ===== */}
                     {selectedRx.isDraft ? (
                         draftMeds.map((med, index) => (
-                        <tr key={index} className="border-t" onBlur={() => handleRowBlur(index)}>
-                            <td className="p-2">{index + 1}</td>
+                        <TableRow key={index} className="border-t" onBlur={() => handleRowBlur(index)}>
+                            <TableCell className="p-2">{index + 1}</TableCell>
 
-                            <td className="p-2">
+                            <TableCell className="p-2">
                             <input
                                 className="w-full border rounded px-2 py-1"
                                 value={med.name}
@@ -231,20 +267,9 @@ export default function PatientPrescription() {
                                 updateMedication(index, "name", e.target.value)
                                 }
                             />
-                            </td>
+                            </TableCell>
 
-                            <td className="p-2">
-                            <input
-                                className="w-full border rounded px-2 py-1"
-                                value={med.frequency}
-                                placeholder="e.g. 3 times daily"
-                                onChange={e =>
-                                updateMedication(index, "frequency", e.target.value)
-                                }
-                            />
-                            </td>
-
-                            <td className="p-2">
+                            <TableCell className="p-2">
                             <input
                                 className="w-full border rounded px-2 py-1"
                                 value={med.quantity}
@@ -253,9 +278,20 @@ export default function PatientPrescription() {
                                 updateMedication(index, "quantity", e.target.value)
                                 }
                             />
-                            </td>
+                            </TableCell>
 
-                            <td className="p-2">
+                            <TableCell className="p-2">
+                            <input
+                                className="w-full border rounded px-2 py-1"
+                                value={med.frequency}
+                                placeholder="e.g. 3 times daily"
+                                onChange={e =>
+                                updateMedication(index, "frequency", e.target.value)
+                                }
+                            />
+                            </TableCell>
+
+                            <TableCell className="p-2">
                             <input
                                 className="w-full border rounded px-2 py-1"
                                 value={med.instruction}
@@ -264,9 +300,9 @@ export default function PatientPrescription() {
                                 updateMedication(index, "instruction", e.target.value)
                                 }
                             />
-                            </td>
+                            </TableCell>
 
-                            <td className="p-2">
+                            <TableCell className="p-2">
                             <input
                                 className="w-full border rounded px-2 py-1"
                                 value={med.note}
@@ -275,9 +311,9 @@ export default function PatientPrescription() {
                                 updateMedication(index, "note", e.target.value)
                                 }
                             />
-                            </td>
+                            </TableCell>
 
-                            <td className="p-2 text-center">
+                            <TableCell className="p-2 text-center">
                                 {index !== draftMeds.length - 1 && (
                                     <button
                                     onClick={() => removeMedication(index)}
@@ -287,25 +323,25 @@ export default function PatientPrescription() {
                                     <Trash2 size={16} />
                                     </button>
                                 )}
-                            </td>
-                        </tr>
+                            </TableCell>
+                        </TableRow>
                         ))
                     ) : (
                         /* ===== MODE: VIEW EXISTING PRESCRIPTION ===== */
                         selectedRx.medications.map((med, index) => (
-                        <tr key={index} className="border-t hover:bg-slate-50">
-                            <td className="p-2">{index + 1}</td>
-                            <td className="p-2">{med.name}</td>
-                            <td className="p-2">{med.frequency}</td>
-                            <td className="p-2">{med.quantity}</td>
-                            <td className="p-2">{med.instruction}</td>
-                            <td className="p-2">{med.note ?? "-"}</td>
-                            <td className="p-2"></td>
-                        </tr>
+                        <TableRow key={index} className="border-t hover:bg-slate-50">
+                            <TableCell className="p-2">{index + 1}</TableCell>
+                            <TableCell className="p-2">{med.name}</TableCell>
+                            <TableCell className="p-2 text-center">{med.quantity}</TableCell>
+                            <TableCell className="p-2">{med.frequency}</TableCell>
+                            <TableCell className="p-2">{med.instruction}</TableCell>
+                            <TableCell className="p-2">{med.note ?? "-"}</TableCell>
+                            <TableCell className="p-2"></TableCell>
+                        </TableRow>
                         ))
                     )}
-                </tbody>
-            </table>
+                </TableBody>
+            </Table>
           </div>
         </CardContent>
       </Card>

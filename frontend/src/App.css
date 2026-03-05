@@ -714,5 +714,20 @@ nav a:not(.sidebar):hover .nav-text::after {
         
     }
 
+    /* ================== NUMBER INPUT SPINNER ================== */
+
+    /* Chrome, Edge, Safari */
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button {
+    opacity: 1;        /* luôn hiện */
+    height: auto;
+    }
+
+    /* Firefox */
+    input[type="number"] {
+    -moz-appearance: number-input;
+    }
+
+
     
 }

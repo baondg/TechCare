@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { UserPlus, Trash2, Save, X, Edit3, CheckCircle, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react"
+import { UserPlus, Trash2, Save, X, Edit3, CheckCircle, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ArrowUpDown, Search, Calendar } from "lucide-react"
 import { AdminLayout } from "@/components/admin-layout"
 import { Checkbox } from "@/components/ui/checkbox"
 
@@ -95,9 +95,9 @@ export default function UserManagement() {
     { key: "email", label: "Email" },
   ]
 
-  const [visibleColumns, setVisibleColumns] = useState<ColumnKey[]>(
-    columns.map(c => c.key) // mặc định hiện hết
-  )
+  const allColumns = columns.map(c => c.key)
+
+  const [visibleColumns, setVisibleColumns] = useState<ColumnKey[]>(allColumns)
 
   type SortKey = keyof Patient | "no"
 
@@ -174,38 +174,44 @@ export default function UserManagement() {
 
       case "nationalId":
         return (
-          <Input
-            placeholder="Search ID..."
-            value={filters.nationalId}
-            onChange={e =>
-              setFilters(f => ({ ...f, nationalId: e.target.value }))
-            }
-            className="h-8 text-xs"
-          />
+          <div className="relative">
+            <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Input
+              value={filters.nationalId}
+              onChange={e =>
+                setFilters(f => ({ ...f, nationalId: e.target.value }))
+              }
+              className="h-8 text-xs pr-8"
+            />
+          </div>
         )
 
       case "name":
         return (
-          <Input
-            placeholder="Name..."
-            value={filters.name}
-            onChange={e =>
-              setFilters(f => ({ ...f, name: e.target.value }))
-            }
-            className="h-8 text-xs"
-          />
+          <div className="relative">
+            <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Input
+              value={filters.name}
+              onChange={e =>
+                setFilters(f => ({ ...f, name: e.target.value }))
+              }
+              className="h-8 text-xs pr-8"
+            />
+          </div>
         )
 
       case "username":
         return (
-          <Input
-            placeholder="Username..."
-            value={filters.username}
-            onChange={e =>
-              setFilters(f => ({ ...f, username: e.target.value }))
-            }
-            className="h-8 text-xs"
-          />
+          <div className="relative">
+            <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Input
+              value={filters.username}
+              onChange={e =>
+                setFilters(f => ({ ...f, username: e.target.value }))
+              }
+              className="h-8 text-xs pr-8"
+            />
+          </div>
         )
 
       case "sex":
@@ -229,38 +235,44 @@ export default function UserManagement() {
 
       case "dob":
         return (
-          <Input
-            placeholder="dd/mm/yyyy"
-            value={filters.dob}
-            onChange={e =>
-              setFilters(f => ({ ...f, dob: e.target.value }))
-            }
-            className="h-8 text-xs"
-          />
+          <div className="relative">
+            <Calendar className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Input
+              value={filters.dob}
+              onChange={e =>
+                setFilters(f => ({ ...f, dob: e.target.value }))
+              }
+              className="h-8 text-xs pr-8"
+            />
+          </div>
         )
 
       case "phone":
         return (
-          <Input
-            placeholder="Phone..."
-            value={filters.phone}
-            onChange={e =>
-              setFilters(f => ({ ...f, phone: e.target.value }))
-            }
-            className="h-8 text-xs"
-          />
+          <div className="relative">
+            <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Input
+              value={filters.phone}
+              onChange={e =>
+                setFilters(f => ({ ...f, phone: e.target.value }))
+              }
+              className="h-8 text-xs pr-8"
+            />
+          </div>
         )
 
       case "email":
         return (
-          <Input
-            placeholder="Email..."
-            value={filters.email}
-            onChange={e =>
-              setFilters(f => ({ ...f, email: e.target.value }))
-            }
-            className="h-8 text-xs"
-          />
+          <div className="relative">
+            <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Input
+              value={filters.email}
+              onChange={e =>
+                setFilters(f => ({ ...f, email: e.target.value }))
+              }
+              className="h-8 text-xs pr-8"
+            />
+          </div>
         )
 
       default:
@@ -277,20 +289,34 @@ export default function UserManagement() {
         <div className="flex justify-between items-center">
           <div className="p-4">
             <div className="flex flex-wrap gap-4">
-              {columns.map(col => (
+              <div className="flex flex-wrap gap-2">
                 <Checkbox
-                  key={col.key}
-                  label={col.label}
-                  checked={visibleColumns.includes(col.key)}
-                  onChange={(checked) =>
-                    setVisibleColumns(prev =>
-                      checked
-                        ? [...prev, col.key]
-                        : prev.filter(k => k !== col.key)
-                    )
-                  }
+                  label="Show All"
+                  checked={visibleColumns.length === allColumns.length}
+                  onChange={(checked) => {
+                    if (checked) {
+                      setVisibleColumns(allColumns)
+                    }
+                  }}
                 />
-              ))}
+
+                {columns
+                  .filter(col => col.key !== "no")
+                  .map(col => (
+                    <Checkbox
+                      key={col.key}
+                      label={col.label}
+                      checked={visibleColumns.includes(col.key)}
+                      onChange={(checked) =>
+                        setVisibleColumns(prev =>
+                          checked
+                            ? [...prev, col.key]
+                            : prev.filter(k => k !== col.key)
+                        )
+                      }
+                    />
+                  ))}
+              </div>
             </div>
           </div>
           <div className="flex gap-3">
@@ -308,16 +334,21 @@ export default function UserManagement() {
           <Card className="flex flex-col h-[560px]">
             <CardContent className="flex-1 p-0 overflow-hidden">
               <div className="h-full overflow-y-auto">
-                <Table className="">
+                <Table className="table-fixed w-max">
                   {/* Header cố định */}
-                  <TableHeader className="sticky top-0 z-20 bg-gray-50">
+                  <TableHeader
+                    className="sticky top-0 z-20 text-white"
+                    style={{
+                      background: "linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)"
+                    }}
+                  >
                     <TableRow>
                       {columns.map(col =>
                         visibleColumns.includes(col.key) ? (
                           <TableHead
                             key={col.key}
                             onClick={() => handleSort(col.key)}
-                            className="cursor-pointer select-none"
+                            className="cursor-pointer select-none whitespace-nowrap text-white transition"
                           >
                             {col.label}
                             <SortIcon column={col.key} />
@@ -325,7 +356,7 @@ export default function UserManagement() {
                         ) : null
                       )}
                     </TableRow>
-                    <TableRow className="border-b">
+                    <TableRow className="border-b hover:bg-white transition-colors">
                       {columns.map(col =>
                         visibleColumns.includes(col.key) ? (
                           <TableHead key={col.key} className="px-2 py-2">
@@ -344,9 +375,7 @@ export default function UserManagement() {
                           selectedPatient?.id === patient.id ? "bg-cyan-50" : ""
                         }`}
                       > 
-                        {visibleColumns.includes("no") && (
-                          <TableCell>{startItem + idx}</TableCell>
-                        )}
+                        <TableCell>{startItem + idx}</TableCell>
 
                         {visibleColumns.includes("nationalId") && (
                           <TableCell>{patient.nationalId}</TableCell>

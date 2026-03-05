@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent} from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ChevronLeft, ChevronRight, CalendarIcon } from "lucide-react"
+import { ChevronLeft, ChevronRight, CalendarIcon, Search,  } from "lucide-react"
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 import { TechnicianLayout } from "@/components/technician-layout"
 import { Popover,  PopoverContent,  PopoverTrigger} from "@/components/ui/popover"
@@ -46,7 +46,7 @@ const columns: {
   { key: "diagnosis", label: "Diagnosis", sortable: true },
   { key: "doctor", label: "Doctor", sortable: true },
   { key: "recoverDays", label: "Remaining days", sortable: true },
-  { key: "recoverPercent", label: "Progress", sortable: true },
+  { key: "recoverPercent", label: "Progress (%)", sortable: true },
 ]
 
 const ICD10_MAP: Record<string, string> = {
@@ -63,7 +63,7 @@ const ICD10_MAP: Record<string, string> = {
 }
 
 
-export default function TechnicianPatients() {
+export default function DoctorPatients() {
     const navigate = useNavigate()
     const [patients] = useState<Patient[]>([
         { id: "OP123456789", name: "Nguyễn Văn An", sex: "M", age: 46, latestVisit: "07/10/2025", diagnosis: "Z59.1", doctor: "Dr. Trần Thanh Nghiệp", recoverDays: 2, recoverPercent: 70 },
@@ -137,9 +137,9 @@ export default function TechnicianPatients() {
       })
     }
 
-    const [visibleColumns, setVisibleColumns] = useState<ColumnKey[]>(
-      columns.map(c => c.key)
-    )
+    const allColumns = columns.map(c => c.key)
+
+    const [visibleColumns, setVisibleColumns] = useState<ColumnKey[]>(allColumns)
 
     const sortedPatients = useMemo(() => {
       if (!sortConfig) return filteredPatients
@@ -191,7 +191,16 @@ export default function TechnicianPatients() {
           <div>
             <h2 className="text-2xl font-bold">Patient List</h2>
             <div className="flex flex-wrap gap-4">
-              {columns.map(col => (
+              <Checkbox
+                label="Show All"
+                checked={visibleColumns.length === allColumns.length}
+                onChange={(checked) => {
+                  if (checked) {
+                    setVisibleColumns(allColumns)
+                  }
+                }}
+              />
+              {columns.filter(col => col.key !== "no").map(col => (
                 <Checkbox
                   key={col.key}
                   label={col.label}
@@ -227,16 +236,19 @@ export default function TechnicianPatients() {
             <CardContent className="p-0 h-full flex flex-col">
               <div className="flex-1 overflow-y-auto">
                 <Table>
-                  <TableHeader className="bg-gray-50 sticky top-0 z-10">
+                  <TableHeader
+                    className="sticky top-0 z-20 text-white"
+                    style={{
+                      background: "linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)"
+                    }}
+                  >
                     <TableRow>
                       {columns.map(col =>
                         visibleColumns.includes(col.key) ? (
                           <TableHead
                             key={col.key}
                             onClick={() => col.sortable && handleSort(col.key)}
-                            className={cn(
-                              col.sortable && "cursor-pointer select-none"
-                            )}
+                            className="cursor-pointer select-none whitespace-nowrap text-white transition"
                           >
                             {col.label}
                             {col.sortable && <SortIcon column={col.key} />}
@@ -244,32 +256,36 @@ export default function TechnicianPatients() {
                         ) : null
                       )}
                     </TableRow>
-                    <TableRow>
+                    <TableRow className="border-b hover:bg-white transition-colors">
                       {columns.map(col =>
                         visibleColumns.includes(col.key) ? (
                           <TableHead key={col.key}>
                             {col.key === "no" && null}
 
                             {col.key === "id" && (
-                              <Input
-                                placeholder="Search ID..."
-                                value={filters.patientId}
-                                onChange={(e) =>
-                                  setFilters({ ...filters, patientId: e.target.value })
-                                }
-                                className="h-8 text-xs"
-                              />
+                              <div className="relative">
+                                <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                <Input
+                                  value={filters.patientId}
+                                  onChange={(e) =>
+                                    setFilters({ ...filters, patientId: e.target.value })
+                                  }
+                                  className="h-8 text-xs pr-8"
+                                />
+                              </div>
                             )}
 
                             {col.key === "name" && (
-                              <Input
-                                placeholder="Search name..."
-                                value={filters.name}
-                                onChange={(e) =>
-                                  setFilters({ ...filters, name: e.target.value })
-                                }
-                                className="h-8 text-xs"
-                              />
+                              <div className="relative">
+                                <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                <Input
+                                  value={filters.name}
+                                  onChange={(e) =>
+                                    setFilters({ ...filters, name: e.target.value })
+                                  }
+                                  className="h-8 text-xs pr-8"
+                                />
+                              </div>
                             )}
 
                             {col.key === "sex" && (
@@ -293,7 +309,6 @@ export default function TechnicianPatients() {
                             {col.key === "age" && (
                               <Input
                                 type="number"
-                                placeholder="Age"
                                 value={filters.age}
                                 onChange={(e) =>
                                   setFilters({ ...filters, age: e.target.value })
@@ -330,31 +345,34 @@ export default function TechnicianPatients() {
                             )}
 
                             {col.key === "diagnosis" && (
-                              <Input
-                                placeholder="Search..."
-                                value={filters.diagnosis}
-                                onChange={(e) =>
-                                  setFilters({ ...filters, diagnosis: e.target.value })
-                                }
-                                className="h-8 text-xs"
-                              />
+                              <div className="relative">
+                                <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                <Input
+                                  value={filters.diagnosis}
+                                  onChange={(e) =>
+                                    setFilters({ ...filters, diagnosis: e.target.value })
+                                  }
+                                  className="h-8 text-xs"
+                                />
+                              </div>
                             )}
 
                             {col.key === "doctor" && (
-                              <Input
-                                placeholder="Search doctor..."
-                                value={filters.doctor}
-                                onChange={(e) =>
-                                  setFilters({ ...filters, doctor: e.target.value })
-                                }
-                                className="h-8 text-xs"
-                              />
+                              <div className="relative">
+                                <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                <Input
+                                  value={filters.doctor}
+                                  onChange={(e) =>
+                                    setFilters({ ...filters, doctor: e.target.value })
+                                  }
+                                  className="h-8 text-xs pr-8"
+                                />
+                              </div>
                             )}
 
                             {col.key === "recoverDays" && (
                               <Input
                                 type="number"
-                                placeholder="Days"
                                 value={filters.recoverDays}
                                 onChange={(e) =>
                                   setFilters({ ...filters, recoverDays: e.target.value })
@@ -366,7 +384,6 @@ export default function TechnicianPatients() {
                             {col.key === "recoverPercent" && (
                               <Input
                                 type="number"
-                                placeholder="%"
                                 value={filters.recoverPercent}
                                 onChange={(e) =>
                                   setFilters({ ...filters, recoverPercent: e.target.value })
@@ -385,7 +402,7 @@ export default function TechnicianPatients() {
                       <TableRow
                         key={patient.id}
                         onClick={() =>
-                          navigate(`/technician/medical_records/${patient.id}/lab`)
+                          navigate(`/technician/medical_records/${patient.id}/dashboard`)
                         }
                         className="hover:bg-muted/50 cursor-pointer h-14 transition-colors"
                       >

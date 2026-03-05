@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { History, Search } from "lucide-react"
+import {  Table,  TableHeader,  TableBody,  TableHead,  TableRow,  TableCell} from "@/components/ui/table"
 
 type Diagnosis = {
   id: string
@@ -63,33 +64,50 @@ export default function PatientDiagnosis() {
 
   return (
     <div className="grid grid-cols-12 gap-6">
-      {/* ===== LEFT: HISTORY ===== */}
+      {/* ===== LEFT: HISTORY TABLE ===== */}
       <Card className="col-span-4">
         <CardContent className="p-4 space-y-3">
           <div className="flex items-center gap-2">
             <History size={18} />
-            <h3 className="font-semibold text-lg">History</h3>
+            <h3 className="font-semibold text-lg">Diagnosis History</h3>
           </div>
 
-          {diagnoses.map(dx => (
-            <div
-              key={dx.id}
-              onClick={() =>
-                setSelectedDx({ ...dx, isDraft: false })
-              }
-              className={`cursor-pointer rounded-lg border p-3 transition
-                ${
-                  selectedDx.id === dx.id
-                    ? "bg-cyan-50 border-cyan-400"
-                    : "hover:bg-slate-50"
-                }`}
-            >
-              <p className="font-medium">{dx.date}</p>
-              <p className="text-sm text-slate-600">
-                {dx.doctor} – {dx.department}
-              </p>
-            </div>
-          ))}
+          <div className="overflow-x-auto border rounded-lg">
+            <Table className="min-w-[500px] w-full text-sm">
+              <TableHeader
+                className="text-white"
+                style={{
+                  background:
+                    "linear-gradient(135deg, #06b6d4 0%, #0891b2 50%, #06b6d4 100%)",
+                }}
+              >
+                <TableRow>
+                  <TableHead className="p-2 text-left w-[140px] text-white">Date</TableHead>
+                  <TableHead className="p-2 text-left w-[180px] text-white">Doctor</TableHead>
+                  <TableHead className="p-2 text-left w-[150px] text-white">Department</TableHead>
+                </TableRow>
+              </TableHeader>
+
+              <TableBody>
+                {diagnoses.map(dx => (
+                  <TableRow
+                    key={dx.id}
+                    onClick={() => setSelectedDx({ ...dx, isDraft: false })}
+                    className={`border-t cursor-pointer transition
+                    ${
+                      selectedDx.id === dx.id
+                        ? "bg-cyan-50"
+                        : ""
+                    }`}
+                  >
+                    <TableCell className="p-2">{dx.date}</TableCell>
+                    <TableCell className="p-2">{dx.doctor}</TableCell>
+                    <TableCell className="p-2">{dx.department}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
 

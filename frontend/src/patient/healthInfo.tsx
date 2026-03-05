@@ -328,20 +328,24 @@ export default function HealthInfoPage() {
           <CardContent className="flex-1 p-0 overflow-hidden">
             <div className="h-full overflow-auto">
               <Table>
-                <TableHeader className="sticky top-0 z-10 bg-gray-50 border-b">
+                <TableHeader 
+                  className="sticky top-0 z-10 bg-gray-50 border-b" style={{
+                  background:
+                    "linear-gradient(135deg, #06b6d4 0%, #0891b2 50%, #06b6d4 100%)",
+                  }}>
                   <TableRow>
-                    <TableHead className="w-12 text-center">No.</TableHead>
-                    <TableHead className="w-40">Updated Time</TableHead>
-                    <TableHead className="w-24 text-center">Height</TableHead>
-                    <TableHead className="w-24 text-center">Weight</TableHead>
-                    <TableHead className="w-20 text-center">BMI</TableHead>
-                    <TableHead className="w-32 text-center">BP</TableHead>
-                    <TableHead className="w-24 text-center">HR</TableHead>
-                    <TableHead className="w-28 text-center">Resp.</TableHead>
-                    <TableHead className="w-28 text-center">Temp</TableHead>
-                    <TableHead className="w-24 text-center">SpO2</TableHead>
-                    <TableHead>Symptoms</TableHead>
-                    <TableHead className="w-28">By</TableHead>
+                    <TableHead className="w-12 text-center text-white">No.</TableHead>
+                    <TableHead className="w-40 text-white">Updated Time</TableHead>
+                    <TableHead className="w-24 text-center text-white">Height</TableHead>
+                    <TableHead className="w-24 text-center text-white">Weight</TableHead>
+                    <TableHead className="w-20 text-center text-white">BMI</TableHead>
+                    <TableHead className="w-32 text-center text-white">BP</TableHead>
+                    <TableHead className="w-24 text-center text-white">HR</TableHead>
+                    <TableHead className="w-28 text-center text-white">Resp.</TableHead>
+                    <TableHead className="w-28 text-center text-white">Temp</TableHead>
+                    <TableHead className="w-24 text-center text-white">SpO2</TableHead>
+                    <TableHead className="text-white">Symptoms</TableHead>
+                    <TableHead className="w-28  text-white">By</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

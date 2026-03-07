@@ -1,266 +1,18 @@
-"use client"
+﻿"use client"
 
-<<<<<<< HEAD
-import { useState, useEffect, useMemo } from "react"
-=======
-<<<<<<< HEAD
-import { useState, useEffect, useMemo } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Card, CardContent } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react"
-import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
-import { DoctorLayout } from "@/components/doctor-layout"
-import { cn } from "@/lib/utils"
-import { useNavigate } from "react-router-dom"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { doctorService, type Patient } from "@/services/doctor-service"
-
-const ICD10_MAP: Record<string, string> = {
-  "Z59.1": "Housing and economic circumstances",
-  "J45.9": "Asthma, unspecified",
-  "I10": "Essential (primary) hypertension",
-  "E11.9": "Type 2 diabetes mellitus without complications",
-  "K29.5": "Chronic gastritis, unspecified",
-  "M79.1": "Myalgia",
-  "J06.9": "Acute upper respiratory infection, unspecified",
-  "I50.9": "Heart failure, unspecified",
-  "N39.0": "Urinary tract infection, site not specified",
-  "R51": "Headache",
-  "R07.9": "Chest pain, unspecified",
-}
-
-type ColumnKey = "no" | "id" | "name" | "age" | "latestVisit" | "diagnosis" | "doctor" | "bmi"
-
-const columns: { key: ColumnKey; label: string; sortable?: boolean }[] = [
-  { key: "no", label: "No." },
-  { key: "id", label: "Patient ID", sortable: true },
-  { key: "name", label: "Name", sortable: true },
-  { key: "age", label: "Age", sortable: true },
-  { key: "latestVisit", label: "Latest visit", sortable: true },
-  { key: "diagnosis", label: "Diagnosis", sortable: true },
-  { key: "doctor", label: "Doctor", sortable: true },
-  { key: "bmi", label: "BMI", sortable: true },
-]
-
-export default function DoctorPatients() {
-  const navigate = useNavigate()
-  const [patients, setPatients] = useState<Patient[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState("")
-
-  const [filters, setFilters] = useState({
-    name: "",
-    age: "",
-    diagnosis: "",
-    doctor: "",
-  })
-
-  const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
-  const [sortConfig, setSortConfig] = useState<{ key: ColumnKey; direction: "asc" | "desc" } | null>(null)
-  const [visibleColumns, setVisibleColumns] = useState<ColumnKey[]>(columns.map(c => c.key))
-
-  useEffect(() => {
-    loadPatients()
-  }, [])
-
-  const loadPatients = async () => {
-    try {
-      setLoading(true)
-      setError("")
-      const res = await doctorService.getPatients()
-      setPatients(res.patients)
-    } catch (err: any) {
-      setError(err.message || "Failed to load patients")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const filteredPatients = useMemo(() => {
-    return patients.filter(p => {
-      const name = `${p.firstName || ""} ${p.lastName || ""}`.toLowerCase()
-      const matchAge = !filters.age || (p.age != null && p.age === Number(filters.age))
-      const diagnosis = p.latestDiagnosis?.icd10 || ""
-      const doctor = p.doctor || ""
-
-      return (
-        name.includes(filters.name.toLowerCase()) &&
-        diagnosis.toLowerCase().includes(filters.diagnosis.toLowerCase()) &&
-        doctor.toLowerCase().includes(filters.doctor.toLowerCase()) &&
-        matchAge
-      )
-    })
-  }, [patients, filters])
-
-  const totalPages = Math.ceil(filteredPatients.length / pageSize)
-
-  const handleSort = (key: ColumnKey) => {
-    setSortConfig(prev => {
-      if (prev?.key === key) return { key, direction: prev.direction === "asc" ? "desc" : "asc" }
-      return { key, direction: "asc" }
-    })
-  }
-
-  const sortedPatients = useMemo(() => {
-    if (!sortConfig) return filteredPatients
-    const { key, direction } = sortConfig
-
-    return [...filteredPatients].sort((a, b) => {
-      let aVal: any, bVal: any
-
-      switch (key) {
-        case "name":
-          aVal = `${a.firstName} ${a.lastName}`; bVal = `${b.firstName} ${b.lastName}`; break
-        case "age":
-          aVal = a.age ?? 0; bVal = b.age ?? 0; break
-        case "latestVisit":
-          aVal = a.latestVisit || ""; bVal = b.latestVisit || ""; break
-        case "diagnosis":
-          aVal = a.latestDiagnosis?.icd10 || ""; bVal = b.latestDiagnosis?.icd10 || ""; break
-        case "doctor":
-          aVal = a.doctor || ""; bVal = b.doctor || ""; break
-        case "bmi":
-          aVal = a.bmi ?? 0; bVal = b.bmi ?? 0; break
-        default: return 0
-      }
-
-      if (typeof aVal === "string") return direction === "asc" ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal)
-      return direction === "asc" ? (aVal > bVal ? 1 : -1) : (aVal < bVal ? 1 : -1)
-    })
-  }, [filteredPatients, sortConfig])
-
-  const paginatedPatients = sortedPatients.slice((currentPage - 1) * pageSize, currentPage * pageSize)
-
-  const SortIcon = ({ column }: { column: ColumnKey }) => {
-    if (sortConfig?.key !== column) return <span className="ml-1">⇅</span>
-    return <span className="ml-1">{sortConfig.direction === "asc" ? "↑" : "↓"}</span>
-  }
-
-  return (
-    <DoctorLayout>
-      <div className="p-1 space-y-1">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold">Patient List</h2>
-            <div className="flex flex-wrap gap-4">
-              {columns.map(col => (
-                <Checkbox
-                  key={col.key}
-                  label={col.label}
-                  checked={visibleColumns.includes(col.key)}
-                  onChange={(checked) =>
-                    setVisibleColumns(prev => checked ? [...prev, col.key] : prev.filter(k => k !== col.key))
-                  }
-                />
-              ))}
-            </div>
-          </div>
-          <Button onClick={loadPatients} variant="outline" disabled={loading}>
-            {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-            Refresh
-          </Button>
-        </div>
-
-        {error && <div className="bg-red-50 text-red-700 px-4 py-2 rounded">{error}</div>}
-
-        <Card className="h-[560px]">
-          <CardContent className="p-0 h-full flex flex-col">
-            <div className="flex-1 overflow-y-auto">
-              {loading ? (
-                <div className="flex items-center justify-center h-full text-slate-500">
-                  <Loader2 className="h-6 w-6 animate-spin mr-2" /> Loading patients...
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader className="bg-gray-50 sticky top-0 z-10">
-                    <TableRow>
-                      {columns.map(col =>
-                        visibleColumns.includes(col.key) ? (
-                          <TableHead key={col.key} onClick={() => col.sortable && handleSort(col.key)}
-                            className={cn(col.sortable && "cursor-pointer select-none")}>
-                            {col.label}{col.sortable && <SortIcon column={col.key} />}
-                          </TableHead>
-                        ) : null
-                      )}
-                    </TableRow>
-                    <TableRow>
-                      {columns.map(col =>
-                        visibleColumns.includes(col.key) ? (
-                          <TableHead key={col.key}>
-                            {col.key === "name" && <Input placeholder="Search name..." value={filters.name} onChange={e => setFilters({ ...filters, name: e.target.value })} className="h-8 text-xs" />}
-                            {col.key === "age" && <Input type="number" placeholder="Age" value={filters.age} onChange={e => setFilters({ ...filters, age: e.target.value })} className="h-8 text-xs text-center" />}
-                            {col.key === "diagnosis" && <Input placeholder="Search..." value={filters.diagnosis} onChange={e => setFilters({ ...filters, diagnosis: e.target.value })} className="h-8 text-xs" />}
-                            {col.key === "doctor" && <Input placeholder="Search doctor..." value={filters.doctor} onChange={e => setFilters({ ...filters, doctor: e.target.value })} className="h-8 text-xs" />}
-                          </TableHead>
-                        ) : null
-                      )}
-                    </TableRow>
-                  </TableHeader>
-
-                  <TableBody>
-                    {paginatedPatients.map((patient, index) => (
-                      <TableRow key={patient.id} onClick={() => navigate(`/doctor/medical_records/${patient.id}/dashboard`)}
-                        className="hover:bg-muted/50 cursor-pointer h-14 transition-colors">
-                        {visibleColumns.includes("no") && <TableCell className="text-center font-medium">{(currentPage - 1) * pageSize + index + 1}</TableCell>}
-                        {visibleColumns.includes("id") && <TableCell className="font-medium">{patient.username}</TableCell>}
-                        {visibleColumns.includes("name") && <TableCell>{`${patient.firstName || ""} ${patient.lastName || ""}`}</TableCell>}
-                        {visibleColumns.includes("age") && <TableCell className="text-center">{patient.age ?? "-"}</TableCell>}
-                        {visibleColumns.includes("latestVisit") && (
-                          <TableCell className="text-center">
-                            {patient.latestVisit ? new Date(patient.latestVisit).toLocaleDateString("en-GB") : "-"}
-                          </TableCell>
-                        )}
-                        {visibleColumns.includes("diagnosis") && (
-                          <TableCell className="text-center">
-                            {patient.latestDiagnosis ? (
-                              <TooltipProvider delayDuration={0}>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <span className="cursor-help underline decoration-dotted">{patient.latestDiagnosis.icd10}</span>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="top" className="bg-linear-to-br from-[#06b6d4] to-[#0891b2]">
-                                    <b className="text-sm max-w-xs">{ICD10_MAP[patient.latestDiagnosis.icd10] || patient.latestDiagnosis.interpretation || "No description"}</b>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            ) : "-"}
-                          </TableCell>
-                        )}
-                        {visibleColumns.includes("doctor") && <TableCell>{patient.doctor || "-"}</TableCell>}
-                        {visibleColumns.includes("bmi") && <TableCell className="text-center">{patient.bmi != null ? patient.bmi.toFixed(1) : "-"}</TableCell>}
-                      </TableRow>
-                    ))}
-
-                    {paginatedPatients.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={visibleColumns.length} className="text-center py-10 text-muted-foreground">No patients found.</TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              )}
-            </div>
-
-            <div className="flex items-center justify-between px-6 py-4 bg-gray-50 border-t text-sm">
-              <div className="flex items-center gap-3">
-                <span>Show</span>
-                <Select value={pageSize.toString()} onValueChange={v => { setPageSize(Number(v)); setCurrentPage(1) }}>
-                  <SelectTrigger className="w-20 h-9"><SelectValue /></SelectTrigger>
-=======
 import { useState, useMemo } from "react"
->>>>>>> backend
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent} from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ChevronLeft, ChevronRight, CalendarIcon, Search,  } from "lucide-react"
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 import { DoctorLayout } from "@/components/doctor-layout"
+import { Popover,  PopoverContent,  PopoverTrigger} from "@/components/ui/popover"
+import { format } from "date-fns"
+import { vi } from "date-fns/locale"
 import { cn } from "@/lib/utils"
+import { Calendar } from "@/components/ui/calendar"
 import { useNavigate } from "react-router-dom"
 import { Checkbox } from "@/components/ui/checkbox"
 import {Tooltip,TooltipContent,TooltipProvider,TooltipTrigger,} from "@/components/ui/tooltip"
@@ -308,74 +60,63 @@ const ICD10_MAP: Record<string, string> = {
   "I50.9": "Heart failure, unspecified",
   "N39.0": "Urinary tract infection, site not specified",
   "R51": "Headache",
-  "R07.9": "Chest pain, unspecified",
 }
 
-type ColumnKey = "no" | "id" | "name" | "age" | "latestVisit" | "diagnosis" | "doctor" | "bmi"
-
-const columns: { key: ColumnKey; label: string; sortable?: boolean }[] = [
-  { key: "no", label: "No." },
-  { key: "id", label: "Patient ID", sortable: true },
-  { key: "name", label: "Name", sortable: true },
-  { key: "age", label: "Age", sortable: true },
-  { key: "latestVisit", label: "Latest visit", sortable: true },
-  { key: "diagnosis", label: "Diagnosis", sortable: true },
-  { key: "doctor", label: "Doctor", sortable: true },
-  { key: "bmi", label: "BMI", sortable: true },
-]
 
 export default function DoctorPatients() {
-  const navigate = useNavigate()
-  const [patients, setPatients] = useState<Patient[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState("")
+    const navigate = useNavigate()
+    const [patients] = useState<Patient[]>([
+        { id: "OP123456789", name: "Nguyß╗àn V─ân An", sex: "M", age: 46, latestVisit: "07/10/2025", diagnosis: "Z59.1", doctor: "Dr. Trß║ºn Thanh Nghiß╗çp", recoverDays: 2, recoverPercent: 70 },
+        { id: "OP987654321", name: "Trß║ºn Thß╗ï B├¼nh", sex: "F", age: 38, latestVisit: "05/11/2025", diagnosis: "J45.9", doctor: "Dr. L├¬ Minh Tuß║Ñn", recoverDays: 5, recoverPercent: 85 },
+        { id: "OP456789123", name: "L├¬ V─ân C├┤ng", sex: "M", age: 52, latestVisit: "01/12/2025", diagnosis: "I10", doctor: "Dr. Phß║ím Thß╗ï Hoa", recoverDays: 3, recoverPercent: 60 },
+        { id: "OP321654987", name: "Phß║ím Thß╗ï Dung", sex: "F", age: 29, latestVisit: "20/09/2025", diagnosis: "E11.9", doctor: "Dr. Nguyß╗àn V─ân Hß║úi", recoverDays: 8, recoverPercent: 92 },
+        { id: "OP789123456", name: "Ho├áng V─ân Em", sex: "M", age: 61, latestVisit: "15/10/2025", diagnosis: "K29.5", doctor: "Dr. Trß║ºn Thanh Nghiß╗çp", recoverDays: 4, recoverPercent: 75 },
+        { id: "OP654321789", name: "V┼⌐ Thß╗ï Giang", sex: "F", age: 44, latestVisit: "28/11/2025", diagnosis: "M79.1", doctor: "Dr. L├¬ Minh Tuß║Ñn", recoverDays: 6, recoverPercent: 88 },
+        { id: "OP147258369", name: "─Éß║╖ng V─ân H├╣ng", sex: "M", age: 35, latestVisit: "10/12/2025", diagnosis: "J06.9", doctor: "Dr. Phß║ím Thß╗ï Hoa", recoverDays: 2, recoverPercent: 95 },
+        { id: "OP258369147", name: "Ng├┤ Thß╗ï Lan", sex: "F", age: 50, latestVisit: "03/10/2025", diagnosis: "I50.9", doctor: "Dr. Nguyß╗àn V─ân Hß║úi", recoverDays: 10, recoverPercent: 65 },
+        { id: "OP369147258", name: "B├╣i V─ân Minh", sex: "M", age: 67, latestVisit: "18/11/2025", diagnosis: "N39.0", doctor: "Dr. Trß║ºn Thanh Nghiß╗çp", recoverDays: 7, recoverPercent: 80 },
+        { id: "OP741852963", name: "─Éß╗ù Thß╗ï Nga", sex: "F", age: 41, latestVisit: "25/09/2025", diagnosis: "R51", doctor: "Dr. L├¬ Minh Tuß║Ñn", recoverDays: 3, recoverPercent: 90 },
+    ])
 
-  const [filters, setFilters] = useState({
-    name: "",
-    age: "",
-    diagnosis: "",
-    doctor: "",
-  })
+    const [filters, setFilters] = useState({
+        patientId: "",
+        name: "",
+        sex: "All",
+        age: "",
+        recoverDays: "",
+        recoverPercent: "",
+        latestVisit: null as Date | null,
+        diagnosis: "",
+        doctor: "",
+        })
 
-  const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
-  const [sortConfig, setSortConfig] = useState<{ key: ColumnKey; direction: "asc" | "desc" } | null>(null)
-  const [visibleColumns, setVisibleColumns] = useState<ColumnKey[]>(columns.map(c => c.key))
+    const [currentPage, setCurrentPage] = useState(1)
+    const [pageSize, setPageSize] = useState(10)
 
-  useEffect(() => {
-    loadPatients()
-  }, [])
+    const filteredPatients = useMemo(() => {
+        return patients.filter(p => {
+            const matchAge =
+            !filters.age || p.age === Number(filters.age)
 
-  const loadPatients = async () => {
-    try {
-      setLoading(true)
-      setError("")
-      const res = await doctorService.getPatients()
-      setPatients(res.patients)
-    } catch (err: any) {
-      setError(err.message || "Failed to load patients")
-    } finally {
-      setLoading(false)
-    }
-  }
+            const matchRecoverDays =
+            !filters.recoverDays || p.recoverDays === Number(filters.recoverDays)
 
-  const filteredPatients = useMemo(() => {
-    return patients.filter(p => {
-      const name = `${p.firstName || ""} ${p.lastName || ""}`.toLowerCase()
-      const matchAge = !filters.age || (p.age != null && p.age === Number(filters.age))
-      const diagnosis = p.latestDiagnosis?.icd10 || ""
-      const doctor = p.doctor || ""
+            const matchRecoverPercent =
+            !filters.recoverPercent || p.recoverPercent === Number(filters.recoverPercent)
 
-      return (
-        name.includes(filters.name.toLowerCase()) &&
-        diagnosis.toLowerCase().includes(filters.diagnosis.toLowerCase()) &&
-        doctor.toLowerCase().includes(filters.doctor.toLowerCase()) &&
-        matchAge
-      )
-    })
-  }, [patients, filters])
+            return (
+            p.id.toLowerCase().includes(filters.patientId.toLowerCase()) &&
+            p.name.toLowerCase().includes(filters.name.toLowerCase()) &&
+            p.diagnosis.toLowerCase().includes(filters.diagnosis.toLowerCase()) &&
+            p.doctor.toLowerCase().includes(filters.doctor.toLowerCase()) &&
+            matchAge &&
+            matchRecoverDays &&
+            matchRecoverPercent
+            )
+        })
+    }, [patients, filters])
 
-  const totalPages = Math.ceil(filteredPatients.length / pageSize)
+    const totalPages = Math.ceil(filteredPatients.length / pageSize)
 
     type SortKey = ColumnKey
 
@@ -397,52 +138,55 @@ export default function DoctorPatients() {
     }
 
     const allColumns = columns.map(c => c.key)
-<<<<<<< HEAD
-=======
-
-    const [visibleColumns, setVisibleColumns] = useState<ColumnKey[]>(allColumns)
->>>>>>> backend
 
     const [visibleColumns, setVisibleColumns] = useState<ColumnKey[]>(allColumns)
 
-  const sortedPatients = useMemo(() => {
-    if (!sortConfig) return filteredPatients
-    const { key, direction } = sortConfig
+    const sortedPatients = useMemo(() => {
+      if (!sortConfig) return filteredPatients
 
-    return [...filteredPatients].sort((a, b) => {
-      let aVal: any, bVal: any
+      const { key, direction } = sortConfig
 
-      switch (key) {
-        case "name":
-          aVal = `${a.firstName} ${a.lastName}`; bVal = `${b.firstName} ${b.lastName}`; break
-        case "age":
-          aVal = a.age ?? 0; bVal = b.age ?? 0; break
-        case "latestVisit":
-          aVal = a.latestVisit || ""; bVal = b.latestVisit || ""; break
-        case "diagnosis":
-          aVal = a.latestDiagnosis?.icd10 || ""; bVal = b.latestDiagnosis?.icd10 || ""; break
-        case "doctor":
-          aVal = a.doctor || ""; bVal = b.doctor || ""; break
-        case "bmi":
-          aVal = a.bmi ?? 0; bVal = b.bmi ?? 0; break
-        default: return 0
-      }
+      return [...filteredPatients].sort((a, b) => {
+        let aValue: any
+        let bValue: any
 
-      if (typeof aVal === "string") return direction === "asc" ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal)
-      return direction === "asc" ? (aVal > bVal ? 1 : -1) : (aVal < bVal ? 1 : -1)
-    })
-  }, [filteredPatients, sortConfig])
+        if (key === "no") return 0
 
-  const paginatedPatients = sortedPatients.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+        aValue = a[key]
+        bValue = b[key]
 
-  const SortIcon = ({ column }: { column: ColumnKey }) => {
-    if (sortConfig?.key !== column) return <span className="ml-1">⇅</span>
-    return <span className="ml-1">{sortConfig.direction === "asc" ? "↑" : "↓"}</span>
-  }
+        if (aValue == null) return 1
+        if (bValue == null) return -1
+
+        if (typeof aValue === "string") {
+          return direction === "asc"
+            ? aValue.localeCompare(bValue)
+            : bValue.localeCompare(aValue)
+        }
+
+        return direction === "asc"
+          ? aValue > bValue ? 1 : -1
+          : aValue < bValue ? 1 : -1
+      })
+    }, [filteredPatients, sortConfig])
+
+    const paginatedPatients = sortedPatients.slice(
+      (currentPage - 1) * pageSize,
+      currentPage * pageSize
+    )
+
+    const SortIcon = ({ column }: { column: SortKey }) => {
+      if (sortConfig?.key !== column) return <span className="ml-1">Γçà</span>
+      return <span className="ml-1">{sortConfig.direction === "asc" ? "Γåæ" : "Γåô"}</span>
+    }
+
+
+
 
   return (
     <DoctorLayout>
       <div className="p-1 space-y-1">
+        {/* Header */}
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold">Patient List</h2>
@@ -462,28 +206,35 @@ export default function DoctorPatients() {
                   label={col.label}
                   checked={visibleColumns.includes(col.key)}
                   onChange={(checked) =>
-                    setVisibleColumns(prev => checked ? [...prev, col.key] : prev.filter(k => k !== col.key))
+                    setVisibleColumns(prev =>
+                      checked
+                        ? [...prev, col.key]
+                        : prev.filter(k => k !== col.key)
+                    )
                   }
                 />
               ))}
             </div>
           </div>
-          <Button onClick={loadPatients} variant="outline" disabled={loading}>
-            {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-            Refresh
-          </Button>
+          <div className="flex items-center gap-4">
+            <Select defaultValue="All">
+              <SelectTrigger className="w-32 btn-outline transition-transform duration-500 text-xl px-7 py-4">
+                <SelectValue placeholder="All" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="All">All</SelectItem>
+                <SelectItem value="Active">Active</SelectItem>
+                <SelectItem value="Recovered">Recovered</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
-        {error && <div className="bg-red-50 text-red-700 px-4 py-2 rounded">{error}</div>}
-
-        <Card className="h-[560px]">
-          <CardContent className="p-0 h-full flex flex-col">
-            <div className="flex-1 overflow-y-auto">
-              {loading ? (
-                <div className="flex items-center justify-center h-full text-slate-500">
-                  <Loader2 className="h-6 w-6 animate-spin mr-2" /> Loading patients...
-                </div>
-              ) : (
+        {/* Bß║úng ch├¡nh */}
+        <div className="">
+          <Card className="h-[560px]">
+            <CardContent className="p-0 h-full flex flex-col">
+              <div className="flex-1 overflow-y-auto">
                 <Table>
                   <TableHeader
                     className="sticky top-0 z-20 text-white"
@@ -648,76 +399,119 @@ export default function DoctorPatients() {
 
                   <TableBody>
                     {paginatedPatients.map((patient, index) => (
-                      <TableRow key={patient.id} onClick={() => navigate(`/doctor/medical_records/${patient.id}/dashboard`)}
-                        className="hover:bg-muted/50 cursor-pointer h-14 transition-colors">
-                        {visibleColumns.includes("no") && <TableCell className="text-center font-medium">{(currentPage - 1) * pageSize + index + 1}</TableCell>}
-                        {visibleColumns.includes("id") && <TableCell className="font-medium">{patient.username}</TableCell>}
-                        {visibleColumns.includes("name") && <TableCell>{`${patient.firstName || ""} ${patient.lastName || ""}`}</TableCell>}
-                        {visibleColumns.includes("age") && <TableCell className="text-center">{patient.age ?? "-"}</TableCell>}
-                        {visibleColumns.includes("latestVisit") && (
-                          <TableCell className="text-center">
-                            {patient.latestVisit ? new Date(patient.latestVisit).toLocaleDateString("en-GB") : "-"}
+                      <TableRow
+                        key={patient.id}
+                        onClick={() =>
+                          navigate(`/doctor/medical_records/${patient.id}/dashboard`)
+                        }
+                        className="hover:bg-muted/50 cursor-pointer h-14 transition-colors"
+                      >
+                        {visibleColumns.includes("no") && (
+                          <TableCell className="text-center font-medium">
+                            {(currentPage - 1) * pageSize + index + 1}
                           </TableCell>
                         )}
+
+                        {visibleColumns.includes("id") && (
+                          <TableCell className="font-medium">{patient.id}</TableCell>
+                        )}
+
+                        {visibleColumns.includes("name") && (
+                          <TableCell>{patient.name}</TableCell>
+                        )}
+
+                        {visibleColumns.includes("sex") && (
+                          <TableCell className="text-center">{patient.sex}</TableCell>
+                        )}
+
+                        {visibleColumns.includes("age") && (
+                          <TableCell className="text-center">{patient.age}</TableCell>
+                        )}
+
+                        {visibleColumns.includes("latestVisit") && (
+                          <TableCell className="text-center">{patient.latestVisit}</TableCell>
+                        )}
+
                         {visibleColumns.includes("diagnosis") && (
                           <TableCell className="text-center">
-                            {patient.latestDiagnosis ? (
-                              <TooltipProvider delayDuration={0}>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <span className="cursor-help underline decoration-dotted">{patient.latestDiagnosis.icd10}</span>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="top" className="bg-linear-to-br from-[#06b6d4] to-[#0891b2]">
-                                    <b className="text-sm max-w-xs">{ICD10_MAP[patient.latestDiagnosis.icd10] || patient.latestDiagnosis.interpretation || "No description"}</b>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            ) : "-"}
+                            <TooltipProvider delayDuration={0}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="cursor-help underline decoration-dotted">
+                                    {patient.diagnosis}
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="bg-linear-to-br from-[#06b6d4] to-[#0891b2]">
+                                  <b className="text-sm max-w-xs ">
+                                    {ICD10_MAP[patient.diagnosis] ?? "No description"}
+                                  </b>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                           </TableCell>
                         )}
-                        {visibleColumns.includes("doctor") && <TableCell>{patient.doctor || "-"}</TableCell>}
-                        {visibleColumns.includes("bmi") && <TableCell className="text-center">{patient.bmi != null ? patient.bmi.toFixed(1) : "-"}</TableCell>}
+
+                        {visibleColumns.includes("doctor") && (
+                          <TableCell>{patient.doctor}</TableCell>
+                        )}
+
+                        {visibleColumns.includes("recoverDays") && (
+                          <TableCell className="text-center">
+                            {patient.recoverDays} days
+                          </TableCell>
+                        )}
+
+                        {visibleColumns.includes("recoverPercent") && (
+                          <TableCell className="text-center">
+                            {patient.recoverPercent}%
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))}
 
                     {paginatedPatients.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={visibleColumns.length} className="text-center py-10 text-muted-foreground">No patients found.</TableCell>
+                        <TableCell colSpan={visibleColumns.length} className="text-center py-10 text-muted-foreground">
+                          No patients found.
+                        </TableCell>
                       </TableRow>
                     )}
                   </TableBody>
                 </Table>
-              )}
-            </div>
-
-            <div className="flex items-center justify-between px-6 py-4 bg-gray-50 border-t text-sm">
-              <div className="flex items-center gap-3">
-                <span>Show</span>
-                <Select value={pageSize.toString()} onValueChange={v => { setPageSize(Number(v)); setCurrentPage(1) }}>
-                  <SelectTrigger className="w-20 h-9"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="10">10</SelectItem>
-                    <SelectItem value="25">25</SelectItem>
-                    <SelectItem value="50">50</SelectItem>
-                  </SelectContent>
-                </Select>
-                <span>entries</span>
               </div>
 
-              <div className="flex items-center gap-1">
-                <Button variant="outline" size="sm" disabled={currentPage === 1} onClick={() => setCurrentPage(p => Math.max(1, p - 1))}>
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                  <Button key={page} size="sm" className={currentPage === page ? "btn-gradient" : "btn-outline"} onClick={() => setCurrentPage(page)}>
-                    {page}
+              {/* Pagination */}
+              <div className="flex items-center justify-between px-6 py-4 bg-gray-50 border-t text-sm">
+                <div className="flex items-center gap-3">
+                  <span>Show</span>
+                  <Select
+                    value={pageSize.toString()}
+                    onValueChange={(v) => {
+                      setPageSize(Number(v))
+                      setCurrentPage(1)
+                    }}
+                  >
+                    <SelectTrigger className="w-20 h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="25">25</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <span>entries</span>
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
                   </Button>
-<<<<<<< HEAD
-                ))}
-                <Button variant="outline" size="sm" disabled={currentPage === totalPages || totalPages === 0} onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}>
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-=======
 
                   {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
                     <Button
@@ -730,66 +524,6 @@ export default function DoctorPatients() {
                     </Button>
                   ))}
 
-<<<<<<< HEAD
-                  {paginatedPatients.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">
-                        No patients found.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-
-            {/* Pagination */}
-            <div className="flex items-center justify-between px-6 py-4 bg-gray-50 border-t text-sm">
-              <div className="flex items-center gap-3">
-                <span>Show</span>
-                <Select
-                  value={pageSize.toString()}
-                  onValueChange={(v) => {
-                    setPageSize(Number(v))
-                    setCurrentPage(1)
-                  }}
-                >
-                  <SelectTrigger className="w-20 h-9">
-                    <SelectValue />
-                  </SelectTrigger>
->>>>>>> 0d84f273 (Add doctor portal)
-                  <SelectContent>
-                    <SelectItem value="10">10</SelectItem>
-                    <SelectItem value="25">25</SelectItem>
-                    <SelectItem value="50">50</SelectItem>
-                  </SelectContent>
-                </Select>
-                <span>entries</span>
-              </div>
-
-              <div className="flex items-center gap-1">
-<<<<<<< HEAD
-                <Button variant="outline" size="sm" disabled={currentPage === 1} onClick={() => setCurrentPage(p => Math.max(1, p - 1))}>
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                  <Button key={page} size="sm" className={currentPage === page ? "btn-gradient" : "btn-outline"} onClick={() => setCurrentPage(page)}>
-                    {page}
-                  </Button>
-                ))}
-                <Button variant="outline" size="sm" disabled={currentPage === totalPages || totalPages === 0} onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}>
-=======
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={currentPage === 1}
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-=======
->>>>>>> eca8cbaa (add some page in doctor portal)
                   <Button
                     variant="outline"
                     size="sm"
@@ -798,35 +532,12 @@ export default function DoctorPatients() {
                   >
                     <ChevronRight className="h-4 w-4" />
                   </Button>
-<<<<<<< HEAD
-                ))}
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={currentPage === totalPages}
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                >
->>>>>>> 0d84f273 (Add doctor portal)
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-=======
                 </div>
->>>>>>> eca8cbaa (add some page in doctor portal)
->>>>>>> backend
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </DoctorLayout>
   )
-<<<<<<< HEAD
 }
-=======
-<<<<<<< HEAD
-}
-=======
-}
->>>>>>> 0d84f273 (Add doctor portal)
->>>>>>> backend

@@ -3,7 +3,6 @@ const router = express.Router();
 const appointmentController = require('../controllers/appointmentController');
 const authenticateToken = require('../middleware/authMiddleware');
 
-<<<<<<< HEAD
 // Public-ish routes (still require auth)
 router.use(authenticateToken);
 
@@ -13,23 +12,9 @@ router.get('/doctors', appointmentController.getDoctors);
 // Get already-booked slots for a date
 router.get('/booked-slots', appointmentController.getBookedSlots);
 
-=======
-<<<<<<< HEAD
-// Public-ish routes (still require auth)
-router.use(authenticateToken);
-
-// Get available doctors (for booking page)
-router.get('/doctors', appointmentController.getDoctors);
-
-// Get already-booked slots for a date
-router.get('/booked-slots', appointmentController.getBookedSlots);
-
-=======
 // Apply authentication middleware to all routes
 router.use(authenticateToken);
 
->>>>>>> 9d41cd19 (TC-2801: Fix the FE branch and modify gitignore)
->>>>>>> backend
 // Create a new appointment
 router.post('/', appointmentController.createAppointment);
 

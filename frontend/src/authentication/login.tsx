@@ -1,19 +1,11 @@
-import type React from "react";
+﻿import type React from "react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-<<<<<<< HEAD
-<<<<<<< HEAD
 import { Activity, User, Stethoscope, Eye, EyeOff, AlertCircle, UserStar } from "lucide-react";
-=======
-import { Activity, User, Stethoscope, Eye, EyeOff, AlertCircle } from "lucide-react";
->>>>>>> 3a5e23be (upgrade UI for all patient portal)
-=======
-import { Activity, User, Stethoscope, Eye, EyeOff, AlertCircle, UserStar } from "lucide-react";
->>>>>>> 2a3e1294 (Add nurse portal and Technician portal)
 import { Link } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -25,144 +17,12 @@ export default function LoginPage() {
   const { login } = useAuth();
   const [role, setRole] = useState<"patient" | "hospital staff" | "admin">("patient");
   const [showPassword, setShowPassword] = useState(false);
-<<<<<<< HEAD
-  const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-=======
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-  const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-=======
->>>>>>> 9d41cd19 (TC-2801: Fix the FE branch and modify gitignore)
->>>>>>> backend
+  const [error] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-=======
-  const [error] = useState("");
-<<<<<<< HEAD
->>>>>>> 3a5e23be (upgrade UI for all patient portal)
-=======
-  const [error] = useState("");
->>>>>>> 0d84f273 (Add doctor portal)
-=======
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
->>>>>>> e79d6b62 (fix some errors)
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
-<<<<<<< HEAD
->>>>>>> backend
-    
-    // Clear any previous errors
-    setError("");
-    setIsLoading(true);
-<<<<<<< HEAD
-
-    try {
-      // Actually authenticate with the backend
-      const result = await login(username, password);
-
-      if (result.success) {
-        // Get the user data to check their role
-        const userData = JSON.parse(localStorage.getItem('user') || '{}');
-        const actualRole = userData.role;
-
-        // Validate selected role tab matches the user's actual role
-        const isRoleMatch =
-          (role === 'patient' && actualRole === 'patient') ||
-          (role === 'hospital staff' && ['doctor', 'nurse', 'technician'].includes(actualRole)) ||
-          (role === 'admin' && actualRole === 'admin');
-
-        if (!isRoleMatch) {
-          // Role mismatch — log out the session and show error
-          localStorage.removeItem('authToken');
-          localStorage.removeItem('refreshToken');
-          localStorage.removeItem('user');
-          localStorage.removeItem('sessionExpiresAt');
-
-          const roleLabel =
-            role === 'patient' ? 'Patient' : role === 'hospital staff' ? 'Staff' : 'Admin';
-          setError(`This account is not a ${roleLabel} account. Please select the correct role tab.`);
-          setIsLoading(false);
-          return;
-        }
-        
-        // Redirect based on the user's actual role from the backend
-        if (actualRole === 'patient') {
-          router("/patient/dashboard");
-        } else if (actualRole === 'admin') {
-          router("/admin/dashboard");
-        } else if (actualRole === 'doctor' || actualRole === 'nurse' || actualRole === 'technician') {
-          router("/doctor/dashboard");
-        } else {
-          router("/patient/dashboard");
-        }
-      } else {
-        setError(result.error || "Login failed. Please check your credentials.");
-      }
-    } catch (err) {
-      setError("Network error. Please try again.");
-      console.error("Login error:", err);
-    } finally {
-      setIsLoading(false);
-    }
-=======
-
-    try {
-      // Actually authenticate with the backend
-      const result = await login(username, password);
-
-      if (result.success) {
-        // Get the user data to check their role
-        const userData = JSON.parse(localStorage.getItem('user') || '{}');
-        const actualRole = userData.role;
-
-        // Validate selected role tab matches the user's actual role
-        const isRoleMatch =
-          (role === 'patient' && actualRole === 'patient') ||
-          (role === 'hospital staff' && ['doctor', 'nurse', 'technician'].includes(actualRole)) ||
-          (role === 'admin' && actualRole === 'admin');
-
-        if (!isRoleMatch) {
-          // Role mismatch — log out the session and show error
-          localStorage.removeItem('authToken');
-          localStorage.removeItem('refreshToken');
-          localStorage.removeItem('user');
-          localStorage.removeItem('sessionExpiresAt');
-
-          const roleLabel =
-            role === 'patient' ? 'Patient' : role === 'hospital staff' ? 'Staff' : 'Admin';
-          setError(`This account is not a ${roleLabel} account. Please select the correct role tab.`);
-          setIsLoading(false);
-          return;
-        }
-        
-        // Redirect based on the user's actual role from the backend
-        if (actualRole === 'patient') {
-          router("/patient/dashboard");
-        } else if (actualRole === 'admin') {
-          router("/admin/dashboard");
-        } else if (actualRole === 'doctor' || actualRole === 'nurse' || actualRole === 'technician') {
-          router("/doctor/dashboard");
-        } else {
-          router("/patient/dashboard");
-        }
-      } else {
-        setError(result.error || "Login failed. Please check your credentials.");
-      }
-    } catch (err) {
-      setError("Network error. Please try again.");
-      console.error("Login error:", err);
-    } finally {
-      setIsLoading(false);
-    }
-=======
     // Redirect based on role
     if (role === "patient") {
       router("/patient/dashboard");
@@ -172,21 +32,6 @@ export default function LoginPage() {
       router("/doctor/dashboard")
     }
 
->>>>>>> 0d84f273 (Add doctor portal)
-=======
-    setError("");
-    const result = await login(username, password);
-    if (result.success) {
-      if (role === "patient") {
-        router("/patient/dashboard");
-      } else {
-        router("/admin/dashboard");
-      }
-    } else {
-      setError(result.error || "Login failed");
-    }
->>>>>>> 9d41cd19 (TC-2801: Fix the FE branch and modify gitignore)
->>>>>>> backend
   };
 
   return (
@@ -276,13 +121,8 @@ export default function LoginPage() {
                               group-hover/item:w-full"/>
                 </a>
               </div>
-              <Button 
-                type="submit" 
-                size="default" 
-                className="w-full btn-gradient transition-transform duration-500"
-                disabled={isLoading}
-              >
-                {isLoading ? "Signing in..." : "Sign In"}
+              <Button type="submit" size="default" className="w-full btn-gradient transition-transform duration-500">
+                Sign In
               </Button>
             </form>
 
@@ -306,7 +146,7 @@ export default function LoginPage() {
             className="group relative inline-flex items-center gap-3 text-muted-foreground/80 text-sm font-medium
                       transition-all duration-400 hover:text-linear-to-r from-[#06b6d4] to-[#0891b2] hover:translate-x-1">
             <span className="relative">
-              ← Back to Home
+              ΓåÉ Back to Home
               <span className="absolute inset-0 bg-cyan-500/10 blur-lg scale-0 
                               transition-transform duration-400 group-hover:scale-100" />
             </span>

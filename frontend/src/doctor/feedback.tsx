@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -88,23 +88,15 @@ export default function DoctorFeedback() {
   return (
     <DoctorLayout>
       <div className="w-full space-y-6">
-        {/* Header với gradient */}
+        {/* Header vß╗¢i gradient */}
         <div>
-<<<<<<< HEAD
-<<<<<<< HEAD
           <h2 className="h-12 text-3xl font-bold bg-linear-to-r from-[#06b6d4] via-[#0891b2] to-[#06b6d4] bg-clip-text text-transparent mb-2">
-=======
-          <h2 className="h-12 text-4xl font-bold bg-linear-to-r from-[#06b6d4] via-[#0891b2] to-[#06b6d4] bg-clip-text text-transparent mb-2">
->>>>>>> 2a3e1294 (Add nurse portal and Technician portal)
-=======
-          <h2 className="h-12 text-3xl font-bold bg-linear-to-r from-[#06b6d4] via-[#0891b2] to-[#06b6d4] bg-clip-text text-transparent mb-2">
->>>>>>> d0e85e3f (add technician portal + appointment page)
             Feedback & AI Suggestions
           </h2>
           <p className="text-slate-600 text-lg">Share your experience and review AI recommendations</p>
         </div>
 
-        {/* Tab Navigation với style mới */}
+        {/* Tab Navigation vß╗¢i style mß╗¢i */}
         <div className="flex gap-2 p-1 bg-slate-100 rounded-xl w-fit">
           <button
             onClick={() => setActiveTab("feedback")}

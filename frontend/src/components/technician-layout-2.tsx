@@ -1,4 +1,4 @@
-import { useNavigate, useParams } from "react-router-dom"
+﻿import { useNavigate, useParams } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { TechnicianLayout } from "./technician-layout"
@@ -6,17 +6,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import ViewingPatientLab from "@/technician/medical_records/lab"
 
 const tabs = [
-<<<<<<< HEAD
-<<<<<<< HEAD
   { label: "Test results", value: "lab" },
   { label: "History", value: "history"},
-=======
-  { label: "Dashboard", value: "lab" },
->>>>>>> 2a3e1294 (Add nurse portal and Technician portal)
-=======
-  { label: "Test results", value: "lab" },
-  { label: "History", value: "history"},
->>>>>>> d0e85e3f (add technician portal + appointment page)
 ]
 
 export function TechnicianLayout2() {
@@ -34,10 +25,10 @@ export function TechnicianLayout2() {
         <Card className="p-4 flex items-center justify-between border-r border-white/40 sticky bg-white/80 backdrop-blur-xl shadow-[4px_0_20px_rgba(0,0,0,0.05)] z-40">
           <div>
             <p className="font-semibold text-lg">
-              Nguyen Van An – OP123456789 | 46 Male | BMI: 25.77
+              Nguyen Van An ΓÇô OP123456789 | 46 Male | BMI: 25.77
             </p>
             <p className="text-sm text-slate-600">
-              Diagnosis: Z59.1 – Housing & economic problems
+              Diagnosis: Z59.1 ΓÇô Housing & economic problems
             </p>
             <p className="text-sm text-slate-500">
               Department: Cardiology
@@ -52,10 +43,6 @@ export function TechnicianLayout2() {
           </div>
         </Card>
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> d0e85e3f (add technician portal + appointment page)
         <div className="sticky z-10 bg-white rounded-md w-fit">
           <Tabs value={tab} onValueChange={setActiveTab}>
             <TabsList className="inline-flex rounded-xl bg-tr p-1 gap-1">
@@ -74,11 +61,6 @@ export function TechnicianLayout2() {
           </Tabs>
         </div>
 
-<<<<<<< HEAD
-=======
->>>>>>> 2a3e1294 (Add nurse portal and Technician portal)
-=======
->>>>>>> d0e85e3f (add technician portal + appointment page)
         {/* ===== Tab Content ===== */}
         <div>
           {tab === "lab" && <ViewingPatientLab />}

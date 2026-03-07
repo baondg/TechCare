@@ -1,8 +1,8 @@
-const CUSTOM_AI_API_KEY = import.meta.env.VITE_CUSTOM_AI_API_KEY || '';
+﻿const CUSTOM_AI_API_KEY = import.meta.env.VITE_CUSTOM_AI_API_KEY || '';
 const CUSTOM_AI_API_ENDPOINT = import.meta.env.VITE_CUSTOM_AI_API_ENDPOINT || '';
 const AI_API_ENDPOINT = import.meta.env.VITE_AI_API_ENDPOINT || 'http://localhost:3000/api/ai/chat'
-const AI_API_KEY = import.meta.env.VITE_AI_API_KEY || 'AIzaSyBlKrTSWrqhtqJDTcdt4JAfSRxX_mkYmMs'
-const AI_PROVIDER = import.meta.env.VITE_AI_PROVIDER || 'gemini' 
+const AI_API_KEY = import.meta.env.VITE_AI_API_KEY || 'AIzaSyDeBPklvZOIylsnXgtzqOXeYkkRNUW3z0Y'
+const AI_PROVIDER = import.meta.env.VITE_AI_PROVIDER || 'gemini' // openai, gemini, anthropic, cohere, huggingface, custom
 
 // Cache for available models to avoid repeated API calls
 let cachedModels: any[] | null = null
@@ -16,7 +16,6 @@ export type {
   SymptomAnalysisResult,
   SymptomAnalysisResponse
 } from './ai-types'
-<<<<<<< HEAD
 
 import type { ChatMessage, SymptomInput, SymptomAnalysisResult, SymptomAnalysisResponse } from './ai-types'
 
@@ -42,33 +41,6 @@ export interface SymptomAnalysisResponse {
   disclaimer: string
   error?: string
 }
-
-// ============ SYMPTOM CHECKER TYPES ============
-
-export interface SymptomInput {
-  name: string
-  severity: 'mild' | 'moderate' | 'severe'
-  duration: 'less24h' | '1to3days' | '3to7days' | 'moreThanWeek'
-}
-
-export interface SymptomAnalysisResult {
-  condition: string
-  severity: 'low' | 'medium' | 'high'
-  recommendation: string
-  details: string
-  possibleCauses?: string[]
-  whenToSeekHelp?: string
-}
-
-export interface SymptomAnalysisResponse {
-  results: SymptomAnalysisResult[]
-  disclaimer: string
-  error?: string
-}
-=======
-
-import type { ChatMessage, SymptomInput, SymptomAnalysisResult, SymptomAnalysisResponse } from './ai-types'
->>>>>>> 9d41cd19 (TC-2801: Fix the FE branch and modify gitignore)
 
 /**
  * Fetch available models from Gemini API
@@ -95,7 +67,7 @@ async function getAvailableGeminiModels(): Promise<any[]> {
 
     const data = await response.json()
     cachedModels = data.models || []
-    console.log('📋 Available Gemini models:', cachedModels.map((m: any) => m.name))
+    console.log('≡ƒôï Available Gemini models:', cachedModels.map((m: any) => m.name))
     return cachedModels
   } catch (error) {
     console.error('Error fetching Gemini models:', error)
@@ -130,7 +102,7 @@ async function pickGeminiModel(): Promise<string> {
     )
     if (found) {
       selectedModel = found.name
-      console.log('✅ Selected Gemini model (priority):', selectedModel)
+      console.log('Γ£à Selected Gemini model (priority):', selectedModel)
       return selectedModel
     }
   }
@@ -142,7 +114,7 @@ async function pickGeminiModel(): Promise<string> {
 
   if (validModel) {
     selectedModel = validModel.name
-    console.log('✅ Selected Gemini model:', selectedModel)
+    console.log('Γ£à Selected Gemini model:', selectedModel)
     return selectedModel
   }
 
@@ -153,14 +125,14 @@ async function pickGeminiModel(): Promise<string> {
 
   if (fallback) {
     selectedModel = fallback.name
-    console.log('⚠️ Using fallback model:', selectedModel)
+    console.log('ΓÜá∩╕Å Using fallback model:', selectedModel)
     return selectedModel
   }
 
   // Last resort: use first available model
   if (models.length > 0) {
     selectedModel = models[0].name
-    console.log('⚠️ Using first available model:', selectedModel)
+    console.log('ΓÜá∩╕Å Using first available model:', selectedModel)
     return selectedModel
   }
 
@@ -195,7 +167,7 @@ Important guidelines:
   // Try Gemini first if selected
   if (AI_PROVIDER && AI_PROVIDER.toLowerCase() === 'custom') {
     try {
-      console.log('🔗 Calling custom AI API:', CUSTOM_AI_API_ENDPOINT);
+      console.log('≡ƒöù Calling custom AI API:', CUSTOM_AI_API_ENDPOINT);
       const endpoint = CUSTOM_AI_API_ENDPOINT;
       const apiKey = CUSTOM_AI_API_KEY;
       const requestBody = buildRequestBody('custom', messages, userMessage, systemPrompt);
@@ -222,7 +194,7 @@ Important guidelines:
     }
   }
   if (AI_PROVIDER.toLowerCase() === 'gemini') {
-    // Lấy danh sách model ưu tiên
+    // Lß║Ñy danh s├ích model ╞░u ti├¬n
     const modelsToTry = [
       'gemini-2.5-pro',
       'gemini-2.0-flash',
@@ -235,7 +207,7 @@ Important guidelines:
       try {
         const modelId = modelName;
         const endpoint = `https://generativelanguage.googleapis.com/v1/models/${modelId}:generateContent?key=${AI_API_KEY}`;
-        console.log('🔗 Trying Gemini model:', modelId);
+        console.log('≡ƒöù Trying Gemini model:', modelId);
         const requestBody = buildRequestBody('gemini', messages, userMessage, systemPrompt);
         const headers = buildHeaders('gemini', AI_API_KEY);
         const response = await fetch(endpoint, {
@@ -246,7 +218,7 @@ Important guidelines:
         if (!response.ok) {
           const errorText = await response.text();
           lastGeminiError = errorText;
-          // Nếu lỗi quota hoặc model không khả dụng, thử model tiếp theo
+          // Nß║┐u lß╗ùi quota hoß║╖c model kh├┤ng khß║ú dß╗Ñng, thß╗¡ model tiß║┐p theo
           if (response.status === 429 || response.status === 404 || errorText.includes('quota') || errorText.includes('RESOURCE_EXHAUSTED')) {
             console.warn(`Gemini model ${modelId} failed:`, errorText);
             continue;
@@ -263,7 +235,7 @@ Important guidelines:
         continue;
       }
     }
-    // Nếu tất cả model Gemini đều lỗi, thử OpenAI, nếu OpenAI cũng lỗi thì gọi custom API
+    // Nß║┐u tß║Ñt cß║ú model Gemini ─æß╗üu lß╗ùi, thß╗¡ OpenAI, nß║┐u OpenAI c┼⌐ng lß╗ùi th├¼ gß╗ìi custom API
     console.error('All Gemini models failed, trying OpenAI:', lastGeminiError);
     try {
       const openaiEndpoint = 'https://api.openai.com/v1/chat/completions';
@@ -285,7 +257,7 @@ Important guidelines:
     } catch (openaiError) {
       console.error('OpenAI fallback also failed, trying custom API:', openaiError);
       try {
-        console.log('🔗 Calling custom AI API:', CUSTOM_AI_API_ENDPOINT);
+        console.log('≡ƒöù Calling custom AI API:', CUSTOM_AI_API_ENDPOINT);
         const endpoint = CUSTOM_AI_API_ENDPOINT;
         const apiKey = CUSTOM_AI_API_KEY;
         const requestBody = buildRequestBody('custom', messages, userMessage, systemPrompt);
@@ -350,26 +322,26 @@ function getFallbackResponse(query: string): string {
   const lowerQuery = query.toLowerCase()
   
   if (lowerQuery.includes('medication') || lowerQuery.includes('medicine') || lowerQuery.includes('drug')) {
-    return "I can help you with medication information. You can ask about:\n• Current medications and dosages\n• Medication schedules and reminders\n• Potential side effects\n• Drug interactions\n\nWhat would you like to know?"
+    return "I can help you with medication information. You can ask about:\nΓÇó Current medications and dosages\nΓÇó Medication schedules and reminders\nΓÇó Potential side effects\nΓÇó Drug interactions\n\nWhat would you like to know?"
   }
   
   if (lowerQuery.includes('appointment') || lowerQuery.includes('schedule') || lowerQuery.includes('visit')) {
-    return "I can assist with appointments. You can:\n• View upcoming appointments\n• Schedule new appointments\n• Reschedule or cancel appointments\n• Get directions to the clinic\n\nWhat would you like to do?"
+    return "I can assist with appointments. You can:\nΓÇó View upcoming appointments\nΓÇó Schedule new appointments\nΓÇó Reschedule or cancel appointments\nΓÇó Get directions to the clinic\n\nWhat would you like to do?"
   }
   
   if (lowerQuery.includes('symptom') || lowerQuery.includes('pain') || lowerQuery.includes('sick') || lowerQuery.includes('feel')) {
-    return "I understand you're not feeling well. While I can provide general information, it's important to consult with a healthcare professional for proper diagnosis and treatment.\n\nWould you like to:\n• Schedule an urgent appointment\n• Speak with a nurse\n• Get general wellness tips"
+    return "I understand you're not feeling well. While I can provide general information, it's important to consult with a healthcare professional for proper diagnosis and treatment.\n\nWould you like to:\nΓÇó Schedule an urgent appointment\nΓÇó Speak with a nurse\nΓÇó Get general wellness tips"
   }
   
   if (lowerQuery.includes('test') || lowerQuery.includes('result') || lowerQuery.includes('lab')) {
-    return "I can help you access your test results and medical records. Lab results are typically available 2-3 days after testing. Would you like me to:\n• Check if your results are ready\n• Explain what tests you've had\n• Schedule a follow-up appointment"
+    return "I can help you access your test results and medical records. Lab results are typically available 2-3 days after testing. Would you like me to:\nΓÇó Check if your results are ready\nΓÇó Explain what tests you've had\nΓÇó Schedule a follow-up appointment"
   }
   
   if (lowerQuery.includes('insurance') || lowerQuery.includes('payment') || lowerQuery.includes('bill')) {
-    return "For billing and insurance questions, I recommend:\n• Contacting our billing department at (555) 123-4567\n• Checking your insurance coverage online\n• Setting up a payment plan if needed\n\nI can also help you find information about accepted insurance providers."
+    return "For billing and insurance questions, I recommend:\nΓÇó Contacting our billing department at (555) 123-4567\nΓÇó Checking your insurance coverage online\nΓÇó Setting up a payment plan if needed\n\nI can also help you find information about accepted insurance providers."
   }
   
-  return "I'm here to help with your healthcare needs! I can assist with:\n\n• 💊 Medications and prescriptions\n• 📅 Appointments and scheduling\n• 🏥 Test results and medical records\n• ❤️ General health and wellness questions\n• 📋 Post-treatment care instructions\n\nWhat would you like to know?"
+  return "I'm here to help with your healthcare needs! I can assist with:\n\nΓÇó ≡ƒÆè Medications and prescriptions\nΓÇó ≡ƒôà Appointments and scheduling\nΓÇó ≡ƒÅÑ Test results and medical records\nΓÇó Γ¥ñ∩╕Å General health and wellness questions\nΓÇó ≡ƒôï Post-treatment care instructions\n\nWhat would you like to know?"
 }
 
 /**
@@ -735,7 +707,7 @@ function buildSymptomAnalysisRequestBody(
     case 'openai':
     case 'azure-openai':
       return {
-        model: 'gpt-3.5-turbo',
+        model: 'gpt-4',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userMessage }
@@ -816,7 +788,7 @@ function getFallbackSymptomAnalysis(symptoms: SymptomInput[]): SymptomAnalysisRe
       recommendation: hasSevere ? 'See a doctor within 24 hours' : 'Rest and monitor symptoms',
       details: 'Your combination of fever and cough may indicate a respiratory infection such as the flu, common cold, or COVID-19. Monitor your temperature and stay hydrated.',
       possibleCauses: ['Influenza (Flu)', 'Common cold', 'COVID-19', 'Bronchitis'],
-      whenToSeekHelp: 'Seek medical care if fever exceeds 103°F (39.4°C), symptoms worsen, or you have difficulty breathing.'
+      whenToSeekHelp: 'Seek medical care if fever exceeds 103┬░F (39.4┬░C), symptoms worsen, or you have difficulty breathing.'
     })
   }
 

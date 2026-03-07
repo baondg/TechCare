@@ -1,17 +1,9 @@
-"use client"
+﻿"use client"
 
 import type React from "react"
 import { Link } from "react-router-dom";
 import { useLocation } from "react-router-dom"
-<<<<<<< HEAD
-import { Users, LogOut, Activity, UserRound, Calendar, FileText, UserCog } from "lucide-react"
-=======
-<<<<<<< HEAD
-import { Users, LogOut, Activity, UserRound, Calendar, FileText, UserCog } from "lucide-react"
-=======
 import { Users,  LogOut , Activity, UserRound, Calendar, FileText } from "lucide-react"
->>>>>>> 0d84f273 (Add doctor portal)
->>>>>>> backend
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/contexts/AuthContext"
@@ -26,14 +18,6 @@ export function DoctorLayout({ children }: { children: React.ReactNode }) {
     { name: "Appointments", href: "/doctor/appointments", icon: Calendar },
     { name: "Feedback", href: "/doctor/feedback", icon: FileText },
     { name: "Schedule", href: "/doctor/schedule", icon: Calendar },
-<<<<<<< HEAD
-    { name: "Profile", href: "/doctor/profile", icon: UserCog },
-=======
-<<<<<<< HEAD
-    { name: "Profile", href: "/doctor/profile", icon: UserCog },
-=======
->>>>>>> 0d84f273 (Add doctor portal)
->>>>>>> backend
   ]
   return (
     <div className="min-h-screen w-screen bg-background">
@@ -74,7 +58,7 @@ export function DoctorLayout({ children }: { children: React.ReactNode }) {
               <div className="group relative">
                 <div className="absolute -inset-0.5 bg-linear-to-r from-[#06b6d4] to-[#22d3ee] rounded-full blur-xs opacity-20 group-hover:opacity-40 transition duration-700"></div>
 
-                {/* Badge chính – nền trắng/xám nhạt + viền gradient mỏng */}
+                {/* Badge ch├¡nh ΓÇô nß╗ün trß║»ng/x├ím nhß║ít + viß╗ün gradient mß╗Ång */}
                 <div className="relative flex items-center gap-2 rounded-full bg-linear-to-r from-[#06b6d4] to-[#11adc9] dark:bg-gray-900 px-5 py-2.5 ">
                   <UserRound className="h-4 w-4 text-white" strokeWidth={2.5} />
                   <span className="font-bold text-sm tracking-wider text-white dark:text-cyan-500">

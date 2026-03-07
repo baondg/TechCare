@@ -6,7 +6,27 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+<<<<<<< HEAD
 import { UserPlus, Trash2, Save, X, Edit3, CheckCircle, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ArrowUpDown, Search, Calendar } from "lucide-react"
+=======
+<<<<<<< HEAD
+<<<<<<< HEAD
+<<<<<<< HEAD
+<<<<<<< HEAD
+import { UserPlus, Trash2, Save, X, Edit3, CheckCircle, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react"
+=======
+import { UserPlus, Trash2, Save, X, Edit3, CheckCircle, ChevronLeft, ChevronRight } from "lucide-react"
+>>>>>>> 3a5e23be (upgrade UI for all patient portal)
+=======
+import { UserPlus, Trash2, Save, X, Edit3, CheckCircle, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react"
+>>>>>>> eca8cbaa (add some page in doctor portal)
+=======
+import { UserPlus, Trash2, Save, X, Edit3, CheckCircle, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ArrowUpDown, Search, Calendar } from "lucide-react"
+>>>>>>> f875c173 (fix table component)
+=======
+import { UserPlus, Trash2, Save, X, Edit3, CheckCircle, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ArrowUpDown, Search, Calendar } from "lucide-react"
+>>>>>>> 306c7379 (fix UI related to the table component)
+>>>>>>> backend
 import { AdminLayout } from "@/components/admin-layout"
 import { Checkbox } from "@/components/ui/checkbox"
 
@@ -73,6 +93,13 @@ export default function UserManagement() {
   }, [patients, filters])
 
   const totalPages = Math.max(1, Math.ceil(filteredPatients.length / pageSize))
+<<<<<<< HEAD
+=======
+  const paginatedPatients = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return filteredPatients.slice(start, start + pageSize)
+  }, [filteredPatients, currentPage, pageSize])
+>>>>>>> 9d41cd19 (TC-2801: Fix the FE branch and modify gitignore)
 
   useEffect(() => setCurrentPage(1), [filters])
 
@@ -329,9 +356,21 @@ export default function UserManagement() {
           </div>
         </div>
 
+<<<<<<< HEAD
+<<<<<<< HEAD
         {/* Grid 2 cột */}
         <div className="grid lg:grid-cols-2 gap-6">
           <Card className="flex flex-col h-[560px]">
+=======
+        {/* Grid 2 cột - chỉ hiện khi có selectedPatient */}
+        <div className={`grid gap-6 ${selectedPatient ? 'lg:grid-cols-2' : 'grid-cols-1'}`}>
+          <Card className="flex flex-col h-[820px]">
+>>>>>>> 9d41cd19 (TC-2801: Fix the FE branch and modify gitignore)
+=======
+        {/* Grid 2 cột */}
+        <div className="grid lg:grid-cols-2 gap-6">
+          <Card className="flex flex-col h-[560px]">
+>>>>>>> e79d6b62 (fix some errors)
             <CardContent className="flex-1 p-0 overflow-hidden">
               <div className="h-full overflow-y-auto">
                 <Table className="table-fixed w-max">
@@ -368,14 +407,40 @@ export default function UserManagement() {
                   </TableHeader>
 
                   <TableBody>
+<<<<<<< HEAD
+<<<<<<< HEAD
                     {paginatedPatients.map((patient, idx) => (
+<<<<<<< HEAD
+=======
+                    {paginatedPatients.map((patient, idx) => (
+>>>>>>> e79d6b62 (fix some errors)
                       <TableRow key={patient.id} 
                         onClick={() => setSelectedPatient(patient)} 
                         className={`cursor-pointer hover:bg-gray-100 ${
                           selectedPatient?.id === patient.id ? "bg-cyan-50" : ""
                         }`}
                       > 
+<<<<<<< HEAD
                         <TableCell>{startItem + idx}</TableCell>
+=======
+<<<<<<< HEAD
+<<<<<<< HEAD
+<<<<<<< HEAD
+=======
+                      <TableRow key={patient.id}>
+>>>>>>> eca8cbaa (add some page in doctor portal)
+=======
+>>>>>>> e79d6b62 (fix some errors)
+                        {visibleColumns.includes("no") && (
+                          <TableCell>{startItem + idx}</TableCell>
+                        )}
+=======
+                        <TableCell>{startItem + idx}</TableCell>
+>>>>>>> f875c173 (fix table component)
+=======
+                        <TableCell>{startItem + idx}</TableCell>
+>>>>>>> 306c7379 (fix UI related to the table component)
+>>>>>>> backend
 
                         {visibleColumns.includes("nationalId") && (
                           <TableCell>{patient.nationalId}</TableCell>
@@ -403,6 +468,34 @@ export default function UserManagement() {
 
                         {visibleColumns.includes("email") && (
                           <TableCell className="truncate max-w-xs">
+<<<<<<< HEAD
+=======
+                    {paginatedPatients.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center py-10 text-gray-500">
+                          No patients found.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      paginatedPatients.map((patient, idx) => (
+                        <TableRow
+                          key={patient.id}
+                          onClick={() => setSelectedPatient(selectedPatient?.id === patient.id ? null : patient)}
+                          className={`cursor-pointer transition-colors h-14 hover:bg-muted/50 ${
+                            selectedPatient?.id === patient.id ? "bg-cyan-50 border-l-4 border-[#06b6d4]" : ""
+                          }`}
+                        >
+                          <TableCell className="px-4 py-3 text-sm font-medium">{startItem + idx}</TableCell>
+                          <TableCell className="px-4 py-3 text-sm">{patient.nationalId}</TableCell>
+                          <TableCell className="px-4 py-3 text-sm font-medium">{patient.name}</TableCell>
+                          <TableCell className="px-4 py-3 text-sm">{patient.username}</TableCell>
+                          <TableCell className="px-4 py-3 text-sm">{patient.sex || "-"}</TableCell>
+                          <TableCell className="px-4 py-3 text-sm">{patient.dob}</TableCell>
+                          <TableCell className="px-4 py-3 text-sm">{patient.phone}</TableCell>
+                          <TableCell className="px-4 py-3 text-sm truncate max-w-xs" title={patient.email}>
+>>>>>>> 9d41cd19 (TC-2801: Fix the FE branch and modify gitignore)
+=======
+>>>>>>> e79d6b62 (fix some errors)
                             {patient.email}
                           </TableCell>
                         )}
@@ -530,6 +623,58 @@ export default function UserManagement() {
               </div>
             </CardContent>
           </Card>
+<<<<<<< HEAD
+          {/* Chi tiết bệnh nhân - chỉ hiện khi có selectedPatient */}
+          {selectedPatient ? (
+            <Card>
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <CardTitle className="flex items-center gap-3">
+                    <UserPlus className="w-6 h-6 text-gray-700" />
+                    Account Information
+                  </CardTitle>
+                  <div className="flex gap-3 items-center">
+                    <Button size="sm" className="btn-gradient transition-transform duration-500 text-xl px-7 py-4">
+                      <Edit3 className="w-4 h-4 mr-2" /> Edit
+                    </Button>
+
+<<<<<<< HEAD
+<<<<<<< HEAD
+                    {/* TOGGLE ENABLE/DISABLE */}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className={`relative w-30 overflow-hidden font-medium transition-all duration-200 border
+                        ${selectedPatient?.enabled
+                          ? "bg-[#E9FFE9] hover:bg-[#388E3C] text-[#388E3C]"
+                          : "bg-[#FFEBEB] hover:bg-[#D32F2F] text-[#D32F2F]"
+                        }`}
+                      onClick={() => {
+                        if (selectedPatient) {
+                          setSelectedPatient({ ...selectedPatient, enabled: !selectedPatient.enabled })
+                        }
+                      }}
+                    >
+                      {/* Overlay làm nền đậm khi hover */}
+                      <span className="absolute inset-0 bg-black opacity-0 hover:opacity-30 transition-opacity" />
+=======
+          {/* Chi tiết bệnh nhân */}
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <CardTitle className="flex items-center gap-3">
+                  <UserPlus className="w-6 h-6 text-gray-700" />
+                  Account Information
+                </CardTitle>
+                <div className="flex gap-3 items-center">
+                  <Button size="sm" className="btn-gradient transition-transform duration-500 text-xl px-7 py-4">
+                    <Edit3 className="w-4 h-4 mr-2" /> Edit
+                  </Button>
+>>>>>>> 0d84f273 (Add doctor portal)
+
+=======
+=======
+>>>>>>> e79d6b62 (fix some errors)
           {/* Chi tiết bệnh nhân - chỉ hiện khi có selectedPatient */}
           {selectedPatient ? (
             <Card>
@@ -562,6 +707,7 @@ export default function UserManagement() {
                       {/* Overlay làm nền đậm khi hover */}
                       <span className="absolute inset-0 bg-black opacity-0 hover:opacity-30 transition-opacity" />
 
+>>>>>>> 9d41cd19 (TC-2801: Fix the FE branch and modify gitignore)
                       {/* Icon và Text – luôn trắng khi hover */}
                       <CheckCircle className="w-4 h-4 mr-2 transition-colors duration-200 group-hover:text-white" />
                       <span className="relative z-10 transition-colors duration-200 group-hover:text-white">

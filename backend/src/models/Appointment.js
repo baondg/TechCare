@@ -31,13 +31,28 @@ const Appointment = sequelize.define('Appointment', {
     type: DataTypes.TIME,
     allowNull: false
   },
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> backend
   patient: {
     type: DataTypes.STRING,
     allowNull: true
   },
+<<<<<<< HEAD
   status: {
     type: DataTypes.ENUM('Pending', 'Confirmed', 'Done', 'Cancelled', 'Rejected'),
     defaultValue: 'Pending'
+=======
+  status: {
+    type: DataTypes.ENUM('Pending', 'Confirmed', 'Done', 'Cancelled', 'Rejected'),
+    defaultValue: 'Pending'
+=======
+  status: {
+    type: DataTypes.ENUM('Upcoming', 'Done', 'Cancelled'),
+    defaultValue: 'Upcoming'
+>>>>>>> 9d41cd19 (TC-2801: Fix the FE branch and modify gitignore)
+>>>>>>> backend
   },
   room: {
     type: DataTypes.STRING,

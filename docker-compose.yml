@@ -1,3 +1,7 @@
+<<<<<<< HEAD
+version: "3.8"
+=======
+<<<<<<< HEAD
 version: "3.8"
 
 services:
@@ -15,3 +19,44 @@ services:
       - "3000:80"
     depends_on:
       - backend
+=======
+version: '3.8'
+>>>>>>> backend
+
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "5000:5000"
+    restart: always
+    environment:
+      - NODE_ENV=production
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:80"
+    depends_on:
+<<<<<<< HEAD
+      - backend
+=======
+      - backend
+    networks:
+      - techcare-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  techcare-network:
+    driver: bridge
+>>>>>>> 9d41cd19 (TC-2801: Fix the FE branch and modify gitignore)
+>>>>>>> backend

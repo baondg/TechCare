@@ -42,14 +42,46 @@
  */
 
 import { useState } from "react"
+<<<<<<< HEAD
+<<<<<<< HEAD
 import {Card,CardContent,CardHeader,CardTitle,CardDescription} from "@/components/ui/card"
+=======
+import {Card,CardContent,CardHeader,CardTitle} from "@/components/ui/card"
+>>>>>>> 3a5e23be (upgrade UI for all patient portal)
+=======
+import {Card,CardContent,CardHeader,CardTitle,CardDescription} from "@/components/ui/card"
+>>>>>>> 9d41cd19 (TC-2801: Fix the FE branch and modify gitignore)
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {Dialog,DialogContent,DialogHeader,DialogTitle,DialogDescription,DialogFooter,} from "@/components/ui/dialog"
 import { PatientLayout } from "@/components/patient-layout"
+<<<<<<< HEAD
 import { AlertCircle, X, Clock, Stethoscope, AlertTriangle, CheckCircle } from "lucide-react"
+<<<<<<< HEAD
 import { analyzeSymptoms, SymptomInput, SymptomAnalysisResult } from "@/services/ai-service"
+=======
+import { AlertCircle, X, Clock } from "lucide-react"
+>>>>>>> 3a5e23be (upgrade UI for all patient portal)
+=======
+import { analyzeSymptoms } from "@/services/ai-service"
+
+// Define types locally to avoid import issues
+interface SymptomInput {
+  name: string
+  severity: 'mild' | 'moderate' | 'severe'
+  duration: 'less24h' | '1to3days' | '3to7days' | 'moreThanWeek'
+}
+
+interface SymptomAnalysisResult {
+  condition: string
+  severity: 'low' | 'medium' | 'high'
+  recommendation: string
+  details: string
+  possibleCauses?: string[]
+  whenToSeekHelp?: string
+}
+>>>>>>> 9d41cd19 (TC-2801: Fix the FE branch and modify gitignore)
 
 // ==================== TYPE DEFINITIONS ====================
 
@@ -355,15 +387,6 @@ export default function SymptomChecker() {
                     {disclaimer || "This is not a medical diagnosis. Please consult a doctor for accurate assessment."}
                   </AlertDescription>
                 </Alert>
-
-                {analysisError && (
-                  <Alert className="border-red-300 bg-red-50">
-                    <AlertCircle className="h-5 w-5 text-red-600" />
-                    <AlertDescription className="text-red-800">
-                      {analysisError}
-                    </AlertDescription>
-                  </Alert>
-                )}
 
                 {results.map((r, i) => (
                   <Card

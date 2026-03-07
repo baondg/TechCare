@@ -54,6 +54,10 @@ const generateRefreshToken = (username, userId) =>
 exports.register = async (req, res) => {
   try {
     const { username, email, password, firstName, lastName, age } = req.body;
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> backend
     
     // Validate required fields
     if (!username || !email || !password || !firstName || !lastName) {
@@ -102,6 +106,12 @@ exports.register = async (req, res) => {
     
     // Hash password
     const hashedPassword = await hashPassword(password);
+<<<<<<< HEAD
+=======
+=======
+    const encryptedPassword = encryptPassword(password);
+>>>>>>> 9d41cd19 (TC-2801: Fix the FE branch and modify gitignore)
+>>>>>>> backend
     
     // SECURITY: Always create as 'patient', never allow role to be set from request
     const user = await User.create({
@@ -111,14 +121,28 @@ exports.register = async (req, res) => {
       firstName,
       lastName,
       age,
+<<<<<<< HEAD
       role: 'patient', // Force patient role for public registration
       loginAttempts: 0,
       lockUntil: null
+=======
+<<<<<<< HEAD
+      role: 'patient', // Force patient role for public registration
+      loginAttempts: 0,
+      lockUntil: null
+=======
+      role: 'patient' // Force patient role for public registration
+>>>>>>> 9d41cd19 (TC-2801: Fix the FE branch and modify gitignore)
+>>>>>>> backend
     });
     
     // Create empty profile for new user
     await Profile.create({ userId: user.id, email: user.email });
     
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> backend
     // Generate tokens
     const accessToken = generateAccessToken(username, user.id, user.role);
     const refreshToken = generateRefreshToken(username, user.id);
@@ -137,6 +161,12 @@ exports.register = async (req, res) => {
       userAgent: req.headers['user-agent']
     });
     
+<<<<<<< HEAD
+=======
+=======
+    const accessToken = generateAccessToken(username, user.id);
+>>>>>>> 9d41cd19 (TC-2801: Fix the FE branch and modify gitignore)
+>>>>>>> backend
     res.status(201).json({
       success: true,
       user: { 

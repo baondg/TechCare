@@ -1,4 +1,14 @@
+<<<<<<< HEAD
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+=======
+<<<<<<< HEAD
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+=======
+import { useState, useEffect } from 'react';
+
+// Simplified auth hook - no AuthProvider needed
+>>>>>>> 9d41cd19 (TC-2801: Fix the FE branch and modify gitignore)
+>>>>>>> backend
 
 interface User {
   id: number;
@@ -27,6 +37,10 @@ interface AuthContextType {
   checkSession: () => Promise<void>;
 }
 
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> backend
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
@@ -62,12 +76,60 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const handleLogout = () => {
+<<<<<<< HEAD
+=======
+=======
+export const useAuth = (): AuthContextType => {
+  const [user, setUser] = useState<User | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const checkAuth = () => {
+      const token = localStorage.getItem('authToken');
+      const userStr = localStorage.getItem('user');
+      
+      if (token && userStr) {
+        try {
+          setUser(JSON.parse(userStr));
+          setIsAuthenticated(true);
+        } catch (e) {
+          console.error('Failed to parse user data', e);
+          localStorage.removeItem('authToken');
+          localStorage.removeItem('user');
+          setUser(null);
+          setIsAuthenticated(false);
+        }
+      } else {
+        setUser(null);
+        setIsAuthenticated(false);
+      }
+      setIsLoading(false);
+    };
+
+    checkAuth();
+    
+    // Listen for storage events to sync across tabs/windows
+    window.addEventListener('storage', checkAuth);
+    return () => window.removeEventListener('storage', checkAuth);
+  }, []);
+
+  const logout = () => {
+>>>>>>> 9d41cd19 (TC-2801: Fix the FE branch and modify gitignore)
+>>>>>>> backend
     localStorage.removeItem('authToken');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
     localStorage.removeItem('sessionExpiresAt');
     setUser(null);
     setIsAuthenticated(false);
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+=======
+    window.location.href = '/login';
+>>>>>>> 9d41cd19 (TC-2801: Fix the FE branch and modify gitignore)
+>>>>>>> backend
   };
 
   const logout = async (allDevices = false): Promise<void> => {
@@ -113,10 +175,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (data.expiresAt) {
           localStorage.setItem('sessionExpiresAt', data.expiresAt);
         }
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> backend
         
         setUser(data.user);
         setIsAuthenticated(true);
         
+<<<<<<< HEAD
+=======
+=======
+        setUser(data.user);
+        setIsAuthenticated(true);
+>>>>>>> 9d41cd19 (TC-2801: Fix the FE branch and modify gitignore)
+>>>>>>> backend
         return { success: true };
       } else {
         return { 
@@ -156,10 +229,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         localStorage.setItem('authToken', data.token);
         localStorage.setItem('refreshToken', data.refreshToken);
         localStorage.setItem('user', JSON.stringify(data.user));
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> backend
         
         setUser(data.user);
         setIsAuthenticated(true);
         
+<<<<<<< HEAD
+=======
+=======
+        setUser(data.user);
+        setIsAuthenticated(true);
+>>>>>>> 9d41cd19 (TC-2801: Fix the FE branch and modify gitignore)
+>>>>>>> backend
         return { success: true };
       } else {
         return { 
@@ -176,6 +260,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> backend
   const refreshToken = async (): Promise<boolean> => {
     try {
       const refreshTokenValue = localStorage.getItem('refreshToken');
@@ -212,6 +300,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       handleLogout();
       return false;
     }
+<<<<<<< HEAD
+=======
+=======
+  return {
+    user,
+    isLoading,
+    isAuthenticated,
+    login,
+    register,
+    logout,
+>>>>>>> 9d41cd19 (TC-2801: Fix the FE branch and modify gitignore)
+>>>>>>> backend
   };
 
   const checkSession = async (): Promise<void> => {

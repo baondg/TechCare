@@ -6,7 +6,14 @@ const authRoutes = require('./authorization/routes');
 const systemConfigRoutes = require('./routes/systemConfig');
 const appointmentRoutes = require('./routes/appointmentRoutes');
 const profileRoutes = require('./routes/profileRoutes');
+<<<<<<< HEAD
 const doctorRoutes = require('./routes/doctorRoutes');
+=======
+<<<<<<< HEAD
+const doctorRoutes = require('./routes/doctorRoutes');
+=======
+>>>>>>> 9d41cd19 (TC-2801: Fix the FE branch and modify gitignore)
+>>>>>>> backend
 const sessionMiddleware = require('./middleware/sessionMiddleware');
 const sequelize = require('./common/database');
 
@@ -35,7 +42,14 @@ app.use('/api/auth', authRoutes);
 app.use('/api/system-config', systemConfigRoutes);
 app.use('/api/appointments', appointmentRoutes);
 app.use('/api/profile', profileRoutes);
+<<<<<<< HEAD
 app.use('/api/doctor', doctorRoutes);
+=======
+<<<<<<< HEAD
+app.use('/api/doctor', doctorRoutes);
+=======
+>>>>>>> 9d41cd19 (TC-2801: Fix the FE branch and modify gitignore)
+>>>>>>> backend
 const chatbotRoutes = require('./routes/chatbot');
 app.use('/api/chatbot', chatbotRoutes);
 

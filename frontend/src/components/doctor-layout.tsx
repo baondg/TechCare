@@ -3,7 +3,15 @@
 import type React from "react"
 import { Link } from "react-router-dom";
 import { useLocation } from "react-router-dom"
+<<<<<<< HEAD
 import { Users, LogOut, Activity, UserRound, Calendar, FileText, UserCog } from "lucide-react"
+=======
+<<<<<<< HEAD
+import { Users, LogOut, Activity, UserRound, Calendar, FileText, UserCog } from "lucide-react"
+=======
+import { Users,  LogOut , Activity, UserRound, Calendar, FileText } from "lucide-react"
+>>>>>>> 0d84f273 (Add doctor portal)
+>>>>>>> backend
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/contexts/AuthContext"
@@ -18,7 +26,14 @@ export function DoctorLayout({ children }: { children: React.ReactNode }) {
     { name: "Appointments", href: "/doctor/appointments", icon: Calendar },
     { name: "Feedback", href: "/doctor/feedback", icon: FileText },
     { name: "Schedule", href: "/doctor/schedule", icon: Calendar },
+<<<<<<< HEAD
     { name: "Profile", href: "/doctor/profile", icon: UserCog },
+=======
+<<<<<<< HEAD
+    { name: "Profile", href: "/doctor/profile", icon: UserCog },
+=======
+>>>>>>> 0d84f273 (Add doctor portal)
+>>>>>>> backend
   ]
   return (
     <div className="min-h-screen w-screen bg-background">

@@ -1,17 +1,38 @@
 import { useNavigate, useParams } from "react-router-dom"
+<<<<<<< HEAD
 import { useEffect, useState } from "react"
+=======
+<<<<<<< HEAD
+import { useEffect, useState } from "react"
+=======
+>>>>>>> 2a3e1294 (Add nurse portal and Technician portal)
+>>>>>>> backend
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { DoctorLayout } from "./doctor-layout"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+<<<<<<< HEAD
 import { Loader2 } from "lucide-react"
+=======
+<<<<<<< HEAD
+import { Loader2 } from "lucide-react"
+=======
+>>>>>>> 2a3e1294 (Add nurse portal and Technician portal)
+>>>>>>> backend
 import ViewingPatientDashboard from "@/doctor/medical_records/dashboard"
 import ViewingPatientHealthInfo from "@/doctor/medical_records/health-info"
 import PatientPrescription from "@/doctor/medical_records/prescription"
 import PatientDiagnosis from "@/doctor/medical_records/diagnosis"
 import PatientSurgery from "@/doctor/medical_records/surgery"
 import PatientLab from "@/doctor/medical_records/lab"
+<<<<<<< HEAD
 import { doctorService, type PatientDetail } from "@/services/doctor-service"
+=======
+<<<<<<< HEAD
+import { doctorService, type PatientDetail } from "@/services/doctor-service"
+=======
+>>>>>>> 2a3e1294 (Add nurse portal and Technician portal)
+>>>>>>> backend
 
 const tabs = [
   { label: "Dashboard", value: "dashboard" },
@@ -26,6 +47,10 @@ const tabs = [
 export function DoctorLayout2() {
   const navigate = useNavigate()
   const { tab = "dashboard", patientId } = useParams()
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> backend
   const [patient, setPatient] = useState<PatientDetail | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -37,11 +62,20 @@ export function DoctorLayout2() {
       .catch(() => setPatient(null))
       .finally(() => setLoading(false))
   }, [patientId])
+<<<<<<< HEAD
+=======
+=======
+>>>>>>> 2a3e1294 (Add nurse portal and Technician portal)
+>>>>>>> backend
 
   const setActiveTab = (value: string) => {
     navigate(`/doctor/medical_records/${patientId}/${value}`)
   }
 
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> backend
   // Derive display values from patient data
   const fullName = patient
     ? [patient.firstName, patient.lastName].filter(Boolean).join(" ") || patient.username
@@ -54,11 +88,20 @@ export function DoctorLayout2() {
     : "No diagnosis"
   const department = patient?.latestDiagnosis?.department || "—"
 
+<<<<<<< HEAD
+=======
+=======
+>>>>>>> 2a3e1294 (Add nurse portal and Technician portal)
+>>>>>>> backend
   return (
     <DoctorLayout>
       <div className="space-y-6 w-full">
         {/* ===== Patient Info Header ===== */}
         <Card className="p-4 flex items-center justify-between border-r border-white/40 sticky bg-white/80 backdrop-blur-xl shadow-[4px_0_20px_rgba(0,0,0,0.05)] z-40">
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> backend
           {loading ? (
             <div className="flex items-center gap-2 text-slate-500">
               <Loader2 className="h-4 w-4 animate-spin" /> Loading patient info…
@@ -78,6 +121,22 @@ export function DoctorLayout2() {
           ) : (
             <p className="text-sm text-red-500">Patient not found</p>
           )}
+<<<<<<< HEAD
+=======
+=======
+          <div>
+            <p className="font-semibold text-lg">
+              Nguyen Van An – OP123456789 | 46 Male | BMI: 25.77
+            </p>
+            <p className="text-sm text-slate-600">
+              Diagnosis: Z59.1 – Housing & economic problems
+            </p>
+            <p className="text-sm text-slate-500">
+              Department: Cardiology
+            </p>
+          </div>
+>>>>>>> 2a3e1294 (Add nurse portal and Technician portal)
+>>>>>>> backend
 
           <div className="flex gap-2">
             <Button size="sm" className="btn-gradient transition-transform duration-500 text-xl px-7 py-4">+ Add Follow-up Appointment</Button>
@@ -87,7 +146,15 @@ export function DoctorLayout2() {
           </div>
         </Card>
 
+<<<<<<< HEAD
         {/* ===== Tabs ===== */}
+=======
+<<<<<<< HEAD
+        {/* ===== Tabs ===== */}
+=======
+        {/* ===== Tabs (GIỐNG LOGIN) ===== */}
+>>>>>>> 2a3e1294 (Add nurse portal and Technician portal)
+>>>>>>> backend
         <div className="sticky z-10 bg-white rounded-md w-fit">
           <Tabs value={tab} onValueChange={setActiveTab}>
             <TabsList className="inline-flex rounded-xl bg-tr p-1 gap-1">

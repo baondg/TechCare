@@ -1,4 +1,8 @@
 const Appointment = require('../models/Appointment');
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> backend
 const { Op } = require('sequelize');
 const sequelize = require('../common/database');
 const User = sequelize.models.user || require('../models/User')(sequelize);
@@ -44,29 +48,62 @@ exports.getBookedSlots = async (req, res) => {
     res.status(500).json({ message: 'Internal server error' });
   }
 };
+<<<<<<< HEAD
+=======
+=======
+>>>>>>> 9d41cd19 (TC-2801: Fix the FE branch and modify gitignore)
+>>>>>>> backend
 
 exports.createAppointment = async (req, res) => {
   try {
     const { doctor, department, date, time, room, symptoms, notes } = req.body;
+<<<<<<< HEAD
     const userId = req.user.userId;
 
+=======
+<<<<<<< HEAD
+    const userId = req.user.userId;
+
+=======
+    const userId = req.user.userId; // Get userId from authenticated token
+    
+    // Basic validation
+>>>>>>> 9d41cd19 (TC-2801: Fix the FE branch and modify gitignore)
+>>>>>>> backend
     if (!doctor || !department || !date || !time) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> backend
     // Look up patient for display
     const patientUser = await User.findByPk(userId, { attributes: ['username', 'firstName', 'lastName'] });
     const patientName = patientUser 
       ? `${patientUser.firstName || ''} ${patientUser.lastName || ''}`.trim() || patientUser.username
       : String(userId);
 
+<<<<<<< HEAD
+=======
+=======
+>>>>>>> 9d41cd19 (TC-2801: Fix the FE branch and modify gitignore)
+>>>>>>> backend
     // Check for double booking
     const existingAppointment = await Appointment.findOne({
       where: {
         doctor,
         date,
         time,
+<<<<<<< HEAD
         status: { [Op.in]: ['Pending', 'Confirmed'] }
+=======
+<<<<<<< HEAD
+        status: { [Op.in]: ['Pending', 'Confirmed'] }
+=======
+        status: 'Upcoming' // Only check active appointments
+>>>>>>> 9d41cd19 (TC-2801: Fix the FE branch and modify gitignore)
+>>>>>>> backend
       }
     });
 
@@ -77,14 +114,29 @@ exports.createAppointment = async (req, res) => {
     const appointment = await Appointment.create({
       userId,
       doctor,
+<<<<<<< HEAD
       patient: patientName,
+=======
+<<<<<<< HEAD
+      patient: patientName,
+=======
+>>>>>>> 9d41cd19 (TC-2801: Fix the FE branch and modify gitignore)
+>>>>>>> backend
       department,
       date,
       time,
       room,
       symptoms,
       notes,
+<<<<<<< HEAD
       status: 'Pending'
+=======
+<<<<<<< HEAD
+      status: 'Pending'
+=======
+      status: 'Upcoming'
+>>>>>>> 9d41cd19 (TC-2801: Fix the FE branch and modify gitignore)
+>>>>>>> backend
     });
 
     res.status(201).json({ success: true, appointment });
@@ -103,6 +155,10 @@ exports.getAppointments = async (req, res) => {
       order: [['date', 'DESC'], ['time', 'DESC']]
     });
 
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> backend
     // Enrich appointments with doctor full name
     const enriched = await Promise.all(appointments.map(async (appt) => {
       const a = appt.toJSON();
@@ -124,6 +180,12 @@ exports.getAppointments = async (req, res) => {
     }));
 
     res.status(200).json({ success: true, appointments: enriched });
+<<<<<<< HEAD
+=======
+=======
+    res.status(200).json({ success: true, appointments });
+>>>>>>> 9d41cd19 (TC-2801: Fix the FE branch and modify gitignore)
+>>>>>>> backend
   } catch (error) {
     console.error('Get appointments error:', error);
     res.status(500).json({ message: 'Internal server error', error: error.message });

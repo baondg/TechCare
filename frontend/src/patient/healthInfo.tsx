@@ -8,7 +8,15 @@ import { Textarea } from "@/components/ui/textarea"
 import { PatientLayout } from "@/components/patient-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+<<<<<<< HEAD
+<<<<<<< HEAD
 import { Activity, Heart, AlertCircle, FileText, Save, History, X, Loader2, Stethoscope } from "lucide-react"
+=======
+import { Activity, Heart, AlertCircle, FileText, Save, History, X } from "lucide-react"
+>>>>>>> 3a5e23be (upgrade UI for all patient portal)
+=======
+import { Activity, Heart, AlertCircle, FileText, Save, History, X, Loader2, Stethoscope } from "lucide-react"
+>>>>>>> 9d41cd19 (TC-2801: Fix the FE branch and modify gitignore)
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { CollapsibleSection } from "@/components/collapsible-section"
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
@@ -64,8 +72,46 @@ export default function HealthInfoPage() {
     return (w / ((h / 100) ** 2)).toFixed(1)
   }, [height, weight])
 
+<<<<<<< HEAD
+<<<<<<< HEAD
   const [healthHistory, setHealthHistory] = useState<HealthRecord[]>([])
   const [historyPagination, setHistoryPagination] = useState({ total: 0, page: 1, limit: 10, totalPages: 1 })
+=======
+  const [healthHistory] = useState<HealthRecord[]>([
+    {
+      id: 1,
+      updatedAt: new Date("2025-11-20T10:30:00"),
+      height: 174,
+      weight: 82,
+      bmi: 27.1,
+      bloodPressure: "120/78",
+      heartRate: 80,
+      respiratoryRate: 16,
+      temperature: 36.7,
+      spo2: 98,
+      symptoms: "Sore throat, mild fever",
+      updatedBy: "Patient",
+    },
+    {
+      id: 2,
+      updatedAt: new Date("2025-10-15T14:20:00"),
+      height: 174,
+      weight: 85,
+      bmi: 28.0,
+      bloodPressure: "118/76",
+      heartRate: 84,
+      respiratoryRate: 18,
+      temperature: 36.8,
+      spo2: 97,
+      symptoms: "Headache, fatigue",
+      updatedBy: "Patient",
+    },
+  ])
+>>>>>>> 3a5e23be (upgrade UI for all patient portal)
+=======
+  const [healthHistory, setHealthHistory] = useState<HealthRecord[]>([])
+  const [historyPagination, setHistoryPagination] = useState({ total: 0, page: 1, limit: 10, totalPages: 1 })
+>>>>>>> 9d41cd19 (TC-2801: Fix the FE branch and modify gitignore)
 
   const [selectedRecord, setSelectedRecord] = useState<HealthRecord | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
@@ -221,12 +267,27 @@ export default function HealthInfoPage() {
   const [foodAllergies, setFoodAllergies] = useState<string[]>([])
   const [otherAllergies, setOtherAllergies] = useState<string[]>([])
 
+<<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 9d41cd19 (TC-2801: Fix the FE branch and modify gitignore)
   const [chronicConditions, setChronicConditions] = useState<string[]>([])
   const [pastSurgeries, setPastSurgeries] = useState<string[]>([])
   const [familyHistory, setFamilyHistory] = useState<string[]>([])
   const [pastIllnesses, setPastIllnesses] = useState<string[]>([])
   const [vaccinations, setVaccinations] = useState<string[]>([])
   const [substanceAbuse, setSubstanceAbuse] = useState<string[]>([])
+<<<<<<< HEAD
+=======
+  const [chronicConditions, setChronicConditions] = useState(["Hypertension (controlled)"])
+  const [pastSurgeries, setPastSurgeries] = useState(["Appendectomy (2018)"])
+  const [familyHistory, setFamilyHistory] = useState(["Father: Heart disease, Mother: Diabetes"])
+  const [pastIllnesses, setPastIllnesses] = useState(["Mumps"])
+  const [vaccinations, setVaccinations] = useState(["Tetanus and diphtheria"])
+  const [substanceAbuse, setSubstanceAbuse] = useState(["Alcohol"])
+>>>>>>> 3a5e23be (upgrade UI for all patient portal)
+=======
+>>>>>>> 9d41cd19 (TC-2801: Fix the FE branch and modify gitignore)
 
   function InputList({
     label,
@@ -722,4 +783,22 @@ export default function HealthInfoPage() {
       </div>
     </PatientLayout>
   )
+<<<<<<< HEAD
 }
+<<<<<<< HEAD
+=======
+
+// const calculateBMI = (weightStr: string, heightStr: string): number | null => {
+//   // Chuyển chuỗi thành số. Nếu chuỗi rỗng hoặc không hợp lệ, trả về 0.
+//   const weightKg = parseFloat(weightStr);
+//   const heightCm = parseFloat(heightStr);
+  
+//   if (isNaN(weightKg) || isNaN(heightCm) || weightKg <= 0 || heightCm <= 0) return null;
+  
+//   const heightMeters = heightCm / 100;
+//   return weightKg / (heightMeters * heightMeters);
+// }
+>>>>>>> 3a5e23be (upgrade UI for all patient portal)
+=======
+}
+>>>>>>> eca8cbaa (add some page in doctor portal)

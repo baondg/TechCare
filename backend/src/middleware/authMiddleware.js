@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+<<<<<<< HEAD
 const sequelize = require('../common/database');
 const defineSession = require('../models/Session');
 const defineUser = require('../models/User');
@@ -6,10 +7,15 @@ const Session = defineSession(sequelize);
 const User = defineUser(sequelize);
 
 const authenticateToken = async (req, res, next) => {
+=======
+
+const authenticateToken = (req, res, next) => {
+>>>>>>> 9d41cd19 (TC-2801: Fix the FE branch and modify gitignore)
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
   if (!token) {
+<<<<<<< HEAD
     return res.status(401).json({ 
       success: false,
       error: 'Authentication required',
@@ -98,6 +104,19 @@ const authenticateToken = async (req, res, next) => {
       code: 'AUTH_ERROR'
     });
   }
+=======
+    return res.status(401).json({ message: 'Authentication required' });
+  }
+
+  jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key', (err, user) => {
+    if (err) {
+      console.error('Token verification failed:', err.message);
+      return res.status(403).json({ message: 'Invalid or expired token' });
+    }
+    req.user = user;
+    next();
+  });
+>>>>>>> 9d41cd19 (TC-2801: Fix the FE branch and modify gitignore)
 };
 
 module.exports = authenticateToken;

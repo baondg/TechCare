@@ -5,7 +5,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+<<<<<<< HEAD
+<<<<<<< HEAD
 import { Activity, User, Stethoscope, Eye, EyeOff, AlertCircle, UserStar } from "lucide-react";
+=======
+import { Activity, User, Stethoscope, Eye, EyeOff, AlertCircle } from "lucide-react";
+>>>>>>> 3a5e23be (upgrade UI for all patient portal)
+=======
+import { Activity, User, Stethoscope, Eye, EyeOff, AlertCircle, UserStar } from "lucide-react";
+>>>>>>> 2a3e1294 (Add nurse portal and Technician portal)
 import { Link } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -17,13 +25,31 @@ export default function LoginPage() {
   const { login } = useAuth();
   const [role, setRole] = useState<"patient" | "hospital staff" | "admin">("patient");
   const [showPassword, setShowPassword] = useState(false);
+<<<<<<< HEAD
+<<<<<<< HEAD
+<<<<<<< HEAD
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+=======
+>>>>>>> 9d41cd19 (TC-2801: Fix the FE branch and modify gitignore)
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+=======
+  const [error] = useState("");
+<<<<<<< HEAD
+>>>>>>> 3a5e23be (upgrade UI for all patient portal)
+=======
+  const [error] = useState("");
+>>>>>>> 0d84f273 (Add doctor portal)
+=======
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+>>>>>>> e79d6b62 (fix some errors)
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+<<<<<<< HEAD
+<<<<<<< HEAD
     
     // Clear any previous errors
     setError("");
@@ -77,6 +103,30 @@ export default function LoginPage() {
     } finally {
       setIsLoading(false);
     }
+=======
+    // Redirect based on role
+    if (role === "patient") {
+      router("/patient/dashboard");
+    } else if (role === "admin") {
+      router("/admin/dashboard"); 
+    } else if (role === "hospital staff") {
+      router("/doctor/dashboard")
+    }
+
+>>>>>>> 0d84f273 (Add doctor portal)
+=======
+    setError("");
+    const result = await login(username, password);
+    if (result.success) {
+      if (role === "patient") {
+        router("/patient/dashboard");
+      } else {
+        router("/admin/dashboard");
+      }
+    } else {
+      setError(result.error || "Login failed");
+    }
+>>>>>>> 9d41cd19 (TC-2801: Fix the FE branch and modify gitignore)
   };
 
   return (

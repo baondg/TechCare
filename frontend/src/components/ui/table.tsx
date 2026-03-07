@@ -64,7 +64,6 @@ const TableRow = React.forwardRef<
       `
       cursor-pointer transition-colors
       even:bg-white odd:bg-cyan-400/10
-      hover:bg-cyan-100
       data-[state=selected]:bg-cyan-200
       data-[state=selected]:font-medium
       data-[state=selected]:border-l-4

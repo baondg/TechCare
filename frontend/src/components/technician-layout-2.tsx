@@ -6,8 +6,17 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import ViewingPatientLab from "@/technician/medical_records/lab"
 
 const tabs = [
+<<<<<<< HEAD
+<<<<<<< HEAD
   { label: "Test results", value: "lab" },
   { label: "History", value: "history"},
+=======
+  { label: "Dashboard", value: "lab" },
+>>>>>>> 2a3e1294 (Add nurse portal and Technician portal)
+=======
+  { label: "Test results", value: "lab" },
+  { label: "History", value: "history"},
+>>>>>>> d0e85e3f (add technician portal + appointment page)
 ]
 
 export function TechnicianLayout2() {
@@ -43,6 +52,10 @@ export function TechnicianLayout2() {
           </div>
         </Card>
 
+<<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> d0e85e3f (add technician portal + appointment page)
         <div className="sticky z-10 bg-white rounded-md w-fit">
           <Tabs value={tab} onValueChange={setActiveTab}>
             <TabsList className="inline-flex rounded-xl bg-tr p-1 gap-1">
@@ -61,6 +74,11 @@ export function TechnicianLayout2() {
           </Tabs>
         </div>
 
+<<<<<<< HEAD
+=======
+>>>>>>> 2a3e1294 (Add nurse portal and Technician portal)
+=======
+>>>>>>> d0e85e3f (add technician portal + appointment page)
         {/* ===== Tab Content ===== */}
         <div>
           {tab === "lab" && <ViewingPatientLab />}

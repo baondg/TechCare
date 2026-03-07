@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # ============ Build Stage ============
 FROM node:18-alpine AS builder
 
@@ -34,3 +35,17 @@ HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
   CMD wget -qO- http://localhost:80/ || exit 1
 
 CMD ["nginx", "-g", "daemon off;"]
+=======
+FROM node:18
+
+WORKDIR /app
+
+COPY package.json package-lock.json* ./
+RUN npm install
+
+COPY . .
+
+EXPOSE 3000
+
+CMD ["npm", "run", "dev"]
+>>>>>>> 9d41cd19 (TC-2801: Fix the FE branch and modify gitignore)

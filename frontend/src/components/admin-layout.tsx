@@ -4,7 +4,19 @@ import type React from "react"
 import { useState } from "react"
 import { Link } from "react-router-dom";
 import { useLocation } from "react-router-dom"
+<<<<<<< HEAD
+<<<<<<< HEAD
+<<<<<<< HEAD
 import { LayoutDashboard, Users, Settings,  LogOut, MessageSquareText , Activity, UserRound } from "lucide-react"
+=======
+import { LayoutDashboard, Users, Settings,  LogOut, MessageSquareText , Activity } from "lucide-react"
+>>>>>>> 3a5e23be (upgrade UI for all patient portal)
+=======
+import { LayoutDashboard, Users, Settings,  LogOut, MessageSquareText , Activity, UserRound } from "lucide-react"
+>>>>>>> 0d84f273 (Add doctor portal)
+=======
+import { LayoutDashboard, Users, Settings,  LogOut, MessageSquareText , Activity, Shield, Database } from "lucide-react"
+>>>>>>> 9d41cd19 (TC-2801: Fix the FE branch and modify gitignore)
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/contexts/AuthContext"
@@ -16,7 +28,13 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
   const navigation = [
     { href: "/admin/dashboard", name: "Dashboard", icon: LayoutDashboard },
     { href: "/admin/users", name: "Account Management", icon: Users },
+<<<<<<< HEAD
     { href: "/admin/config", name: "System Configuration", icon: Settings },
+=======
+    { href: "/admin/system-config", name: "System Config", icon: Settings },
+    { href: "/admin/rate-limit", name: "Rate Limit", icon: Shield },
+    { href: "/admin/backup", name: "Backup", icon: Database },
+>>>>>>> 9d41cd19 (TC-2801: Fix the FE branch and modify gitignore)
     { href: "/admin/feedback", name: "Feedback", icon: MessageSquareText },
   ]
   return (

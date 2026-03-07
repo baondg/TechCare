@@ -90,9 +90,21 @@ export default function DoctorFeedback() {
       <div className="w-full space-y-6">
         {/* Header với gradient */}
         <div>
+<<<<<<< HEAD
+<<<<<<< HEAD
           <h3 className="h-12 text-3xl font-bold bg-linear-to-r from-[#06b6d4] via-[#0891b2] to-[#06b6d4] bg-clip-text text-transparent mb-2">
             Feedback
           </h3>
+=======
+          <h2 className="h-12 text-4xl font-bold bg-linear-to-r from-[#06b6d4] via-[#0891b2] to-[#06b6d4] bg-clip-text text-transparent mb-2">
+            Feedback & AI Suggestions
+          </h2>
+>>>>>>> 2a3e1294 (Add nurse portal and Technician portal)
+=======
+          <h3 className="h-12 text-3xl font-bold bg-linear-to-r from-[#06b6d4] via-[#0891b2] to-[#06b6d4] bg-clip-text text-transparent mb-2">
+            Feedback
+          </h3>
+>>>>>>> d0e85e3f (add technician portal + appointment page)
           <p className="text-slate-600 text-lg">Share your experience and review AI recommendations</p>
         </div>
 

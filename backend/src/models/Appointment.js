@@ -31,6 +31,7 @@ const Appointment = sequelize.define('Appointment', {
     type: DataTypes.TIME,
     allowNull: false
   },
+<<<<<<< HEAD
   patient: {
     type: DataTypes.STRING,
     allowNull: true
@@ -38,6 +39,11 @@ const Appointment = sequelize.define('Appointment', {
   status: {
     type: DataTypes.ENUM('Pending', 'Confirmed', 'Done', 'Cancelled', 'Rejected'),
     defaultValue: 'Pending'
+=======
+  status: {
+    type: DataTypes.ENUM('Upcoming', 'Done', 'Cancelled'),
+    defaultValue: 'Upcoming'
+>>>>>>> 9d41cd19 (TC-2801: Fix the FE branch and modify gitignore)
   },
   room: {
     type: DataTypes.STRING,

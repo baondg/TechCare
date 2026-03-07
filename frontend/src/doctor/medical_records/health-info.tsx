@@ -233,95 +233,92 @@ export default function ViewingPatientHealthInfo() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Messages */}
-      {error && <div className="bg-red-50 text-red-700 px-4 py-2 rounded">{error}</div>}
-      {successMsg && <div className="bg-green-50 text-green-700 px-4 py-2 rounded">{successMsg}</div>}
-
-      {/* Action bar */}
-      <div className="flex gap-2 justify-end">
-        {!isEditing ? (
-          <>
-            <Button onClick={() => setIsEditing(true)} className="btn-gradient">Edit</Button>
-            <Button onClick={handleCreateNew} variant="outline">+ New Record</Button>
-            {selectedRecord?.id && (
-              <Button onClick={handleDelete} variant="outline" className="text-red-600 hover:bg-red-50">
-                <Trash2 className="h-4 w-4 mr-1" /> Delete
-              </Button>
-            )}
-          </>
-        ) : (
-          <>
-            <Button onClick={handleSave} disabled={saving} className="btn-gradient">
-              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Save className="h-4 w-4 mr-1" />}
-              Save
-            </Button>
-            <Button variant="outline" onClick={() => { setIsEditing(false); if (selectedRecord) loadRecordToForm(selectedRecord) }}>
-              Cancel
-            </Button>
-          </>
-        )}
-      </div>
-
-      {/* History table */}
-      <Card className="flex flex-col h-fit">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-xl">
-            <History className="h-5 w-5" /> Health Information History
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">Click on any row to load that record</p>
-        </CardHeader>
-        <CardContent className="flex-1 p-0 overflow-hidden">
-          <div className="h-full overflow-auto">
-            <Table>
-              <TableHeader className="sticky top-0 z-10 bg-gray-50 border-b">
-                <TableRow>
-                  <TableHead className="w-12 text-center">No.</TableHead>
-                  <TableHead className="w-40">Updated Time</TableHead>
-                  <TableHead className="w-24 text-center">Height</TableHead>
-                  <TableHead className="w-24 text-center">Weight</TableHead>
-                  <TableHead className="w-20 text-center">BMI</TableHead>
-                  <TableHead className="w-32 text-center">BP</TableHead>
-                  <TableHead className="w-24 text-center">HR</TableHead>
-                  <TableHead className="w-28 text-center">Resp.</TableHead>
-                  <TableHead className="w-28 text-center">Temp</TableHead>
-                  <TableHead className="w-24 text-center">SpO2</TableHead>
-                  <TableHead>Symptoms</TableHead>
-                  <TableHead className="w-28">By</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {paginated.map((r, i) => (
-                  <TableRow key={r.id} onClick={() => { loadRecordToForm(r); setIsEditing(false) }}
-                    className={`cursor-pointer transition-all h-14 hover:bg-cyan-50 hover:border-l-4 hover:border-l-cyan-500 ${
-                      selectedRecord?.id === r.id ? "bg-cyan-50 border-l-4 border-l-cyan-600" : ""
-                    }`}>
-                    <TableCell className="text-center font-medium">{(currentPage - 1) * pageSize + i + 1}</TableCell>
-                    <TableCell className="text-sm">
-                      {new Date(r.updatedAt).toLocaleDateString("vi-VN")}
-                      <br /><span className="text-muted-foreground text-xs">{new Date(r.updatedAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}</span>
-                    </TableCell>
-                    <TableCell className="text-center">{r.height ?? "-"}</TableCell>
-                    <TableCell className="text-center">{r.weight ?? "-"}</TableCell>
-                    <TableCell className="text-center font-semibold">{r.bmi?.toFixed(1) ?? "-"}</TableCell>
-                    <TableCell className="text-center">{r.bloodPressureSys && r.bloodPressureDia ? `${r.bloodPressureSys}/${r.bloodPressureDia}` : "-"}</TableCell>
-                    <TableCell className="text-center">{r.heartRate ?? "-"}</TableCell>
-                    <TableCell className="text-center">{r.respiratoryRate ?? "-"}</TableCell>
-                    <TableCell className="text-center">{r.temperature ? `${r.temperature.toFixed(1)}°C` : "-"}</TableCell>
-                    <TableCell className="text-center">
-                      {r.spo2 != null ? <span className={r.spo2 >= 95 ? "text-green-600" : "text-red-600"}>{r.spo2}%</span> : "-"}
-                    </TableCell>
-                    <TableCell className="text-sm max-w-xs truncate" title={r.currentSymptoms || ""}>{r.currentSymptoms || "-"}</TableCell>
-                    <TableCell>
-                      <span className="px-2 py-1 text-xs rounded-full bg-cyan-100 text-cyan-800">{r.updatedBy || "System"}</span>
-                    </TableCell>
+    <>
+      <div className="space-y-6">
+        {/* Data table */}
+        <Card className="flex flex-col h-fit">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-xl">
+              <History className="h-5 w-5" />
+              Health Information History
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Click on any row to load that record into the form below
+            </p>
+          </CardHeader>
+          <CardContent className="flex-1 p-0 overflow-hidden">
+            <div className="h-full overflow-auto">
+              <Table>
+                <TableHeader 
+                className="sticky top-0 z-10 border-b text-white"
+                style={{
+                  background: "linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)"
+                }}>
+                  <TableRow>
+                    <TableHead className="w-12 text-center text-white">No.</TableHead>
+                    <TableHead className="w-40 text-white">Updated Time</TableHead>
+                    <TableHead className="w-24 text-center text-white">Height</TableHead>
+                    <TableHead className="w-24 text-center text-white">Weight</TableHead>
+                    <TableHead className="w-20 text-center text-white">BMI</TableHead>
+                    <TableHead className="w-32 text-center text-white">BP</TableHead>
+                    <TableHead className="w-24 text-center text-white">HR</TableHead>
+                    <TableHead className="w-28 text-center text-white">Resp.</TableHead>
+                    <TableHead className="w-28 text-center text-white">Temp</TableHead>
+                    <TableHead className="w-24 text-center text-white">SpO2</TableHead>
+                    <TableHead className=" text-white">Symptoms</TableHead>
+                    <TableHead className="w-28 text-white">By</TableHead>
                   </TableRow>
-                ))}
-                {paginated.length === 0 && (
-                  <TableRow><TableCell colSpan={12} className="text-center py-12 text-gray-500">No records found.</TableCell></TableRow>
-                )}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {paginated.map((r, i) => (
+                    <TableRow
+                      key={r.id}
+                      onClick={() => loadRecordToForm(r)}
+                      className={`cursor-pointer transition-all h-14 hover:bg-cyan-50 hover:border-l-4 hover:border-l-cyan-500 ${
+                        selectedRecord?.id === r.id ? "bg-cyan-50 border-l-4 border-l-cyan-600" : ""
+                      }`}
+                    >
+                      <TableCell className="text-center font-medium">
+                        {(currentPage - 1) * pageSize + i + 1}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {r.updatedAt.toLocaleDateString("vi-VN")}
+                        <br />
+                        <span className="text-muted-foreground text-xs">
+                          {r.updatedAt.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-center">{r.height}</TableCell>
+                      <TableCell className="text-center">{r.weight}</TableCell>
+                      <TableCell className="text-center font-semibold">{r.bmi.toFixed(1)}</TableCell>
+                      <TableCell className="text-center">{r.bloodPressure}</TableCell>
+                      <TableCell className="text-center">{r.heartRate}</TableCell>
+                      <TableCell className="text-center">{r.respiratoryRate}</TableCell>
+                      <TableCell className="text-center">{r.temperature.toFixed(1)}°C</TableCell>
+                      <TableCell className="text-center">
+                        <span className={r.spo2 >= 95 ? "text-green-600" : "text-red-600"}>
+                          {r.spo2}%
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-sm max-w-xs truncate" title={r.symptoms}>
+                        {r.symptoms || "-"}
+                      </TableCell>
+                      <TableCell>
+                        <span className="px-2 py-1 text-xs rounded-full bg-cyan-100 text-cyan-800">
+                          {r.updatedBy}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {paginated.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={12} className="text-center py-12 text-gray-500">
+                        No records found.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
 
             {pageCount > 1 && (
               <div className="flex items-center justify-between px-6 py-3 bg-gray-50 border-t text-sm">
@@ -340,8 +337,14 @@ export default function ViewingPatientHealthInfo() {
                 <div className="flex gap-1">
                   <Button variant="outline" size="sm" disabled={currentPage === 1} onClick={() => setCurrentPage(p => Math.max(1, p - 1))}>Previous</Button>
                   {Array.from({ length: pageCount }, (_, i) => (
-                    <Button key={i + 1} variant={currentPage === i + 1 ? "default" : "outline"} size="sm"
-                      className={currentPage === i + 1 ? "bg-[#06b6d4]" : ""} onClick={() => setCurrentPage(i + 1)}>{i + 1}</Button>
+                    <Button
+                      key={i + 1}
+                      size="sm"
+                      className={currentPage === i + 1 ? "btn-gradient" : "btn-outline"}
+                      onClick={() => setCurrentPage(i + 1)}
+                    >
+                      {i + 1}
+                    </Button>
                   ))}
                   <Button variant="outline" size="sm" disabled={currentPage === pageCount} onClick={() => setCurrentPage(p => Math.min(pageCount, p + 1))}>Next</Button>
                 </div>

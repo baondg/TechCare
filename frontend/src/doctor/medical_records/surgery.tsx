@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Plus, Pencil } from "lucide-react"
+import {  Table,  TableHeader,  TableBody,  TableHead,  TableRow,  TableCell} from "@/components/ui/table"
 
 type Surgery = {
   id: string
@@ -71,18 +72,22 @@ export default function PatientSurgery() {
       {/* ===== LEFT: SURGERY TABLE ===== */}
       <Card className="col-span-5">
         <CardContent className="p-4">
-          <table className="w-full text-sm">
-            <thead className="bg-cyan-50 text-slate-600">
-              <tr>
-                <th className="p-2 text-left">No.</th>
-                <th className="p-2 text-left">Procedure</th>
-                <th className="p-2 text-left">Date</th>
-                <th className="p-2 text-left">Surgeon</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table className="w-full text-sm overflow-x-auto">
+            <TableHeader 
+                      className="bg-cyan-50 text-white" 
+                      style={{
+                      background: "linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)"
+                    }}>
+              <TableRow>
+                <TableHead className="p-2 text-left text-white">No.</TableHead>
+                <TableHead className="p-2 text-left text-white">Procedure</TableHead>
+                <TableHead className="p-2 text-left text-white">Date</TableHead>
+                <TableHead className="p-2 text-left text-white">Surgeon</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {surgeries.map((s, i) => (
-                <tr
+                <TableRow
                   key={s.id}
                   onClick={() => {
                     setSelected({ ...s, isDraft: false })
@@ -95,14 +100,14 @@ export default function PatientSurgery() {
                         : ""
                     }`}
                 >
-                  <td className="p-2">{i + 1}</td>
-                  <td className="p-2">{s.procedureCode}</td>
-                  <td className="p-2">{s.date}</td>
-                  <td className="p-2">{s.surgeon}</td>
-                </tr>
+                  <TableCell className="p-2">{i + 1}</TableCell>
+                  <TableCell className="p-2">{s.procedureCode}</TableCell>
+                  <TableCell className="p-2">{s.date}</TableCell>
+                  <TableCell className="p-2">{s.surgeon}</TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
 

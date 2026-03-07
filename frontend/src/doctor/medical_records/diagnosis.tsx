@@ -4,8 +4,44 @@ import { useState, useEffect } from "react"
 import { useParams } from "react-router-dom"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { History, Search, Loader2 } from "lucide-react"
-import { doctorService, type Diagnosis } from "@/services/doctor-service"
+import { History, Search } from "lucide-react"
+import {  Table,  TableHeader,  TableBody,  TableHead,  TableRow,  TableCell} from "@/components/ui/table"
+
+type Diagnosis = {
+  id: string
+  date: string
+  doctor: string
+  department: string
+  complaint: string
+  icd10: string
+  interpretation: string
+  note?: string
+  isDraft?: boolean
+}
+
+const MOCK_DIAGNOSES: Diagnosis[] = [
+  {
+    id: "dx-1",
+    date: "16/10/2025 14:00",
+    doctor: "Dr. Trang Thanh Nghiep",
+    department: "Cardiology",
+    complaint: "Mild headache, occasional dizziness",
+    icd10: "Z59.1",
+    interpretation:
+      "Other problems related to housing and economic circumstances",
+    note: "Need rest",
+  },
+  {
+    id: "dx-2",
+    date: "10/10/2025 09:30",
+    doctor: "Dr. Nguyen Van B",
+    department: "Internal Medicine",
+    complaint: "Chest discomfort",
+    icd10: "R07.9",
+    interpretation: "Chest pain, unspecified",
+    note: "",
+  },
+]
 
 export default function PatientDiagnosis() {
   const { patientId } = useParams()
@@ -104,44 +140,53 @@ export default function PatientDiagnosis() {
   }
 
   return (
-    <div className="space-y-4">
-      {error && <div className="bg-red-50 text-red-700 px-4 py-2 rounded">{error}</div>}
-      {successMsg && <div className="bg-green-50 text-green-700 px-4 py-2 rounded">{successMsg}</div>}
+    <div className="grid grid-cols-12 gap-6">
+      {/* ===== LEFT: HISTORY TABLE ===== */}
+      <Card className="col-span-4">
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <History size={18} />
+            <h3 className="font-semibold text-lg">Diagnosis History</h3>
+          </div>
 
-      <div className="grid grid-cols-12 gap-6">
-        {/* LEFT: History */}
-        <Card className="col-span-4">
-          <CardContent className="p-4 space-y-3">
-            <div className="flex items-center gap-2">
-              <History size={18} />
-              <h3 className="font-semibold text-lg">History</h3>
-            </div>
-
-            {diagnoses.length === 0 && (
-              <p className="text-sm text-slate-500">No diagnoses yet.</p>
-            )}
-
-            {diagnoses.map(dx => (
-              <div
-                key={dx.id}
-                onClick={() => setSelectedDx({ ...dx, isDraft: false })}
-                className={`cursor-pointer rounded-lg border p-3 transition ${
-                  selectedDx?.id === dx.id && !selectedDx?.isDraft
-                    ? "bg-cyan-50 border-cyan-400"
-                    : "hover:bg-slate-50"
-                }`}
+          <div className="overflow-x-auto border rounded-lg">
+            <Table className="min-w-[500px] w-full text-sm">
+              <TableHeader
+                className="text-white"
+                style={{
+                  background:
+                    "linear-gradient(135deg, #06b6d4 0%, #0891b2 50%, #06b6d4 100%)",
+                }}
               >
-                <p className="font-medium">
-                  {new Date(dx.createdAt).toLocaleDateString("en-GB")} {new Date(dx.createdAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
-                </p>
-                <p className="text-sm text-slate-600">
-                  {dx.doctorName} – {dx.department || "N/A"}
-                </p>
-                <p className="text-xs text-slate-500 mt-1">ICD-10: {dx.icd10}</p>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+                <TableRow>
+                  <TableHead className="p-2 text-left w-[140px] text-white">Date</TableHead>
+                  <TableHead className="p-2 text-left w-[180px] text-white">Doctor</TableHead>
+                  <TableHead className="p-2 text-left w-[150px] text-white">Department</TableHead>
+                </TableRow>
+              </TableHeader>
+
+              <TableBody>
+                {diagnoses.map(dx => (
+                  <TableRow
+                    key={dx.id}
+                    onClick={() => setSelectedDx({ ...dx, isDraft: false })}
+                    className={`border-t cursor-pointer transition
+                    ${
+                      selectedDx.id === dx.id
+                        ? "bg-cyan-50"
+                        : ""
+                    }`}
+                  >
+                    <TableCell className="p-2">{dx.date}</TableCell>
+                    <TableCell className="p-2">{dx.doctor}</TableCell>
+                    <TableCell className="p-2">{dx.department}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
 
         {/* RIGHT: Diagnosis Form */}
         <Card className="col-span-8">

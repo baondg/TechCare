@@ -3,6 +3,7 @@
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { History, FlaskConical, Upload, Pencil } from "lucide-react"
+import {  Table,  TableHeader,  TableBody,  TableHead,  TableRow,  TableCell} from "@/components/ui/table"
 
 export default function PatientLab() {
   return (
@@ -16,34 +17,38 @@ export default function PatientLab() {
           </div>
 
           <div className="overflow-x-auto border rounded-lg">
-            <table className="min-w-[700px] w-full text-sm">
-              <thead className="bg-cyan-50 text-slate-600">
-                <tr>
-                  <th className="p-2 text-left">No.</th>
-                  <th className="p-2 text-left">Test Type</th>
-                  <th className="p-2 text-left">Date</th>
-                  <th className="p-2 text-left">Technician</th>
-                  <th className="p-2 text-left">Result</th>
-                  <th className="p-2 text-left">File</th>
-                  <th className="p-2 text-left">Note</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table className="min-w-[700px] w-full text-sm">
+              <TableHeader 
+                    className="bg-cyan-50 text-white" 
+                    style={{
+                      background: "linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)"
+                    }}>
+                <TableRow>
+                  <TableHead className="p-2 text-left text-white">No.</TableHead>
+                  <TableHead className="p-2 text-left text-white">Test Type</TableHead>
+                  <TableHead className="p-2 text-left text-white">Date</TableHead>
+                  <TableHead className="p-2 text-left text-white">Technician</TableHead>
+                  <TableHead className="p-2 text-left text-white">Result</TableHead>
+                  <TableHead className="p-2 text-left text-white">File</TableHead>
+                  <TableHead className="p-2 text-left text-white">Note</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {[1, 2, 3, 4, 5].map(i => (
-                  <tr key={i} className="border-t hover:bg-slate-50">
-                    <td className="p-2">{i}</td>
-                    <td className="p-2">Blood Test</td>
-                    <td className="p-2">07/10/2025</td>
-                    <td className="p-2">Dr. Trang Thanh Nghiep</td>
-                    <td className="p-2">Normal</td>
-                    <td className="p-2 text-cyan-600 underline cursor-pointer">
+                  <TableRow key={i} className="border-t hover:bg-slate-50">
+                    <TableCell className="p-2">{i}</TableCell>
+                    <TableCell className="p-2">Blood Test</TableCell>
+                    <TableCell className="p-2">07/10/2025</TableCell>
+                    <TableCell className="p-2">Dr. Trang Thanh Nghiep</TableCell>
+                    <TableCell className="p-2">Normal</TableCell>
+                    <TableCell className="p-2 text-cyan-600 underline cursor-pointer">
                       Nguyen_Van_A_bloodtest.pdf
-                    </td>
-                    <td className="p-2">None</td>
-                  </tr>
+                    </TableCell>
+                    <TableCell className="p-2">None</TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         </CardContent>
       </Card>

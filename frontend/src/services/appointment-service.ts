@@ -37,7 +37,7 @@ export interface Appointment {
   department: string;
   date: string;
   time: string;
-  status: 'Pending' | 'Confirmed' | 'Done' | 'Cancelled' | 'Rejected';
+  status: 'Upcoming' | 'Done' | 'Cancelled' | "Confirmed" | "Rejected" | "Pending";
   room?: string;
   symptoms?: string;
   notes?: string;
@@ -133,3 +133,5 @@ export const appointmentService = {
     }
   }
 };
+
+

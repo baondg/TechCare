@@ -5,14 +5,45 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react"
+import { ChevronLeft, ChevronRight, CalendarIcon, Search,  } from "lucide-react"
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 import { DoctorLayout } from "@/components/doctor-layout"
 import { cn } from "@/lib/utils"
 import { useNavigate } from "react-router-dom"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { doctorService, type Patient } from "@/services/doctor-service"
+import {Tooltip,TooltipContent,TooltipProvider,TooltipTrigger,} from "@/components/ui/tooltip"
+
+
+type Patient = {
+  id: string
+  name: string
+  sex: "M" | "F"
+  age: number
+  latestVisit: string
+  diagnosis: string
+  doctor: string
+  recoverDays: number
+  recoverPercent: number
+}
+
+type ColumnKey = keyof Patient | "no"
+
+const columns: {
+  key: ColumnKey
+  label: string
+  sortable?: boolean
+}[] = [
+  { key: "no", label: "No." },
+  { key: "id", label: "Patient ID", sortable: true },
+  { key: "name", label: "Name", sortable: true },
+  { key: "sex", label: "Sex", sortable: true },
+  { key: "age", label: "Age", sortable: true },
+  { key: "latestVisit", label: "Latest visit", sortable: true },
+  { key: "diagnosis", label: "Diagnosis", sortable: true },
+  { key: "doctor", label: "Doctor", sortable: true },
+  { key: "recoverDays", label: "Remaining days", sortable: true },
+  { key: "recoverPercent", label: "Progress (%)", sortable: true },
+]
 
 const ICD10_MAP: Record<string, string> = {
   "Z59.1": "Housing and economic circumstances",
@@ -94,12 +125,28 @@ export default function DoctorPatients() {
 
   const totalPages = Math.ceil(filteredPatients.length / pageSize)
 
-  const handleSort = (key: ColumnKey) => {
-    setSortConfig(prev => {
-      if (prev?.key === key) return { key, direction: prev.direction === "asc" ? "desc" : "asc" }
-      return { key, direction: "asc" }
-    })
-  }
+    type SortKey = ColumnKey
+
+    const [sortConfig, setSortConfig] = useState<{
+      key: SortKey
+      direction: "asc" | "desc"
+    } | null>(null)
+
+    const handleSort = (key: SortKey) => {
+      setSortConfig(prev => {
+        if (prev?.key === key) {
+          return {
+            key,
+            direction: prev.direction === "asc" ? "desc" : "asc",
+          }
+        }
+        return { key, direction: "asc" }
+      })
+    }
+
+    const allColumns = columns.map(c => c.key)
+
+    const [visibleColumns, setVisibleColumns] = useState<ColumnKey[]>(allColumns)
 
   const sortedPatients = useMemo(() => {
     if (!sortConfig) return filteredPatients
@@ -143,7 +190,16 @@ export default function DoctorPatients() {
           <div>
             <h2 className="text-2xl font-bold">Patient List</h2>
             <div className="flex flex-wrap gap-4">
-              {columns.map(col => (
+              <Checkbox
+                label="Show All"
+                checked={visibleColumns.length === allColumns.length}
+                onChange={(checked) => {
+                  if (checked) {
+                    setVisibleColumns(allColumns)
+                  }
+                }}
+              />
+              {columns.filter(col => col.key !== "no").map(col => (
                 <Checkbox
                   key={col.key}
                   label={col.label}
@@ -172,25 +228,161 @@ export default function DoctorPatients() {
                 </div>
               ) : (
                 <Table>
-                  <TableHeader className="bg-gray-50 sticky top-0 z-10">
+                  <TableHeader
+                    className="sticky top-0 z-20 text-white"
+                    style={{
+                      background: "linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)"
+                    }}
+                  >
                     <TableRow>
                       {columns.map(col =>
                         visibleColumns.includes(col.key) ? (
-                          <TableHead key={col.key} onClick={() => col.sortable && handleSort(col.key)}
-                            className={cn(col.sortable && "cursor-pointer select-none")}>
-                            {col.label}{col.sortable && <SortIcon column={col.key} />}
+                          <TableHead
+                            key={col.key}
+                            onClick={() => col.sortable && handleSort(col.key)}
+                            className="cursor-pointer select-none whitespace-nowrap text-white transition"
+                          >
+                            {col.label}
+                            {col.sortable && <SortIcon column={col.key} />}
                           </TableHead>
                         ) : null
                       )}
                     </TableRow>
-                    <TableRow>
+                    <TableRow className="border-b hover:bg-white transition-colors">
                       {columns.map(col =>
                         visibleColumns.includes(col.key) ? (
                           <TableHead key={col.key}>
-                            {col.key === "name" && <Input placeholder="Search name..." value={filters.name} onChange={e => setFilters({ ...filters, name: e.target.value })} className="h-8 text-xs" />}
-                            {col.key === "age" && <Input type="number" placeholder="Age" value={filters.age} onChange={e => setFilters({ ...filters, age: e.target.value })} className="h-8 text-xs text-center" />}
-                            {col.key === "diagnosis" && <Input placeholder="Search..." value={filters.diagnosis} onChange={e => setFilters({ ...filters, diagnosis: e.target.value })} className="h-8 text-xs" />}
-                            {col.key === "doctor" && <Input placeholder="Search doctor..." value={filters.doctor} onChange={e => setFilters({ ...filters, doctor: e.target.value })} className="h-8 text-xs" />}
+                            {col.key === "no" && null}
+
+                            {col.key === "id" && (
+                              <div className="relative">
+                                <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                <Input
+                                  value={filters.patientId}
+                                  onChange={(e) =>
+                                    setFilters({ ...filters, patientId: e.target.value })
+                                  }
+                                  className="h-8 text-xs pr-8"
+                                />
+                              </div>
+                            )}
+
+                            {col.key === "name" && (
+                              <div className="relative">
+                                <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                <Input
+                                  value={filters.name}
+                                  onChange={(e) =>
+                                    setFilters({ ...filters, name: e.target.value })
+                                  }
+                                  className="h-8 text-xs pr-8"
+                                />
+                              </div>
+                            )}
+
+                            {col.key === "sex" && (
+                              <Select
+                                value={filters.sex}
+                                onValueChange={(value) =>
+                                  setFilters({ ...filters, sex: value })
+                                }
+                              >
+                                <SelectTrigger className="h-8 text-xs w-16 mx-auto">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="All">All</SelectItem>
+                                  <SelectItem value="M">M</SelectItem>
+                                  <SelectItem value="F">F</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            )}
+
+                            {col.key === "age" && (
+                              <Input
+                                type="number"
+                                value={filters.age}
+                                onChange={(e) =>
+                                  setFilters({ ...filters, age: e.target.value })
+                                }
+                                className="h-8 text-xs text-center"
+                              />
+                            )}
+
+                            {col.key === "latestVisit" && (
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-8 w-full text-xs justify-start"
+                                  >
+                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                    {filters.latestVisit
+                                      ? format(filters.latestVisit, "dd/MM/yyyy", { locale: vi })
+                                      : "Select"}
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0">
+                                  <Calendar
+                                    mode="single"
+                                    selected={filters.latestVisit ?? undefined}
+                                    onSelect={(date) =>
+                                      setFilters({ ...filters, latestVisit: date ?? null })
+                                    }
+                                    locale={vi}
+                                  />
+                                </PopoverContent>
+                              </Popover>
+                            )}
+
+                            {col.key === "diagnosis" && (
+                              <div className="relative">
+                                <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                <Input
+                                  value={filters.diagnosis}
+                                  onChange={(e) =>
+                                    setFilters({ ...filters, diagnosis: e.target.value })
+                                  }
+                                  className="h-8 text-xs"
+                                />
+                              </div>
+                            )}
+
+                            {col.key === "doctor" && (
+                              <div className="relative">
+                                <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                <Input
+                                  value={filters.doctor}
+                                  onChange={(e) =>
+                                    setFilters({ ...filters, doctor: e.target.value })
+                                  }
+                                  className="h-8 text-xs pr-8"
+                                />
+                              </div>
+                            )}
+
+                            {col.key === "recoverDays" && (
+                              <Input
+                                type="number"
+                                value={filters.recoverDays}
+                                onChange={(e) =>
+                                  setFilters({ ...filters, recoverDays: e.target.value })
+                                }
+                                className="h-8 text-xs text-center"
+                              />
+                            )}
+
+                            {col.key === "recoverPercent" && (
+                              <Input
+                                type="number"
+                                value={filters.recoverPercent}
+                                onChange={(e) =>
+                                  setFilters({ ...filters, recoverPercent: e.target.value })
+                                }
+                                className="h-8 text-xs text-center"
+                              />
+                            )}
                           </TableHead>
                         ) : null
                       )}

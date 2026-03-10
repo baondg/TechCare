@@ -13,26 +13,25 @@ import { authService } from "@/services/auth-service";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function LoginPage() {
-  const router = useNavigate();
-  const { login } = useAuth();
-  const [role, setRole] = useState<"patient" | "hospital staff" | "admin">("patient");
+  // const router = useNavigate();
+  // const [role, setRole] = useState<"patient" | "hospital staff" | "admin">("patient");
   const [showPassword, setShowPassword] = useState(false);
   const [error] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    // Redirect based on role
-    if (role === "patient") {
-      router("/patient/dashboard");
-    } else if (role === "admin") {
-      router("/admin/dashboard"); 
-    } else if (role === "hospital staff") {
-      router("/doctor/dashboard")
-    }
+  // const handleLogin = async (e: React.FormEvent) => {
+  //   e.preventDefault();
+  //   // Redirect based on role
+  //   if (role === "patient") {
+  //     router("/patient/dashboard");
+  //   } else if (role === "admin") {
+  //     router("/admin/dashboard"); 
+  //   } else if (role === "hospital staff") {
+  //     router("/doctor/dashboard")
+  //   }
 
-  };
+  // };
 
   return (
     <div className="h-screen w-full flex items-center justify-center p-4">
@@ -54,7 +53,7 @@ export default function LoginPage() {
             <CardDescription>Sign in to your TechCare account</CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs value={role} onValueChange={(v) => setRole(v as any)} className="mb-6 transition duration-500">
+            {/* <Tabs value={role} onValueChange={(v) => setRole(v as any)} className="mb-6 transition duration-500">
               <TabsList className="grid w-full grid-cols-3 gap-2">
                 <TabsTrigger value="patient" className="tabs-trigger gap-2 h-7">
                   <User className="h-4 w-4" />
@@ -69,9 +68,9 @@ export default function LoginPage() {
                   Admin
                 </TabsTrigger>
               </TabsList>
-            </Tabs>
+            </Tabs> */}
 
-            <form onSubmit={handleLogin} className="space-y-4">
+            <form className="space-y-4">
               {error && (
                 <Alert variant="destructive">
                   <AlertCircle className="h-4 w-4" />

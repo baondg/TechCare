@@ -62,7 +62,7 @@ export function NurseLayout({ children }: { children: React.ReactNode }) {
                 <div className="relative flex items-center gap-2 rounded-full bg-linear-to-r from-[#06b6d4] to-[#11adc9] dark:bg-gray-900 px-5 py-2.5 ">
                   <UserRound className="h-4 w-4 text-white" strokeWidth={2.5} />
                   <span className="font-bold text-sm tracking-wider text-white dark:text-cyan-500">
-                    Nurse Portal
+                    Data::Name
                   </span>
                 </div>
               </div>

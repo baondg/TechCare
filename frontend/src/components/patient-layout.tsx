@@ -4,7 +4,7 @@ import type React from "react"
 import { Link } from "react-router-dom";
 import { useLocation } from "react-router-dom"
 import { Button } from "@/components/ui/button"
-import { Activity, Calendar, FileText, MessageSquare, User, LogOut, Heart, BotMessageSquare, ScanHeart, Airplay, UserRound  } from "lucide-react"
+import { Activity, Calendar, FileText, MessageSquare, User, LogOut, Heart, BotMessageSquare, ScanHeart, Airplay, UserRound, Bell  } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/contexts/AuthContext"
 
@@ -41,11 +41,15 @@ export function PatientLayout({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex items-center gap-4">
-            {/* {user && (
-              <span className="text-sm text-muted-foreground">
-                {user.firstName || user.username}
-              </span>
-            )} */}
+            <Button
+              variant="outline"
+              size="icon"
+              className="relative hover:bg-cyan-50 hover:text-cyan-600"
+            >
+              <Bell className="h-5 w-5" />
+
+              <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-red-500"></span>
+            </Button>
             <Button variant="outline" size="lg" onClick={logout} className="text-destructive hover:bg-destructive">
               <LogOut className="h-4 w-4 mr-2" />
               Logout
@@ -66,7 +70,7 @@ export function PatientLayout({ children }: { children: React.ReactNode }) {
                 <div className="relative flex items-center gap-2 rounded-full bg-linear-to-r from-[#06b6d4] to-[#11adc9] dark:bg-gray-900 px-5 py-2.5 ">
                   <UserRound className="h-4 w-4 text-white" strokeWidth={2.5} />
                   <span className="font-bold text-sm tracking-wider text-white dark:text-cyan-500">
-                    Patient Portal
+                    Data::Name
                   </span>
                 </div>
               </div>

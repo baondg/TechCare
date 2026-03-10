@@ -446,10 +446,10 @@ export default function HealthInfoPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-3xl font-bold">Health Information</h2>
+            <h3 className="text-2xl font-bold">Health Information</h3>
             <p className="text-muted-foreground">Update your health data before your visit</p>
           </div>
-          <Button onClick={() => isEditing ? handleSave() : setIsEditing(true)} disabled={saving}>
+          <Button onClick={() => isEditing ? handleSave() : setIsEditing(true)} disabled={saving} className="btn-gradient transition-transform duration-500 text-xl px-7 py-4">
             {saving ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />

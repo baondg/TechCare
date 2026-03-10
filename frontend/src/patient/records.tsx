@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { PatientLayout } from "@/components/patient-layout"
 import { FileText, Download, Calendar, User, Pill,  AlertCircle } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useSearchParams } from "react-router-dom"
 
 const visits = [
   {
@@ -30,6 +31,8 @@ const visits = [
 ]
 
 export default function RecordsPage() {
+  const [searchParams] = useSearchParams()
+  const tab = searchParams.get("tab")
   return (
     <PatientLayout>
       <div className="space-y-6">
@@ -44,7 +47,7 @@ export default function RecordsPage() {
           </Button>
         </div>
 
-        <Tabs defaultValue="visits" className="space-y-4">
+        <Tabs defaultValue={tab || "visits"} className="space-y-4">
           <TabsList>
             <TabsTrigger value="visits">Medical records</TabsTrigger>
             <TabsTrigger value="prescriptions">Prescriptions</TabsTrigger>

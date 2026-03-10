@@ -146,7 +146,7 @@ export default function LoginPage() {
             className="group relative inline-flex items-center gap-3 text-muted-foreground/80 text-sm font-medium
                       transition-all duration-400 hover:text-linear-to-r from-[#06b6d4] to-[#0891b2] hover:translate-x-1">
             <span className="relative">
-              ΓåÉ Back to Home
+              ← Back to Home
               <span className="absolute inset-0 bg-cyan-500/10 blur-lg scale-0 
                               transition-transform duration-400 group-hover:scale-100" />
             </span>

@@ -1,6 +1,9 @@
+// Load environment variables
+import dotenv from 'dotenv';
+dotenv.config();
+
 import express, { Express, Request, Response } from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import aiRoutes from './routes/ai';
 const authRoutes = require('./authorization/routes');
 const systemConfigRoutes = require('./routes/systemConfig');
@@ -16,8 +19,7 @@ require('./models/HealthInfo');
 require('./models/Diagnosis');
 require('./models/Prescription');
 
-// Load environment variables
-dotenv.config();
+
 
 const app: Express = express();
 const PORT = process.env.PORT || 3000;

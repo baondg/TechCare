@@ -269,8 +269,8 @@ export default function ChatbotPage() {
                 onKeyPress={(e) => e.key === "Enter" && !isLoading && handleSend()}
                 disabled={isLoading}
               />
-              <Button onClick={handleSend} disabled={isLoading || !input.trim()}>
-                <Send className="h-4 w-4" />
+              <Button className="btn-gradient" onClick={handleSend} disabled={isLoading || !input.trim()}>
+                <Send className="h-4 w-4 mt-0.5 mr-0.5" />
               </Button>
             </div>
           </CardContent>

@@ -122,18 +122,18 @@ exports.register = async (req, res) => {
     });
     
     // Create empty profile for new user
-    await Profile.create({ userId: user.id, email: user.email });
+    await Profile.create({ userId: user.user_id, email: user.email });
 
     // Generate tokens
-    const accessToken = generateAccessToken(username, user.id, user.role);
-    const refreshToken = generateRefreshToken(username, user.id);
+    const accessToken = generateAccessToken(username, user.user_id, user.role);
+    const refreshToken = generateRefreshToken(username, user.user_id);
     
     // Create session
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7); // 7 days for refresh token
     
     await Session.create({
-      userId: user.id,
+      userId: user.user_id,
       token: accessToken,
       refreshToken: refreshToken,
       expiresAt: expiresAt,
@@ -145,7 +145,7 @@ exports.register = async (req, res) => {
     res.status(201).json({
       success: true,
       user: { 
-        id: user.id, 
+        id: user.user_id, 
         username: user.username, 
         email: user.email,
         firstName: user.firstName,
@@ -175,6 +175,10 @@ exports.login = async (req, res) => {
 
     const user = await User.findOne({ where: { username } });
 
+    console.log("LOGIN USERNAME:", username);
+console.log("USER FROM DB:", user);
+console.log("HASH IN DB:", user?.password);
+
     if (!user) {
       return res.status(401).json({ 
         success: false, 
@@ -194,6 +198,8 @@ exports.login = async (req, res) => {
     
     // Verify password
     const isValidPassword = await verifyPassword(password, user.password);
+    console.log("INPUT PASSWORD:", password);
+console.log("PASSWORD MATCH:", isValidPassword);
 
     if (!isValidPassword) {
       // Increment failed login attempts
@@ -268,11 +274,13 @@ exports.login = async (req, res) => {
     
     // Xóa session cũ của user này nếu không có rememberMe hoặc là single session mode
     // In production, you might want to keep multiple sessions
-    await Session.destroy({ where: { userId: user.id } });
-    
+    await Session.destroy({
+      where: { userId: user.user_id }
+    });
+        
     // Generate tokens
-    const accessToken = generateAccessToken(username, user.id, user.role);
-    const refreshToken = generateRefreshToken(username, user.id);
+    const accessToken = generateAccessToken(username, user.user_id, user.role);
+    const refreshToken = generateRefreshToken(username, user.user_id);
     
     // Set expiry based on rememberMe
     const expiresAt = new Date();
@@ -284,7 +292,7 @@ exports.login = async (req, res) => {
     
     // Create session with refresh token
     await Session.create({
-      userId: user.id,
+      userId: user.user_id,
       token: accessToken,
       refreshToken: refreshToken,
       expiresAt: expiresAt,
@@ -299,7 +307,7 @@ exports.login = async (req, res) => {
     res.json({
       success: true,
       user: { 
-        id: user.id, 
+        id: user.user_id, 
         username: user.username, 
         email: user.email,
         firstName: user.firstName,
@@ -400,7 +408,7 @@ exports.refreshToken = async (req, res) => {
     }
     
     // Generate new access token
-    const newAccessToken = generateAccessToken(user.username, user.id, user.role);
+    const newAccessToken = generateAccessToken(user.username, user.user_id, user.role);
     
     // Update session with new access token and activity time
     await session.update({
@@ -412,7 +420,7 @@ exports.refreshToken = async (req, res) => {
       success: true,
       token: newAccessToken,
       user: {
-        id: user.id,
+        id: user.user_id,
         username: user.username,
         email: user.email,
         firstName: user.firstName,
@@ -450,7 +458,7 @@ exports.getSession = async (req, res) => {
     // Get active sessions
     const sessions = await Session.findAll({
       where: { 
-        userId: user.id,
+        userId: user.user_id,
         expiresAt: {
           [require('sequelize').Op.gt]: new Date()
         }

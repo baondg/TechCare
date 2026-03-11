@@ -19,6 +19,8 @@ export default function LoginPage() {
   const [error] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const navigate = useNavigate();
+  const { login } = useAuth();
 
   // const handleLogin = async (e: React.FormEvent) => {
   //   e.preventDefault();
@@ -32,6 +34,18 @@ export default function LoginPage() {
   //   }
 
   // };
+
+    const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const result = await login(username, password);
+
+    if (result.success) {
+      navigate("/patient/dashboard");
+    } else {
+      console.error(result.error);
+    }
+  };
 
   return (
     <div className="h-screen w-full flex items-center justify-center p-4">
@@ -70,7 +84,7 @@ export default function LoginPage() {
               </TabsList>
             </Tabs> */}
 
-            <form className="space-y-4">
+            <form className="space-y-4" onSubmit={handleLogin}>
               {error && (
                 <Alert variant="destructive">
                   <AlertCircle className="h-4 w-4" />

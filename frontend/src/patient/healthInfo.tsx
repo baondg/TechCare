@@ -16,6 +16,9 @@ import { Badge } from "@/components/ui/badge"
 import { healthInfoService } from "@/services/health-info-service"
 import type { HealthInfo } from "@/services/health-info-service"
 import { useAuth } from "@/contexts/AuthContext"
+import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from "recharts"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { BarChart3 } from "lucide-react"
 
 export default function HealthInfoPage() {
   const { user } = useAuth()
@@ -56,6 +59,8 @@ export default function HealthInfoPage() {
   // Current health info ID for updates
   const [currentHealthInfoId, setCurrentHealthInfoId] = useState<number | null>(null)
 
+  const [openChart, setOpenChart] = useState(false)
+
 
   const bmi = useMemo(() => {
     const h = parseFloat(height)
@@ -73,6 +78,20 @@ export default function HealthInfoPage() {
 
   const pageCount = Math.ceil(healthHistory.length / pageSize)
   const paginated = healthHistory.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+
+  const chartData = healthHistory.map((r) => ({
+    time: r.updatedAt.toLocaleString("vi-VN", {
+      day: "2-digit",
+      month: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+    heartRate: r.heartRate,
+    temperature: r.temperature,
+    systolic: r.systolic,
+    diastolic: r.diastolic,             // Chưa fix data
+    bmi: r.bmi,
+  }))
 
   // Load health info on mount
   useEffect(() => {
@@ -316,14 +335,26 @@ export default function HealthInfoPage() {
       <div className="space-y-6">
         {/* Data table */}
         <Card className="flex flex-col h-fit">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-xl">
-              <History className="h-5 w-5" />
-              Health Information History
-            </CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Click on any row to load that record into the form below
-            </p>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <History className="h-5 w-5" />
+                Health Information History
+              </CardTitle>
+
+              <p className="text-sm text-muted-foreground">
+                Click on any row to load that record into the form below
+              </p>
+            </div>
+
+            <Button
+              variant="outline"
+              className="flex items-center gap-2"
+              onClick={() => setOpenChart(true)}
+            >
+              <BarChart3 className="h-4 w-4" />
+              View Charts
+            </Button>
           </CardHeader>
           <CardContent className="flex-1 p-0 overflow-hidden">
             <div className="h-full overflow-auto">
@@ -446,10 +477,10 @@ export default function HealthInfoPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-3xl font-bold">Health Information</h2>
+            <h3 className="text-2xl font-bold">Health Information</h3>
             <p className="text-muted-foreground">Update your health data before your visit</p>
           </div>
-          <Button onClick={() => isEditing ? handleSave() : setIsEditing(true)} disabled={saving}>
+          <Button onClick={() => isEditing ? handleSave() : setIsEditing(true)} disabled={saving} className="btn-gradient transition-transform duration-500 text-xl px-7 py-4">
             {saving ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -719,6 +750,99 @@ export default function HealthInfoPage() {
           </div>
         </CollapsibleSection>
 
+
+        <Dialog open={openChart} onOpenChange={setOpenChart}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Health Trends</DialogTitle>
+            </DialogHeader>
+
+            <div className="h-[350px] w-full mb-10">
+              <h3 className="font-semibold mb-2">Heart Rate & Temperature</h3>
+
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData}>
+                  <XAxis dataKey="time" />
+
+                  <YAxis yAxisId="left" domain={[40,120]} />
+                  <YAxis yAxisId="right" orientation="right" domain={[35,42]} />
+
+                  <Tooltip />
+                  <Legend />
+
+                  <Line
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="heartRate"
+                    stroke="#2563eb"
+                    name="Heart Rate"
+                  />
+
+                  <Line
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey="temperature"
+                    stroke="#dc2626"
+                    name="Temperature"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="h-[350px] w-full mb-10">
+              <h3 className="font-semibold mb-2">Blood Pressure Trend</h3>
+
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData}>
+
+                  <XAxis dataKey="time" />
+                  <YAxis domain={[60,160]} />
+
+                  <Tooltip />
+                  <Legend />
+
+                  <Line
+                    type="monotone"
+                    dataKey="systolic"
+                    stroke="#ef4444"
+                    name="Systolic"
+                  />
+
+                  <Line
+                    type="monotone"
+                    dataKey="diastolic"
+                    stroke="#3b82f6"
+                    name="Diastolic"
+                  />
+
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="h-[350px] w-full">
+              <h3 className="font-semibold mb-2">BMI Trend</h3>
+
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData}>
+
+                  <XAxis dataKey="time" />
+                  <YAxis domain={[15,40]} />
+
+                  <Tooltip />
+                  <Legend />
+
+                  <Line
+                    type="monotone"
+                    dataKey="bmi"
+                    stroke="#06b6d4"
+                    name="BMI"
+                  />
+
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </PatientLayout>
   )

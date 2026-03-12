@@ -1,54 +1,25 @@
 ﻿"use client"
 
-import { useState, useEffect } from "react"
-import { useNavigate } from "react-router-dom"
+import { useState, useMemo } from "react"
 import { Calendar, Search, Clock, User, CheckCircle, XCircle } from "lucide-react"
 import { DoctorLayout } from "@/components/doctor-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { appointmentService, type Appointment } from "@/services/appointment-service"
 import { useAuth } from "@/contexts/AuthContext"
 import { format, parseISO } from "date-fns"
+import { useDoctorAppointments } from "@/hooks/useDoctorAppointments"
 
 export default function DoctorAppointmentsPage() {
   const { user } = useAuth()
 
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
-  const [appointments, setAppointments] = useState<Appointment[]>([])
-  const [filteredAppointments, setFilteredAppointments] = useState<Appointment[]>([])
-  const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    loadAppointments()
-  }, [])
+  const { appointments, loading, confirm, reject } = useDoctorAppointments(user?.username)
 
-  useEffect(() => {
-    filterAppointments()
-  }, [startDate, endDate, appointments])
-
-  const loadAppointments = async () => {
-    try {
-      setLoading(true)
-      const data = await appointmentService.getAppointments()
-      
-      // lß╗ìc appointment theo doctor hiß╗çn tß║íi
-      const doctorAppointments = data.filter(
-        (app) => app.doctor === user?.username
-      )
-
-      setAppointments(doctorAppointments)
-    } catch (error) {
-      console.error("Failed to load appointments", error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const filterAppointments = () => {
+  const filteredAppointments = useMemo(() => {
     let filtered = [...appointments]
-
     if (startDate) {
       const [day, month, year] = startDate.split("/")
       if (day && month && year) {
@@ -56,7 +27,6 @@ export default function DoctorAppointmentsPage() {
         filtered = filtered.filter(app => new Date(app.date) >= start)
       }
     }
-
     if (endDate) {
       const [day, month, year] = endDate.split("/")
       if (day && month && year) {
@@ -64,27 +34,14 @@ export default function DoctorAppointmentsPage() {
         filtered = filtered.filter(app => new Date(app.date) <= end)
       }
     }
+    return filtered
+  }, [appointments, startDate, endDate])
 
-    setFilteredAppointments(filtered)
-  }
-
-  const handleAccept = async (id: number) => {
-    try {
-      await appointmentService.updateAppointment(id, { status: "Confirmed" })
-      loadAppointments()
-    } catch (error) {
-      console.error("Accept failed", error)
-    }
-  }
+  const handleAccept = (id: number) => confirm(id)
 
   const handleReject = async (id: number) => {
-    if (!confirm("Reject this appointment?")) return
-    try {
-      await appointmentService.updateAppointment(id, { status: "Rejected" })
-      loadAppointments()
-    } catch (error) {
-      console.error("Reject failed", error)
-    }
+    if (!window.confirm("Reject this appointment?")) return
+    await reject(id)
   }
 
   return (

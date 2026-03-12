@@ -9,14 +9,13 @@ import { Activity, User, Stethoscope, Eye, EyeOff, AlertCircle, UserStar } from 
 import { Link } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { authService } from "@/services/auth-service";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function LoginPage() {
   // const router = useNavigate();
   // const [role, setRole] = useState<"patient" | "hospital staff" | "admin">("patient");
   const [showPassword, setShowPassword] = useState(false);
-  const [error] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const navigate = useNavigate();
@@ -37,13 +36,29 @@ export default function LoginPage() {
 
     const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
 
     const result = await login(username, password);
 
-    if (result.success) {
-      navigate("/patient/dashboard");
-    } else {
-      console.error(result.error);
+    if (!result.success) {
+      setError(result.error ?? "Login failed. Please check your credentials.");
+      return;
+    }
+
+    // Read role from localStorage (set by login()) to determine redirect
+    const roleRoutes: Record<string, string> = {
+      patient: "/patient/dashboard",
+      admin: "/admin/dashboard",
+      doctor: "/doctor/dashboard",
+      nurse: "/nurse/dashboard",
+      technician: "/technician/dashboard",
+    };
+    try {
+      const storedUser = JSON.parse(localStorage.getItem("user") ?? "{}") as { role?: string };
+      const userRole = (storedUser.role ?? "patient").toLowerCase();
+      router(roleRoutes[userRole] ?? "/patient/dashboard");
+    } catch {
+      router("/patient/dashboard");
     }
   };
 

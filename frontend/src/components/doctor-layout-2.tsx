@@ -3,12 +3,12 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { DoctorLayout } from "./doctor-layout"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import ViewingPatientDashboard from "@/doctor/medical_records/dashboard"
-import ViewingPatientHealthInfo from "@/doctor/medical_records/health-info"
-import PatientPrescription from "@/doctor/medical_records/prescription"
-import PatientDiagnosis from "@/doctor/medical_records/diagnosis"
-import PatientSurgery from "@/doctor/medical_records/surgery"
-import PatientLab from "@/doctor/medical_records/lab"
+import ViewingPatientDashboard from "@/pages/doctor/medical_records/dashboard"
+import ViewingPatientHealthInfo from "@/pages/doctor/medical_records/health-info"
+import PatientPrescription from "@/pages/doctor/medical_records/prescription"
+import PatientDiagnosis from "@/pages/doctor/medical_records/diagnosis"
+import PatientSurgery from "@/pages/doctor/medical_records/surgery"
+import PatientLab from "@/pages/doctor/medical_records/lab"
 
 const tabs = [
   { label: "Dashboard", value: "dashboard" },

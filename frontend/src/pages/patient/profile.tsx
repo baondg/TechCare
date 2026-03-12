@@ -12,17 +12,15 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar"
 import { format, parseISO } from "date-fns"
 import { useAuth } from "@/contexts/AuthContext"
-import { profileService } from "@/services/profile-service"
 import type { PatientProfile } from "@/services/profile-service"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { useProfile } from "@/hooks/useProfile"
 
 export default function ProfilePage() {
   const { user } = useAuth()
+  const { profile, loading, saving, error, success, save, clearMessages } = useProfile(user?.id)
+
   const [isEditing, setIsEditing] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
 
   // Personal information
   const [fullName, setFullName] = useState("")
@@ -46,101 +44,78 @@ export default function ProfilePage() {
   const [insuranceProvider, setInsuranceProvider] = useState("")
   const [insuranceExpiry, setInsuranceExpiry] = useState("")
 
-  // Original values for cancel
-  const [originalData, setOriginalData] = useState<PatientProfile | null>(null)
-
   const age = dob ? calculateAge(dob) : ""
   const reAge = reDob ? calculateAge(reDob) : ""
 
+  // Populate form when profile loads
   useEffect(() => {
-    loadProfile()
-  }, [user])
-
-  const loadProfile = async () => {
-    if (!user?.id) return
-
-    setLoading(true)
-    setError(null)
-    try {
-      const profile = await profileService.getProfile(user.id)
+    if (profile) {
       populateForm(profile)
-      setOriginalData(profile)
-    } catch (err) {
-      console.error("Failed to load profile:", err)
-      // Profile may not exist yet, that's ok
-    } finally {
-      setLoading(false)
     }
-  }
+  }, [profile])
 
-  const populateForm = (profile: PatientProfile) => {
-    setFullName(profile.fullName || "")
-    setDob(profile.dateOfBirth ? parseISO(profile.dateOfBirth) : undefined)
-    setSex(profile.sex || "Male")
-    setPhone(profile.phone || "")
-    setEmail(profile.email || "")
-    setNationalId(profile.nationalId || "")
+  // Auto-dismiss success message
+  useEffect(() => {
+    if (success) {
+      const t = setTimeout(() => setIsEditing(false), 100)
+      return () => clearTimeout(t)
+    }
+  }, [success])
 
-    setRelativeName(profile.relativeName || "")
-    setRelationship(profile.relativeRelationship || "Mother")
-    setReDob(profile.relativeDateOfBirth ? parseISO(profile.relativeDateOfBirth) : undefined)
-    setReSex(profile.relativeSex || "Female")
-    setRePhone(profile.relativePhone || "")
-    setReEmail(profile.relativeEmail || "")
-    setReNationalId(profile.relativeNationalId || "")
+  const populateForm = (p: PatientProfile) => {
+    setFullName(p.fullName || "")
+    setDob(p.dateOfBirth ? parseISO(p.dateOfBirth) : undefined)
+    setSex(p.sex || "Male")
+    setPhone(p.phone || "")
+    setEmail(p.email || "")
+    setNationalId(p.nationalId || "")
 
-    setInsuranceId(profile.insuranceId || "")
-    setInsuranceProvider(profile.insuranceProvider || "")
-    setInsuranceExpiry(profile.insuranceExpiry || "")
+    setRelativeName(p.relativeName || "")
+    setRelationship(p.relativeRelationship || "Mother")
+    setReDob(p.relativeDateOfBirth ? parseISO(p.relativeDateOfBirth) : undefined)
+    setReSex(p.relativeSex || "Female")
+    setRePhone(p.relativePhone || "")
+    setReEmail(p.relativeEmail || "")
+    setReNationalId(p.relativeNationalId || "")
+
+    setInsuranceId(p.insuranceId || "")
+    setInsuranceProvider(p.insuranceProvider || "")
+    setInsuranceExpiry(p.insuranceExpiry || "")
   }
 
   const handleSave = async () => {
     if (!user?.id) return
 
-    setSaving(true)
-    setError(null)
-    setSuccess(null)
-
-    try {
-      const profileData: Partial<PatientProfile> = {
-        fullName,
-        dateOfBirth: dob ? format(dob, "yyyy-MM-dd") : undefined,
-        sex,
-        phone,
-        email,
-        nationalId,
-        relativeName,
-        relativeRelationship: relationship,
-        relativeDateOfBirth: reDob ? format(reDob, "yyyy-MM-dd") : undefined,
-        relativeSex: reSex,
-        relativePhone: rePhone,
-        relativeEmail: reEmail,
-        relativeNationalId: reNationalId,
-        insuranceId,
-        insuranceProvider,
-        insuranceExpiry,
-      }
-
-      const updatedProfile = await profileService.updateProfile(user.id, profileData)
-      setOriginalData(updatedProfile)
-      setIsEditing(false)
-      setSuccess("Profile saved successfully!")
-      setTimeout(() => setSuccess(null), 3000)
-    } catch (err: any) {
-      setError(err.message || "Failed to save profile")
-    } finally {
-      setSaving(false)
+    const profileData: Partial<PatientProfile> = {
+      fullName,
+      dateOfBirth: dob ? format(dob, "yyyy-MM-dd") : undefined,
+      sex,
+      phone,
+      email,
+      nationalId,
+      relativeName,
+      relativeRelationship: relationship,
+      relativeDateOfBirth: reDob ? format(reDob, "yyyy-MM-dd") : undefined,
+      relativeSex: reSex,
+      relativePhone: rePhone,
+      relativeEmail: reEmail,
+      relativeNationalId: reNationalId,
+      insuranceId,
+      insuranceProvider,
+      insuranceExpiry,
     }
+
+    await save(profileData)
   }
 
   const handleCancel = () => {
-    if (originalData) {
-      populateForm(originalData)
+    if (profile) {
+      populateForm(profile)
     } else {
       handleClear()
     }
     setIsEditing(false)
-    setError(null)
+    clearMessages()
   }
 
   const handleClear = () => {

@@ -1,57 +1,31 @@
 ﻿"use client"
 
-import { useState, useEffect } from "react"
+import { useState, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
 import { Calendar, Search, Clock, User, Plus } from "lucide-react"
 import { PatientLayout } from "@/components/patient-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { appointmentService, type Appointment } from "@/services/appointment-service"
-import { useAuth } from "@/contexts/AuthContext"
+import { useAppointments } from "@/hooks/useAppointments"
 import { format, parseISO } from "date-fns"
 
 export default function AppointmentsPage() {
   const navigate = useNavigate()
-  const { user } = useAuth()
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
-  const [appointments, setAppointments] = useState<Appointment[]>([])
-  const [filteredAppointments, setFilteredAppointments] = useState<Appointment[]>([])
-  const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    loadAppointments()
-  }, [])
+  const { appointments, loading, cancel } = useAppointments()
 
-  useEffect(() => {
-    filterAppointments()
-  }, [startDate, endDate, appointments])
-
-  const loadAppointments = async () => {
-    try {
-      setLoading(true)
-      const data = await appointmentService.getAppointments()
-      setAppointments(data)
-    } catch (error) {
-      console.error("Failed to load appointments", error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const filterAppointments = () => {
+  const filteredAppointments = useMemo(() => {
     let filtered = [...appointments]
-
     if (startDate) {
-      // Assuming startDate format is dd/mm/yyyy
       const [day, month, year] = startDate.split('/')
       if (day && month && year) {
         const start = new Date(`${year}-${month}-${day}`)
         filtered = filtered.filter(app => new Date(app.date) >= start)
       }
     }
-
     if (endDate) {
       const [day, month, year] = endDate.split('/')
       if (day && month && year) {
@@ -59,32 +33,24 @@ export default function AppointmentsPage() {
         filtered = filtered.filter(app => new Date(app.date) <= end)
       }
     }
-
-    setFilteredAppointments(filtered)
-  }
+    return filtered
+  }, [appointments, startDate, endDate])
 
   const handleBookAppointment = () => {
     navigate("/patient/appointments/book-appointment")
   }
 
   const handleReschedule = (id: number) => {
-    console.log("Reschedule appointment:", id)
     navigate("/patient/appointments/book-appointment", { state: { rescheduleId: id } })
   }
 
   const handleCancel = async (id: number) => {
     if (confirm("Are you sure you want to cancel this appointment?")) {
-      try {
-        await appointmentService.updateAppointment(id, { status: 'Cancelled' })
-        loadAppointments()
-      } catch (error) {
-        console.error("Failed to cancel appointment", error)
-      }
+      await cancel(id)
     }
   }
 
   const handleFeedback = (id: number) => {
-    console.log("Provide feedback for appointment:", id)
     navigate("/patient/feedback", { state: { appointmentId: id } })
   }
 

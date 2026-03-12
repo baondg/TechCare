@@ -1,12 +1,16 @@
-﻿const CUSTOM_AI_API_KEY = import.meta.env.VITE_CUSTOM_AI_API_KEY || '';
-const CUSTOM_AI_API_ENDPOINT = import.meta.env.VITE_CUSTOM_AI_API_ENDPOINT || '';
-const AI_API_ENDPOINT = import.meta.env.VITE_AI_API_ENDPOINT || 'http://localhost:3000/api/ai/chat'
-const AI_API_KEY = import.meta.env.VITE_AI_API_KEY || 'AIzaSyDeBPklvZOIylsnXgtzqOXeYkkRNUW3z0Y'
-const AI_PROVIDER = import.meta.env.VITE_AI_PROVIDER || 'gemini' // openai, gemini, anthropic, cohere, huggingface, custom
+﻿// ── Python FastAPI chatbot (medAI) ───────────────────────────
+// Run with: uvicorn api_chatbot:app --reload  (default port 8000)
+// Endpoint: POST /api/chat  → { reply: string }
+const MEDAI_CHAT_ENDPOINT =
+  import.meta.env.VITE_MEDAI_CHAT_ENDPOINT || 'http://localhost:8000/api/chat'
 
-// Cache for available models to avoid repeated API calls
-let cachedModels: any[] | null = null
-let selectedModel: string | null = null
+// ── Python FastAPI symptom checker (medAI) ───────────────────
+// Run with: uvicorn api_symptom:app --reload  (default port 8000)
+const MEDAI_SYMPTOM_ENDPOINT =
+  import.meta.env.VITE_MEDAI_SYMPTOM_ENDPOINT || 'http://localhost:8000/api/analyze_symptoms'
+
+
+
 
 // Re-export types from ai-types.ts
 export type {
@@ -15,303 +19,55 @@ export type {
   SymptomInput,
   SymptomAnalysisResult,
   SymptomAnalysisResponse
-} from './ai-types'
+} from '../types/ai-types'
 
-import type { ChatMessage, SymptomInput, SymptomAnalysisResult, SymptomAnalysisResponse } from './ai-types'
+import type { ChatMessage, ChatResponse, SymptomInput, SymptomAnalysisResult, SymptomAnalysisResponse } from '../types/ai-types'
 
-// ============ SYMPTOM CHECKER TYPES ============
+// SymptomInput, SymptomAnalysisResult, SymptomAnalysisResponse are
+// defined in ai-types.ts and re-exported above.
 
-export interface SymptomInput {
-  name: string
-  severity: 'mild' | 'moderate' | 'severe'
-  duration: 'less24h' | '1to3days' | '3to7days' | 'moreThanWeek'
-}
 
-export interface SymptomAnalysisResult {
-  condition: string
-  severity: 'low' | 'medium' | 'high'
-  recommendation: string
-  details: string
-  possibleCauses?: string[]
-  whenToSeekHelp?: string
-}
-
-export interface SymptomAnalysisResponse {
-  results: SymptomAnalysisResult[]
-  disclaimer: string
-  error?: string
-}
 
 /**
- * Fetch available models from Gemini API
- */
-async function getAvailableGeminiModels(): Promise<any[]> {
-  if (cachedModels) {
-    return cachedModels
-  }
-
-  try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1/models?key=${AI_API_KEY}`,
-      {
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      }
-    )
-
-    if (!response.ok) {
-      console.error('Failed to fetch Gemini models:', response.statusText)
-      return []
-    }
-
-    const data = await response.json()
-    cachedModels = data.models || []
-    console.log('≡ƒôï Available Gemini models:', cachedModels.map((m: any) => m.name))
-    return cachedModels
-  } catch (error) {
-    console.error('Error fetching Gemini models:', error)
-    return []
-  }
-}
-
-/**
- * Select a valid Gemini model that supports generateContent
- */
-async function pickGeminiModel(): Promise<string> {
-  if (selectedModel) {
-    return selectedModel
-  }
-
-  const models = await getAvailableGeminiModels()
-  
-  // Priority list of models
-  const priorityModels = [
-    'gemini-2.5-pro', // High priority as requested
-    'gemini-2.0-flash',
-    'gemini-1.5-pro',
-    'gemini-1.5-flash',
-    'gemini-pro'
-  ]
-
-  // Try to find a model from the priority list
-  for (const modelName of priorityModels) {
-    const found = models.find((m: any) => 
-      (m.name === `models/${modelName}` || m.name === modelName) &&
-      m.supportedGenerationMethods?.includes('generateContent')
-    )
-    if (found) {
-      selectedModel = found.name
-      console.log('Γ£à Selected Gemini model (priority):', selectedModel)
-      return selectedModel
-    }
-  }
-  
-  // Find a model that supports generateContent
-  const validModel = models.find((m: any) => 
-    m.supportedGenerationMethods?.includes('generateContent')
-  )
-
-  if (validModel) {
-    selectedModel = validModel.name
-    console.log('Γ£à Selected Gemini model:', selectedModel)
-    return selectedModel
-  }
-
-  // Fallback to gemini-1.5-flash if available
-  const fallback = models.find((m: any) => 
-    m.name.includes('gemini-1.5-flash') || m.name.includes('gemini-pro')
-  )
-
-  if (fallback) {
-    selectedModel = fallback.name
-    console.log('ΓÜá∩╕Å Using fallback model:', selectedModel)
-    return selectedModel
-  }
-
-  // Last resort: use first available model
-  if (models.length > 0) {
-    selectedModel = models[0].name
-    console.log('ΓÜá∩╕Å Using first available model:', selectedModel)
-    return selectedModel
-  }
-
-  throw new Error('No Gemini models available')
-}
-
-/**
- * Send a message to the AI service and get a response
- * Works with ANY AI provider by adapting request/response format
- * @param messages - Conversation history
- * @param userMessage - Current user message
- * @returns AI response
+ * Send a chat message through the backend, which proxies it to the
+ * locally-running LLM (Ollama, LM Studio, etc.).
+ *
+ * Falls back to a friendly rule-based response if the backend is unreachable.
  */
 export async function sendChatMessage(
   messages: ChatMessage[],
   userMessage: string
 ): Promise<ChatResponse> {
-  const systemPrompt = `You are a helpful medical assistant for TechCare hospital. 
-You can help patients with:
-- Medication information and reminders
-- Appointment scheduling and information
-- General health questions and wellness tips
-- Post-treatment care instructions
+  try {
+    console.log('🤖 Sending chat to medAI chatbot:', MEDAI_CHAT_ENDPOINT);
 
-Important guidelines:
-- Always be empathetic and professional
-- For serious medical concerns, recommend consulting a doctor
-- Provide accurate information based on the patient's medical records
-- Keep responses concise but informative
-- Use simple, easy-to-understand language`
+    const payload = {
+      messages: [
+        ...messages.filter(m => m.role !== 'system'),
+        { role: 'user', content: userMessage },
+      ],
+    };
 
-  // Try Gemini first if selected
-  if (AI_PROVIDER && AI_PROVIDER.toLowerCase() === 'custom') {
-    try {
-      console.log('≡ƒöù Calling custom AI API:', CUSTOM_AI_API_ENDPOINT);
-      const endpoint = CUSTOM_AI_API_ENDPOINT;
-      const apiKey = CUSTOM_AI_API_KEY;
-      const requestBody = buildRequestBody('custom', messages, userMessage, systemPrompt);
-      const headers = buildHeaders('custom', apiKey);
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(requestBody)
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Custom API error: ${response.status} - ${errorText}`);
-      }
-      const data = await response.json();
-      console.log('Custom AI API raw response:', data);
-      const message = extractMessage('custom', data);
-      return { message };
-    } catch (error) {
-      console.error('Custom API failed:', error);
-      return {
-        message: getFallbackResponse(userMessage),
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
+    const response = await fetch(MEDAI_CHAT_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    // Python API returns { reply: string }
+    const data = await response.json() as { reply?: string; detail?: string };
+
+    if (data.reply) {
+      return { message: data.reply };
     }
-  }
-  if (AI_PROVIDER.toLowerCase() === 'gemini') {
-    // Lß║Ñy danh s├ích model ╞░u ti├¬n
-    const modelsToTry = [
-      'gemini-2.5-pro',
-      'gemini-2.0-flash',
-      'gemini-1.5-pro',
-      'gemini-1.5-flash',
-      'gemini-pro'
-    ];
-    let lastGeminiError = null;
-    for (const modelName of modelsToTry) {
-      try {
-        const modelId = modelName;
-        const endpoint = `https://generativelanguage.googleapis.com/v1/models/${modelId}:generateContent?key=${AI_API_KEY}`;
-        console.log('≡ƒöù Trying Gemini model:', modelId);
-        const requestBody = buildRequestBody('gemini', messages, userMessage, systemPrompt);
-        const headers = buildHeaders('gemini', AI_API_KEY);
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(requestBody)
-        });
-        if (!response.ok) {
-          const errorText = await response.text();
-          lastGeminiError = errorText;
-          // Nß║┐u lß╗ùi quota hoß║╖c model kh├┤ng khß║ú dß╗Ñng, thß╗¡ model tiß║┐p theo
-          if (response.status === 429 || response.status === 404 || errorText.includes('quota') || errorText.includes('RESOURCE_EXHAUSTED')) {
-            console.warn(`Gemini model ${modelId} failed:`, errorText);
-            continue;
-          } else {
-            throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
-          }
-        }
-        const data = await response.json();
-        const message = extractMessage('gemini', data);
-        return { message };
-      } catch (error) {
-        lastGeminiError = error;
-        console.warn(`Gemini model ${modelName} error:`, error);
-        continue;
-      }
-    }
-    // Nß║┐u tß║Ñt cß║ú model Gemini ─æß╗üu lß╗ùi, thß╗¡ OpenAI, nß║┐u OpenAI c┼⌐ng lß╗ùi th├¼ gß╗ìi custom API
-    console.error('All Gemini models failed, trying OpenAI:', lastGeminiError);
-    try {
-      const openaiEndpoint = 'https://api.openai.com/v1/chat/completions';
-      const openaiKey = import.meta.env.VITE_OPENAI_API_KEY || '';
-      const requestBody = buildRequestBody('openai', messages, userMessage, systemPrompt);
-      const headers = buildHeaders('openai', openaiKey);
-      const response = await fetch(openaiEndpoint, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(requestBody)
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
-      }
-      const data = await response.json();
-      const message = extractMessage('openai', data);
-      return { message };
-    } catch (openaiError) {
-      console.error('OpenAI fallback also failed, trying custom API:', openaiError);
-      try {
-        console.log('≡ƒöù Calling custom AI API:', CUSTOM_AI_API_ENDPOINT);
-        const endpoint = CUSTOM_AI_API_ENDPOINT;
-        const apiKey = CUSTOM_AI_API_KEY;
-        const requestBody = buildRequestBody('custom', messages, userMessage, systemPrompt);
-        const headers = buildHeaders('custom', apiKey);
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(requestBody)
-        });
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`Custom API error: ${response.status} - ${errorText}`);
-        }
-        const data = await response.json();
-        const message = extractMessage('custom', data);
-        return { message };
-      } catch (customError) {
-        console.error('Custom API also failed:', customError);
-        return {
-          message: getFallbackResponse(userMessage),
-          error: customError instanceof Error ? customError.message : 'Unknown error'
-        };
-      }
-    }
-  } else {
-    // Use selected provider (OpenAI, etc.)
-    try {
-      let endpoint = AI_API_ENDPOINT;
-      let apiKey = AI_API_KEY;
-      if (AI_PROVIDER.toLowerCase() === 'openai') {
-        endpoint = 'https://api.openai.com/v1/chat/completions';
-        apiKey = import.meta.env.VITE_OPENAI_API_KEY || '';
-      }
-      const requestBody = buildRequestBody(AI_PROVIDER, messages, userMessage, systemPrompt);
-      const headers = buildHeaders(AI_PROVIDER, apiKey);
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(requestBody)
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`API error: ${response.status} - ${errorText}`);
-      }
-      const data = await response.json();
-      const message = extractMessage(AI_PROVIDER, data);
-      return { message };
-    } catch (error) {
-      console.error('AI Service Error:', error);
-      return {
-        message: getFallbackResponse(userMessage),
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
-    }
+
+    throw new Error(data.detail || 'Empty response from chatbot');
+  } catch (error) {
+    console.error('Chatbot AI Service Error:', error);
+    return {
+      message: getFallbackResponse(userMessage),
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
   }
 }
 
@@ -344,248 +100,16 @@ function getFallbackResponse(query: string): string {
   return "I'm here to help with your healthcare needs! I can assist with:\n\nΓÇó ≡ƒÆè Medications and prescriptions\nΓÇó ≡ƒôà Appointments and scheduling\nΓÇó ≡ƒÅÑ Test results and medical records\nΓÇó Γ¥ñ∩╕Å General health and wellness questions\nΓÇó ≡ƒôï Post-treatment care instructions\n\nWhat would you like to know?"
 }
 
-/**
- * Build request body based on AI provider format
- * Supports: OpenAI, Anthropic (Claude), Cohere, Hugging Face, Google Gemini, and custom
- */
-function buildRequestBody(
-  provider: string,
-  messages: ChatMessage[],
-  userMessage: string,
-  systemPrompt: string
-): unknown {
-  const fullMessages = [
-    { role: 'system', content: systemPrompt },
-    ...messages,
-    { role: 'user', content: userMessage }
-  ]
-
-  switch (provider.toLowerCase()) {
-    case 'openai':
-    case 'azure-openai':
-      return {
-        model: 'gpt-3.5-turbo',
-        messages: fullMessages,
-        temperature: 0.7,
-        max_tokens: 500
-      }
-
-    case 'anthropic':
-    case 'claude':
-      return {
-        model: 'claude-3-sonnet-20240229',
-        messages: fullMessages.filter(m => m.role !== 'system'),
-        system: systemPrompt,
-        max_tokens: 500
-      }
-
-    case 'cohere':
-      return {
-        message: userMessage,
-        chat_history: messages.map(m => ({
-          role: m.role === 'assistant' ? 'CHATBOT' : 'USER',
-          message: m.content
-        })),
-        preamble: systemPrompt
-      }
-
-    case 'huggingface':
-      return {
-        inputs: `${systemPrompt}\n\n${messages.map(m => `${m.role}: ${m.content}`).join('\n')}\nuser: ${userMessage}\nassistant:`,
-        parameters: {
-          max_new_tokens: 500,
-          temperature: 0.7
-        }
-      }
-
-    case 'gemini':
-      return {
-        contents: [{
-          parts: [{
-            text: `${systemPrompt}\n\n${messages.map(m => `${m.role}: ${m.content}`).join('\n')}\nuser: ${userMessage}`
-          }]
-        }]
-      }
-
-    default:
-      // Custom API expects { message: userMessage }
-      return {
-        message: userMessage
-      }
-  }
-}
-
-/**
- * Build headers based on AI provider authentication method
- */
-function buildHeaders(provider: string, apiKey: string): Record<string, string> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json'
-  }
-
-  if (!apiKey) return headers
-
-  switch (provider.toLowerCase()) {
-    case 'openai':
-    case 'azure-openai':
-      headers['Authorization'] = `Bearer ${apiKey}`
-      // Add OpenRouter specific headers if using OpenRouter
-      if (AI_API_ENDPOINT.includes('openrouter.ai')) {
-        headers['HTTP-Referer'] = 'https://techcare-app.com'
-        headers['X-Title'] = 'TechCare Medical Assistant'
-      }
-      break
-
-    case 'anthropic':
-    case 'claude':
-      headers['x-api-key'] = apiKey
-      headers['anthropic-version'] = '2023-06-01'
-      break
-
-    case 'cohere':
-      headers['Authorization'] = `Bearer ${apiKey}`
-      break
-
-    case 'huggingface':
-      headers['Authorization'] = `Bearer ${apiKey}`
-      break
-
-    case 'gemini':
-      // Gemini uses API key in URL, not header
-      break
-
-    default:
-      // Custom - use x-api-key header for custom AI/ML API
-      headers['x-api-key'] = apiKey
-      break
-  }
-
-  return headers
-}
-
-/**
- * Extract message from response based on provider format
- */
-function extractMessage(provider: string, data: unknown): string {
-  try {
-    switch (provider.toLowerCase()) {
-      case 'openai':
-      case 'azure-openai':
-        return data.choices?.[0]?.message?.content || data.message || 'No response'
-
-      case 'anthropic':
-      case 'claude':
-        return data.content?.[0]?.text || data.message || 'No response'
-
-      case 'cohere':
-        return data.text || data.message || 'No response'
-
-      case 'huggingface':
-        return data[0]?.generated_text || data.generated_text || data.message || 'No response'
-
-      case 'gemini':
-        return data.candidates?.[0]?.content?.parts?.[0]?.text || data.message || 'No response'
-
-      default:
-        // Try common response field names, including custom API { reply }
-        return data.reply || data.message || data.response || data.content || data.text || data.output || 'No response from AI'
-    }
-  } catch (error) {
-    console.error('Error extracting message:', error)
-    return 'Error parsing AI response'
-  }
-}
-
-/**
- * Example: Integrate with OpenAI
- * Uncomment and configure if using OpenAI
- */
-/*
-export async function sendChatMessageOpenAI(
-  messages: ChatMessage[],
-  userMessage: string
-): Promise<ChatResponse> {
-  try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${AI_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: 'gpt-4',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a helpful medical assistant...'
-          },
-          ...messages,
-          { role: 'user', content: userMessage }
-        ],
-        temperature: 0.7,
-        max_tokens: 500
-      })
-    })
-
-    const data = await response.json()
-    return {
-      message: data.choices[0].message.content
-    }
-  } catch (error) {
-    console.error('OpenAI Error:', error)
-    return {
-      message: getFallbackResponse(userMessage),
-      error: error instanceof Error ? error.message : 'Unknown error'
-    }
-  }
-}
-*/
-
-/**
- * Example: Integrate with Google Gemini
- * Uncomment and configure if using Gemini
- */
-/*
-export async function sendChatMessageGemini(
-  messages: ChatMessage[],
-  userMessage: string
-): Promise<ChatResponse> {
-  try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${AI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{
-              text: `${messages.map(m => `${m.role}: ${m.content}`).join('\n')}\nuser: ${userMessage}`
-            }]
-          }]
-        })
-      }
-    )
-
-    const data = await response.json()
-    return {
-      message: data.candidates[0].content.parts[0].text
-    }
-  } catch (error) {
-    console.error('Gemini Error:', error)
-    return {
-      message: getFallbackResponse(userMessage),
-      error: error instanceof Error ? error.message : 'Unknown error'
-    }
-  }
-}
-*/
-
 // ============ SYMPTOM CHECKER AI ANALYSIS ============
 
 /**
- * Analyze symptoms using AI and return possible conditions
- * @param symptoms - Array of symptoms with severity and duration
- * @returns Analysis results with recommendations
+ * Analyze symptoms using the medAI Python FastAPI service.
+ * Falls back to rule-based analysis when the service is unreachable.
+ *
+ * Python API: POST http://localhost:8000/api/analyze_symptoms
+ * Input:  { symptoms: [{ symptom, severity, duration }] }
+ * Output: { possible_conditions: [{disease, probability, reason}],
+ *           recommended_action, suggested_medication_type }
  */
 export async function analyzeSymptoms(
   symptoms: SymptomInput[]
@@ -599,154 +123,80 @@ export async function analyzeSymptoms(
   }
 
   const durationMap: Record<string, string> = {
-    'less24h': 'less than 24 hours',
-    '1to3days': '1 to 3 days',
-    '3to7days': '3 to 7 days',
-    'moreThanWeek': 'more than a week'
+    'less24h': 'Less than 24 hours',
+    '1to3days': '1-3 days',
+    '3to7days': '3-7 days',
+    'moreThanWeek': 'More than a week'
   }
 
-  // Format symptoms for AI prompt
-  const symptomDescription = symptoms
-    .map(s => `- ${s.name}: severity is ${s.severity}, duration is ${durationMap[s.duration]}`)
-    .join('\n')
+  const severityMap: Record<string, string> = {
+    'mild': 'Mild',
+    'moderate': 'Moderate',
+    'severe': 'Severe'
+  }
 
-  const systemPrompt = `You are a medical symptom analysis assistant for TechCare hospital. 
-Your role is to analyze patient symptoms and provide preliminary assessments.
-
-IMPORTANT GUIDELINES:
-1. Always emphasize that this is NOT a medical diagnosis
-2. Recommend professional consultation for serious symptoms
-3. Be empathetic and clear in your explanations
-4. Consider symptom combinations and their interactions
-5. Prioritize patient safety - err on the side of caution
-
-You MUST respond in valid JSON format with this exact structure:
-{
-  "results": [
-    {
-      "condition": "Possible condition name",
-      "severity": "low" | "medium" | "high",
-      "recommendation": "What the patient should do",
-      "details": "Detailed explanation",
-      "possibleCauses": ["cause1", "cause2"],
-      "whenToSeekHelp": "When to see a doctor immediately"
-    }
-  ],
-  "disclaimer": "Medical disclaimer message"
-}
-
-Severity levels:
-- "high": Requires immediate medical attention (ER visit)
-- "medium": Should see a doctor within 24-48 hours
-- "low": Can monitor at home, seek care if worsening`
-
-  const userMessage = `Please analyze these symptoms and provide your assessment:
-
-${symptomDescription}
-
-Patient has ${symptoms.length} symptom(s) total.
-Provide 1-3 possible conditions based on these symptoms, prioritized by likelihood.
-Respond ONLY with valid JSON, no additional text.`
+  // Map to Python API input format
+  const payload = {
+    symptoms: symptoms.map(s => ({
+      symptom: s.name,
+      severity: severityMap[s.severity] ?? s.severity,
+      duration: durationMap[s.duration] ?? s.duration,
+    }))
+  }
 
   try {
-    // For Gemini, dynamically select a valid model
-    let endpoint = AI_API_ENDPOINT
-    if (AI_PROVIDER.toLowerCase() === 'gemini') {
-      const modelName = await pickGeminiModel()
-      const modelId = modelName.replace('models/', '')
-      endpoint = `https://generativelanguage.googleapis.com/v1/models/${modelId}:generateContent?key=${AI_API_KEY}`
-    }
+    console.log('🩺 Sending symptoms to medAI:', MEDAI_SYMPTOM_ENDPOINT)
 
-    const requestBody = buildSymptomAnalysisRequestBody(AI_PROVIDER, systemPrompt, userMessage)
-    const headers = buildHeaders(AI_PROVIDER, AI_API_KEY)
-
-    const response = await fetch(endpoint, {
+    const response = await fetch(MEDAI_SYMPTOM_ENDPOINT, {
       method: 'POST',
-      headers,
-      body: JSON.stringify(requestBody)
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
     })
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error('Symptom Analysis API Error:', errorText)
+      console.error('medAI API Error:', errorText)
       throw new Error(`API error: ${response.status}`)
     }
 
-    const data = await response.json()
-    const messageContent = extractMessage(AI_PROVIDER, data)
-
-    // Parse JSON from AI response
-    const jsonMatch = messageContent.match(/\{[\s\S]*\}/)
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0])
-      return {
-        results: parsed.results || [],
-        disclaimer: parsed.disclaimer || 'This is not a medical diagnosis. Please consult a healthcare professional.',
-      }
+    const data = await response.json() as {
+      possible_conditions?: { disease: string; probability: string; reason: string }[]
+      recommended_action?: string
+      suggested_medication_type?: string[]
     }
 
-    throw new Error('Could not parse AI response')
+    const conditions = data.possible_conditions ?? []
+    const recommendedAction = data.recommended_action ?? 'Please consult a healthcare professional.'
+    const medications = data.suggested_medication_type ?? []
+
+    const results: SymptomAnalysisResult[] = conditions.map(c => {
+      const prob = (c.probability ?? '').toLowerCase()
+      const severity: 'low' | 'medium' | 'high' =
+        prob === 'high' ? 'high' : prob === 'medium' ? 'medium' : 'low'
+
+      return {
+        condition: c.disease,
+        severity,
+        recommendation: recommendedAction,
+        details: c.reason,
+        possibleCauses: medications.length > 0 ? medications : undefined,
+        whenToSeekHelp: 'Consult a doctor if your symptoms worsen or do not improve within 48 hours.'
+      }
+    })
+
+    return {
+      results,
+      disclaimer: 'This is not a medical diagnosis. Always consult a qualified healthcare professional for proper evaluation and treatment.'
+    }
 
   } catch (error) {
     console.error('Symptom Analysis Error:', error)
-    
     // Fallback to rule-based analysis
     return getFallbackSymptomAnalysis(symptoms)
   }
 }
 
-/**
- * Build request body for symptom analysis based on provider
- */
-function buildSymptomAnalysisRequestBody(
-  provider: string,
-  systemPrompt: string,
-  userMessage: string
-): unknown {
-  switch (provider.toLowerCase()) {
-    case 'openai':
-    case 'azure-openai':
-      return {
-        model: 'gpt-4',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userMessage }
-        ],
-        temperature: 0.3, // Lower temperature for more consistent medical advice
-        max_tokens: 1000
-      }
 
-    case 'anthropic':
-    case 'claude':
-      return {
-        model: 'claude-3-sonnet-20240229',
-        messages: [{ role: 'user', content: userMessage }],
-        system: systemPrompt,
-        max_tokens: 1000
-      }
-
-    case 'gemini':
-      return {
-        contents: [{
-          parts: [{
-            text: `${systemPrompt}\n\n${userMessage}`
-          }]
-        }],
-        generationConfig: {
-          temperature: 0.3,
-          maxOutputTokens: 1000
-        }
-      }
-
-    default:
-      return {
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userMessage }
-        ]
-      }
-  }
-}
 
 /**
  * Fallback symptom analysis when AI service is unavailable

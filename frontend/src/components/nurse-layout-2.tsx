@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { NurseLayout } from "./nurse-layout"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import ViewingPatientHealthInfo from "@/doctor/medical_records/health-info"
+import ViewingPatientHealthInfo from "@/pages/doctor/medical_records/health-info"
 
 const tabs = [
   { label: "Dashboard", value: "dashboard" },

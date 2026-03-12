@@ -2,6 +2,32 @@ import { Router, Request, Response } from 'express';
 
 const router = Router();
 
+// ============================================================
+// Local LLM configuration (set in backend/.env)
+//
+// LOCAL_LLM_BASE_URL  – base URL of the OpenAI-compatible server
+//                       Ollama  : http://localhost:11434
+//                       LM Studio: http://localhost:1234
+//                       LocalAI : http://localhost:8080
+//
+// LOCAL_LLM_MODEL     – model name to pass in the request
+//                       Ollama examples : llama3, mistral, qwen2
+//                       LM Studio       : use the model name shown in the UI
+//
+// LOCAL_LLM_API_KEY   – optional; most local servers don't need one;
+//                       set to any non-empty string if the server requires it
+// ============================================================
+// Read lazily at request time so that any dotenv loading order issues
+// do not cause these to freeze at their default values.
+const getLocalLLMConfig = () => ({
+  baseUrl: process.env.LOCAL_LLM_BASE_URL || 'http://localhost:11434',
+  model:   process.env.LOCAL_LLM_MODEL   || 'llama3',
+  apiKey:  process.env.LOCAL_LLM_API_KEY || 'ollama',
+});
+
+// ============================================================
+// Types
+// ============================================================
 interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
@@ -9,243 +35,168 @@ interface ChatMessage {
 
 interface ChatRequest {
   messages: ChatMessage[];
+  systemPrompt?: string; // optional override (e.g. used by symptom checker)
 }
+
+// ============================================================
+// Medical-assistant system prompt
+// ============================================================
+const SYSTEM_PROMPT = `You are a helpful medical assistant for TechCare hospital.
+You can help patients with:
+- Medication information and reminders
+- Appointment scheduling and information
+- General health questions and wellness tips
+- Post-treatment care instructions
+
+Important guidelines:
+- Always be empathetic and professional
+- For serious medical concerns, always recommend consulting a doctor
+- Keep responses concise but informative
+- Use simple, easy-to-understand language
+- Never diagnose conditions — provide general information only`;
+
+// ============================================================
+// Helper: call local LLM via OpenAI-compatible /v1/chat/completions
+// ============================================================
+async function callLocalLLM(messages: ChatMessage[], systemPrompt?: string): Promise<string> {
+  const { baseUrl, model, apiKey } = getLocalLLMConfig();
+  const url = `${baseUrl.replace(/\/$/, '')}/v1/chat/completions`;
+
+  const body = {
+    model,
+    messages: [
+      { role: 'system', content: systemPrompt || SYSTEM_PROMPT },
+      ...messages.filter(m => m.role !== 'system'), // avoid duplicate system msg
+    ],
+    temperature: 0.7,
+    max_tokens: 1024,
+    stream: false,
+  };
+
+  console.log(`[AI] Calling local LLM at ${url} with model "${model}"`);
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(
+      `Local LLM error (${response.status}): ${errorText}`
+    );
+  }
+
+  const data = (await response.json()) as any;
+
+  // Standard OpenAI-compatible response shape
+  const text: string | undefined =
+    data?.choices?.[0]?.message?.content;
+
+  if (!text) {
+    throw new Error('Local LLM returned an empty response');
+  }
+
+  return text;
+}
+
+// ============================================================
+// Routes
+// ============================================================
 
 /**
  * GET /api/ai/chat
- * Simple test endpoint to verify server is working
+ * Health-check / info endpoint
  */
-router.get('/chat', (req: Request, res: Response) => {
+router.get('/chat', (_req: Request, res: Response) => {
+  const { baseUrl, model } = getLocalLLMConfig();
   res.json({
     status: 'ok',
     message: 'AI Chat API is running!',
-    usage: 'Send POST request with {"messages": [{"role": "user", "content": "your message"}]}',
+    provider: 'Local LLM (OpenAI-compatible)',
+    model,
+    baseUrl,
+    usage:
+      'Send POST request with { "messages": [{ "role": "user", "content": "your message" }] }',
     endpoints: {
       test: 'GET /api/ai/chat',
-      chat: 'POST /api/ai/chat'
-    }
+      chat: 'POST /api/ai/chat',
+    },
   });
 });
 
 /**
  * POST /api/ai/chat
- * Handle AI chat requests
- * 
- * This is a basic example. In production, you should:
- * 1. Integrate with real AI service (OpenAI, Gemini, Azure OpenAI, etc.)
- * 2. Add authentication and rate limiting
- * 3. Store conversation history in database
- * 4. Add context about patient's medical records
+ * Send a message to the local LLM and return the response.
+ *
+ * Request body:
+ *   { "messages": ChatMessage[] }
+ *
+ * Response:
+ *   { "message": string, "timestamp": string }
  */
 router.post('/chat', async (req: Request, res: Response) => {
   try {
-    const { messages } = req.body as ChatRequest;
+    const { messages, systemPrompt } = req.body as ChatRequest;
 
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({
-        error: 'Invalid request. Messages array is required.'
+        error: 'Invalid request. "messages" array is required.',
       });
     }
 
-    // Get the last user message
-    const lastUserMessage = messages
-      .filter(m => m.role === 'user')
-      .pop()?.content || '';
+    const reply = await callLocalLLM(messages, systemPrompt);
 
-    // TODO: Replace this with actual AI service call
-    // Example: OpenAI, Google Gemini, Azure OpenAI, etc.
-    
-    // For now, use rule-based responses as fallback
-    const response = generateResponse(lastUserMessage);
-
-    res.json({
-      message: response,
-      timestamp: new Date().toISOString()
+    return res.json({
+      message: reply,
+      timestamp: new Date().toISOString(),
     });
+  } catch (error: any) {
+    console.error('[AI] Local LLM Error:', error?.message);
 
-  } catch (error) {
-    console.error('AI Chat Error:', error);
-    res.status(500).json({
-      error: 'Internal server error',
-      message: 'Failed to process chat request'
+    // Friendly fallback so the UI stays functional even when the local model is offline
+    const userMessage =
+      (req.body?.messages as ChatMessage[] | undefined)
+        ?.filter(m => m.role === 'user')
+        ?.pop()?.content ?? '';
+
+    // Return 200 so the browser doesn't log a console error – we still
+    // include `fallback: true` so callers can detect the degraded state.
+    const { baseUrl, model } = getLocalLLMConfig();
+    return res.status(200).json({
+      message: getFallbackResponse(userMessage),
+      fallback: true,
+      hint: `Local LLM unavailable at ${baseUrl} with model "${model}". Start Ollama / LM Studio or check that the model is loaded.`,
     });
   }
 });
 
-/**
- * Generate a response based on the user's message
- * This is a simple rule-based system. Replace with actual AI integration.
- */
-function generateResponse(userMessage: string): string {
-  const lowerMessage = userMessage.toLowerCase();
+// ============================================================
+// Rule-based fallback (only used when local LLM is offline)
+// ============================================================
+function getFallbackResponse(query: string): string {
+  const q = query.toLowerCase();
 
-  // Medication queries
-  if (lowerMessage.includes('medication') || lowerMessage.includes('medicine') || lowerMessage.includes('drug') || lowerMessage.includes('pill')) {
-    return `I can help you with your medications! Here's what I can assist with:
-
-💊 **Current Medications**: View your active prescriptions
-⏰ **Reminders**: Set up medication reminders
-⚠️ **Side Effects**: Learn about potential side effects
-🔄 **Interactions**: Check for drug interactions
-📋 **Refills**: Request prescription refills
-
-What would you like to know about your medications?`;
+  if (q.includes('medication') || q.includes('medicine') || q.includes('drug') || q.includes('pill')) {
+    return "I can help with medication information — dosages, schedules, side effects, and refill reminders. What would you like to know?";
   }
-
-  // Appointment queries
-  if (lowerMessage.includes('appointment') || lowerMessage.includes('schedule') || lowerMessage.includes('booking') || lowerMessage.includes('visit')) {
-    return `I can help you manage your appointments! Here are your options:
-
-📅 **View Appointments**: See your upcoming visits
-➕ **Book New**: Schedule a new appointment
-✏️ **Reschedule**: Change an existing appointment
-❌ **Cancel**: Cancel an appointment
-🗺️ **Directions**: Get directions to the clinic
-
-Would you like to see your upcoming appointments or book a new one?`;
+  if (q.includes('appointment') || q.includes('schedule') || q.includes('booking') || q.includes('visit')) {
+    return "I can assist with appointments: viewing upcoming visits, booking new ones, or rescheduling. What would you like to do?";
   }
-
-  // Symptoms/health concerns
-  if (lowerMessage.includes('symptom') || lowerMessage.includes('pain') || lowerMessage.includes('sick') || lowerMessage.includes('hurt') || lowerMessage.includes('feel')) {
-    return `I understand you're not feeling well. While I can provide general information, it's important to consult with a healthcare professional for proper diagnosis and treatment.
-
-🏥 **Immediate Options**:
-• Book an urgent care appointment
-• Speak with a nurse (available 24/7)
-• Visit the emergency room (if severe)
-
-📞 **Emergency**: Call 911 if experiencing:
-• Chest pain or difficulty breathing
-• Severe bleeding or trauma
-• Loss of consciousness
-• Severe allergic reaction
-
-Would you like me to help you schedule an appointment?`;
+  if (q.includes('symptom') || q.includes('pain') || q.includes('sick') || q.includes('hurt') || q.includes('feel')) {
+    return "I'm sorry to hear you're not feeling well. Please consult a healthcare professional for proper diagnosis. Would you like to schedule an urgent appointment?";
   }
-
-  // Test results
-  if (lowerMessage.includes('test') || lowerMessage.includes('result') || lowerMessage.includes('lab') || lowerMessage.includes('blood work')) {
-    return `I can help you with your test results and lab work.
-
-🔬 **Lab Results**: Most results are available within 2-3 business days
-📊 **View Results**: Check your patient portal for available results
-📞 **Discuss Results**: Schedule a follow-up to discuss findings with your doctor
-⏱️ **Pending Tests**: View tests that are still being processed
-
-Lab results are typically reviewed by your doctor before being released to the portal. Would you like to check if your results are ready?`;
+  if (q.includes('result') || q.includes('lab') || q.includes('test')) {
+    return "Lab results are typically available within 2–3 business days. Would you like to check the patient portal or schedule a follow-up?";
   }
-
-  // Billing/insurance
-  if (lowerMessage.includes('bill') || lowerMessage.includes('payment') || lowerMessage.includes('insurance') || lowerMessage.includes('cost')) {
-    return `I can help you with billing and insurance questions!
-
-💳 **Billing Department**: (555) 123-4567
-📧 **Email**: billing@techcare.com
-⏰ **Hours**: Mon-Fri, 8AM-5PM
-
-💰 **Payment Options**:
-• Pay online through patient portal
-• Set up a payment plan
-• Financial assistance programs available
-
-📋 **Insurance**:
-• We accept most major insurance providers
-• Verify your coverage online
-• Submit claims directly
-
-Would you like information about a specific bill or insurance question?`;
+  if (q.includes('bill') || q.includes('payment') || q.includes('insurance')) {
+    return "For billing questions, please contact our billing department at (555) 123-4567, Mon–Fri 8AM–5PM.";
   }
-
-  // Records access
-  if (lowerMessage.includes('record') || lowerMessage.includes('history') || lowerMessage.includes('document') || lowerMessage.includes('report')) {
-    return `I can help you access your medical records!
-
-📁 **Available Records**:
-• Visit summaries and doctor's notes
-• Lab and test results
-• Imaging reports (X-rays, MRI, CT scans)
-• Vaccination history
-• Prescription history
-
-📥 **Download**: Export your records as PDF
-📤 **Share**: Send records to other healthcare providers
-🔒 **Privacy**: Your records are secure and HIPAA-compliant
-
-What type of records would you like to access?`;
-  }
-
-  // Doctor information
-  if (lowerMessage.includes('doctor') || lowerMessage.includes('physician') || lowerMessage.includes('specialist')) {
-    return `I can help you find information about our healthcare providers!
-
-👨‍⚕️ **Find a Doctor**:
-• Search by specialty
-• View doctor profiles and credentials
-• Read patient reviews
-• Check availability
-
-🏥 **Our Specialties**:
-• Cardiology • Orthopedics
-• Dermatology • Ophthalmology  
-• Pediatrics • Internal Medicine
-
-Would you like to search for a specific type of doctor or view your current care team?`;
-  }
-
-  // General greeting/help
-  if (lowerMessage.includes('hello') || lowerMessage.includes('hi') || lowerMessage.includes('hey') || lowerMessage.includes('help')) {
-    return `Hello! I'm your TechCare AI assistant. I'm here to help you 24/7 with:
-
-💊 **Medications**: Prescriptions, refills, and reminders
-📅 **Appointments**: Scheduling and managing visits
-🏥 **Health Questions**: General wellness information
-🔬 **Test Results**: Lab work and imaging results
-📋 **Medical Records**: Access your health information
-💳 **Billing**: Payment and insurance questions
-
-What can I help you with today?`;
-  }
-
-  // Default response
-  return `I'm here to help with your healthcare needs! I can assist you with:
-
-💊 Medications and prescriptions
-📅 Appointments and scheduling
-🏥 Health questions and concerns
-🔬 Test results and lab work
-📋 Medical records access
-💳 Billing and insurance
-
-What would you like to know more about?`;
+  return "I'm here to help with your healthcare needs — medications, appointments, health questions, and more. How can I assist you today?";
 }
-
-/**
- * Example: Integrate with OpenAI
- * Uncomment and configure to use OpenAI
- */
-/*
-import OpenAI from 'openai';
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
-
-async function getOpenAIResponse(messages: ChatMessage[]): Promise<string> {
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4",
-    messages: [
-      {
-        role: "system",
-        content: "You are a helpful medical assistant for TechCare hospital..."
-      },
-      ...messages
-    ],
-    temperature: 0.7,
-    max_tokens: 500
-  });
-
-  return completion.choices[0].message.content || "No response generated";
-}
-*/
 
 export default router;

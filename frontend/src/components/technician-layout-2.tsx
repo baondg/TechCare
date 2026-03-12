@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { TechnicianLayout } from "./technician-layout"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import ViewingPatientLab from "@/technician/medical_records/lab"
+import ViewingPatientLab from "@/pages/technician/medical_records/lab"
 
 const tabs = [
   { label: "Test results", value: "lab" },

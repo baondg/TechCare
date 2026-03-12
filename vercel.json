@@ -4,7 +4,7 @@
   "outputDirectory": "frontend/dist",
   "functions": {
     "backend/src/index.ts": {
-      "runtime": "@vercel/node@5"
+      "runtime": "@vercel/node@24.1.0"
     }
   },
   "rewrites": [

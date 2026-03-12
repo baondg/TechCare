@@ -1,5 +1,7 @@
-// Load environment variables
 import dotenv from 'dotenv';
+// Load environment variables FIRST — before any other imports so that
+// modules which read process.env at initialisation time (e.g. routes/ai.ts)
+// get the correct values from .env instead of falling back to defaults.
 dotenv.config();
 
 import express, { Express, Request, Response } from 'express';
@@ -18,8 +20,6 @@ const sequelize = require('./common/database');
 require('./models/HealthInfo');
 require('./models/Diagnosis');
 require('./models/Prescription');
-
-
 
 const app: Express = express();
 const PORT = process.env.PORT || 3000;

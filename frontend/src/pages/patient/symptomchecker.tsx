@@ -1,46 +1,5 @@
 ﻿"use client"
 
-/**
- * =============================================================================
- * AI SYMPTOM CHECKER PAGE - TechCare Medical Assistant
- * =============================================================================
- * 
- * This component provides an AI-powered symptom analysis tool that helps patients
- * understand their symptoms and receive preliminary health guidance. It uses
- * Google Gemini API for intelligent symptom pattern recognition.
- * 
- * FEATURES:
- * - Interactive symptom selection grid (16 common symptoms)
- * - Severity selection (mild/moderate/severe)
- * - Duration tracking (< 24h to > 1 week)
- * - AI-powered analysis with multiple possible conditions
- * - Color-coded urgency levels (green/yellow/red)
- * - Medical disclaimers and "when to seek help" guidance
- * - Fallback rule-based analysis when AI is unavailable
- * 
- * USER FLOW:
- * 1. Patient clicks on symptoms they're experiencing
- * 2. Dialog opens to specify severity and duration
- * 3. Selected symptoms appear as badges with details
- * 4. Patient clicks "Analyze" to get AI assessment
- * 5. Results show possible conditions with recommendations
- * 
- * AI RESPONSE STRUCTURE:
- * - Condition name (e.g., "Common Cold", "Flu")
- * - Severity level (low/medium/high)
- * - Recommendation (what to do)
- * - Detailed explanation
- * - Possible causes
- * - When to seek immediate help
- * 
- * IMPORTANT DISCLAIMER:
- * This tool is NOT a substitute for professional medical advice.
- * Always consult a healthcare provider for proper diagnosis.
- * 
- * @author TechCare Development Team
- * @version 1.0.0
- */
-
 import { useState } from "react"
 import {Card,CardContent,CardHeader,CardTitle,CardDescription} from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -49,49 +8,22 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import {Dialog,DialogContent,DialogHeader,DialogTitle,DialogDescription,DialogFooter,} from "@/components/ui/dialog"
 import { PatientLayout } from "@/components/patient-layout"
 import { AlertCircle, X, Clock, Stethoscope, AlertTriangle, CheckCircle } from "lucide-react"
-import { analyzeSymptoms, SymptomInput, SymptomAnalysisResult } from "@/services/ai-service"
+import { analyzeSymptoms } from "@/services/ai-service"
+import type { SymptomInput, SymptomAnalysisResult } from "@/services/ai-service"
 
-// ==================== TYPE DEFINITIONS ====================
-
-/**
- * SelectedSymptom Interface
- * Represents a symptom selected by the patient with additional context
- * 
- * @property name - The symptom name (e.g., "Headache", "Fever")
- * @property severity - How intense the symptom is:
- *   - "mild": Noticeable but doesn't affect daily activities
- *   - "moderate": Affects daily life and comfort
- *   - "severe": Very intense, significantly impacts function
- * @property duration - How long the symptom has been present:
- *   - "less24h": Less than 24 hours (acute onset)
- *   - "1to3days": 1-3 days (short-term)
- *   - "3to7days": 3-7 days (medium-term)
- *   - "moreThanWeek": More than a week (persistent)
- */
 interface SelectedSymptom {
   name: string
   severity: 'mild' | 'moderate' | 'severe'
   duration: 'less24h' | '1to3days' | '3to7days' | 'moreThanWeek'
 }
 
-// ==================== CONSTANTS ====================
 
-/**
- * Common Symptoms List
- * Pre-defined list of frequently reported symptoms for quick selection.
- * These cover a wide range of conditions from respiratory to gastrointestinal.
- */
 const commonSymptoms = [
   "Headache", "Fever", "Cough", "Sore Throat", "Fatigue", "Nausea",
   "Body Aches", "Runny Nose", "Shortness of Breath", "Chest Pain",
   "Dizziness", "Loss of Taste/Smell", "Diarrhea", "Rash", "Joint Pain", "Vomiting"
 ]
 
-/**
- * Duration Options
- * Time periods for how long a symptom has been present.
- * Duration helps AI determine if condition is acute or chronic.
- */
 const durationOptions = [
   { value: "less24h", label: "Less than 24 hours", short: "< 1 day" },
   { value: "1to3days", label: "1-3 days", short: "1-3 days" },
@@ -461,7 +393,7 @@ export default function SymptomChecker() {
               <div>
                 <p className="font-semibold text-lg mb-4">How severe is it?</p>
                 <div className="grid grid-cols-3 gap-3">
-                  {["mild", "moderate", "severe"].map((level) => (
+                  {(["mild", "moderate", "severe"] as const).map((level) => (
                     <Button
                       key={level}
                       variant={tempSeverity === level ? "default" : "outline"}
@@ -470,7 +402,7 @@ export default function SymptomChecker() {
                           ? "bg-linear-to-br from-[#06b6d4] to-[#0891b2] text-white border-none shadow-md" 
                           : "hover:border-[#06b6d4] hover:text-[#06b6d4] hover:bg-[#06b6d4]/5"
                       }`}
-                      onClick={() => setTempSeverity(level as any)}
+                      onClick={() => setTempSeverity(level)}
                     >
                       <div>
                         <div className="font-bold text-lg capitalize">{level}</div>
@@ -496,7 +428,7 @@ export default function SymptomChecker() {
                           ? "bg-linear-to-br from-[#06b6d4] to-[#0891b2] text-white border-none shadow-md" 
                           : "hover:border-[#06b6d4] hover:text-[#06b6d4] hover:bg-[#06b6d4]/5"
                       }`}
-                      onClick={() => setTempDuration(opt.value as any)}
+                      onClick={() => setTempDuration(opt.value as SelectedSymptom["duration"])}
                     >
                       <Clock className="h-5 w-5 mr-3" />
                       {opt.label}

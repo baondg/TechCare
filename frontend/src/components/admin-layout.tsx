@@ -1,4 +1,4 @@
-﻿import type React from 'react'
+import type React from 'react'
 import { AppShell } from '@/components/layout/AppShell'
 import type { NavItem } from '@/components/layout/AppShell'
 import { LayoutDashboard, Users, Settings, MessageSquareText } from 'lucide-react'

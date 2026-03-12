@@ -1,4 +1,4 @@
-﻿// ── Python FastAPI chatbot (medAI) ───────────────────────────
+// ── Python FastAPI chatbot (medAI) ───────────────────────────
 // Run with: uvicorn api_chatbot:app --reload  (default port 8000)
 // Endpoint: POST /api/chat  → { reply: string }
 const MEDAI_CHAT_ENDPOINT =

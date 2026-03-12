@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Real React Context for authentication.
  *
  * - Reads initial user from localStorage so page refreshes keep the session.
@@ -30,6 +30,16 @@ interface RegisterData {
   lastName: string
   age?: number
   role?: string
+// Simplified auth hook - no AuthProvider needed
+// Returns mock user data for development
+
+interface User {
+  id: number;
+  username: string;
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  role?: string;
 }
 
 interface AuthContextType {

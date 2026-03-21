@@ -1,9 +1,8 @@
 const jwt = require('jsonwebtoken');
 const sequelize = require('../common/database');
-const defineSession = require('../models/Session');
-const defineSystemConfig = require('../models/SystemConfig');
-const Session = defineSession(sequelize);
-const SystemConfig = defineSystemConfig(sequelize);
+const Session = require('../models/Session');
+
+
 
 // Làm sạch các session đã hết hạn
 const cleanupExpiredSessions = async () => {

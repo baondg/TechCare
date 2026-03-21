@@ -1,6 +1,6 @@
 const { Op } = require('sequelize');
 const sequelize = require('../common/database');
-const User = sequelize.models.user || require('../models/User')(sequelize);
+const Account = require('../models/Account');
 const Appointment = require('../models/Appointment');
 const HealthInfo = require('../models/HealthInfo');
 const Diagnosis = require('../models/Diagnosis');

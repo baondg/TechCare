@@ -1,13 +1,12 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const sequelize = require('../common/database');
-const defineUser = require('../models/User');
-const defineSession = require('../models/Session');
-const defineSystemConfig = require('../models/SystemConfig');
 const defineProfile = require('../models/Profile');
-const User = defineUser(sequelize);
-const Session = defineSession(sequelize);
-const SystemConfig = defineSystemConfig(sequelize);
+
+const Account = require('../models/Account');
+const Session = require('../models/Session');
+
+
 const Profile = defineProfile(sequelize);
 
 // Security constants
@@ -82,50 +81,35 @@ exports.register = async (req, res) => {
       });
     }
     
-    // Check if username or email already exists
-    const existingUser = await User.findOne({
-      where: {
-        [require('sequelize').Op.or]: [
-          { username },
-          { email }
-        ]
-      }
+    // Check if username already exists in Account table
+    const existingUser = await Account.findOne({
+      where: { username }
     });
-    
+
     if (existingUser) {
-      return res.status(409).json({ 
-        success: false, 
-        error: existingUser.username === username 
-          ? 'Username already taken' 
-          : 'Email already registered'
+      return res.status(409).json({
+        success: false,
+        error: 'Username already taken'
       });
     }
-    
-    // Hash password
+
+    // Hash password with bcrypt
     const hashedPassword = await hashPassword(password);
-    const encryptedPassword = encryptPassword(password);
 
-    
-    // SECURITY: Always create as 'patient', never allow role to be set from request
-    const user = await User.create({
+
+    // Create account with hashed password
+    const user = await Account.create({
       username,
-      email,
       password: hashedPassword,
-      firstName,
-      lastName,
-      age,
-
-      role: 'patient', // Force patient role for public registration
-      loginAttempts: 0,
-      lockUntil: null
+      type: 'PAT' // Patient role for public registration
 
     });
-    
+
     // Create empty profile for new user
-    await Profile.create({ userId: user.user_id, email: user.email });
+    await Profile.create({ userId: user.user_id, email: email });
 
     // Generate tokens
-    const accessToken = generateAccessToken(username, user.user_id, user.role);
+    const accessToken = generateAccessToken(username, user.user_id, user.type);
     const refreshToken = generateRefreshToken(username, user.user_id);
     
     // Create session
@@ -138,19 +122,14 @@ exports.register = async (req, res) => {
       refreshToken: refreshToken,
       expiresAt: expiresAt,
       lastActivity: new Date(),
-      ipAddress: req.ip || req.connection?.remoteAddress,
-      userAgent: req.headers['user-agent']
     });
     
     res.status(201).json({
       success: true,
-      user: { 
-        id: user.user_id, 
-        username: user.username, 
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role
+      user: {
+        id: user.user_id,
+        username: user.username,
+        type: user.type
       },
       token: accessToken,
       refreshToken: refreshToken,
@@ -173,11 +152,11 @@ exports.login = async (req, res) => {
       });
     }
 
-    const user = await User.findOne({ where: { username } });
+    const user = await Account.findOne({ where: { username } });
 
     console.log("LOGIN USERNAME:", username);
-console.log("USER FROM DB:", user);
-console.log("HASH IN DB:", user?.password);
+    console.log("USER FROM DB:", user);
+    console.log("HASH IN DB:", user?.password);
 
     if (!user) {
       return res.status(401).json({ 
@@ -199,7 +178,7 @@ console.log("HASH IN DB:", user?.password);
     // Verify password
     const isValidPassword = await verifyPassword(password, user.password);
     console.log("INPUT PASSWORD:", password);
-console.log("PASSWORD MATCH:", isValidPassword);
+    console.log("PASSWORD MATCH:", isValidPassword);
 
     if (!isValidPassword) {
       // Increment failed login attempts
@@ -279,7 +258,7 @@ console.log("PASSWORD MATCH:", isValidPassword);
     });
         
     // Generate tokens
-    const accessToken = generateAccessToken(username, user.user_id, user.role);
+    const accessToken = generateAccessToken(username, user.user_id, user.type);
     const refreshToken = generateRefreshToken(username, user.user_id);
     
     // Set expiry based on rememberMe
@@ -306,13 +285,10 @@ console.log("PASSWORD MATCH:", isValidPassword);
     
     res.json({
       success: true,
-      user: { 
-        id: user.user_id, 
-        username: user.username, 
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role
+      user: {
+        id: user.user_id,
+        username: user.username,
+        type: user.type
       },
       token: accessToken,
       refreshToken: refreshToken,
@@ -399,16 +375,16 @@ exports.refreshToken = async (req, res) => {
     }
     
     // Get user details
-    const user = await User.findByPk(decoded.userId);
+    const user = await Account.findByPk(decoded.userId);
     if (!user) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'User not found' 
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
       });
     }
-    
+
     // Generate new access token
-    const newAccessToken = generateAccessToken(user.username, user.user_id, user.role);
+    const newAccessToken = generateAccessToken(user.username, user.user_id, user.type);
     
     // Update session with new access token and activity time
     await session.update({
@@ -422,10 +398,7 @@ exports.refreshToken = async (req, res) => {
       user: {
         id: user.user_id,
         username: user.username,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role
+        type: user.type
       }
     });
   } catch (err) {
@@ -444,20 +417,20 @@ exports.getSession = async (req, res) => {
       });
     }
     
-    const user = await User.findByPk(req.user.userId, {
-      attributes: ['id', 'username', 'email', 'firstName', 'lastName', 'role', 'lastLogin']
+    const user = await Account.findByPk(req.user.user_id , {
+      attributes: ['user_id', 'username', 'type']
     });
-    
+
     if (!user) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'User not found' 
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
       });
     }
-    
+
     // Get active sessions
     const sessions = await Session.findAll({
-      where: { 
+      where: {
         userId: user.user_id,
         expiresAt: {
           [require('sequelize').Op.gt]: new Date()
@@ -466,10 +439,14 @@ exports.getSession = async (req, res) => {
       attributes: ['id', 'lastActivity', 'ipAddress', 'userAgent', 'expiresAt'],
       order: [['lastActivity', 'DESC']]
     });
-    
+
     res.json({
       success: true,
-      user: user.toJSON(),
+      user: {
+        id: user.user_id,
+        username: user.username,
+        type: user.type
+      },
       sessions: sessions.map(s => s.toJSON())
     });
   } catch (err) {

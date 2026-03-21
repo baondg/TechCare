@@ -1,9 +1,6 @@
 const jwt = require('jsonwebtoken');
-const sequelize = require('../common/database');
-const defineSession = require('../models/Session');
-const defineUser = require('../models/User');
-const Session = defineSession(sequelize);
-const User = defineUser(sequelize);
+const Session = require('../models/Session');
+const Account = require('../models/Account');
 
 const authenticateToken = async (req, res, next) => {
   const authHeader = req.headers['authorization'];
@@ -58,8 +55,8 @@ const authenticateToken = async (req, res, next) => {
     }
     
     // Check if user is active
-    const user = await User.findByPk(decoded.userId);
-    if (!user || !user.isActive) {
+    const user = await Account.findByPk(decoded.userId);
+    if (!user || user.status !== 'Active') {
       return res.status(403).json({ 
         success: false,
         error: 'Account is inactive or not found',

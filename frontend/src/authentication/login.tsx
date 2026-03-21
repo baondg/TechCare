@@ -4,8 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Activity, User, Stethoscope, Eye, EyeOff, AlertCircle, UserStar } from "lucide-react";
+import { Activity, Eye, EyeOff, AlertCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -56,9 +55,9 @@ export default function LoginPage() {
     try {
       const storedUser = JSON.parse(localStorage.getItem("user") ?? "{}") as { role?: string };
       const userRole = (storedUser.role ?? "patient").toLowerCase();
-      router(roleRoutes[userRole] ?? "/patient/dashboard");
+      navigate(roleRoutes[userRole] ?? "/patient/dashboard");
     } catch {
-      router("/patient/dashboard");
+      navigate("/patient/dashboard");
     }
   };
 
@@ -174,7 +173,7 @@ export default function LoginPage() {
             className="group relative inline-flex items-center gap-3 text-muted-foreground/80 text-sm font-medium
                       transition-all duration-400 hover:text-linear-to-r from-[#06b6d4] to-[#0891b2] hover:translate-x-1">
             <span className="relative">
-              ΓåÉ Back to Home
+              Back to Home
               <span className="absolute inset-0 bg-cyan-500/10 blur-lg scale-0 
                               transition-transform duration-400 group-hover:scale-100" />
             </span>
@@ -184,3 +183,4 @@ export default function LoginPage() {
     </div>
   );
 }
+

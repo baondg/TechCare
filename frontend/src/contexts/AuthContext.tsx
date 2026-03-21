@@ -30,17 +30,10 @@ interface RegisterData {
   lastName: string
   age?: number
   role?: string
+}
 // Simplified auth hook - no AuthProvider needed
 // Returns mock user data for development
 
-interface User {
-  id: number;
-  username: string;
-  email: string;
-  firstName?: string;
-  lastName?: string;
-  role?: string;
-}
 
 interface AuthContextType {
   user: User | null
@@ -58,17 +51,38 @@ const AuthContext = createContext<AuthContextType | null>(null)
 // ── Provider ───────────────────────────────────────────────────
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const clearAuthStorage = () => {
+    localStorage.removeItem('authToken')
+    localStorage.removeItem('user')
+    localStorage.removeItem('sessionExpiresAt')
+  }
+
   const [user, setUser] = useState<User | null>(() => {
     try {
+      const token = localStorage.getItem('authToken')
       const stored = localStorage.getItem('user')
+      const expiresAt = localStorage.getItem('sessionExpiresAt')
+
+      // If token is missing or expired, treat session as logged out.
+      if (!token) {
+        clearAuthStorage()
+        return null
+      }
+
+      if (expiresAt && new Date(expiresAt) <= new Date()) {
+        clearAuthStorage()
+        return null
+      }
+
       return stored ? (JSON.parse(stored) as User) : null
     } catch {
+      clearAuthStorage()
       return null
     }
   })
   const [isLoading, setIsLoading] = useState(false)
 
-  const isAuthenticated = user !== null
+  const isAuthenticated = user !== null && !!localStorage.getItem('authToken')
 
   const login = async (username: string, password: string): Promise<{ success: boolean; error?: string }> => {
     setIsLoading(true)
@@ -120,9 +134,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const logout = () => {
-    localStorage.removeItem('authToken')
-    localStorage.removeItem('user')
-    localStorage.removeItem('sessionExpiresAt')
+    clearAuthStorage()
     setUser(null)
     window.location.href = '/login'
   }

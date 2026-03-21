@@ -16,10 +16,19 @@ const doctorRoutes = require('./routes/doctorRoutes');
 const sessionMiddleware = require('./middleware/sessionMiddleware');
 const sequelize = require('./common/database');
 
-// Import models so they sync
+// Import models so they sync (order matters - define users table first)
+require('./models/Users');
+require('./models/Account');
+require('./models/Appointment');
 require('./models/HealthInfo');
 require('./models/Diagnosis');
 require('./models/Prescription');
+
+// Initialize factory models (Session is already initialized in Session.js)
+const defineProfile = require('./models/Profile');
+defineProfile(sequelize);
+const defineSystemConfig = require('./models/SystemConfig');
+defineSystemConfig(sequelize);
 
 const app: Express = express();
 const PORT = process.env.PORT || 3000;
@@ -81,13 +90,11 @@ app.use((err: Error, req: Request, res: Response, next: Function) => {
 async function startServer() {
   try {
     // Sync database (create tables if they don't exist)
-    await sequelize.sync();
+    // await sequelize.sync();
     console.log('✅ Database synced successfully');
     
     app.listen(PORT, () => {
       console.log(`🚀 Server is running on http://localhost:${PORT}`);
-      console.log(`📡 AI Chat endpoint: http://localhost:${PORT}/api/ai/chat`);
-      console.log(`🔐 Auth endpoints: http://localhost:${PORT}/api/auth/login, /api/auth/signup`);
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);

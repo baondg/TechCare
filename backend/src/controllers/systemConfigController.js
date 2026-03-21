@@ -10,13 +10,13 @@ exports.getConfig = async (req, res) => {
     configs.forEach(config => {
       configMap[config.key] = config.value;
     });
-    
+
     // Set default values if not exists
     const defaults = {
       maxConcurrentUsers: '500',
       sessionTimeoutMinutes: '30'
     };
-    
+
     res.json({
       success: true,
       config: { ...defaults, ...configMap }
@@ -30,7 +30,7 @@ exports.getConfig = async (req, res) => {
 exports.updateConfig = async (req, res) => {
   try {
     const { maxConcurrentUsers, sessionTimeoutMinutes } = req.body;
-    
+
     if (maxConcurrentUsers !== undefined) {
       await SystemConfig.upsert({
         key: 'maxConcurrentUsers',
@@ -38,7 +38,7 @@ exports.updateConfig = async (req, res) => {
         description: 'Maximum number of concurrent users allowed'
       });
     }
-    
+
     if (sessionTimeoutMinutes !== undefined) {
       await SystemConfig.upsert({
         key: 'sessionTimeoutMinutes',
@@ -46,7 +46,7 @@ exports.updateConfig = async (req, res) => {
         description: 'Session timeout in minutes'
       });
     }
-    
+
     res.json({
       success: true,
       message: 'System configuration updated successfully'

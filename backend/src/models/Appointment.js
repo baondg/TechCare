@@ -7,33 +7,33 @@ const Appointment = sequelize.define('Appointment', {
     autoIncrement: true,
     primaryKey: true
   },
-  userId: {
+  time: {
+    type: DataTypes.TIME,
+    allowNull: false,
+  },
+  doctor_id: {
     type: DataTypes.INTEGER,
     allowNull: false,
     references: {
-      model: 'users', // Assuming the table name is 'users'
-      key: 'id'
+      model: 'DOCTOR', // Assuming the table name is 'users'
+      key: 'doctor_id'
     }
-  },
-  doctor: {
-    type: DataTypes.STRING,
-    allowNull: false
   },
   department: {
     type: DataTypes.STRING,
     allowNull: false
   },
-  date: {
-    type: DataTypes.DATEONLY,
-    allowNull: false
-  },
-  time: {
-    type: DataTypes.TIME,
-    allowNull: false
-  },
-  patient: {
-    type: DataTypes.STRING,
-    allowNull: true
+  // date: {
+  //   type: DataTypes.DATEONLY,
+  //   allowNull: false
+  // },
+  patient_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references:{
+      model: 'PATIENT',
+      key: 'patient_id'
+    }
   },
   status: {
     type: DataTypes.ENUM('Pending', 'Confirmed', 'Done', 'Cancelled', 'Rejected'),

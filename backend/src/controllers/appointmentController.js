@@ -1,7 +1,7 @@
 const Appointment = require('../models/Appointment');
 const { Op } = require('sequelize');
 const sequelize = require('../common/database');
-const User = sequelize.models.user || require('../models/User')(sequelize);
+const Account = require('../models/Account');
 
 /**
  * GET /api/appointments/doctors

@@ -2,12 +2,14 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const sequelize = require('../common/database');
 const defineProfile = require('../models/Profile');
+const defineSystemConfig = require('../models/systemconfig');
 
 const Account = require('../models/Account');
 const Session = require('../models/Session');
 
 
 const Profile = defineProfile(sequelize);
+const SystemConfig = defineSystemConfig(sequelize);
 
 // Security constants
 const SALT_ROUNDS = 12;
@@ -215,10 +217,12 @@ exports.login = async (req, res) => {
     }
 
     // Kiểm tra số lượng user đồng thời
-    const config = await SystemConfig.findOne({ 
-      where: { key: 'maxConcurrentUsers' } 
-    });
-    const maxUsers = config ? parseInt(config.value) : 500;
+    // const config = await SystemConfig.findOne({ 
+    //   where: { key: 'maxConcurrentUsers' } 
+    // });
+    // const maxUsers = config ? parseInt(config.value) : 500;
+
+    const maxUsers = 500;
     
     // Làm sạch session hết hạn
     await Session.destroy({
@@ -246,10 +250,12 @@ exports.login = async (req, res) => {
     }
 
     // Lấy session timeout từ config
-    const timeoutConfig = await SystemConfig.findOne({ 
-      where: { key: 'sessionTimeoutMinutes' } 
-    });
-    const timeoutMinutes = timeoutConfig ? parseInt(timeoutConfig.value) : 30;
+    // const timeoutConfig = await SystemConfig.findOne({ 
+    //   where: { key: 'sessionTimeoutMinutes' } 
+    // });
+    // const timeoutMinutes = timeoutConfig ? parseInt(timeoutConfig.value) : 30;
+
+    const timeoutMinutes = 30;
     
     // Xóa session cũ của user này nếu không có rememberMe hoặc là single session mode
     // In production, you might want to keep multiple sessions

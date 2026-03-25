@@ -1,7 +1,6 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const sequelize = require('../common/database');
-const Users = require('../models/Users');
 const defineSystemConfig = require('../models/SystemConfig');
 
 const Account = require('../models/Account');
@@ -106,7 +105,7 @@ exports.register = async (req, res) => {
 
     try {
       // Create a User record first (Profile info)
-      const newUser = await Users.create({
+      const newUser = await User.create({
         first_name: firstName,
         last_name: lastName,
         email: email,
@@ -182,7 +181,7 @@ exports.login = async (req, res) => {
       where: { username },
       include: [{
         model: User,
-        attributes: ['name']
+        attributes: ['first_name', 'last_name']
       }]
     });
 
@@ -334,7 +333,9 @@ exports.login = async (req, res) => {
       user: {
         id: user.user_id,
         username: user.username,
-        fullName: user.User?.name,
+        firstName: user.User?.first_name,
+        lastName: user.User?.last_name,
+        fullName: user.User ? `${user.User.first_name || ''} ${user.User.last_name || ''}`.trim() : null,
         type: user.type,
         role: role
       },

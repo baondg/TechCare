@@ -19,7 +19,6 @@ import { useProfile } from "@/hooks/useProfile"
 export default function ProfilePage() {
   const { user } = useAuth()
   const { profile, loading, saving, error, success, save, clearMessages } = useProfile(user?.id)
-  
 
   const [isEditing, setIsEditing] = useState(false)
 
@@ -63,16 +62,10 @@ export default function ProfilePage() {
     }
   }, [success])
 
-  const mapSex = (sex?: string) => {
-    if (sex === "M") return "Male"
-    if (sex === "F") return "Female"
-    return "Other"
-  }
-
   const populateForm = (p: PatientProfile) => {
     setFullName(p.fullName || "")
     setDob(p.dateOfBirth ? parseISO(p.dateOfBirth) : undefined)
-    setSex(mapSex(p.sex))
+    setSex(p.sex || "Male")
     setPhone(p.phone || "")
     setEmail(p.email || "")
     setNationalId(p.nationalId || "")
@@ -80,7 +73,7 @@ export default function ProfilePage() {
     setRelativeName(p.relativeName || "")
     setRelationship(p.relativeRelationship || "Mother")
     setReDob(p.relativeDateOfBirth ? parseISO(p.relativeDateOfBirth) : undefined)
-    setReSex(mapSex(p.relativeSex))
+    setReSex(p.relativeSex || "Female")
     setRePhone(p.relativePhone || "")
     setReEmail(p.relativeEmail || "")
     setReNationalId(p.relativeNationalId || "")
@@ -89,7 +82,6 @@ export default function ProfilePage() {
     setInsuranceProvider(p.insuranceProvider || "")
     setInsuranceExpiry(p.insuranceExpiry || "")
   }
-
 
   const handleSave = async () => {
     if (!user?.id) return
@@ -180,48 +172,29 @@ export default function ProfilePage() {
                 Personal Information
               </CardTitle>
               <div className="flex gap-2 flex-wrap">
-                <div className="flex gap-2 flex-wrap">
-                  {/* Edit */}
-                  <Button
-                    className="btn-gradient"
-                    size="sm"
-                    onClick={() => setIsEditing(true)}
-                    disabled={isEditing}
-                  >
-                    Edit
-                  </Button>
-
-                  {/* Save */}
-                  <Button
-                    className="btn-gradient"
-                    size="sm"
-                    onClick={handleSave}
-                    disabled={!isEditing || saving}
-                  >
-                    Save
-                  </Button>
-
-                  {/* Cancel */}
-                  <Button
-                    className="btn-outline"
-                    size="sm"
-                    onClick={handleCancel}
-                    disabled={!isEditing || saving}
-                  >
-                    Cancel
-                  </Button>
-
-                  {/* Clear */}
-                  <Button
-                    className="btn-outline"
-                    size="sm"
-                    onClick={handleClear}
-                    disabled={!isEditing}
-                  >
-                    Clear
-                  </Button>
-
-                </div>
+                {!isEditing ? (
+                  <>
+                    <Button variant="outline" size="sm" className="btn-outline" onClick={() => setIsEditing(true)}>
+                      <Edit className="h-4 w-4 mr-1" /> Edit
+                    </Button>
+                    <Button variant="outline" size="sm" className="hover:bg-slate-100" onClick={handleClear}>
+                      <RotateCcw className="h-4 w-4 mr-1" /> Clear
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button size="sm" className="btn-gradient" onClick={handleSave} disabled={saving}>
+                      {saving ? (
+                        <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Saving...</>
+                      ) : (
+                        <><Save className="h-4 w-4 mr-1" /> Save</>
+                      )}
+                    </Button>
+                    <Button variant="destructive" size="sm" onClick={handleCancel} disabled={saving}>
+                      <X className="h-4 w-4 mr-1" /> Cancel
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
           </CardHeader>
@@ -528,7 +501,9 @@ export default function ProfilePage() {
                   </Label>
                   <Input 
                     value={insuranceId}
-                    disabled
+                    onChange={(e) => setInsuranceId(e.target.value)}
+                    placeholder="Enter insurance ID"
+                    disabled={!isEditing}
                     className={`custom-input ${!isEditing ? 'bg-slate-50' : ''}`}
                   />
                 </div>
@@ -538,7 +513,9 @@ export default function ProfilePage() {
                   </Label>
                   <Input 
                     value={insuranceProvider}
-                    disabled
+                    onChange={(e) => setInsuranceProvider(e.target.value)}
+                    placeholder="Enter insurance provider"
+                    disabled={!isEditing}
                     className={`custom-input ${!isEditing ? 'bg-slate-50' : ''}`}
                   />
                 </div>
@@ -550,7 +527,9 @@ export default function ProfilePage() {
                 </Label>
                 <Input 
                   value={insuranceExpiry}
-                  disabled
+                  onChange={(e) => setInsuranceExpiry(e.target.value)}
+                  placeholder="dd/mm/yyyy"
+                  disabled={!isEditing}
                   className={`custom-input ${!isEditing ? 'bg-slate-50' : ''}`}
                 />
               </div>

@@ -1,15 +1,14 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const sequelize = require('../common/database');
+const defineProfile = require('../models/Profile');
 const defineSystemConfig = require('../models/SystemConfig');
 
 const Account = require('../models/Account');
 const Session = require('../models/Session');
-const User = require('../models/User');
 
 
-
-const SystemConfig = defineSystemConfig(sequelize);
+const Profile = defineProfile(sequelize);
 
 // Security constants
 const SALT_ROUNDS = 12;
@@ -209,8 +208,8 @@ exports.login = async (req, res) => {
     
     // Verify password
     const isValidPassword = await verifyPassword(password, user.password);
-    // console.log("INPUT PASSWORD:", password);
-    // console.log("PASSWORD MATCH:", isValidPassword);
+    console.log("INPUT PASSWORD:", password);
+    console.log("PASSWORD MATCH:", isValidPassword);
 
     if (!isValidPassword) {
       // Increment failed login attempts
@@ -247,12 +246,10 @@ exports.login = async (req, res) => {
     }
 
     // Kiểm tra số lượng user đồng thời
-    // const config = await SystemConfig.findOne({ 
-    //   where: { key: 'maxConcurrentUsers' } 
-    // });
-    // const maxUsers = config ? parseInt(config.value) : 500;
-
-    const maxUsers = 500;
+    const config = await SystemConfig.findOne({ 
+      where: { key: 'maxConcurrentUsers' } 
+    });
+    const maxUsers = config ? parseInt(config.value) : 500;
     
     // Làm sạch session hết hạn
     await Session.destroy({

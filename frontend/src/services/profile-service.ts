@@ -54,23 +54,7 @@ export const profileService = {
       }
 
       const data = await response.json();
-      return {
-        ...data.profile, // profile
-
-        // map relative
-        relativeName: data.relative?.name,
-        relativeRelationship: data.relative?.relationship,
-        relativeDateOfBirth: data.relative?.dob,
-        relativeSex: data.relative?.sex,
-        relativePhone: data.relative?.tel,
-        relativeEmail: data.relative?.email,
-        relativeNationalId: data.relative?.idcard,
-
-        // map insurance
-        insuranceId: data.insurance?.id,
-        insuranceProvider: data.insurance?.initial_hospital,
-        insuranceExpiry: data.insurance?.expired_date,
-      };
+      return data.profile || data;
     } catch (error) {
       console.error('Get profile error:', error);
       throw error;

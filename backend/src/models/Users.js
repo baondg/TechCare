@@ -1,7 +1,7 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../common/database');
 
-const User = sequelize.define(
+const Users = sequelize.define(
   'User',
   {
     id: {
@@ -41,8 +41,8 @@ const User = sequelize.define(
   {
     tableName: 'USER',
     freezeTableName: true,
-    timestamps: false //tự động thêm cột createAt
+    timestamps: false
   }
 );
 
-module.exports = User;
+module.exports = Users;

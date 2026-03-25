@@ -60,7 +60,11 @@ export function useProfile(userId: number | undefined): UseProfileReturn {
     setError(null)
     setSuccess(null)
     try {
-      await profileService.updateProfile(userId, data)
+      if (profile?.id) {
+        await profileService.updateProfile(userId, data)
+      } else {
+        await profileService.createProfile(userId, data)
+      }
       setSuccess('Profile saved successfully!')
       void load()           // refresh to get server-side values (e.g. updatedAt)
     } catch (err) {

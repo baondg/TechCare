@@ -12,7 +12,7 @@
 
 import type React from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Activity, LogOut, UserRound, Bell } from 'lucide-react'
+import { Activity, LogOut, UserRound } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -32,7 +32,7 @@ interface AppShellProps {
 
 export function AppShell({ children, navItems, portalLabel }: AppShellProps) {
   const { pathname } = useLocation()
-  const { logout, user } = useAuth()
+  const { logout } = useAuth()
 
   return (
     <div className="min-h-screen w-screen bg-background">
@@ -54,21 +54,7 @@ export function AppShell({ children, navItems, portalLabel }: AppShellProps) {
           </div>
 
           {/* Logout */}
-          <div className="flex items-center gap-2">
-
-            {/* Notification button */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="btn-outline transition-transform duration-500 text-xl px-7 py-4"
-            >
-              <Bell className="h-5 w-5" />
-
-              {/* Optional: badge số thông báo */}
-              {/* <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-red-500" /> */}
-            </Button>
-
-            {/* Logout */}
+          <div className="flex items-center gap-4">
             <Button
               variant="outline"
               size="lg"
@@ -78,7 +64,6 @@ export function AppShell({ children, navItems, portalLabel }: AppShellProps) {
               <LogOut className="h-4 w-4 mr-2" />
               Logout
             </Button>
-
           </div>
         </div>
       </header>
@@ -96,11 +81,7 @@ export function AppShell({ children, navItems, portalLabel }: AppShellProps) {
                 <div className="relative flex items-center gap-2 rounded-full bg-linear-to-r from-[#06b6d4] to-[#11adc9] dark:bg-gray-900 px-5 py-2.5">
                   <UserRound className="h-4 w-4 text-white" strokeWidth={2.5} />
                   <span className="font-bold text-sm tracking-wider text-white dark:text-cyan-500">
-                    { 
-                      portalLabel === "Admin Portal"
-                      ? portalLabel
-                      : user?.fullName || "Guest"
-                    }
+                    {portalLabel}
                   </span>
                 </div>
               </div>

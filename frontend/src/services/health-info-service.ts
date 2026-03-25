@@ -20,17 +20,17 @@ export interface HealthInfo {
   currentSymptoms?: string;
   
   // Allergies
-  drugAllergies?: string | string[];
-  foodAllergies?: string | string[];
-  otherAllergies?: string | string[];
+  drugAllergies?: string;
+  foodAllergies?: string;
+  otherAllergies?: string;
   
   // Medical history
-  chronicConditions?: string | string[];
-  pastSurgeries?: string | string[];
-  familyHistory?: string | string[];
-  pastIllnesses?: string | string[];
-  vaccinations?: string | string[];
-  substanceAbuse?: string | string[];
+  chronicConditions?: string;
+  pastSurgeries?: string;
+  familyHistory?: string;
+  pastIllnesses?: string;
+  vaccinations?: string;
+  substanceAbuse?: string;
   
   // Metadata
   updatedBy?: string;
@@ -58,10 +58,9 @@ export interface HealthHistoryResponse {
 
 const getAuthHeader = () => {
   const token = localStorage.getItem('authToken');
-  if (!token) return null;
   return {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`,
+    'Authorization': token ? `Bearer ${token}` : '',
   };
 };
 
@@ -72,21 +71,14 @@ export const healthInfoService = {
       if (!user) {
         return { success: false, error: 'User not authenticated' };
       }
-      const headers = getAuthHeader();
-      if (!headers) {
-        return { success: false, error: 'Session expired. Please log in again.' };
-      }
       
       const userId = JSON.parse(user).id;
       const response = await fetch(`${API_BASE_URL}/api/health-info/${userId}`, {
         method: 'GET',
-        headers,
+        headers: getAuthHeader(),
       });
 
       if (!response.ok) {
-        if (response.status === 401) {
-          return { success: false, error: 'Session expired. Please log in again.' };
-        }
         return { success: false, error: 'Failed to fetch health info' };
       }
 
@@ -104,28 +96,21 @@ export const healthInfoService = {
     }
   },
 
-  async updateHealthInfo(recordId: number, healthData: Partial<HealthInfo>): Promise<HealthInfoResponse> {
+  async updateHealthInfo(healthData: Partial<HealthInfo>): Promise<HealthInfoResponse> {
     try {
       const user = localStorage.getItem('user');
       if (!user) {
         return { success: false, error: 'User not authenticated' };
       }
-      const headers = getAuthHeader();
-      if (!headers) {
-        return { success: false, error: 'Session expired. Please log in again.' };
-      }
       
       const userId = JSON.parse(user).id;
       const response = await fetch(`${API_BASE_URL}/api/health-info/${userId}`, {
         method: 'PUT',
-        headers,
-        body: JSON.stringify({ id: recordId, ...healthData }),
+        headers: getAuthHeader(),
+        body: JSON.stringify(healthData),
       });
 
       if (!response.ok) {
-        if (response.status === 401) {
-          return { success: false, error: 'Session expired. Please log in again.' };
-        }
         return { success: false, error: 'Failed to update health info' };
       }
 
@@ -149,22 +134,15 @@ export const healthInfoService = {
       if (!user) {
         return { success: false, error: 'User not authenticated' };
       }
-      const headers = getAuthHeader();
-      if (!headers) {
-        return { success: false, error: 'Session expired. Please log in again.' };
-      }
       
       const userId = JSON.parse(user).id;
-      const response = await fetch(`${API_BASE_URL}/api/health-info/${userId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/health-info`, {
         method: 'POST',
-        headers,
-        body: JSON.stringify(healthData),
+        headers: getAuthHeader(),
+        body: JSON.stringify({ ...healthData, userId }),
       });
 
       if (!response.ok) {
-        if (response.status === 401) {
-          return { success: false, error: 'Session expired. Please log in again.' };
-        }
         return { success: false, error: 'Failed to create health info' };
       }
 
@@ -188,43 +166,25 @@ export const healthInfoService = {
       if (!user) {
         return { success: false, error: 'User not authenticated' };
       }
-      const headers = getAuthHeader();
-      if (!headers) {
-        return { success: false, error: 'Session expired. Please log in again.' };
-      }
       
       const userId = JSON.parse(user).id;
       const response = await fetch(
-        `${API_BASE_URL}/api/health-info/${userId}`,
+        `${API_BASE_URL}/api/health-info/${userId}/history?page=${page}&limit=${limit}`,
         {
           method: 'GET',
-          headers,
+          headers: getAuthHeader(),
         }
       );
 
       if (!response.ok) {
-        if (response.status === 401) {
-          return { success: false, error: 'Session expired. Please log in again.' };
-        }
         return { success: false, error: 'Failed to fetch health history' };
       }
 
       const data = await response.json();
-      const fullHistory: HealthInfo[] = data.history || [];
-      const start = (page - 1) * limit;
-      const end = start + limit;
-      const paginatedHistory = fullHistory.slice(start, end);
-      const total = fullHistory.length;
-
       return {
         success: true,
-        history: paginatedHistory,
-        pagination: {
-          total,
-          page,
-          limit,
-          totalPages: total > 0 ? Math.ceil(total / limit) : 1,
-        },
+        history: data.history || [],
+        pagination: data.pagination,
       };
     } catch (error) {
       console.error('Get health history error:', error);

@@ -11,37 +11,22 @@ const authRoutes = require('./authorization/routes');
 const systemConfigRoutes = require('./routes/systemConfig');
 const appointmentRoutes = require('./routes/appointmentRoutes');
 const profileRoutes = require('./routes/profileRoutes');
-const healthInfoRoutes = require('./routes/healthInfoRoutes');
+
 const doctorRoutes = require('./routes/doctorRoutes');
 const sessionMiddleware = require('./middleware/sessionMiddleware');
 const sequelize = require('./common/database');
 
 // Import models so they sync (order matters - define users table first)
+require('./models/Users');
+require('./models/Account');
 require('./models/Appointment');
+require('./models/HealthInfo');
 require('./models/Diagnosis');
 require('./models/Prescription');
-const Account = require('./models/Account');
-const User = require('./models/User');
-const MedicalRecord = require('./models/MedicalRecord');
-const Patient = require('./models/Patient');
-const Relative = require('./models/Relative');
-const HealthInsurance = require('./models/HealthInsurance');
-
-// Define associations
-Account.hasOne(User, { foreignKey: 'id', sourceKey: 'user_id' });
-User.belongsTo(Account, { foreignKey: 'id', targetKey: 'user_id' });
-Patient.hasOne(Relative, { foreignKey: 'patient_id', sourceKey: 'patient_id' });
-Relative.belongsTo(Patient, { foreignKey: 'patient_id', targetKey: 'patient_id' });
-User.hasOne(Patient, { foreignKey: 'user_id', sourceKey: 'id', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
-Patient.belongsTo(User, { foreignKey: 'user_id', targetKey: 'id', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
-Patient.hasOne(HealthInsurance, {  foreignKey: 'patient_id',  as: 'insurance'});
-HealthInsurance.belongsTo(Patient, {  foreignKey: 'patient_id',  as: 'patient'});
-Patient.hasMany(MedicalRecord, { foreignKey: 'patient_id', as: 'medicalRecords' });
-MedicalRecord.belongsTo(Patient, { foreignKey: 'patient_id', as: 'patient' });
-
-
 
 // Initialize factory models (Session is already initialized in Session.js)
+const defineProfile = require('./models/Profile');
+defineProfile(sequelize);
 const defineSystemConfig = require('./models/SystemConfig');
 defineSystemConfig(sequelize);
 
@@ -62,7 +47,6 @@ app.use('/api/auth', authRoutes);
 app.use('/api/system-config', systemConfigRoutes);
 app.use('/api/appointments', appointmentRoutes);
 app.use('/api/profile', profileRoutes);
-app.use('/api/health-info', healthInfoRoutes);
 app.use('/api/doctor', doctorRoutes);
 
 

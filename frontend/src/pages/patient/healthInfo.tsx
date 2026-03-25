@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useState, useMemo, useEffect } from "react"
 import { Button } from "@/components/ui/button"
@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { PatientLayout } from "@/components/patient-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Activity, Heart, AlertCircle, FileText, Save, History, X, Loader2, Stethoscope } from "lucide-react"
+import { Activity, Heart, AlertCircle, FileText, Save, History, X, Loader2, Stethoscope, Plus, Edit } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { CollapsibleSection } from "@/components/collapsible-section"
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
@@ -45,6 +45,7 @@ export default function HealthInfoPage() {
   const [success, setSuccess] = useState<string | null>(null)
 
   const [isEditing, setIsEditing] = useState(false)
+  const [isAdding, setIsAdding] = useState(false)
   const [height, setHeight] = useState("")
   const [weight, setWeight] = useState("")
   const [bpSys, setBpSys] = useState("")
@@ -53,14 +54,13 @@ export default function HealthInfoPage() {
   const [respiratoryRate, setRespiratoryRate] = useState("")
   const [temperature, setTemperature] = useState("")
   const [spo2, setSpo2] = useState("")
-  const [bloodType, setBloodType] = useState("O+")
+  const [bloodType, setBloodType] = useState("O")
   const [symptoms, setSymptoms] = useState("")
 
   // Current health info ID for updates
   const [currentHealthInfoId, setCurrentHealthInfoId] = useState<number | null>(null)
 
   const [openChart, setOpenChart] = useState(false)
-
 
   const bmi = useMemo(() => {
     const h = parseFloat(height)
@@ -76,22 +76,31 @@ export default function HealthInfoPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
 
+  const toArray = (value: unknown): string[] => {
+    if (Array.isArray(value)) return value.filter((item): item is string => typeof item === "string")
+    if (typeof value === "string" && value.trim()) return [value]
+    return []
+  }
+
   const pageCount = Math.ceil(healthHistory.length / pageSize)
   const paginated = healthHistory.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
-  const chartData = healthHistory.map((r) => ({
-    time: r.updatedAt.toLocaleString("vi-VN", {
-      day: "2-digit",
-      month: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    }),
-    heartRate: r.heartRate,
-    temperature: r.temperature,
-    systolic: r.systolic,
-    diastolic: r.diastolic,             // Chưa fix data
-    bmi: r.bmi,
-  }))
+  const chartData = healthHistory.map((r) => {
+    const [sys, dia] = r.bloodPressure.split("/").map(Number)
+    return {
+      time: r.updatedAt.toLocaleString("vi-VN", {
+        day: "2-digit",
+        month: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+      heartRate: r.heartRate,
+      temperature: r.temperature,
+      systolic: sys,
+      diastolic: dia,
+      bmi: r.bmi,
+    }
+  })
 
   // Load health info on mount
   useEffect(() => {
@@ -108,7 +117,10 @@ export default function HealthInfoPage() {
     try {
       const result = await healthInfoService.getHealthInfo()
       if (result.success && result.healthInfo) {
-        const info = result.healthInfo
+        const info = result.healthInfo as any
+        const allergicInfo = info.allergic_info || info.allergicInfo || {}
+        const medicalHistory = info.medical_history || info.medicalHistory || {}
+
         setCurrentHealthInfoId(info.id)
         setHeight(info.height?.toString() || "")
         setWeight(info.weight?.toString() || "")
@@ -118,21 +130,23 @@ export default function HealthInfoPage() {
         setRespiratoryRate(info.respiratoryRate?.toString() || "")
         setTemperature(info.temperature?.toString() || "")
         setSpo2(info.spo2?.toString() || "")
-        setBloodType(info.bloodType || "O+")
+        setBloodType(info.bloodType || "O")
         setSymptoms(info.currentSymptoms || "")
         
-        // Set allergies
-        if (info.drugAllergies) setDrugAllergies(info.drugAllergies)
-        if (info.foodAllergies) setFoodAllergies(info.foodAllergies)
-        if (info.otherAllergies) setOtherAllergies(info.otherAllergies)
+        // Set allergies (supports both flat fields and allergic_info object)
+        setDrugAllergies(toArray(info.drugAllergies ?? allergicInfo.drugAllergies))
+        setFoodAllergies(toArray(info.foodAllergies ?? allergicInfo.foodAllergies))
+        setOtherAllergies(toArray(info.otherAllergies ?? allergicInfo.otherAllergies))
         
-        // Set medical history
-        if (info.chronicConditions) setChronicConditions(info.chronicConditions)
-        if (info.pastSurgeries) setPastSurgeries(info.pastSurgeries)
-        if (info.familyHistory) setFamilyHistory(info.familyHistory)
-        if (info.pastIllnesses) setPastIllnesses(info.pastIllnesses)
-        if (info.vaccinations) setVaccinations(info.vaccinations)
-        if (info.substanceAbuse) setSubstanceAbuse(info.substanceAbuse)
+        // Set medical history (supports both flat fields and medical_history object)
+        setChronicConditions(toArray(info.chronicConditions ?? medicalHistory.chronicConditions))
+        setPastSurgeries(toArray(info.pastSurgeries ?? medicalHistory.pastSurgeries))
+        setFamilyHistory(toArray(info.familyHistory ?? medicalHistory.familyHistory))
+        setPastIllnesses(toArray(info.pastIllnesses ?? medicalHistory.pastIllnesses))
+        setVaccinations(toArray(info.vaccinations ?? medicalHistory.vaccinations))
+        setSubstanceAbuse(toArray(info.substanceAbuse ?? medicalHistory.substanceAbuse))
+      } else {
+        setError(result.error || "Failed to load health information")
       }
     } catch (err) {
       console.error("Failed to load health info:", err)
@@ -163,10 +177,36 @@ export default function HealthInfoPage() {
         if (result.pagination) {
           setHistoryPagination(result.pagination)
         }
+      } else if (result.error) {
+        setError(result.error)
       }
     } catch (err) {
       console.error("Failed to load health history:", err)
     }
+  }
+
+  const clearForm = () => {
+    setHeight("")
+    setWeight("")
+    setBpSys("")
+    setBpDia("")
+    setHeartRate("")
+    setRespiratoryRate("")
+    setTemperature("")
+    setSpo2("")
+    setBloodType("O")
+    setSymptoms("")
+    setDrugAllergies([])
+    setFoodAllergies([])
+    setOtherAllergies([])
+    setChronicConditions([])
+    setPastSurgeries([])
+    setFamilyHistory([])
+    setPastIllnesses([])
+    setVaccinations([])
+    setSubstanceAbuse([])
+    setSelectedRecord(null)
+    setCurrentHealthInfoId(null)
   }
 
   const handleSave = async () => {
@@ -221,6 +261,12 @@ export default function HealthInfoPage() {
   }
 
   const loadRecordToForm = (record: HealthRecord) => {
+    // If user is currently editing/adding and selects another row,
+    // reset action buttons to default state.
+    if (isEditing) {
+      setIsEditing(false)
+    }
+
     setHeight(record.height.toString())
     setWeight(record.weight.toString())
     const [sys, dia] = record.bloodPressure.split("/")
@@ -233,7 +279,7 @@ export default function HealthInfoPage() {
     setSymptoms(record.symptoms)
 
     setSelectedRecord(record)
-    setIsEditing(true) // tß╗▒ ─æß╗Öng bß║¡t edit ─æß╗â ng╞░ß╗¥i d├╣ng c├│ thß╗â sß╗¡a tiß║┐p
+    setCurrentHealthInfoId(record.id)
   }
 
   const [drugAllergies, setDrugAllergies] = useState<string[]>([])
@@ -376,7 +422,7 @@ export default function HealthInfoPage() {
                     <TableHead className="w-28 text-center text-white">Temp</TableHead>
                     <TableHead className="w-24 text-center text-white">SpO2</TableHead>
                     <TableHead className="text-white">Symptoms</TableHead>
-                    <TableHead className="w-28  text-white">By</TableHead>
+                    <TableHead className="w-28 text-white">Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -404,7 +450,7 @@ export default function HealthInfoPage() {
                       <TableCell className="text-center">{r.bloodPressure}</TableCell>
                       <TableCell className="text-center">{r.heartRate}</TableCell>
                       <TableCell className="text-center">{r.respiratoryRate}</TableCell>
-                      <TableCell className="text-center">{r.temperature.toFixed(1)}┬░C</TableCell>
+                      <TableCell className="text-center">{r.temperature.toFixed(1)}°C</TableCell>
                       <TableCell className="text-center">
                         <span className={r.spo2 >= 95 ? "text-green-600" : "text-red-600"}>
                           {r.spo2}%
@@ -414,8 +460,12 @@ export default function HealthInfoPage() {
                         {r.symptoms || "-"}
                       </TableCell>
                       <TableCell>
-                        <span className="px-2 py-1 text-xs rounded-full bg-cyan-100 text-cyan-800">
-                          {r.updatedBy}
+                        <span className={`px-2 py-1 text-xs rounded-full ${
+                          r.updatedBy === "Patient"
+                            ? "bg-yellow-100 text-yellow-800"
+                            : "bg-green-100 text-green-800"
+                        }`}>
+                          {r.updatedBy === "Patient" ? "Draft" : "Confirmed"}
                         </span>
                       </TableCell>
                     </TableRow>
@@ -447,16 +497,15 @@ export default function HealthInfoPage() {
                   <span>entries</span>
                 </div>
                 <div className="flex gap-1">
-                  <Button variant="outline" size="sm" disabled={currentPage === 1}
+                  <Button className="btn-outline" size="sm" disabled={currentPage === 1}
                     onClick={() => setCurrentPage(p => Math.max(1, p - 1))}>
                     Previous
                   </Button>
                   {Array.from({ length: pageCount }, (_, i) => (
                     <Button
                       key={i + 1}
-                      variant={currentPage === i + 1 ? "default" : "outline"}
+                      className={currentPage === i + 1 ? "btn-gradient" : "btn-outline"}
                       size="sm"
-                      className={currentPage === i + 1 ? "bg-[#06b6d4]" : ""}
                       onClick={() => setCurrentPage(i + 1)}
                     >
                       {i + 1}
@@ -480,22 +529,62 @@ export default function HealthInfoPage() {
             <h3 className="text-2xl font-bold">Health Information</h3>
             <p className="text-muted-foreground">Update your health data before your visit</p>
           </div>
-          <Button onClick={() => isEditing ? handleSave() : setIsEditing(true)} disabled={saving} className="btn-gradient transition-transform duration-500 text-xl px-7 py-4">
-            {saving ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Saving...
-              </>
-            ) : isEditing ? (
-              <>
-                <Save className="h-4 w-4 mr-2" />
-                Save Changes
-              </>
-            ) : (
-              "Edit Information"
-            )}
-          </Button>
-        </div>
+            <div className="flex gap-3">
+  {/* Add */}
+  <Button
+    onClick={() => {
+      clearForm()        // reset toàn bộ form
+      setIsEditing(true) // bật editing mode
+    }}
+    disabled={isEditing} // disable khi đang edit/add
+    variant="outline"
+    className="btn-outline text-lg px-6 py-4 flex items-center gap-2"
+  >
+    <Plus className="h-4 w-4" />
+    Add
+  </Button>
+
+  {/* Edit */}
+  <Button
+    onClick={() => {
+      setIsEditing(true) // bật editing mode
+    }}
+    disabled={isEditing} // disable khi đang edit/add
+    variant="outline"
+    className="btn-outline text-lg px-6 py-4 flex items-center gap-2"
+  >
+    <Edit className="h-4 w-4" />
+    Edit
+  </Button>
+
+  {/* Save Changes */}
+  <Button
+    onClick={() => {
+      handleSave()
+      setIsEditing(false) // trở về trạng thái ban đầu
+    }}
+    disabled={!isEditing} // chỉ enable khi đang edit/add
+    className="btn-gradient text-lg px-6 py-4 flex items-center gap-2"
+  >
+    <Save className="h-4 w-4" />
+    Save Changes
+  </Button>
+
+  {/* Clear All */}
+  <Button
+    onClick={() => {
+      clearForm()
+      setIsEditing(false) // trở về trạng thái ban đầu
+    }}
+    disabled={!isEditing} // chỉ enable khi đang edit/add
+    variant="destructive"
+    className="btn-outline text-lg px-6 py-4 flex items-center gap-2"
+  >
+    <X className="h-4 w-4" />
+    Clear All
+  </Button>
+</div>
+          </div>
 
         {/* Success/Error Messages */}
         {success && (
@@ -532,14 +621,12 @@ export default function HealthInfoPage() {
               <Label>Blood Pressure (mmHg)</Label>
               <div className="flex gap-2 text-sm font-normal bg-background text-muted-foreground">
                 <Input
-                  placeholder="118"
                   value={bpSys}
                   onChange={(e) => setBpSys(e.target.value)}
                   disabled={!isEditing}
                 />
 
                 <Input
-                  placeholder="76"
                   value={bpDia}
                   onChange={(e) => setBpDia(e.target.value)}
                   disabled={!isEditing}
@@ -560,7 +647,7 @@ export default function HealthInfoPage() {
 
             {/* Temperature */}
             <div className="space-y-2 text-sm font-normal bg-background text-muted-foreground">
-              <Label htmlFor="temperature">Body Temperature (┬░C)</Label>
+              <Label htmlFor="temperature">Body Temperature (°C)</Label>
               <Input
                 id="temperature"
                 value={temperature}
@@ -628,14 +715,10 @@ export default function HealthInfoPage() {
                 </div>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="A+">A+</SelectItem>
-                  <SelectItem value="A-">A-</SelectItem>
-                  <SelectItem value="B+">B+</SelectItem>
-                  <SelectItem value="B-">B-</SelectItem>
-                  <SelectItem value="O+">O+</SelectItem>
-                  <SelectItem value="O-">O-</SelectItem>
-                  <SelectItem value="AB+">AB+</SelectItem>
-                  <SelectItem value="AB-">AB-</SelectItem>
+                  <SelectItem value="A">A</SelectItem>
+                  <SelectItem value="B">B</SelectItem>
+                  <SelectItem value="O">O</SelectItem>
+                  <SelectItem value="AB">AB</SelectItem>
                 </SelectContent>
               </Select>
             </div>

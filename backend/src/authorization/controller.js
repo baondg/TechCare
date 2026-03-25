@@ -1,14 +1,14 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const sequelize = require('../common/database');
-const defineProfile = require('../models/Profile');
 const defineSystemConfig = require('../models/systemconfig');
 
 const Account = require('../models/Account');
 const Session = require('../models/Session');
+const User = require('../models/User');
 
 
-const Profile = defineProfile(sequelize);
+
 const SystemConfig = defineSystemConfig(sequelize);
 
 // Security constants
@@ -154,11 +154,18 @@ exports.login = async (req, res) => {
       });
     }
 
-    const user = await Account.findOne({ where: { username } });
+    const user = await Account.findOne({
+      where: { username },
+      include: [{
+        model: User,
+        attributes: ['name']
+      }]
+    });
 
-    console.log("LOGIN USERNAME:", username);
-    console.log("USER FROM DB:", user);
-    console.log("HASH IN DB:", user?.password);
+    // console.log("USER INCLUDE:", user.User);
+    // console.log("LOGIN USERNAME:", username);
+    // console.log("USER FROM DB:", user);
+    // console.log("HASH IN DB:", user?.password);
 
     if (!user) {
       return res.status(401).json({ 
@@ -179,8 +186,8 @@ exports.login = async (req, res) => {
     
     // Verify password
     const isValidPassword = await verifyPassword(password, user.password);
-    console.log("INPUT PASSWORD:", password);
-    console.log("PASSWORD MATCH:", isValidPassword);
+    // console.log("INPUT PASSWORD:", password);
+    // console.log("PASSWORD MATCH:", isValidPassword);
 
     if (!isValidPassword) {
       // Increment failed login attempts
@@ -294,6 +301,7 @@ exports.login = async (req, res) => {
       user: {
         id: user.user_id,
         username: user.username,
+        fullName: user.User?.name,
         type: user.type
       },
       token: accessToken,

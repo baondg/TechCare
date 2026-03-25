@@ -1,8 +1,9 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const sequelize = require('../common/database');
+const Users = require('../models/Users');
 const defineProfile = require('../models/Profile');
-const defineSystemConfig = require('../models/systemconfig');
+const defineSystemConfig = require('../models/SystemConfig');
 
 const Account = require('../models/Account');
 const Session = require('../models/Session');
@@ -98,50 +99,73 @@ exports.register = async (req, res) => {
     // Hash password with bcrypt
     const hashedPassword = await hashPassword(password);
 
+    // Start a transaction (Requires Sequelize instance)
+    const t = await sequelize.transaction();
 
-    // Create account with hashed password
-    const user = await Account.create({
-      username,
-      password: hashedPassword,
-      type: 'PAT' // Patient role for public registration
+    let user; // Define user outside try block for response
 
-    });
+    try {
+      // Create a User record first (Profile info)
+      const newUser = await Users.create({
+        first_name: firstName,
+        last_name: lastName,
+        email: email,
+        sex: 'O', // Use 'O' (Other) as default since 'U' is not in ENUM('M','F','O')
+        dob: age ? new Date().getFullYear() - age + '-01-01' : '1970-01-01', // Approximate DOB
+        tel: 'PAT', // Default role for patient
+        idcard: 'ID-' + Math.floor(Math.random() * 1000000000) // Temporary placeholder for required field
+      }, { transaction: t });
 
-    // Create empty profile for new user
-    await Profile.create({ userId: user.user_id, email: email });
+      // Create account with hashed password and link to User
+      user = await Account.create({
+        username,
+        password: hashedPassword,
+        type: 'PAT', // Patient role for public registration
+        user_id: newUser.id, // Link to the created User
+        created_time: new Date(), // Explicitly set creation time to avoid DB default timezone mismatch
+        status: 'Active' // Set default status to valid
+      }, { transaction: t });
 
-    // Generate tokens
+      // Commit the transaction
+      await t.commit();
+    } catch (error) {
+      await t.rollback();
+      throw error;
+    }
+      
+    // Generate tokens (outside transaction)
     const accessToken = generateAccessToken(username, user.user_id, user.type);
     const refreshToken = generateRefreshToken(username, user.user_id);
-    
-    // Create session
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7); // 7 days for refresh token
-    
-    await Session.create({
-      userId: user.user_id,
-      token: accessToken,
-      refreshToken: refreshToken,
-      expiresAt: expiresAt,
-      lastActivity: new Date(),
-    });
-    
-    res.status(201).json({
-      success: true,
-      user: {
-        id: user.user_id,
-        username: user.username,
-        type: user.type
-      },
-      token: accessToken,
-      refreshToken: refreshToken,
-      expiresAt: expiresAt.toISOString()
-    });
+      
+      // Create session
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7); // 7 days for refresh token
+      
+      await Session.create({
+        userId: user.user_id,
+        token: accessToken,
+        refreshToken: refreshToken,
+        expiresAt: expiresAt,
+        lastActivity: new Date(),
+      });
+      
+      res.status(201).json({
+        success: true,
+        user: {
+          id: user.user_id,
+          username: user.username,
+          type: user.type
+        },
+        token: accessToken,
+        refreshToken: refreshToken,
+        expiresAt: expiresAt.toISOString()
+      });
   } catch (err) {
     console.error('Registration error:', err);
     res.status(500).json({ success: false, error: 'Registration failed. Please try again.' });
   }
-};
+}
+
 
 exports.login = async (req, res) => {
   try {
@@ -253,9 +277,9 @@ exports.login = async (req, res) => {
     // const timeoutConfig = await SystemConfig.findOne({ 
     //   where: { key: 'sessionTimeoutMinutes' } 
     // });
-    // const timeoutMinutes = timeoutConfig ? parseInt(timeoutConfig.value) : 30;
+    // const timeoutMinutes = timeoutConfig ? parseInt(timeoutConfig.value) : 1440; // Default 24 hours
 
-    const timeoutMinutes = 30;
+    const timeoutMinutes = 1440; // 24 hours
     
     // Xóa session cũ của user này nếu không có rememberMe hoặc là single session mode
     // In production, you might want to keep multiple sessions
@@ -288,13 +312,23 @@ exports.login = async (req, res) => {
     
     // Update last login time
     await user.update({ lastLogin: new Date() });
+    // Map account type to frontend role
+    const roleMap = {
+      'ADM': 'admin',
+      'PAT': 'patient',
+      'DOC': 'doctor',
+      'NUR': 'nurse',
+      'PHY': 'technician'
+    };
+    const role = roleMap[user.type] || 'patient';
     
     res.json({
       success: true,
       user: {
         id: user.user_id,
         username: user.username,
-        type: user.type
+        type: user.type,
+        role: role
       },
       token: accessToken,
       refreshToken: refreshToken,
@@ -423,7 +457,7 @@ exports.getSession = async (req, res) => {
       });
     }
     
-    const user = await Account.findByPk(req.user.user_id , {
+    const user = await Account.findOne({ where: { user_id: req.user.userId } }, { // Use user_id (Users table ID) instead of PK (Account table ID)
       attributes: ['user_id', 'username', 'type']
     });
 
@@ -437,7 +471,7 @@ exports.getSession = async (req, res) => {
     // Get active sessions
     const sessions = await Session.findAll({
       where: {
-        userId: user.user_id,
+        userId: user.user_id, // This is correct, Session.userId == Users.id
         expiresAt: {
           [require('sequelize').Op.gt]: new Date()
         }

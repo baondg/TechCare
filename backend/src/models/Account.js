@@ -3,11 +3,16 @@ const sequelize = require('../common/database');
 
 const Account = sequelize.define(
     'ACCOUNT',
-    {
-      user_id: {
+    {      
+      id: {
         type: DataTypes.INTEGER,
         primaryKey: true,
         autoIncrement: true
+      },
+
+      user_id: {
+        type: DataTypes.INTEGER,
+        unique: true,
       },
 
       username: {

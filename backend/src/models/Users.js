@@ -9,17 +9,17 @@ const Users = sequelize.define(
       primaryKey: true,
       autoIncrement: true
     },
-    account_id:{
-      type: DataTypes.INTEGER,
-      allowNull: false
+    first_name: {
+      type: DataTypes.STRING,
+      allowNull: true
     },
-    name: {
+    last_name: {
       type: DataTypes.STRING,
       allowNull: true
     },
     sex: {
-      type: DataTypes.STRING,
-      allowNull: true
+      type: DataTypes.ENUM('M','F','O'),
+      allowNull: false
     },
     dob: {
       type: DataTypes.STRING,
@@ -33,7 +33,16 @@ const Users = sequelize.define(
       type: DataTypes.STRING,
       allowNull: false
     },
+    idcard: {
+      type: DataTypes.STRING,
+      allowNull: false
+    },
   },
+  {
+    tableName: 'USER',
+    freezeTableName: true,
+    timestamps: false //tự động thêm cột createAt
+  }
 );
 
 module.exports = Users;

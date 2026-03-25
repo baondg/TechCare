@@ -55,7 +55,7 @@ const authenticateToken = async (req, res, next) => {
     }
     
     // Check if user is active
-    const user = await Account.findByPk(decoded.userId);
+    const user = await Account.findOne({ where: { user_id: decoded.userId } }); // Use user_id (Users table ID) instead of PK (Account table ID)
     if (!user || user.status !== 'Active') {
       return res.status(403).json({ 
         success: false,

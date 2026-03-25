@@ -465,7 +465,7 @@ export default function RegisterPage() {
             </div>
 
             <p className="text-sm text-gray-500">
-              ΓÜá∩╕Å To update insurance information, please contact the hospital administration.
+              To update insurance information, please contact the hospital administration.
             </p>
           </CardContent>
         </Card>
@@ -473,7 +473,7 @@ export default function RegisterPage() {
         {/* BUTTONS */}
         <div className="flex justify-between mt-4 z-10">
           <Button size="default" className="btn-outline transition-transform duration-500 text-sm px-7 py-4" asChild type="button">
-            <Link to="/login">ΓåÉ Back to Login</Link>
+            <Link to="/login">Back to Login</Link>
           </Button>
           <Button type="submit" disabled={isLoading} className="btn-gradient transition-transform duration-500 text-lg px-7 py-4">
             {isLoading ? "Registering..." : "Register!"}

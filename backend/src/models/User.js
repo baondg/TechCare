@@ -1,17 +1,13 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../common/database');
 
-const Users = sequelize.define(
+const User = sequelize.define(
   'User',
   {
     id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true
-    },
-    account_id:{
-      type: DataTypes.INTEGER,
-      allowNull: false
     },
     name: {
       type: DataTypes.STRING,
@@ -34,6 +30,11 @@ const Users = sequelize.define(
       allowNull: false
     },
   },
+  {
+    tableName: 'USER',
+    freezeTableName: true,
+    timestamps: false
+  }
 );
 
-module.exports = Users;
+module.exports = User;

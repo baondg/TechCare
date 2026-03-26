@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useState, useMemo, useEffect } from "react"
 import { Button } from "@/components/ui/button"
@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { PatientLayout } from "@/components/patient-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Activity, Heart, AlertCircle, FileText, Save, History, X, Loader2, Stethoscope } from "lucide-react"
+import { Activity, Heart, AlertCircle, FileText, Save, History, X, Loader2, Stethoscope, Plus, Edit, Search, Copy } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { CollapsibleSection } from "@/components/collapsible-section"
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge"
 import { healthInfoService } from "@/services/health-info-service"
 import type { HealthInfo } from "@/services/health-info-service"
 import { useAuth } from "@/contexts/AuthContext"
-import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from "recharts"
+import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, AreaChart, Area, ReferenceLine, ReferenceArea } from "recharts"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { BarChart3 } from "lucide-react"
 
@@ -45,6 +45,7 @@ export default function HealthInfoPage() {
   const [success, setSuccess] = useState<string | null>(null)
 
   const [isEditing, setIsEditing] = useState(false)
+  const [isAdding, setIsAdding] = useState(false)
   const [height, setHeight] = useState("")
   const [weight, setWeight] = useState("")
   const [bpSys, setBpSys] = useState("")
@@ -53,14 +54,29 @@ export default function HealthInfoPage() {
   const [respiratoryRate, setRespiratoryRate] = useState("")
   const [temperature, setTemperature] = useState("")
   const [spo2, setSpo2] = useState("")
-  const [bloodType, setBloodType] = useState("O+")
+  const [bloodType, setBloodType] = useState("O")
   const [symptoms, setSymptoms] = useState("")
+
+  // for filters
+  const [filters, setFilters] = useState({
+    date: "",
+    height: "",
+    weight: "",
+    bmi: "",
+    bloodPressure: "",
+    heartRate: "",
+    respiratoryRate: "",
+    temperature: "",
+    spo2: "",
+    symptoms: "",
+    status: ""
+  })
+
 
   // Current health info ID for updates
   const [currentHealthInfoId, setCurrentHealthInfoId] = useState<number | null>(null)
 
   const [openChart, setOpenChart] = useState(false)
-
 
   const bmi = useMemo(() => {
     const h = parseFloat(height)
@@ -70,28 +86,144 @@ export default function HealthInfoPage() {
   }, [height, weight])
 
   const [healthHistory, setHealthHistory] = useState<HealthRecord[]>([])
+  
+  const filteredHistory = healthHistory.filter(r => {
+    const status = r.updatedBy === "Patient" ? "Draft" : "Confirmed"
+    return (
+      (!filters.date || r.updatedAt.toLocaleDateString("vi-VN").includes(filters.date)) &&
+      (!filters.height || r.height.toString().includes(filters.height)) &&
+      (!filters.weight || r.weight.toString().includes(filters.weight)) &&
+      (!filters.bmi || r.bmi.toFixed(1).includes(filters.bmi)) &&
+      (!filters.bloodPressure || r.bloodPressure.includes(filters.bloodPressure)) &&
+      (!filters.heartRate || r.heartRate.toString().includes(filters.heartRate)) &&
+      (!filters.respiratoryRate || r.respiratoryRate.toString().includes(filters.respiratoryRate)) &&
+      (!filters.temperature || r.temperature.toString().includes(filters.temperature)) &&
+      (!filters.spo2 || r.spo2.toString().includes(filters.spo2)) &&
+      (!filters.symptoms || r.symptoms.toLowerCase().includes(filters.symptoms.toLowerCase())) &&
+      (filters.status === "All" || !filters.status || status === filters.status)
+    )
+  })
+
   const [historyPagination, setHistoryPagination] = useState({ total: 0, page: 1, limit: 10, totalPages: 1 })
 
   const [selectedRecord, setSelectedRecord] = useState<HealthRecord | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
 
-  const pageCount = Math.ceil(healthHistory.length / pageSize)
-  const paginated = healthHistory.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+  const toArray = (value: unknown): string[] => {
+    if (Array.isArray(value)) return value.filter((item): item is string => typeof item === "string")
+    if (typeof value === "string" && value.trim()) return [value]
+    return []
+  }
 
-  const chartData = healthHistory.map((r) => ({
-    time: r.updatedAt.toLocaleString("vi-VN", {
-      day: "2-digit",
-      month: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    }),
-    heartRate: r.heartRate,
-    temperature: r.temperature,
-    systolic: r.systolic,
-    diastolic: r.diastolic,             // Chưa fix data
-    bmi: r.bmi,
-  }))
+  const pageCount = Math.ceil(filteredHistory.length / pageSize)
+
+  const paginated = filteredHistory.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  )
+
+  const sortedData = [...healthHistory].sort(
+    (a, b) => a.updatedAt.getTime() - b.updatedAt.getTime()
+  )
+
+  //Thêm state để lưu các record được chọn:
+  const [selectedRecords, setSelectedRecords] = useState<HealthRecord[]>([])
+
+  const chartData = useMemo(() => {
+    const source = selectedRecords.length > 0
+      ? selectedRecords
+      : healthHistory
+
+    return [...source]
+      .sort((a, b) => a.updatedAt.getTime() - b.updatedAt.getTime())
+      .map((r) => {
+        const [sys, dia] = r.bloodPressure.split("/").map(Number)
+        return {
+          time: r.updatedAt.toLocaleString("vi-VN"),
+          heartRate: r.heartRate,
+          respiratoryRate: r.respiratoryRate,
+          spo2: r.spo2,
+          systolic: sys,
+          diastolic: dia,
+          bmi: r.bmi,
+          weight: r.weight,
+          height: r.height,
+        }
+      })
+  }, [selectedRecords, healthHistory])
+
+  const handleSelectRecord = (record: HealthRecord, isChecked: boolean) => {
+    if (isChecked) {
+      setSelectedRecords(prev => [...prev, record])
+    } else {
+      setSelectedRecords(prev => prev.filter(r => r.id !== record.id))
+    }
+  }
+
+  // Dữ liệu cho biểu đồ sẽ là các record được chọn, nếu có, hoặc toàn bộ lịch sử nếu không có record nào được chọn:
+  const dataForChart = selectedRecords.length > 0
+  ? selectedRecords
+  : healthHistory
+
+  const handleDeleteRecords = async () => {
+    if (!selectedRecords.length) return
+
+    // Kiểm tra có record nào confirmed không
+    const confirmedRecords = selectedRecords.filter(r => r.updatedBy !== "Patient")
+    if (confirmedRecords.length > 0) {
+      alert(`Cannot delete confirmed record(s). Please select only draft records.`)
+      return
+    }
+
+    if (!confirm(`Are you sure you want to delete ${selectedRecords.length} record(s)?`)) return
+
+    setLoading(true)
+    try {
+      const ids = selectedRecords.map(r => r.id)
+      const result = await healthInfoService.deleteHealthRecords(ids)
+      if (result.success) {
+        setHealthHistory(prev => prev.filter(r => !ids.includes(r.id)))
+        setSelectedRecords([])
+        setSuccess(`${ids.length} record(s) deleted successfully.`)
+        setTimeout(() => setSuccess(null), 3000)
+      } else {
+        setError(result.error || "Failed to delete records")
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to delete records")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleCopyRecord = () => {
+    if (!selectedRecord) return
+
+    const record = selectedRecord
+
+    // load dữ liệu
+    setHeight(record.height.toString())
+    setWeight(record.weight.toString())
+
+    const [sys, dia] = record.bloodPressure.split("/")
+    setBpSys(sys)
+    setBpDia(dia)
+
+    setHeartRate(record.heartRate.toString())
+    setRespiratoryRate(record.respiratoryRate.toString())
+    setTemperature(record.temperature.toString())
+    setSpo2(record.spo2.toString())
+    setSymptoms(record.symptoms)
+
+    // 🔥 QUAN TRỌNG
+    setCurrentHealthInfoId(null) // để create mới
+    setSelectedRecord(null) // tránh hiểu nhầm là edit record cũ
+
+    setIsEditing(true)
+    setIsAdding(true)
+  }
+
 
   // Load health info on mount
   useEffect(() => {
@@ -108,7 +240,10 @@ export default function HealthInfoPage() {
     try {
       const result = await healthInfoService.getHealthInfo()
       if (result.success && result.healthInfo) {
-        const info = result.healthInfo
+        const info = result.healthInfo as any
+        const allergicInfo = info.allergic_info || info.allergicInfo || {}
+        const medicalHistory = info.medical_history || info.medicalHistory || {}
+
         setCurrentHealthInfoId(info.id)
         setHeight(info.height?.toString() || "")
         setWeight(info.weight?.toString() || "")
@@ -118,21 +253,23 @@ export default function HealthInfoPage() {
         setRespiratoryRate(info.respiratoryRate?.toString() || "")
         setTemperature(info.temperature?.toString() || "")
         setSpo2(info.spo2?.toString() || "")
-        setBloodType(info.bloodType || "O+")
+        setBloodType(info.bloodType || "O")
         setSymptoms(info.currentSymptoms || "")
         
-        // Set allergies
-        if (info.drugAllergies) setDrugAllergies(info.drugAllergies)
-        if (info.foodAllergies) setFoodAllergies(info.foodAllergies)
-        if (info.otherAllergies) setOtherAllergies(info.otherAllergies)
+        // Set allergies (supports both flat fields and allergic_info object)
+        setDrugAllergies(toArray(info.drugAllergies ?? allergicInfo.drugAllergies))
+        setFoodAllergies(toArray(info.foodAllergies ?? allergicInfo.foodAllergies))
+        setOtherAllergies(toArray(info.otherAllergies ?? allergicInfo.otherAllergies))
         
-        // Set medical history
-        if (info.chronicConditions) setChronicConditions(info.chronicConditions)
-        if (info.pastSurgeries) setPastSurgeries(info.pastSurgeries)
-        if (info.familyHistory) setFamilyHistory(info.familyHistory)
-        if (info.pastIllnesses) setPastIllnesses(info.pastIllnesses)
-        if (info.vaccinations) setVaccinations(info.vaccinations)
-        if (info.substanceAbuse) setSubstanceAbuse(info.substanceAbuse)
+        // Set medical history (supports both flat fields and medical_history object)
+        setChronicConditions(toArray(info.chronicConditions ?? medicalHistory.chronicConditions))
+        setPastSurgeries(toArray(info.pastSurgeries ?? medicalHistory.pastSurgeries))
+        setFamilyHistory(toArray(info.familyHistory ?? medicalHistory.familyHistory))
+        setPastIllnesses(toArray(info.pastIllnesses ?? medicalHistory.pastIllnesses))
+        setVaccinations(toArray(info.vaccinations ?? medicalHistory.vaccinations))
+        setSubstanceAbuse(toArray(info.substanceAbuse ?? medicalHistory.substanceAbuse))
+      } else {
+        setError(result.error || "Failed to load health information")
       }
     } catch (err) {
       console.error("Failed to load health info:", err)
@@ -145,28 +282,57 @@ export default function HealthInfoPage() {
     try {
       const result = await healthInfoService.getHealthHistory(1, 100)
       if (result.success && result.history) {
-        const records: HealthRecord[] = result.history.map((h, i) => ({
-          id: h.id,
-          updatedAt: new Date(h.updatedAt || h.createdAt || Date.now()),
-          height: h.height || 0,
-          weight: h.weight || 0,
-          bmi: h.bmi || 0,
-          bloodPressure: `${h.bloodPressureSys || 0}/${h.bloodPressureDia || 0}`,
-          heartRate: h.heartRate || 0,
-          respiratoryRate: h.respiratoryRate || 0,
-          temperature: h.temperature || 0,
-          spo2: h.spo2 || 0,
-          symptoms: h.currentSymptoms || "",
-          updatedBy: h.updatedBy || "Patient"
-        }))
+        const records: HealthRecord[] = result.history
+          .map((h) => ({
+            id: h.id,
+            updatedAt: new Date(h.updatedAt || h.createdAt || Date.now()),
+            height: h.height || 0,
+            weight: h.weight || 0,
+            bmi: h.bmi || 0,
+            bloodPressure: `${h.bloodPressureSys || 0}/${h.bloodPressureDia || 0}`,
+            heartRate: h.heartRate || 0,
+            respiratoryRate: h.respiratoryRate || 0,
+            temperature: h.temperature || 0,
+            spo2: h.spo2 || 0,
+            symptoms: h.currentSymptoms || "",
+            updatedBy: h.updatedBy || "Patient"
+          }))
+          // 🔥 SORT MỚI NHẤT LÊN ĐẦU
+          .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
         setHealthHistory(records)
         if (result.pagination) {
           setHistoryPagination(result.pagination)
         }
+      } else if (result.error) {
+        setError(result.error)
       }
     } catch (err) {
       console.error("Failed to load health history:", err)
     }
+  }
+
+  const clearForm = () => {
+    setHeight("")
+    setWeight("")
+    setBpSys("")
+    setBpDia("")
+    setHeartRate("")
+    setRespiratoryRate("")
+    setTemperature("")
+    setSpo2("")
+    setBloodType("O")
+    setSymptoms("")
+    setDrugAllergies([])
+    setFoodAllergies([])
+    setOtherAllergies([])
+    setChronicConditions([])
+    setPastSurgeries([])
+    setFamilyHistory([])
+    setPastIllnesses([])
+    setVaccinations([])
+    setSubstanceAbuse([])
+    setSelectedRecord(null)
+    setCurrentHealthInfoId(null)
   }
 
   const handleSave = async () => {
@@ -199,16 +365,23 @@ export default function HealthInfoPage() {
       }
 
       let result
-      if (currentHealthInfoId) {
-        result = await healthInfoService.updateHealthInfo(currentHealthInfoId, healthData)
-      } else {
+      if (isAdding || !currentHealthInfoId) {
         result = await healthInfoService.createHealthInfo(healthData)
+      } else {
+        result = await healthInfoService.updateHealthInfo(currentHealthInfoId, healthData)
       }
 
       if (result.success) {
         setSuccess("Health information saved successfully!")
+
+        // 🔥 reset state đúng
         setIsEditing(false)
+        setIsAdding(false)
+        setSelectedRecord(null)
+        setCurrentHealthInfoId(null)
+
         loadHealthHistory()
+
         setTimeout(() => setSuccess(null), 3000)
       } else {
         setError(result.error || "Failed to save health information")
@@ -221,6 +394,14 @@ export default function HealthInfoPage() {
   }
 
   const loadRecordToForm = (record: HealthRecord) => {
+    // If user is currently editing/adding and selects another row,
+    setSelectedRecords([])
+
+    // reset action buttons to default state.
+    if (isEditing) {
+      setIsEditing(false)
+    }
+
     setHeight(record.height.toString())
     setWeight(record.weight.toString())
     const [sys, dia] = record.bloodPressure.split("/")
@@ -233,7 +414,7 @@ export default function HealthInfoPage() {
     setSymptoms(record.symptoms)
 
     setSelectedRecord(record)
-    setIsEditing(true) // tß╗▒ ─æß╗Öng bß║¡t edit ─æß╗â ng╞░ß╗¥i d├╣ng c├│ thß╗â sß╗¡a tiß║┐p
+    setCurrentHealthInfoId(record.id)
   }
 
   const [drugAllergies, setDrugAllergies] = useState<string[]>([])
@@ -347,23 +528,35 @@ export default function HealthInfoPage() {
               </p>
             </div>
 
-            <Button
-              variant="outline"
-              className="flex items-center gap-2"
-              onClick={() => setOpenChart(true)}
-            >
-              <BarChart3 className="h-4 w-4" />
-              View Charts
-            </Button>
+              <div className="flex items-center gap-2 justify-start">
+                <Button
+                    className="text-red-600 flex items-center gap-2"
+                    disabled={selectedRecords.length === 0}
+                    onClick={handleDeleteRecords}
+                  >
+                    <X className="h-4 w-4" />
+                    Delete
+                  </Button>
+
+                <Button
+                  variant="outline"
+                  className="flex items-center gap-2"
+                  onClick={() => setOpenChart(true)}
+                >
+                  <BarChart3 className="h-4 w-4" />
+                  View Charts
+                </Button>
+              </div>
           </CardHeader>
           <CardContent className="flex-1 p-0 overflow-hidden">
             <div className="h-full overflow-auto">
               <Table>
-                <TableHeader 
-                  className="sticky top-0 z-10 bg-gray-50 border-b" style={{
-                  background:
-                    "linear-gradient(135deg, #06b6d4 0%, #0891b2 50%, #06b6d4 100%)",
-                  }}>
+                <TableHeader
+                    className="sticky top-0 z-20 text-white"
+                    style={{
+                      background: "linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)"
+                    }}
+                  >
                   <TableRow>
                     <TableHead className="w-12 text-center text-white">No.</TableHead>
                     <TableHead className="w-40 text-white">Updated Time</TableHead>
@@ -376,7 +569,164 @@ export default function HealthInfoPage() {
                     <TableHead className="w-28 text-center text-white">Temp</TableHead>
                     <TableHead className="w-24 text-center text-white">SpO2</TableHead>
                     <TableHead className="text-white">Symptoms</TableHead>
-                    <TableHead className="w-28  text-white">By</TableHead>
+                    <TableHead className="w-28 text-white">Status</TableHead>
+                    <TableHead className="w-12 text-center text-white">Select</TableHead>
+                  </TableRow>
+                  <TableRow className="border-b hover:bg-white transition-colors">
+                    <TableHead /> {/* No */}
+                    {/* Date */}
+                    <TableHead>
+                      
+                      <Input
+                        className="h-8 text-xs"
+                        value={filters.date}
+                        onChange={(e) => setFilters({ ...filters, date: e.target.value })}
+                      />
+                    </TableHead>
+
+                    {/* Height */}
+                    <TableHead>
+                      <div className="relative">
+                        <Input
+                          className="h-8 text-xs text-center pr-8"
+                          value={filters.height}
+                          onChange={(e) => setFilters({ ...filters, height: e.target.value })}
+                        />
+                        <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      </div>
+                    </TableHead>
+                    {/* Weight */}
+                    <TableHead>
+                      <div className="relative">
+                        <Input
+                          className="h-8 text-xs text-center pr-8"
+                          value={filters.weight}
+                          onChange={(e) => setFilters({ ...filters, weight: e.target.value })}
+                        />
+                        <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      </div>
+                    </TableHead>
+
+                    {/* BMI */}
+                    <TableHead>
+                      <div className="relative">
+                        <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Input
+                          className="h-8 text-xs text-center"
+                          value={filters.bmi}
+                          onChange={(e) => setFilters({ ...filters, bmi: e.target.value })}
+                        />
+                      </div>
+                    </TableHead>
+
+                    {/* BP */}
+                    <TableHead>
+                      <div className="relative">
+                        <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Input
+                          className="h-8 text-xs text-center"
+                          value={filters.bloodPressure}
+                          onChange={(e) => setFilters({ ...filters, bloodPressure: e.target.value })}
+                        />
+                      </div>
+                    </TableHead>
+
+                    {/* HR */}
+                    <TableHead>
+                      <div className="relative">
+                        <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Input
+                          className="h-8 text-xs text-center"
+                          value={filters.heartRate}
+                          onChange={(e) => setFilters({ ...filters, heartRate: e.target.value })}
+                        />
+                      </div>
+                    </TableHead>
+
+                    {/* Respiratory */}
+                    <TableHead>
+                      <div className="relative">
+                        <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Input
+                          className="h-8 text-xs text-center"
+                          value={filters.respiratoryRate}
+                          onChange={(e) => setFilters({ ...filters, respiratoryRate: e.target.value })}
+                        />
+                      </div>
+                    </TableHead>
+
+                    {/* Temp */}
+                    <TableHead>
+                      <div className="relative">
+                        <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Input
+                          className="h-8 text-xs text-center"
+                          value={filters.temperature}
+                          onChange={(e) => setFilters({ ...filters, temperature: e.target.value })}
+                        />
+                      </div>
+                    </TableHead>
+
+                    {/* SpO2 */}
+                    <TableHead>
+                      <div className="relative">
+                        <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Input
+                          className="h-8 text-xs text-center"
+                          value={filters.spo2}
+                          onChange={(e) => setFilters({ ...filters, spo2: e.target.value })}
+                        />
+                      </div>
+                    </TableHead>
+
+                    {/* Symptoms */}
+                    <TableHead>
+                      <div className="relative">
+                        <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Input
+                          className="h-8 text-xs"
+                          value={filters.symptoms}
+                          onChange={(e) => setFilters({ ...filters, symptoms: e.target.value })}
+                        />
+                      </div>
+                    </TableHead>
+
+                    {/* Status */}
+                    <TableHead>
+                      <Select
+                        value={filters.status}
+                        onValueChange={(value) =>
+                          setFilters({ ...filters, status: value })
+                        }
+                      >
+                        <SelectTrigger className="h-8 text-xs w-full">
+                          <SelectValue placeholder="All" />
+                        </SelectTrigger>
+
+                        <SelectContent>
+                          <SelectItem value="All">All</SelectItem>
+                          <SelectItem value="Draft">Draft</SelectItem>
+                          <SelectItem value="Confirmed">Confirmed</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </TableHead>
+
+                    <TableHead className="text-center w-12">
+                      <input
+                        type="checkbox"
+                        checked={
+                          selectedRecords.length > 0 &&
+                          selectedRecords.length === paginated.length
+                        }
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedRecords(paginated) // chọn tất cả dòng đang hiển thị
+                          } else {
+                            setSelectedRecords([]) // bỏ chọn hết
+                          }
+                        }}
+                      />
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -404,7 +754,7 @@ export default function HealthInfoPage() {
                       <TableCell className="text-center">{r.bloodPressure}</TableCell>
                       <TableCell className="text-center">{r.heartRate}</TableCell>
                       <TableCell className="text-center">{r.respiratoryRate}</TableCell>
-                      <TableCell className="text-center">{r.temperature.toFixed(1)}┬░C</TableCell>
+                      <TableCell className="text-center">{r.temperature.toFixed(1)}°C</TableCell>
                       <TableCell className="text-center">
                         <span className={r.spo2 >= 95 ? "text-green-600" : "text-red-600"}>
                           {r.spo2}%
@@ -414,10 +764,22 @@ export default function HealthInfoPage() {
                         {r.symptoms || "-"}
                       </TableCell>
                       <TableCell>
-                        <span className="px-2 py-1 text-xs rounded-full bg-cyan-100 text-cyan-800">
-                          {r.updatedBy}
+                        <span className={`px-2 py-1 text-xs rounded-full ${
+                          r.updatedBy === "Patient"
+                            ? "bg-yellow-100 text-yellow-800"
+                            : "bg-green-100 text-green-800"
+                        }`}>
+                          {r.updatedBy === "Patient" ? "Draft" : "Confirmed"}
                         </span>
                       </TableCell>
+                        <TableCell className="text-center">
+                          <input
+                            type="checkbox"
+                            checked={selectedRecords.some(row => row.id === r.id)}
+                            onChange={(e) => handleSelectRecord(r, e.target.checked)}
+                            onClick={(e) => e.stopPropagation()} // ngăn không cho sự kiện click row bị kích hoạt
+                          />
+                        </TableCell>
                     </TableRow>
                   ))}
                   {paginated.length === 0 && (
@@ -447,22 +809,21 @@ export default function HealthInfoPage() {
                   <span>entries</span>
                 </div>
                 <div className="flex gap-1">
-                  <Button variant="outline" size="sm" disabled={currentPage === 1}
+                  <Button className="btn-outline" size="sm" disabled={currentPage === 1}
                     onClick={() => setCurrentPage(p => Math.max(1, p - 1))}>
                     Previous
                   </Button>
                   {Array.from({ length: pageCount }, (_, i) => (
                     <Button
                       key={i + 1}
-                      variant={currentPage === i + 1 ? "default" : "outline"}
+                      className={currentPage === i + 1 ? "btn-gradient" : "btn-outline"}
                       size="sm"
-                      className={currentPage === i + 1 ? "bg-[#06b6d4]" : ""}
                       onClick={() => setCurrentPage(i + 1)}
                     >
                       {i + 1}
                     </Button>
                   ))}
-                  <Button variant="outline" size="sm" disabled={currentPage === pageCount}
+                  <Button className="btn-outline" size="sm" disabled={currentPage === pageCount}
                     onClick={() => setCurrentPage(p => Math.min(pageCount, p + 1))}>
                     Next
                   </Button>
@@ -480,22 +841,75 @@ export default function HealthInfoPage() {
             <h3 className="text-2xl font-bold">Health Information</h3>
             <p className="text-muted-foreground">Update your health data before your visit</p>
           </div>
-          <Button onClick={() => isEditing ? handleSave() : setIsEditing(true)} disabled={saving} className="btn-gradient transition-transform duration-500 text-xl px-7 py-4">
-            {saving ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Saving...
-              </>
-            ) : isEditing ? (
-              <>
-                <Save className="h-4 w-4 mr-2" />
+            <div className="flex gap-3">
+              {/* Add */}
+              <Button
+                onClick={() => {
+                  if (healthHistory.length > 0) {
+                    loadRecordToForm(healthHistory[0]) // record mới nhất
+                    setCurrentHealthInfoId(null) // 🔥 quan trọng: để tạo mới, không phải update
+                  } else {
+                    clearForm()
+                  }
+                  setIsEditing(true)
+                }}
+                disabled={isEditing} // disable khi đang edit/add
+                variant="outline"
+                className="btn-outline text-lg px-6 py-4 flex items-center gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                Add
+              </Button>
+
+              {/* Edit */}
+              <Button
+                onClick={() => {
+                  setIsEditing(true) // bật editing mode
+                }}
+                disabled={isEditing || !selectedRecord} // disable khi đang edit/add
+                variant="outline"
+                className="btn-outline text-lg px-6 py-4 flex items-center gap-2"
+              >
+                <Edit className="h-4 w-4" />
+                Edit
+              </Button>
+
+              {/* Inherit */}
+              <Button
+                onClick={handleCopyRecord}
+                disabled={!selectedRecord}
+                className="btn-outline text-lg px-6 py-4 flex items-center gap-2"
+              >
+                <Copy className="h-4 w-4" />
+                Inherit
+              </Button>
+
+              {/* Save Changes */}
+              <Button
+                onClick={handleSave}
+                disabled={!isEditing} // chỉ enable khi đang edit/add
+                className="btn-gradient text-lg px-6 py-4 flex items-center gap-2"
+              >
+                <Save className="h-4 w-4" />
                 Save Changes
-              </>
-            ) : (
-              "Edit Information"
-            )}
-          </Button>
-        </div>
+              </Button>
+
+              {/* Clear All */}
+              <Button
+                onClick={() => {
+                  clearForm()
+                  setIsEditing(false)
+                  setIsAdding(false)
+                }}
+                disabled={!isEditing}
+                variant="destructive"
+                className="btn-outline text-lg px-6 py-4 flex items-center gap-2"
+              >
+                <X className="h-4 w-4" />
+                Clear All
+              </Button>
+            </div>
+          </div>
 
         {/* Success/Error Messages */}
         {success && (
@@ -532,14 +946,12 @@ export default function HealthInfoPage() {
               <Label>Blood Pressure (mmHg)</Label>
               <div className="flex gap-2 text-sm font-normal bg-background text-muted-foreground">
                 <Input
-                  placeholder="118"
                   value={bpSys}
                   onChange={(e) => setBpSys(e.target.value)}
                   disabled={!isEditing}
                 />
 
                 <Input
-                  placeholder="76"
                   value={bpDia}
                   onChange={(e) => setBpDia(e.target.value)}
                   disabled={!isEditing}
@@ -560,7 +972,7 @@ export default function HealthInfoPage() {
 
             {/* Temperature */}
             <div className="space-y-2 text-sm font-normal bg-background text-muted-foreground">
-              <Label htmlFor="temperature">Body Temperature (┬░C)</Label>
+              <Label htmlFor="temperature">Body Temperature (°C)</Label>
               <Input
                 id="temperature"
                 value={temperature}
@@ -628,14 +1040,10 @@ export default function HealthInfoPage() {
                 </div>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="A+">A+</SelectItem>
-                  <SelectItem value="A-">A-</SelectItem>
-                  <SelectItem value="B+">B+</SelectItem>
-                  <SelectItem value="B-">B-</SelectItem>
-                  <SelectItem value="O+">O+</SelectItem>
-                  <SelectItem value="O-">O-</SelectItem>
-                  <SelectItem value="AB+">AB+</SelectItem>
-                  <SelectItem value="AB-">AB-</SelectItem>
+                  <SelectItem value="A">A</SelectItem>
+                  <SelectItem value="B">B</SelectItem>
+                  <SelectItem value="O">O</SelectItem>
+                  <SelectItem value="AB">AB</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -754,90 +1162,102 @@ export default function HealthInfoPage() {
         <Dialog open={openChart} onOpenChange={setOpenChart}>
           <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Health Trends</DialogTitle>
+              <DialogTitle>
+                Health Trends {selectedRecords.length > 0 && `(Selected ${selectedRecords.length} records)`}
+              </DialogTitle>
             </DialogHeader>
 
+            {/* ----------------- BLOOD PRESSURE ----------------- */}
             <div className="h-[350px] w-full mb-10">
-              <h3 className="font-semibold mb-2">Heart Rate & Temperature</h3>
-
+              <h3 className="font-semibold mb-2">Blood Pressure Trend (Systolic & Diastolic)</h3>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData}>
-                  <XAxis dataKey="time" />
-
-                  <YAxis yAxisId="left" domain={[40,120]} />
-                  <YAxis yAxisId="right" orientation="right" domain={[35,42]} />
-
-                  <Tooltip />
-                  <Legend />
-
-                  <Line
-                    yAxisId="left"
-                    type="monotone"
-                    dataKey="heartRate"
-                    stroke="#2563eb"
-                    name="Heart Rate"
-                  />
-
-                  <Line
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="temperature"
-                    stroke="#dc2626"
-                    name="Temperature"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-
-            <div className="h-[350px] w-full mb-10">
-              <h3 className="font-semibold mb-2">Blood Pressure Trend</h3>
-
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData}>
-
                   <XAxis dataKey="time" />
                   <YAxis domain={[60,160]} />
-
-                  <Tooltip />
+                  <Tooltip content={<CustomBPTooltip />} />
                   <Legend />
-
-                  <Line
-                    type="monotone"
-                    dataKey="systolic"
-                    stroke="#ef4444"
-                    name="Systolic"
-                  />
-
-                  <Line
-                    type="monotone"
-                    dataKey="diastolic"
-                    stroke="#3b82f6"
-                    name="Diastolic"
-                  />
-
+                  <Line type="monotone" dataKey="systolic" stroke="#ef4444" name="Systolic BP"/>
+                  <Line type="monotone" dataKey="diastolic" stroke="#3b82f6" name="Diastolic BP"/>
                 </LineChart>
               </ResponsiveContainer>
             </div>
 
-            <div className="h-[350px] w-full">
-              <h3 className="font-semibold mb-2">BMI Trend</h3>
-
+            {/* ----------------- SPO2 ----------------- */}
+            <div className="h-[350px] w-full mb-10">
+              <h3 className="font-semibold mb-2">Blood Oxygen (SpO₂)</h3>
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData}>
-
+                <AreaChart data={chartData}>
                   <XAxis dataKey="time" />
-                  <YAxis domain={[15,40]} />
-
+                  <YAxis domain={[80, 100]} />
                   <Tooltip />
                   <Legend />
+                  <ReferenceLine y={95} stroke="#ef4444" strokeDasharray="4 4" label="Normal ≥95%" />
+                  <Area type="monotone" dataKey="spo2" stroke="#facc15" fill="#fde68a" name="SpO₂ (%)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
 
-                  <Line
-                    type="monotone"
-                    dataKey="bmi"
-                    stroke="#06b6d4"
-                    name="BMI"
-                  />
+            {/* ----------------- Respiratory Rate ----------------- */}
+            <div className="h-[350px] w-full mb-10">
+              <h3 className="font-semibold mb-2">Respiratory Rate</h3>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData}>
+                  <XAxis dataKey="time" />
+                  <YAxis domain={[10,30]} />
+                  <Tooltip />
+                  <Legend />
+                  <ReferenceArea y1={12} y2={20} fill="#d1fae5" label="Normal 12-20" />
+                  <Area type="monotone" dataKey="respiratoryRate" stroke="#10b981" fill="#a7f3d0" name="Respiratory Rate (breaths/min)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
 
+            {/* ----------------- Heart Rate ----------------- */}
+            <div className="h-[350px] w-full mb-10">
+              <h3 className="font-semibold mb-2">Heart Rate</h3>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData}>
+                  <XAxis dataKey="time" />
+                  <YAxis domain={[40,120]} />
+                  <Tooltip />
+                  <Legend />
+                  <ReferenceArea y1={60} y2={100} fill="#dbeafe" label="Normal 60-100 bpm" />
+                  <Area type="monotone" dataKey="heartRate" stroke="#2563eb" fill="#93c5fd" name="Heart Rate (bpm)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* ----------------- BMI ----------------- */}
+            <div className="h-[350px] w-full mb-10">
+              <h3 className="font-semibold mb-2">BMI</h3>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData}>
+                  <XAxis dataKey="time" />
+                  <YAxis domain={[15,40]} />
+                  <Tooltip />
+                  <Legend />
+                  {/* Reference Areas for BMI categories */}
+                  <ReferenceArea y1={0} y2={18.5} fill="#fef3c7" label="Underweight" />
+                  <ReferenceArea y1={18.5} y2={24.9} fill="#d1fae5" label="Normal" />
+                  <ReferenceArea y1={25} y2={29.9} fill="#fef08a" label="Overweight" />
+                  <ReferenceArea y1={30} y2={40} fill="#fca5a5" label="Obese" />
+                  <Area type="monotone" dataKey="bmi" stroke="#06b6d4" fill="#bae6fd" name="BMI" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* ----------------- Weight & Height ----------------- */}
+            <div className="h-[350px] w-full">
+              <h3 className="font-semibold mb-2">Weight & Height</h3>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData}>
+                  <XAxis dataKey="time" />
+                  <YAxis yAxisId="left" domain={[30,120]} />
+                  <YAxis yAxisId="right" orientation="right" domain={[100,210]} />
+                  <Tooltip />
+                  <Legend />
+                  <Line yAxisId="left" type="monotone" dataKey="weight" stroke="#f97316" name="Weight (kg)" />
+                  <Line yAxisId="right" type="monotone" dataKey="height" stroke="#2563eb" name="Height (cm)" />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -846,4 +1266,22 @@ export default function HealthInfoPage() {
       </div>
     </PatientLayout>
   )
+}
+
+function CustomBPTooltip({ active, payload, label }: any) {
+  if (active && payload && payload.length) {
+    // Tìm giá trị systolic và diastolic
+    const diastolic = payload.find((p: any) => p.dataKey === "diastolic")?.value
+    const systolic = payload.find((p: any) => p.dataKey === "systolic")?.value
+
+    return (
+      <div className="bg-white p-2 border rounded shadow-md text-sm">
+        <div className="font-semibold">{label}</div>
+        <div>Systolic BP: <span className="text-red-600">{systolic}</span></div>
+        <div>Diastolic BP: <span className="text-blue-600">{diastolic}</span></div>
+      </div>
+    )
+  }
+
+  return null
 }

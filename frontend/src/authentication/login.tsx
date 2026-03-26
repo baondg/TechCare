@@ -33,7 +33,7 @@ export default function LoginPage() {
 
   // };
 
-    const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
@@ -53,9 +53,26 @@ export default function LoginPage() {
       technician: "/technician/dashboard",
     };
     try {
-      const storedUser = JSON.parse(localStorage.getItem("user") ?? "{}") as { role?: string };
-      const userRole = (storedUser.role ?? "patient").toLowerCase();
-      navigate(roleRoutes[userRole] ?? "/patient/dashboard");
+      const roleMap: Record<string, string> = {
+        DOC: "doctor",
+        PAT: "patient",
+        ADM: "admin",
+        NUR: "nurse",
+        TEC: "technician",
+      };
+
+      try {
+        const storedUser = JSON.parse(localStorage.getItem("user") ?? "{}");
+
+        // lấy cả role hoặc type (backend đang dùng type)
+        const rawRole = storedUser.role || storedUser.type;
+
+        const mappedRole = roleMap[rawRole] || rawRole?.toLowerCase() || "patient";
+
+        navigate(roleRoutes[mappedRole] ?? "/patient/dashboard");
+      } catch {
+        navigate("/patient/dashboard");
+      }
     } catch {
       navigate("/patient/dashboard");
     }

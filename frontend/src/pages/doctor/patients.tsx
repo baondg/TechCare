@@ -230,7 +230,7 @@ export default function DoctorPatients() {
           </div>
         </div>
 
-        {/* Bß║úng ch├¡nh */}
+        {/* Bảng danh sách bệnh nhân */}
         <div className="">
           <Card className="h-[560px]">
             <CardContent className="p-0 h-full flex flex-col">

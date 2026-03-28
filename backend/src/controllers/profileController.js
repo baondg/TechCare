@@ -8,26 +8,42 @@ const User = require('../models/User');
 const Relative = require('../models/Relative');
 const HealthInsurance = require('../models/HealthInsurance');
 
+// ─── Internal helpers to keep controller logic small and readable ───
+
+function getUserIdFromParams(req) {
+  return req.params.userId;
+}
+
+function isSelfOrAdmin(req, userId) {
+  return String(req.user.userId) === String(userId) || req.user.role === 'admin';
+}
+
+function ensureAuthorized(req, res, userId) {
+  if (!isSelfOrAdmin(req, userId)) {
+    res.status(403).json({ message: 'Forbidden' });
+    return false;
+  }
+  return true;
+}
+
+async function findProfileByUserId(userId) {
+  return Profile.findOne({ where: { userId } });
+}
+
+function sendProfileNotFound(res) {
+  return res.status(404).json({ message: 'Profile not found' });
+}
+
 exports.getProfile = async (req, res) => {
   try {
-    const user_id = req.user.userId;
+    const userId = getUserIdFromParams(req);
 
-    if (req.user.userId != user_id && req.user.role !== 'ADM') {
-      return res.status(403).json({ message: 'Forbidden' });
-    }
+    if (!ensureAuthorized(req, res, userId)) return;
 
-    const account = await Account.findOne({
-      where: { user_id },
-      include: [
-        {
-          model: User,
-          attributes: ['idcard',  'name', 'dob', 'sex', 'tel', 'email']
-        }
-      ],
-    });
+    const profile = await findProfileByUserId(userId);
 
-    if (!account) {
-      return res.status(404).json({ message: 'User not found' });
+    if (!profile) {
+      return sendProfileNotFound(res);
     }
 
     const user = account.User;
@@ -96,13 +112,9 @@ exports.getProfile = async (req, res) => {
 
 exports.updateProfile = async (req, res) => {   //partial update, only update fields that are provided in the request body
   try {
-    const user_id = req.params.userId;
+    const userId = getUserIdFromParams(req);
 
-    console.log('Updating profile for user_id:', user_id);
-
-    if (req.user.userId != user_id && req.user.role !== 'ADM') {
-      return res.status(403).json({ message: 'Forbidden' });
-    }
+    if (!ensureAuthorized(req, res, userId)) return;
 
     const {
       fullName,
@@ -181,6 +193,26 @@ exports.updateProfile = async (req, res) => {   //partial update, only update fi
 
   } catch (err) {
     console.error(err);
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// DELETE /api/profile/:userId
+// Delete the patient's profile information
+exports.deleteProfile = async (req, res) => {
+  try {
+    const userId = getUserIdFromParams(req);
+
+    if (!ensureAuthorized(req, res, userId)) return;
+
+    const deletedCount = await Profile.destroy({ where: { userId } });
+
+    if (!deletedCount) {
+      return sendProfileNotFound(res);
+    }
+
+    return res.status(200).json({ message: 'Profile deleted successfully' });
+  } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };

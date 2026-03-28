@@ -2,14 +2,14 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const sequelize = require('../common/database');
 const defineProfile = require('../models/Profile');
-const defineSystemConfig = require('../models/systemconfig');
+const SystemConfig = require('../models/SystemConfig');
+const User = require('../models/Users')
 
 const Account = require('../models/Account');
 const Session = require('../models/Session');
 
 
 const Profile = defineProfile(sequelize);
-const SystemConfig = defineSystemConfig(sequelize);
 
 // Security constants
 const SALT_ROUNDS = 12;
@@ -54,7 +54,30 @@ const generateRefreshToken = (username, userId) =>
 
 exports.register = async (req, res) => {
   try {
-    const { username, email, password, firstName, lastName, age } = req.body;
+    const {
+      username,
+      sex,
+      email,
+      password,
+      dob,
+      tel,
+      idcard,
+      firstName,
+      lastName,
+      age,
+      // Relative information
+      relativeName,
+      relativeRelationship,
+      relativeDateOfBirth,
+      relativeSex,
+      relativePhone,
+      relativeEmail,
+      relativeNationalId,
+      // Insurance information
+      insuranceId,
+      insuranceProvider,
+      insuranceExpiry
+    } = req.body;
 
     
     // Validate required fields
@@ -98,50 +121,101 @@ exports.register = async (req, res) => {
     // Hash password with bcrypt
     const hashedPassword = await hashPassword(password);
 
+    // Start a transaction (Requires Sequelize instance)
+    const t = await sequelize.transaction();
 
-    // Create account with hashed password
-    const user = await Account.create({
-      username,
-      password: hashedPassword,
-      type: 'PAT' // Patient role for public registration
+    let user; // Account record (for auth)
+    let newUser; // Users table record (for profile linkage)
 
-    });
+    try {
+      // Create a User record first (Profile info)
+      newUser = await User.create({
+        first_name: firstName,
+        last_name: lastName,
+        email: email,
+        sex: sex,
+        dob: dob, // Approximate DOB
+        tel: tel, // number
+        idcard: idcard,
+        idcard: idcard
+      }, { transaction: t });
 
-    // Create empty profile for new user
-    await Profile.create({ userId: user.user_id, email: email });
+      // Create account with hashed password and link to User
+      user = await Account.create({
+        username,
+        password: hashedPassword,
+        type: 'PAT', // Patient role for public registration
+        user_id: newUser.id, // Link to the created User
+        created_time: new Date(), // Explicitly set creation time to avoid DB default timezone mismatch
+        status: 'Active' // Set default status to valid
+      }, { transaction: t });
 
-    // Generate tokens
+      // Create initial profile including relative and insurance information
+      const fullName = `${firstName || ''} ${lastName || ''}`.trim() || username;
+      await Profile.create({
+        userId: newUser.id,
+        firstName,
+        lastName,
+        fullName,
+        dateOfBirth: dob,
+        sex,
+        phone: tel,
+        email,
+        nationalId: idcard,
+        // Relative info
+        relativeName,
+        relativeRelationship,
+        relativeDateOfBirth,
+        relativeSex,
+        relativePhone,
+        relativeEmail,
+        relativeNationalId,
+        // Insurance info
+        insuranceId,
+        insuranceProvider,
+        insuranceExpiry
+      }, { transaction: t });
+
+      // Commit the transaction
+      await t.commit();
+    } catch (error) {
+      await t.rollback();
+      throw error;
+    }
+      
+    // Generate tokens (outside transaction)
     const accessToken = generateAccessToken(username, user.user_id, user.type);
     const refreshToken = generateRefreshToken(username, user.user_id);
-    
-    // Create session
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7); // 7 days for refresh token
-    
-    await Session.create({
-      userId: user.user_id,
-      token: accessToken,
-      refreshToken: refreshToken,
-      expiresAt: expiresAt,
-      lastActivity: new Date(),
-    });
-    
-    res.status(201).json({
-      success: true,
-      user: {
-        id: user.user_id,
-        username: user.username,
-        type: user.type
-      },
-      token: accessToken,
-      refreshToken: refreshToken,
-      expiresAt: expiresAt.toISOString()
-    });
+      
+      // Create session
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7); // 7 days for refresh token
+      
+      await Session.create({
+        userId: user.user_id,
+        token: accessToken,
+        refreshToken: refreshToken,
+        expiresAt: expiresAt,
+        lastActivity: new Date(),
+      });
+      
+      res.status(201).json({
+        success: true,
+        user: {
+          id: user.user_id,
+          username: user.username,
+          type: user.type
+        },
+        token: accessToken,
+        refreshToken: refreshToken,
+        expiresAt: expiresAt.toISOString()
+      });
   } catch (err) {
     console.error('Registration error:', err);
     res.status(500).json({ success: false, error: 'Registration failed. Please try again.' });
   }
-};
+}
+
 
 exports.login = async (req, res) => {
   try {
@@ -154,11 +228,13 @@ exports.login = async (req, res) => {
       });
     }
 
-    const user = await Account.findOne({ where: { username } });
-
-    console.log("LOGIN USERNAME:", username);
-    console.log("USER FROM DB:", user);
-    console.log("HASH IN DB:", user?.password);
+    const user = await Account.findOne({
+      where: { username },
+      include: [{
+        model: User,
+        attributes: ['first_name', 'last_name']
+      }]
+    });
 
     if (!user) {
       return res.status(401).json({ 
@@ -221,8 +297,6 @@ exports.login = async (req, res) => {
     //   where: { key: 'maxConcurrentUsers' } 
     // });
     // const maxUsers = config ? parseInt(config.value) : 500;
-
-    const maxUsers = 500;
     
     // Làm sạch session hết hạn
     await Session.destroy({
@@ -234,28 +308,28 @@ exports.login = async (req, res) => {
     });
     
     // Đếm số session đang hoạt động
-    const activeSessions = await Session.count({
-      where: {
-        expiresAt: {
-          [require('sequelize').Op.gt]: new Date()
-        }
-      }
-    });
+    // const activeSessions = await Session.count({
+    //   where: {
+    //     expiresAt: {
+    //       [require('sequelize').Op.gt]: new Date()
+    //     }
+    //   }
+    // });
     
-    if (activeSessions >= maxUsers) {
-      return res.status(503).json({
-        success: false,
-        error: `Maximum concurrent users (${maxUsers}) reached. Please try again later.`
-      });
-    }
+    // if (activeSessions >= maxUsers) {
+    //   return res.status(503).json({
+    //     success: false,
+    //     error: `Maximum concurrent users (${maxUsers}) reached. Please try again later.`
+    //   });
+    // }
 
     // Lấy session timeout từ config
     // const timeoutConfig = await SystemConfig.findOne({ 
     //   where: { key: 'sessionTimeoutMinutes' } 
     // });
-    // const timeoutMinutes = timeoutConfig ? parseInt(timeoutConfig.value) : 30;
+    // const timeoutMinutes = timeoutConfig ? parseInt(timeoutConfig.value) : 1440; // Default 24 hours
 
-    const timeoutMinutes = 30;
+    const timeoutMinutes = 1440; // 24 hours
     
     // Xóa session cũ của user này nếu không có rememberMe hoặc là single session mode
     // In production, you might want to keep multiple sessions
@@ -288,13 +362,26 @@ exports.login = async (req, res) => {
     
     // Update last login time
     await user.update({ lastLogin: new Date() });
+    // Map account type to frontend role
+    const roleMap = {
+      'ADM': 'admin',
+      'PAT': 'patient',
+      'DOC': 'doctor',
+      'NUR': 'nurse',
+      'PHY': 'technician'
+    };
+    const role = roleMap[user.type] || 'patient';
     
     res.json({
       success: true,
       user: {
         id: user.user_id,
         username: user.username,
-        type: user.type
+        firstName: user.User?.first_name,
+        lastName: user.User?.last_name,
+        fullName: user.User ? `${user.User.first_name || ''} ${user.User.last_name || ''}`.trim() : null,
+        type: user.type,
+        role: role
       },
       token: accessToken,
       refreshToken: refreshToken,
@@ -423,7 +510,7 @@ exports.getSession = async (req, res) => {
       });
     }
     
-    const user = await Account.findByPk(req.user.user_id , {
+    const user = await Account.findOne({ where: { user_id: req.user.userId } }, { // Use user_id (Users table ID) instead of PK (Account table ID)
       attributes: ['user_id', 'username', 'type']
     });
 
@@ -437,7 +524,7 @@ exports.getSession = async (req, res) => {
     // Get active sessions
     const sessions = await Session.findAll({
       where: {
-        userId: user.user_id,
+        userId: user.user_id, // This is correct, Session.userId == Users.id
         expiresAt: {
           [require('sequelize').Op.gt]: new Date()
         }

@@ -3,6 +3,8 @@ const { DataTypes } = require('sequelize');
 module.exports = (sequelize) => {
   const Profile = sequelize.define('profile', {
     id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
+    firstName: { type: DataTypes.STRING },
+    lastName: { type: DataTypes.STRING },
     userId: { type: DataTypes.INTEGER, allowNull: false, unique: true },
     fullName: { type: DataTypes.STRING },
     dateOfBirth: { type: DataTypes.DATEONLY },

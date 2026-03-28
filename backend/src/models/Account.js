@@ -1,13 +1,20 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../common/database');
 
+const Users = require('./Users');
+
 const Account = sequelize.define(
     'ACCOUNT',
-    {
-      user_id: {
+    {      
+      id: {
         type: DataTypes.INTEGER,
         primaryKey: true,
         autoIncrement: true
+      },
+
+      user_id: {
+        type: DataTypes.INTEGER,
+        unique: true,
       },
 
       username: {
@@ -64,5 +71,7 @@ const Account = sequelize.define(
       timestamps: false //tự động thêm cột createAt
     }
   );
+
+  Account.belongsTo(Users, { foreignKey: 'user_id' });
 
   module.exports = Account;

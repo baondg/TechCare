@@ -22,7 +22,7 @@ interface Patient {
   enabled: boolean  
 }
 
-// Dß╗» liß╗çu mß║½u ΓÇô fix lß╗ùi as const bß║▒ng c├ích tß║ío h├ám helper
+
 const createPatient = (i: number): Patient => ({
   id: `OP1234568${String(10 + i).padStart(2, "0")}`,
   nationalId: `OP1234568${String(10 + i).padStart(2, "0")}`,
@@ -48,7 +48,7 @@ export default function UserManagement() {
   const [patients] = useState<Patient[]>(initialPatients)
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)  // ΓåÉ Th├¬m d├▓ng n├áy
+  const [pageSize, setPageSize] = useState(10)  // 
 
   const [filters, setFilters] = useState({
     nationalId: "",

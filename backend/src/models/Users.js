@@ -9,20 +9,28 @@ const User = sequelize.define(
       primaryKey: true,
       autoIncrement: true
     },
-    name: {
+    idcard:{
+      type: DataTypes.INTEGER,
+      allowNull: false
+    },
+    first_name: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
+    last_name: {
       type: DataTypes.STRING,
       allowNull: true
     },
     sex: {
-      type: DataTypes.STRING,
-      allowNull: true
+      type: DataTypes.ENUM('M','F','O'),
+      allowNull: false
     },
     dob: {
       type: DataTypes.STRING,
       allowNull: false
     },
     tel: {
-      type: DataTypes.ENUM('ADM', 'PAT', 'DOC', 'NUR', 'PHY'),
+      type: DataTypes.STRING,
       allowNull: false
     },
     email: {
@@ -33,7 +41,7 @@ const User = sequelize.define(
   {
     tableName: 'USER',
     freezeTableName: true,
-    timestamps: false
+    timestamps: false //tự động thêm cột createAt
   }
 );
 

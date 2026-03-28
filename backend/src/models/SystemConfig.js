@@ -8,9 +8,6 @@ const SystemConfigModel = {
   updatedAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW }
 };
 
-module.exports = (sequelize) => sequelize.define('systemConfig', SystemConfigModel, {
-  tableName: 'SYSTEM_CONFIGURATION',
-  freezeTableName: true
-});
+module.exports = (sequelize) => sequelize.define('systemConfig', SystemConfigModel);
 
 // Định nghĩa model SystemConfig: lưu trữ các cấu hình hệ thống như số lượng user đồng thời tối đa và thời gian timeout session

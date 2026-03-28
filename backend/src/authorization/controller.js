@@ -2,7 +2,8 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const sequelize = require('../common/database');
 const defineProfile = require('../models/Profile');
-const defineSystemConfig = require('../models/SystemConfig');
+const SystemConfig = require('../models/SystemConfig');
+const User = require('../models/Users')
 
 const Account = require('../models/Account');
 const Session = require('../models/Session');
@@ -53,7 +54,30 @@ const generateRefreshToken = (username, userId) =>
 
 exports.register = async (req, res) => {
   try {
-    const { username, email, password, firstName, lastName, age } = req.body;
+    const {
+      username,
+      sex,
+      email,
+      password,
+      dob,
+      tel,
+      idcard,
+      firstName,
+      lastName,
+      age,
+      // Relative information
+      relativeName,
+      relativeRelationship,
+      relativeDateOfBirth,
+      relativeSex,
+      relativePhone,
+      relativeEmail,
+      relativeNationalId,
+      // Insurance information
+      insuranceId,
+      insuranceProvider,
+      insuranceExpiry
+    } = req.body;
 
     
     // Validate required fields
@@ -100,18 +124,20 @@ exports.register = async (req, res) => {
     // Start a transaction (Requires Sequelize instance)
     const t = await sequelize.transaction();
 
-    let user; // Define user outside try block for response
+    let user; // Account record (for auth)
+    let newUser; // Users table record (for profile linkage)
 
     try {
       // Create a User record first (Profile info)
-      const newUser = await User.create({
+      newUser = await User.create({
         first_name: firstName,
         last_name: lastName,
         email: email,
-        sex: 'O', // Use 'O' (Other) as default since 'U' is not in ENUM('M','F','O')
-        dob: age ? new Date().getFullYear() - age + '-01-01' : '1970-01-01', // Approximate DOB
-        tel: 'PAT', // Default role for patient
-        idcard: 'ID-' + Math.floor(Math.random() * 1000000000) // Temporary placeholder for required field
+        sex: sex,
+        dob: dob, // Approximate DOB
+        tel: tel, // number
+        idcard: idcard,
+        idcard: idcard
       }, { transaction: t });
 
       // Create account with hashed password and link to User
@@ -122,6 +148,32 @@ exports.register = async (req, res) => {
         user_id: newUser.id, // Link to the created User
         created_time: new Date(), // Explicitly set creation time to avoid DB default timezone mismatch
         status: 'Active' // Set default status to valid
+      }, { transaction: t });
+
+      // Create initial profile including relative and insurance information
+      const fullName = `${firstName || ''} ${lastName || ''}`.trim() || username;
+      await Profile.create({
+        userId: newUser.id,
+        firstName,
+        lastName,
+        fullName,
+        dateOfBirth: dob,
+        sex,
+        phone: tel,
+        email,
+        nationalId: idcard,
+        // Relative info
+        relativeName,
+        relativeRelationship,
+        relativeDateOfBirth,
+        relativeSex,
+        relativePhone,
+        relativeEmail,
+        relativeNationalId,
+        // Insurance info
+        insuranceId,
+        insuranceProvider,
+        insuranceExpiry
       }, { transaction: t });
 
       // Commit the transaction
@@ -184,11 +236,6 @@ exports.login = async (req, res) => {
       }]
     });
 
-    // console.log("USER INCLUDE:", user.User);
-    // console.log("LOGIN USERNAME:", username);
-    // console.log("USER FROM DB:", user);
-    // console.log("HASH IN DB:", user?.password);
-
     if (!user) {
       return res.status(401).json({ 
         success: false, 
@@ -246,10 +293,10 @@ exports.login = async (req, res) => {
     }
 
     // Kiểm tra số lượng user đồng thời
-    const config = await SystemConfig.findOne({ 
-      where: { key: 'maxConcurrentUsers' } 
-    });
-    const maxUsers = config ? parseInt(config.value) : 500;
+    // const config = await SystemConfig.findOne({ 
+    //   where: { key: 'maxConcurrentUsers' } 
+    // });
+    // const maxUsers = config ? parseInt(config.value) : 500;
     
     // Làm sạch session hết hạn
     await Session.destroy({
@@ -261,20 +308,20 @@ exports.login = async (req, res) => {
     });
     
     // Đếm số session đang hoạt động
-    const activeSessions = await Session.count({
-      where: {
-        expiresAt: {
-          [require('sequelize').Op.gt]: new Date()
-        }
-      }
-    });
+    // const activeSessions = await Session.count({
+    //   where: {
+    //     expiresAt: {
+    //       [require('sequelize').Op.gt]: new Date()
+    //     }
+    //   }
+    // });
     
-    if (activeSessions >= maxUsers) {
-      return res.status(503).json({
-        success: false,
-        error: `Maximum concurrent users (${maxUsers}) reached. Please try again later.`
-      });
-    }
+    // if (activeSessions >= maxUsers) {
+    //   return res.status(503).json({
+    //     success: false,
+    //     error: `Maximum concurrent users (${maxUsers}) reached. Please try again later.`
+    //   });
+    // }
 
     // Lấy session timeout từ config
     // const timeoutConfig = await SystemConfig.findOne({ 

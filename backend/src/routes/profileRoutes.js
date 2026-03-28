@@ -7,6 +7,6 @@ router.use(authenticateToken);
 
 router.get('/:userId', profileController.getProfile);
 router.put('/:userId', profileController.updateProfile);
-router.post('/:userId', profileController.updateProfile);
+router.delete('/:userId', profileController.deleteProfile);
 
 module.exports = router;

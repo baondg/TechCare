@@ -30,6 +30,23 @@ interface RegisterData {
   lastName: string
   age?: number
   role?: string
+  // Core profile fields required by backend
+  sex?: string
+  dob?: string
+  tel?: string
+  idcard?: string
+  // Relative information
+  relativeName?: string
+  relativeRelationship?: string
+  relativeDateOfBirth?: string
+  relativeSex?: string
+  relativePhone?: string
+  relativeEmail?: string
+  relativeNationalId?: string
+  // Insurance information
+  insuranceId?: string
+  insuranceProvider?: string
+  insuranceExpiry?: string
 }
 // Simplified auth hook - no AuthProvider needed
 // Returns mock user data for development

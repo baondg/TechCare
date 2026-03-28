@@ -32,6 +32,21 @@ export default function RegisterPage() {
     const [dobRelative, setDobRelative] = useState<Date | undefined>();
     const ageRelative = dobRelative ? calculateAge(dobRelative) : "";
     const [nationalId, setNationalId] = useState("");
+    const [phone, setPhone] = useState("");
+    const [sex, setSex] = useState<"male" | "female" | "other">("male");
+
+    // Relative info state
+    const [relativeNationalId, setRelativeNationalId] = useState("");
+    const [relativeName, setRelativeName] = useState("");
+    const [relativeRelationship, setRelativeRelationship] = useState("");
+    const [relativePhone, setRelativePhone] = useState("");
+    const [relativeSex, setRelativeSex] = useState<"male" | "female" | "other">("male");
+    const [relativeEmail, setRelativeEmail] = useState("");
+
+    // Insurance info state
+    const [insuranceId, setInsuranceId] = useState("");
+    const [insuranceProvider, setInsuranceProvider] = useState("");
+    const [insuranceExpiry, setInsuranceExpiry] = useState<Date | undefined>();
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
     // check length of password
@@ -63,6 +78,18 @@ export default function RegisterPage() {
         setError("Password does not meet requirements");
         return;
       }
+
+      // Required profile fields for backend USER table
+      if (!nationalId || !dob || !phone) {
+        setError("Please fill in National ID, date of birth, and phone number");
+        return;
+      }
+
+      const mapSexToCode = (value: string | undefined) => {
+        if (value === "female") return "F";
+        if (value === "other") return "O";
+        return "M";
+      };
       
       const result = await register({
         username,
@@ -71,7 +98,23 @@ export default function RegisterPage() {
         firstName,
         lastName,
         age: parseInt(age) || undefined,
-        role: 'patient'
+        role: 'patient',
+        sex: mapSexToCode(sex),
+        dob: dob ? format(dob, "yyyy-MM-dd") : undefined,
+        tel: phone,
+        idcard: nationalId,
+        // Relative
+        relativeName,
+        relativeRelationship,
+        relativeDateOfBirth: dobRelative ? format(dobRelative, "yyyy-MM-dd") : undefined,
+        relativeSex: mapSexToCode(relativeSex),
+        relativePhone,
+        relativeEmail,
+        relativeNationalId,
+        // Insurance
+        insuranceId,
+        insuranceProvider,
+        insuranceExpiry: insuranceExpiry ? format(insuranceExpiry, "yyyy-MM-dd") : undefined,
       });
       
       if (result.success) {
@@ -192,13 +235,17 @@ export default function RegisterPage() {
 
             <div>
               <Label>Phone Number</Label>
-              <Input className="custom-input"/>
+              <Input 
+                className="custom-input"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+              />
             </div>
 
 
             <div>
               <Label>Sex</Label>
-              <Select>
+              <Select value={sex} onValueChange={(v) => setSex(v as any)}>
                 <SelectTrigger className="custom-select transition-all duration-100 rounded-2xl">
                   <div className="text-sm font-normal bg-background text-muted-foreground">
                     <SelectValue placeholder="Male" />
@@ -239,27 +286,34 @@ export default function RegisterPage() {
 
             <div>
               <Label>National ID/passport</Label>
-              <Input className="custom-input"/>
+              <Input 
+                className="custom-input"
+                value={relativeNationalId}
+                onChange={(e) => setRelativeNationalId(e.target.value)}
+              />
             </div>
 
-            
             <div>
               <Label>Name</Label>
-              <Input className="custom-input"/>
+              <Input 
+                className="custom-input"
+                value={relativeName}
+                onChange={(e) => setRelativeName(e.target.value)}
+              />
             </div>
 
             <div className="md:col-span-2">
               <Label>Relationship</Label>
-              <Select>
+              <Select value={relativeRelationship} onValueChange={setRelativeRelationship}>
                 <SelectTrigger className="custom-select transition-all duration-100 rounded-2xl">
                   <div className="text-sm font-normal bg-background text-muted-foreground">
                     <SelectValue placeholder="Father" />
                   </div>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="male">Father</SelectItem>
-                  <SelectItem value="female">Mother</SelectItem>
-                  <SelectItem value="other">Sibling</SelectItem>
+                  <SelectItem value="father">Father</SelectItem>
+                  <SelectItem value="mother">Mother</SelectItem>
+                  <SelectItem value="sibling">Sibling</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -300,13 +354,17 @@ export default function RegisterPage() {
 
             <div>
               <Label>Phone Number</Label>
-              <Input className="custom-input"/>
+              <Input 
+                className="custom-input"
+                value={relativePhone}
+                onChange={(e) => setRelativePhone(e.target.value)}
+              />
             </div>
 
 
             <div>
               <Label>Sex</Label>
-              <Select >
+              <Select value={relativeSex} onValueChange={(v) => setRelativeSex(v as any)}>
                 <SelectTrigger className="custom-select transition-all duration-100 rounded-2xl">
                   <div className="text-sm font-normal bg-background text-muted-foreground">
                     <SelectValue placeholder="Male" />
@@ -322,7 +380,12 @@ export default function RegisterPage() {
 
             <div className="md:col-span-2">
               <Label>Email</Label>
-              <Input placeholder="user@example.com" className="custom-input"/>
+              <Input 
+                placeholder="user@example.com" 
+                className="custom-input"
+                value={relativeEmail}
+                onChange={(e) => setRelativeEmail(e.target.value)}
+              />
             </div>
 
           </CardContent>
@@ -416,12 +479,17 @@ export default function RegisterPage() {
 
             <div>
               <Label>Insurance ID</Label>
-              <Input placeholder="VN123456789" className="custom-input"/>
+              <Input 
+                placeholder="VN123456789" 
+                className="custom-input"
+                value={insuranceId}
+                onChange={(e) => setInsuranceId(e.target.value)}
+              />
             </div>
 
             <div>
               <Label>Insurance Provider</Label>
-              <Select>
+              <Select value={insuranceProvider} onValueChange={setInsuranceProvider}>
                 <SelectTrigger className="custom-select transition-all duration-100 rounded-2xl">
                   <div className="text-sm font-normal bg-background text-muted-foreground">
                     <SelectValue placeholder="Vietnam Social Security" />
@@ -446,8 +514,8 @@ export default function RegisterPage() {
                     cursor-pointer
                     "
                 >
-                    <span className={dobRelative ? "text-foreground" : "text-muted-foreground"}>
-                    {dobRelative ? format(dobRelative, "dd/MM/yyyy") : "dd/mm/yyyy"}
+                    <span className={insuranceExpiry ? "text-foreground" : "text-muted-foreground"}>
+                    {insuranceExpiry ? format(insuranceExpiry, "dd/MM/yyyy") : "dd/mm/yyyy"}
                     </span>
 
                     <CalendarIcon className="h-5 w-5 opacity-60" />
@@ -456,10 +524,10 @@ export default function RegisterPage() {
                 <PopoverContent className="p-0">
                   <Calendar 
                     mode="single" 
-                    selected={dobRelative} 
-                    onSelect={setDobRelative} 
+                    selected={insuranceExpiry} 
+                    onSelect={setInsuranceExpiry} 
                     captionLayout="dropdown"
-                    />
+                  />
                 </PopoverContent>
               </Popover>
             </div>

@@ -16,7 +16,15 @@ import { Activity, LogOut, UserRound, Bell } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { useAuth } from '@/contexts/AuthContext'
+import { useAuth, type User } from '@/contexts/AuthContext'
+
+function sidebarUserLabel(portalLabel: string, user: User | null | undefined): string {
+  if (portalLabel === 'Admin Portal') return portalLabel
+  if (!user) return 'Guest'
+  const fromNames = [user.firstName, user.lastName].filter(Boolean).join(' ').trim()
+  if (fromNames) return fromNames
+  return (user.fullName || '').trim() || user.username || 'Guest'
+}
 
 export interface NavItem {
   name: string
@@ -96,11 +104,7 @@ export function AppShell({ children, navItems, portalLabel }: AppShellProps) {
                 <div className="relative flex items-center gap-2 rounded-full bg-linear-to-r from-[#06b6d4] to-[#11adc9] dark:bg-gray-900 px-5 py-2.5">
                   <UserRound className="h-4 w-4 text-white" strokeWidth={2.5} />
                   <span className="font-bold text-sm tracking-wider text-white dark:text-cyan-500">
-                    { 
-                      portalLabel === "Admin Portal"
-                      ? portalLabel
-                      : user?.fullName || "Guest"
-                    }
+                    {sidebarUserLabel(portalLabel, user)}
                   </span>
                 </div>
               </div>

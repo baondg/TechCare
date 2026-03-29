@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -161,7 +161,7 @@ export default function ProfilePage() {
   return (
     <PatientLayout>
       <div className="space-y-8">
-        {/* Header vß╗¢i gradient */}
+        {/* Gradient header */}
         <div>
           <h2 className="h-12 text-4xl font-bold bg-linear-to-r from-[#06b6d4] via-[#0891b2] to-[#06b6d4] bg-clip-text text-transparent mb-2">
             Profile Settings
@@ -360,7 +360,7 @@ export default function ProfilePage() {
                 />
               </div>
 
-              {/* Divider vß╗¢i gradient */}
+              {/* Gradient divider */}
               <div className="relative py-4">
                 <div className="absolute inset-0 flex items-center">
                   <div className="w-full border-t border-gradient-to-r from-transparent via-slate-300 to-transparent"></div>

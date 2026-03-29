@@ -13,10 +13,10 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
-import { appointmentService, type Appointment } from '@/services/appointment-service'
+import { doctorService, type DoctorAppointment } from '@/services/doctor-service'
 
 interface UseDoctorAppointmentsReturn {
-  appointments: Appointment[]
+  appointments: DoctorAppointment[]
   loading: boolean
   error: string | null
   confirm: (id: number) => Promise<void>
@@ -24,35 +24,34 @@ interface UseDoctorAppointmentsReturn {
   refresh: () => void
 }
 
-export function useDoctorAppointments(doctorUsername: string | undefined): UseDoctorAppointmentsReturn {
-  const [appointments, setAppointments] = useState<Appointment[]>([])
+export function useDoctorAppointments(): UseDoctorAppointmentsReturn {
+  const [appointments, setAppointments] = useState<DoctorAppointment[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
-    if (!doctorUsername) { setLoading(false); return }
     setLoading(true)
     setError(null)
     try {
-      const all = await appointmentService.getAppointments()
-      setAppointments(all.filter(a => a.doctor === doctorUsername))
+      const data = await doctorService.getAppointments()
+      setAppointments(data.appointments || [])
     } catch (err) {
       setError('Failed to load appointments.')
       console.error(err)
     } finally {
       setLoading(false)
     }
-  }, [doctorUsername])
+  }, [])
 
   useEffect(() => { void load() }, [load])
 
   const confirm = useCallback(async (id: number) => {
-    await appointmentService.updateAppointment(id, { status: 'Confirmed' })
+    await doctorService.confirmAppointment(id)
     void load()
   }, [load])
 
   const reject = useCallback(async (id: number) => {
-    await appointmentService.updateAppointment(id, { status: 'Rejected' })
+    await doctorService.cancelAppointment(id)
     void load()
   }, [load])
 

@@ -1,4 +1,4 @@
-﻿// src/pages/reception/PatientManagement.tsx
+// src/pages/reception/PatientManagement.tsx
 
 import { useState, useEffect, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -22,13 +22,13 @@ interface Patient {
   enabled: boolean  
 }
 
-
+// Sample data helper
 const createPatient = (i: number): Patient => ({
   id: `OP1234568${String(10 + i).padStart(2, "0")}`,
   nationalId: `OP1234568${String(10 + i).padStart(2, "0")}`,
   name: i % 2 === 0 ? "Nguyen Van An" : "Tran Thi Be",
   username: i % 2 === 0 ? "anpv1977" : "betran1985",
-  sex: i % 2 === 0 ? "Male" : "Female",   // TypeScript tß╗▒ hiß╗âu l├á literal type ΓåÆ kh├┤ng cß║ºn as const
+  sex: i % 2 === 0 ? "Male" : "Female",
   dob: i % 2 === 0 ? "22/12/1977" : "15/03/1985",
   phone: i % 2 === 0 ? "0123456789" : "0987654321",
   email: i % 2 === 0 ? "patient@example.com" : "be.tran@gmail.com",
@@ -157,12 +157,20 @@ export default function UserManagement() {
   }, [sortedPatients, currentPage, pageSize])
 
   const SortIcon = ({ column }: { column: SortKey }) => {
-    if (sortConfig?.key !== column) return <span className="ml-1">Γçà</span>
+    if (sortConfig?.key !== column) {
+      return (
+        <span className="ml-1 inline-flex text-slate-400">
+          <ArrowUpDown className="w-3 h-3" aria-hidden />
+        </span>
+      )
+    }
     return (
-      <span className="ml-1">
-        {sortConfig.direction === "asc" 
-    ? <ArrowUp className="w-3 h-3" />
-    : <ArrowDown className="w-3 h-3" /> }
+      <span className="ml-1 inline-flex">
+        {sortConfig.direction === "asc" ? (
+          <ArrowUp className="w-3 h-3" aria-hidden />
+        ) : (
+          <ArrowDown className="w-3 h-3" aria-hidden />
+        )}
       </span>
     )
   }
@@ -329,13 +337,13 @@ export default function UserManagement() {
           </div>
         </div>
 
-        {/* Grid 2 cß╗Öt */}
+        {/* 2-column grid */}
         <div className="grid lg:grid-cols-2 gap-6">
           <Card className="flex flex-col h-[560px]">
             <CardContent className="flex-1 p-0 overflow-hidden">
               <div className="h-full overflow-y-auto">
                 <Table className="table-fixed w-max">
-                  {/* Header cß╗æ ─æß╗ïnh */}
+                  {/* Fixed header */}
                   <TableHeader
                     className="sticky top-0 z-20 text-white"
                     style={{
@@ -433,12 +441,12 @@ export default function UserManagement() {
                     <span className="text-gray-700 whitespace-nowrap">entries</span>
                   </div>
 
-                  {/* Hiß╗ân thß╗ï kß║┐t quß║ú */}
+                  {/* Render results */}
                   <div className="text-gray-700 whitespace-nowrap">
                     Showing {startItem} to {endItem} of {filteredPatients.length} entries
                   </div>
 
-                  {/* N├║t ph├ón trang ΓÇô c─ân phß║úi c├╣ng h├áng (nh╞░ng vß║½n trong flex n├¬n tß╗▒ ─æß╗Öng xuß╗æng d├▓ng nß║┐u hß║╣p) */}
+                  {/* Pagination */}
                   <div className="flex items-center gap-1 ml-auto">
                     <Button
                       variant="outline"
@@ -450,7 +458,7 @@ export default function UserManagement() {
                       Previous
                     </Button>
 
-                    {/* C├íc sß╗æ trang */}
+                    {/* Page numbers */}
                     {(() => {
                       const pages = []
                       const maxVisible = 5
@@ -530,7 +538,7 @@ export default function UserManagement() {
               </div>
             </CardContent>
           </Card>
-          {/* Chi tiß║┐t bß╗çnh nh├ón - chß╗ë hiß╗çn khi c├│ selectedPatient */}
+          {/* Patient details (only when selected) */}
           {selectedPatient ? (
             <Card>
               <CardHeader>
@@ -559,10 +567,10 @@ export default function UserManagement() {
                         }
                       }}
                     >
-                      {/* Overlay l├ám nß╗ün ─æß║¡m khi hover */}
+                      {/* Gray overlay on hover */}
                       <span className="absolute inset-0 bg-black opacity-0 hover:opacity-30 transition-opacity" />
 
-                      {/* Icon v├á Text ΓÇô lu├┤n trß║»ng khi hover */}
+                      {/* Icon and text always visible on hover */}
                       <CheckCircle className="w-4 h-4 mr-2 transition-colors duration-200 group-hover:text-white" />
                       <span className="relative z-10 transition-colors duration-200 group-hover:text-white">
                         {selectedPatient?.enabled ? "Enabled" : "Disabled"}

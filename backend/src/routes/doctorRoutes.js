@@ -16,6 +16,13 @@ const requireDoctor = (req, res, next) => {
 
 router.use(requireDoctor);
 
+// ─── Dictionary / master data ───
+router.get('/diseases', doctorController.getDiseaseCodes);
+router.get('/medicines', doctorController.getMedicines);
+
+// ─── Dashboard ───
+router.get('/dashboard/summary', doctorController.getDashboardSummary);
+
 // ─── Patients ───
 router.get('/patients', doctorController.getPatients);
 router.get('/patients/:patientId', doctorController.getPatient);
@@ -30,10 +37,22 @@ router.delete('/patients/:patientId/health-info/:id', doctorController.deleteHea
 // ─── Diagnoses ───
 router.get('/patients/:patientId/diagnoses', doctorController.getDiagnoses);
 router.post('/patients/:patientId/diagnoses', doctorController.createDiagnosis);
+router.put('/patients/:patientId/diagnoses/:id', doctorController.updateDiagnosis);
 
 // ─── Prescriptions ───
 router.get('/patients/:patientId/prescriptions', doctorController.getPrescriptions);
 router.post('/patients/:patientId/prescriptions', doctorController.createPrescription);
+router.put('/patients/:patientId/prescriptions/:id', doctorController.updatePrescription);
+
+// ─── Lab tests ───
+router.get('/patients/:patientId/lab-tests', doctorController.getLabTests);
+router.post('/patients/:patientId/lab-tests', doctorController.createLabTest);
+router.put('/patients/:patientId/lab-tests/:id', doctorController.updateLabTest);
+
+// ─── Surgeries ───
+router.get('/patients/:patientId/surgeries', doctorController.getSurgeries);
+router.post('/patients/:patientId/surgeries', doctorController.createSurgery);
+router.put('/patients/:patientId/surgeries/:id', doctorController.updateSurgery);
 
 // ─── Appointments ───
 router.get('/appointments', doctorController.getAppointments);

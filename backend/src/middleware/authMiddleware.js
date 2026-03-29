@@ -68,7 +68,18 @@ const authenticateToken = async (req, res, next) => {
     await session.update({ lastActivity: new Date() });
     
     // Attach user info to request
-    req.user = decoded;
+    const roleMap = {
+    DOC: "doctor",
+    PAT: "patient",
+    ADM: "admin",
+    NUR: "nurse",
+    TEC: "technician"
+  };
+
+  req.user = {
+    ...decoded,
+    role: roleMap[decoded.role] || decoded.role
+  };
     req.session = session;
     next();
   } catch (err) {

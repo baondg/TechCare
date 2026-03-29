@@ -1,17 +1,16 @@
-﻿"use client"
+"use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent} from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ChevronLeft, ChevronRight, CalendarIcon, Search,  } from "lucide-react"
+import { ChevronLeft, ChevronRight, CalendarIcon, Search, ArrowUpDown, MoveUp, MoveDown } from "lucide-react"
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 import { DoctorLayout } from "@/components/doctor-layout"
 import { Popover,  PopoverContent,  PopoverTrigger} from "@/components/ui/popover"
 import { format } from "date-fns"
 import { vi } from "date-fns/locale"
-import { cn } from "@/lib/utils"
 import { Calendar } from "@/components/ui/calendar"
 import { useNavigate } from "react-router-dom"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -25,6 +24,7 @@ type Patient = {
   age: number
   latestVisit: string
   diagnosis: string
+  diagnosisDescription: string
   doctor: string
   recoverDays: number
   recoverPercent: number
@@ -49,34 +49,50 @@ const columns: {
   { key: "recoverPercent", label: "Progress (%)", sortable: true },
 ]
 
-const ICD10_MAP: Record<string, string> = {
-  "Z59.1": "Housing and economic circumstances",
-  "J45.9": "Asthma, unspecified",
-  "I10": "Essential (primary) hypertension",
-  "E11.9": "Type 2 diabetes mellitus without complications",
-  "K29.5": "Chronic gastritis, unspecified",
-  "M79.1": "Myalgia",
-  "J06.9": "Acute upper respiratory infection, unspecified",
-  "I50.9": "Heart failure, unspecified",
-  "N39.0": "Urinary tract infection, site not specified",
-  "R51": "Headache",
-}
-
-
 export default function DoctorPatients() {
     const navigate = useNavigate()
-    const [patients] = useState<Patient[]>([
-        { id: "OP123456789", name: "Nguyß╗àn V─ân An", sex: "M", age: 46, latestVisit: "07/10/2025", diagnosis: "Z59.1", doctor: "Dr. Trß║ºn Thanh Nghiß╗çp", recoverDays: 2, recoverPercent: 70 },
-        { id: "OP987654321", name: "Trß║ºn Thß╗ï B├¼nh", sex: "F", age: 38, latestVisit: "05/11/2025", diagnosis: "J45.9", doctor: "Dr. L├¬ Minh Tuß║Ñn", recoverDays: 5, recoverPercent: 85 },
-        { id: "OP456789123", name: "L├¬ V─ân C├┤ng", sex: "M", age: 52, latestVisit: "01/12/2025", diagnosis: "I10", doctor: "Dr. Phß║ím Thß╗ï Hoa", recoverDays: 3, recoverPercent: 60 },
-        { id: "OP321654987", name: "Phß║ím Thß╗ï Dung", sex: "F", age: 29, latestVisit: "20/09/2025", diagnosis: "E11.9", doctor: "Dr. Nguyß╗àn V─ân Hß║úi", recoverDays: 8, recoverPercent: 92 },
-        { id: "OP789123456", name: "Ho├áng V─ân Em", sex: "M", age: 61, latestVisit: "15/10/2025", diagnosis: "K29.5", doctor: "Dr. Trß║ºn Thanh Nghiß╗çp", recoverDays: 4, recoverPercent: 75 },
-        { id: "OP654321789", name: "V┼⌐ Thß╗ï Giang", sex: "F", age: 44, latestVisit: "28/11/2025", diagnosis: "M79.1", doctor: "Dr. L├¬ Minh Tuß║Ñn", recoverDays: 6, recoverPercent: 88 },
-        { id: "OP147258369", name: "─Éß║╖ng V─ân H├╣ng", sex: "M", age: 35, latestVisit: "10/12/2025", diagnosis: "J06.9", doctor: "Dr. Phß║ím Thß╗ï Hoa", recoverDays: 2, recoverPercent: 95 },
-        { id: "OP258369147", name: "Ng├┤ Thß╗ï Lan", sex: "F", age: 50, latestVisit: "03/10/2025", diagnosis: "I50.9", doctor: "Dr. Nguyß╗àn V─ân Hß║úi", recoverDays: 10, recoverPercent: 65 },
-        { id: "OP369147258", name: "B├╣i V─ân Minh", sex: "M", age: 67, latestVisit: "18/11/2025", diagnosis: "N39.0", doctor: "Dr. Trß║ºn Thanh Nghiß╗çp", recoverDays: 7, recoverPercent: 80 },
-        { id: "OP741852963", name: "─Éß╗ù Thß╗ï Nga", sex: "F", age: 41, latestVisit: "25/09/2025", diagnosis: "R51", doctor: "Dr. L├¬ Minh Tuß║Ñn", recoverDays: 3, recoverPercent: 90 },
-    ])
+    const [patients, setPatients] = useState<Patient[]>([])
+
+    //Retrive patient list from backend
+    useEffect(() => {
+      const fetchPatients = async () => {
+        try {
+          const token = localStorage.getItem("authToken");
+          const res = await fetch("http://localhost:3000/api/doctor/patients", {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${token}`
+            }
+          });
+          const data = await res.json()
+
+          if (data.success) {
+            const mapped = data.patients.map((p: any) => ({
+              id: "OP" + String(p.id).padStart(9, "0"),
+              name: `${p.firstName || ""} ${p.lastName || ""}`.trim() || p.username,
+              sex: p.gender,
+              age: p.age || 0,
+              latestVisit: p.latestVisit
+                ? new Date(p.latestVisit).toLocaleDateString("vi-VN")
+                : "",
+              diagnosis: p.latestDiagnosis?.icd10 || "",
+              diagnosisDescription: p.latestDiagnosis?.interpretation || "",
+              doctor: p.doctor || "",
+              
+              recoverDays: null,
+              recoverPercent: null,
+            }))
+
+            setPatients(mapped)
+          }
+        } catch (err) {
+          console.error("Fetch patients error:", err)
+        }
+      }
+
+      fetchPatients()
+    }, [])
 
     const [filters, setFilters] = useState({
         patientId: "",
@@ -176,11 +192,24 @@ export default function DoctorPatients() {
     )
 
     const SortIcon = ({ column }: { column: SortKey }) => {
-      if (sortConfig?.key !== column) return <span className="ml-1">Γçà</span>
-      return <span className="ml-1">{sortConfig.direction === "asc" ? "Γåæ" : "Γåô"}</span>
+      if (sortConfig?.key !== column) {
+        return (
+          <span className="ml-1 inline-block opacity-50">
+            <ArrowUpDown className="ml-1 w-4 h-4 inline text-white" />
+          </span>
+        )
+      }
+
+      return sortConfig.direction === "asc" ? (
+        <span className="ml-1 inline-block opacity-50">
+          <MoveUp className="ml-1 w-4 h-4 inline text-white" />
+        </span>
+      ) : (
+        <span className="ml-1 inline-block opacity-50">
+          <MoveDown className="ml-1 w-4 h-4 inline text-white" />
+        </span>
+      )
     }
-
-
 
 
   return (
@@ -443,7 +472,7 @@ export default function DoctorPatients() {
                                 </TooltipTrigger>
                                 <TooltipContent side="top" className="bg-linear-to-br from-[#06b6d4] to-[#0891b2]">
                                   <b className="text-sm max-w-xs ">
-                                    {ICD10_MAP[patient.diagnosis] ?? "No description"}
+                                    {patient.diagnosisDescription || "No description"}
                                   </b>
                                 </TooltipContent>
                               </Tooltip>

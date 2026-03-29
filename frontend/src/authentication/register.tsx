@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -558,16 +558,16 @@ function calculateAge(date: Date) {
 
   const today = new Date();
 
-  // T├¡nh tß╗òng sß╗æ ng├áy tß╗½ ng├áy sinh ─æß║┐n h├┤m nay
+  // Calculate age (days/months/years)
   const diffTime = today.getTime() - date.getTime();
   const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
-  // Nß║┐u < 1 th├íng tuß╗òi ΓåÆ t├¡nh theo ng├áy
+  // < 1 month → days
   if (diffDays < 30) {
     return `${diffDays} days`;
   }
 
-  // Nß║┐u < 3 tuß╗òi ΓåÆ t├¡nh theo th├íng
+  // < 3 years → months
   const diffMonths =
     (today.getFullYear() - date.getFullYear()) * 12 +
     (today.getMonth() - date.getMonth());
@@ -576,7 +576,7 @@ function calculateAge(date: Date) {
     return `${diffMonths} months`;
   }
 
-  // ΓëÑ 3 tuß╗òi ΓåÆ t├¡nh theo n─âm
+  // >= 3 years → years
   let ageYears = today.getFullYear() - date.getFullYear();
   const m = today.getMonth() - date.getMonth();
   const d = today.getDate() - date.getDate();
@@ -592,7 +592,7 @@ function calculateAge(date: Date) {
 function ValidationRow({ ok, text }: { ok: boolean; text: string }) {
   return (
     <div className="group flex items-center gap-3 py-2.5 px-1 rounded-lg transition-all duration-400 hover:bg-cyan-50/50">
-      {/* Icon vß╗¢i hiß╗çu ß╗⌐ng scale + glow */}
+      {/* Icon with scale + glow */}
       <div className={`relative flex h-6 w-6 items-center justify-center rounded-full transition-all duration-500 ${ok ? "bg-linear-to-br from-green-500 to-emerald-500 shadow-lg shadow-green-500/30" : "bg-gray-200/80"}`}>
         <div className={`absolute inset-0 rounded-full ${ok ? "animate-ping bg-green-500/30" : ""}`} />
         {ok ? (
@@ -602,7 +602,7 @@ function ValidationRow({ ok, text }: { ok: boolean; text: string }) {
         )}
       </div>
 
-      {/* Text vß╗¢i hiß╗çu ß╗⌐ng fade + gß║ích ngang khi sai */}
+      {/* Text with fade + underline on error */}
       <span
         className={`text-sm font-medium transition-all duration-500 ${
           ok 

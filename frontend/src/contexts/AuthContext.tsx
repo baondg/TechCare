@@ -6,7 +6,7 @@
  * - `useAuth()` throws if used outside the provider.
  */
 
-import { createContext, useContext, useState } from 'react'
+import { createContext, useContext, useEffect, useState } from 'react'
 import type React from 'react'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
@@ -16,9 +16,12 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
 export interface User {
   id: number
   username: string
-  email: string
+  email?: string
+  firstName?: string
+  lastName?: string
   fullName?: string
   role?: string
+  type?: string
 }
 
 interface RegisterData {
@@ -99,6 +102,59 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(false)
 
   const isAuthenticated = user !== null && !!localStorage.getItem('authToken')
+
+  /** Merge first/last name from profile API so sidebar shows real names (e.g. doctors) even with older login payloads. */
+  useEffect(() => {
+    if (!user?.id) return
+    const token = localStorage.getItem('authToken')
+    if (!token) return
+
+    const uid = user.id
+    let cancelled = false
+
+    void (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/profile/${uid}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (!res.ok || cancelled) return
+        const data = (await res.json()) as {
+          profile?: { firstName?: string; lastName?: string; fullName?: string; email?: string }
+        }
+        const p = data.profile
+        if (!p || cancelled) return
+
+        const firstName = (p.firstName || '').trim()
+        const lastName = (p.lastName || '').trim()
+        const fullName = (p.fullName || '').trim()
+
+        setUser((prev) => {
+          if (!prev || prev.id !== uid) return prev
+          const next: User = {
+            ...prev,
+            firstName: firstName || prev.firstName,
+            lastName: lastName || prev.lastName,
+            fullName: fullName || prev.fullName,
+            email: p.email ?? prev.email,
+          }
+          const unchanged =
+            next.firstName === prev.firstName &&
+            next.lastName === prev.lastName &&
+            next.fullName === prev.fullName &&
+            next.email === prev.email
+          if (unchanged) return prev
+          localStorage.setItem('user', JSON.stringify(next))
+          return next
+        })
+      } catch {
+        /* ignore — sidebar still uses login payload */
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [user?.id])
 
   const login = async (username: string, password: string): Promise<{ success: boolean; error?: string }> => {
     setIsLoading(true)

@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useState } from "react"
 import {Card,CardContent,CardHeader,CardTitle,CardDescription} from "@/components/ui/card"
@@ -254,9 +254,9 @@ export default function SymptomChecker() {
                           className={`text-sm py-2 px-4 font-medium ${getSeverityColor(s.severity)}`}
                         >
                           <span className="font-semibold">{s.name}</span>
-                          <span className="mx-1">ΓÇó</span>
+                          <span className="mx-1">•</span>
                           <span className="uppercase">{s.severity}</span>
-                          <span className="mx-1">ΓÇó</span>
+                          <span className="mx-1">•</span>
                           <span className="text-xs">{durationLabel}</span>
                           <button onClick={() => removeSymptom(s.name)} className="ml-2 hover:opacity-70">
                             <X className="h-3.5 w-3.5" />
@@ -378,7 +378,7 @@ export default function SymptomChecker() {
 
         
 
-        {/* Dialog chß╗ìn mß╗⌐c ─æß╗Ö + thß╗¥i gian */}
+        {/* Dialog settings */}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent className="sm:max-w-lg">
             <DialogHeader>

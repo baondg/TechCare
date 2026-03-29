@@ -1,15 +1,15 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const sequelize = require('../common/database');
-const defineProfile = require('../models/Profile');
-const SystemConfig = require('../models/SystemConfig');
-const User = require('../models/Users')
+const defineSystemConfig = require('../models/systemconfig');
 
 const Account = require('../models/Account');
 const Session = require('../models/Session');
+const User = require('../models/Users');
 
 
-const Profile = defineProfile(sequelize);
+
+const SystemConfig = defineSystemConfig(sequelize);
 
 // Security constants
 const SALT_ROUNDS = 12;
@@ -255,8 +255,8 @@ exports.login = async (req, res) => {
     
     // Verify password
     const isValidPassword = await verifyPassword(password, user.password);
-    console.log("INPUT PASSWORD:", password);
-    console.log("PASSWORD MATCH:", isValidPassword);
+    // console.log("INPUT PASSWORD:", password);
+    // console.log("PASSWORD MATCH:", isValidPassword);
 
     if (!isValidPassword) {
       // Increment failed login attempts
@@ -372,6 +372,11 @@ exports.login = async (req, res) => {
     };
     const role = roleMap[user.type] || 'patient';
     
+    const profile = user.User || user.user;
+    const firstName = (profile?.first_name || '').trim();
+    const lastName = (profile?.last_name || '').trim();
+    const displayName = [firstName, lastName].filter(Boolean).join(' ').trim();
+
     res.json({
       success: true,
       user: {

@@ -11,6 +11,7 @@ router.get('/doctors', appointmentController.getDoctors);
 
 // Get already-booked slots for a date
 router.get('/booked-slots', appointmentController.getBookedSlots);
+router.get('/dashboard-summary', appointmentController.getPatientDashboardSummary);
 
 // Apply authentication middleware to all routes
 router.use(authenticateToken);

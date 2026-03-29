@@ -78,26 +78,26 @@ function getFallbackResponse(query: string): string {
   const lowerQuery = query.toLowerCase()
   
   if (lowerQuery.includes('medication') || lowerQuery.includes('medicine') || lowerQuery.includes('drug')) {
-    return "I can help you with medication information. You can ask about:\nΓÇó Current medications and dosages\nΓÇó Medication schedules and reminders\nΓÇó Potential side effects\nΓÇó Drug interactions\n\nWhat would you like to know?"
+    return "I can help you with medication information. You can ask about:\n- Current medications and dosages\n- Medication schedules and reminders\n- Potential side effects\n- Drug interactions\n\nWhat would you like to know?"
   }
   
   if (lowerQuery.includes('appointment') || lowerQuery.includes('schedule') || lowerQuery.includes('visit')) {
-    return "I can assist with appointments. You can:\nΓÇó View upcoming appointments\nΓÇó Schedule new appointments\nΓÇó Reschedule or cancel appointments\nΓÇó Get directions to the clinic\n\nWhat would you like to do?"
+    return "I can assist with appointments. You can:\n- View upcoming appointments\n- Schedule new appointments\n- Reschedule or cancel appointments\n- Get directions to the clinic\n\nWhat would you like to do?"
   }
   
   if (lowerQuery.includes('symptom') || lowerQuery.includes('pain') || lowerQuery.includes('sick') || lowerQuery.includes('feel')) {
-    return "I understand you're not feeling well. While I can provide general information, it's important to consult with a healthcare professional for proper diagnosis and treatment.\n\nWould you like to:\nΓÇó Schedule an urgent appointment\nΓÇó Speak with a nurse\nΓÇó Get general wellness tips"
+    return "I understand you're not feeling well. While I can provide general information, it's important to consult with a healthcare professional for proper diagnosis and treatment.\n\nWould you like to:\n- Schedule an urgent appointment\n- Speak with a nurse\n- Get general wellness tips"
   }
   
   if (lowerQuery.includes('test') || lowerQuery.includes('result') || lowerQuery.includes('lab')) {
-    return "I can help you access your test results and medical records. Lab results are typically available 2-3 days after testing. Would you like me to:\nΓÇó Check if your results are ready\nΓÇó Explain what tests you've had\nΓÇó Schedule a follow-up appointment"
+    return "I can help you access your test results and medical records. Lab results are typically available 2-3 days after testing. Would you like me to:\n- Check if your results are ready\n- Explain what tests you've had\n- Schedule a follow-up appointment"
   }
   
   if (lowerQuery.includes('insurance') || lowerQuery.includes('payment') || lowerQuery.includes('bill')) {
-    return "For billing and insurance questions, I recommend:\nΓÇó Contacting our billing department at (555) 123-4567\nΓÇó Checking your insurance coverage online\nΓÇó Setting up a payment plan if needed\n\nI can also help you find information about accepted insurance providers."
+    return "For billing and insurance questions, I recommend:\n- Contacting our billing department at (555) 123-4567\n- Checking your insurance coverage online\n- Setting up a payment plan if needed\n\nI can also help you find information about accepted insurance providers."
   }
   
-  return "I'm here to help with your healthcare needs! I can assist with:\n\nΓÇó ≡ƒÆè Medications and prescriptions\nΓÇó ≡ƒôà Appointments and scheduling\nΓÇó ≡ƒÅÑ Test results and medical records\nΓÇó Γ¥ñ∩╕Å General health and wellness questions\nΓÇó ≡ƒôï Post-treatment care instructions\n\nWhat would you like to know?"
+  return "I'm here to help with your healthcare needs! I can assist with:\n\n- Medications and prescriptions\n- Appointments and scheduling\n- Test results and medical records\n- General health and wellness questions\n- Post-treatment care instructions\n\nWhat would you like to know?"
 }
 
 // ============ SYMPTOM CHECKER AI ANALYSIS ============

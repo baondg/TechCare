@@ -1,4 +1,4 @@
-﻿import { useNavigate, useParams } from "react-router-dom"
+import { useNavigate, useParams } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { TechnicianLayout } from "./technician-layout"
@@ -25,10 +25,10 @@ export function TechnicianLayout2() {
         <Card className="p-4 flex items-center justify-between border-r border-white/40 sticky bg-white/80 backdrop-blur-xl shadow-[4px_0_20px_rgba(0,0,0,0.05)] z-40">
           <div>
             <p className="font-semibold text-lg">
-              Nguyen Van An ΓÇô OP123456789 | 46 Male | BMI: 25.77
+              Nguyen Van An - OP123456789 | 46 Male | BMI: 25.77
             </p>
             <p className="text-sm text-slate-600">
-              Diagnosis: Z59.1 ΓÇô Housing & economic problems
+              Diagnosis: Z59.1 - Housing & economic problems
             </p>
             <p className="text-sm text-slate-500">
               Department: Cardiology

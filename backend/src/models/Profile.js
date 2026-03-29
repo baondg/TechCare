@@ -1,4 +1,4 @@
-const { DataTypes } = require('sequelize');
+// const { DataTypes } = require('sequelize');
 
 module.exports = (sequelize) => {
   const Profile = sequelize.define('profile', {
@@ -12,21 +12,24 @@ module.exports = (sequelize) => {
     phone: { type: DataTypes.STRING },
     email: { type: DataTypes.STRING },
     nationalId: { type: DataTypes.STRING },
-    
-    // Relative information
-    relativeName: { type: DataTypes.STRING },
-    relativeRelationship: { type: DataTypes.STRING },
-    relativeDateOfBirth: { type: DataTypes.DATEONLY },
-    relativeSex: { type: DataTypes.STRING },
-    relativePhone: { type: DataTypes.STRING },
-    relativeEmail: { type: DataTypes.STRING },
-    relativeNationalId: { type: DataTypes.STRING },
-    
-    // Insurance information
-    insuranceId: { type: DataTypes.STRING },
-    insuranceProvider: { type: DataTypes.STRING },
-    insuranceExpiry: { type: DataTypes.DATEONLY }
   });
 
   return Profile;
-};
+}    
+//     // Relative information
+//     relativeName: { type: DataTypes.STRING },
+//     relativeRelationship: { type: DataTypes.STRING },
+//     relativeDateOfBirth: { type: DataTypes.DATEONLY },
+//     relativeSex: { type: DataTypes.STRING },
+//     relativePhone: { type: DataTypes.STRING },
+//     relativeEmail: { type: DataTypes.STRING },
+//     relativeNationalId: { type: DataTypes.STRING },
+    
+//     // Insurance information
+//     insuranceId: { type: DataTypes.STRING },
+//     insuranceProvider: { type: DataTypes.STRING },
+//     insuranceExpiry: { type: DataTypes.DATEONLY }
+//   });
+
+//   return Profile;
+// };

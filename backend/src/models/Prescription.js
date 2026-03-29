@@ -9,19 +9,11 @@ const Prescription = sequelize.define('Prescription', {
   },
   patientId: {
     type: DataTypes.INTEGER,
-    allowNull: false,
-    references: {
-      model: 'users',
-      key: 'id'
-    }
+    allowNull: false
   },
   doctorId: {
     type: DataTypes.INTEGER,
-    allowNull: false,
-    references: {
-      model: 'users',
-      key: 'id'
-    }
+    allowNull: false
   },
   doctorName: {
     type: DataTypes.STRING,

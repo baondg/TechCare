@@ -4,7 +4,7 @@ const sequelize = require('../common/database');
 
 const Account = require('../models/Account');
 const Patient = require('../models/Patient');
-const User = require('../models/User');
+const User = require('../models/Users');
 const Relative = require('../models/Relative');
 const HealthInsurance = require('../models/HealthInsurance');
 
@@ -40,25 +40,39 @@ exports.getProfile = async (req, res) => {
 
     if (!ensureAuthorized(req, res, userId)) return;
 
-    const profile = await findProfileByUserId(userId);
+    const account = await Account.findOne({
+      where: { user_id },
+      include: [
+        {
+          model: User,
+          attributes: ['idcard', 'first_name', 'last_name', 'dob', 'sex', 'tel', 'email']
+        }
+      ],
+    });
 
     if (!profile) {
       return sendProfileNotFound(res);
     }
 
-    const user = account.User;
+    const u = account.User || account.user;
+    const raw = u?.dataValues ?? u ?? {};
+    const firstName = String(raw.first_name || '').trim();
+    const lastName = String(raw.last_name || '').trim();
+    const fullName = `${firstName} ${lastName}`.trim();
 
     const profile = {
       user_id: account.user_id,
       username: account.username,
       role: account.type,
 
-      fullName: user?.dataValues.name,
-      dateOfBirth: user?.dataValues.dob,
-      sex: user?.dataValues.sex,
-      phone: user?.dataValues.tel,
-      email: user?.dataValues.email,
-      nationalId: user?.dataValues.idcard
+      firstName,
+      lastName,
+      fullName: fullName || account.username,
+      dateOfBirth: raw.dob,
+      sex: raw.sex,
+      phone: raw.tel,
+      email: raw.email,
+      nationalId: raw.idcard
     };
 
     const findRelative = await User.findOne({

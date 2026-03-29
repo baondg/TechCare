@@ -98,12 +98,22 @@ export interface Diagnosis {
   updatedAt: string;
 }
 
+export interface DiseaseCode {
+  code: string;
+  description: string;
+}
+
+export interface MedicineOption {
+  id: number;
+  name: string;
+}
+
 export interface Medication {
   id?: number;
   name: string;
-  frequency: string;
   quantity: string;
-  instruction: string;
+  usage: string;
+  unit: 'tablet' | 'capsule' | 'syrup' | 'injection' | 'drop' | 'cream' | 'ointment' | 'powder' | 'spray';
   note?: string;
 }
 
@@ -119,6 +129,34 @@ export interface Prescription {
   updatedAt: string;
 }
 
+export interface LabTest {
+  id: number;
+  patientId: number;
+  testType: string;
+  testDate: string;
+  technicianName: string | null;
+  resultSummary: string | null;
+  fileUrl: string | null;
+  note: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface SurgeryRecord {
+  id: number;
+  patientId: number;
+  procedureCode: string | null;
+  procedureName: string;
+  surgeryDate: string | null;
+  surgeonName: string | null;
+  urgency: string | null;
+  status: string | null;
+  outcome: string | null;
+  note: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface DoctorAppointment {
   id: number;
   userId: number;
@@ -132,6 +170,30 @@ export interface DoctorAppointment {
   notes: string;
   patientName: string;
   patientId: number;
+}
+
+export interface DoctorDashboardSummary {
+  summary: {
+    appointmentsToday: number;
+    diagnosesToday: number;
+    prescriptionsToday: number;
+    labTestsToday: number;
+  };
+  todaysSchedule: Array<{
+    id: number;
+    date: string;
+    time: string;
+    department: string;
+    room: string;
+    patientId: number;
+    patientName: string;
+    status: string;
+  }>;
+  recentPatients: Array<{
+    patientId: number;
+    patientName: string;
+    lastTime: string;
+  }>;
 }
 
 export interface Pagination {
@@ -211,14 +273,14 @@ export const doctorService = {
 
   // ═══ Diagnoses ═══
 
-  async getDiagnoses(patientId: number) {
+  async getDiagnoses(patientId: number | string) {
     return apiRequest<{
       success: boolean;
       diagnoses: Diagnosis[];
     }>(`${API_BASE_URL}/api/doctor/patients/${patientId}/diagnoses`);
   },
 
-  async createDiagnosis(patientId: number, data: {
+  async createDiagnosis(patientId: number | string, data: {
     complaint: string;
     icd10: string;
     interpretation?: string;
@@ -234,16 +296,54 @@ export const doctorService = {
     });
   },
 
+  async updateDiagnosis(
+    patientId: number | string,
+    diagnosisId: number | string,
+    data: {
+      complaint: string;
+      icd10: string;
+      interpretation?: string;
+      note?: string;
+      department?: string;
+    }
+  ) {
+    return apiRequest<{
+      success: boolean;
+      diagnosis: Diagnosis;
+    }>(`${API_BASE_URL}/api/doctor/patients/${patientId}/diagnoses/${diagnosisId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async getDiseaseCodes(q?: string) {
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    return apiRequest<{
+      success: boolean;
+      diseases: DiseaseCode[];
+    }>(`${API_BASE_URL}/api/doctor/diseases${params.toString() ? `?${params}` : ''}`);
+  },
+
+  async getMedicines(q?: string) {
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    return apiRequest<{
+      success: boolean;
+      medicines: MedicineOption[];
+    }>(`${API_BASE_URL}/api/doctor/medicines${params.toString() ? `?${params}` : ''}`);
+  },
+
   // ═══ Prescriptions ═══
 
-  async getPrescriptions(patientId: number) {
+  async getPrescriptions(patientId: number | string) {
     return apiRequest<{
       success: boolean;
       prescriptions: Prescription[];
     }>(`${API_BASE_URL}/api/doctor/patients/${patientId}/prescriptions`);
   },
 
-  async createPrescription(patientId: number, data: {
+  async createPrescription(patientId: number | string, data: {
     department?: string;
     medications: Omit<Medication, 'id'>[];
   }) {
@@ -254,6 +354,115 @@ export const doctorService = {
       method: 'POST',
       body: JSON.stringify(data),
     });
+  },
+
+  async updatePrescription(
+    patientId: number | string,
+    prescriptionId: number | string,
+    data: {
+      department?: string;
+      medications: Omit<Medication, 'id'>[];
+    }
+  ) {
+    return apiRequest<{
+      success: boolean;
+      prescription: Prescription;
+    }>(`${API_BASE_URL}/api/doctor/patients/${patientId}/prescriptions/${prescriptionId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // ═══ Lab tests ═══
+
+  async getLabTests(patientId: number | string) {
+    return apiRequest<{
+      success: boolean;
+      labTests: LabTest[];
+    }>(`${API_BASE_URL}/api/doctor/patients/${patientId}/lab-tests`);
+  },
+
+  async createLabTest(
+    patientId: number | string,
+    data: {
+      testType: string;
+      testDate: string;
+      technicianName?: string;
+      resultSummary?: string;
+      fileUrl?: string;
+      note?: string;
+    }
+  ) {
+    return apiRequest<{ success: boolean; labTest: LabTest }>(
+      `${API_BASE_URL}/api/doctor/patients/${patientId}/lab-tests`,
+      { method: 'POST', body: JSON.stringify(data) }
+    );
+  },
+
+  async updateLabTest(
+    patientId: number | string,
+    id: number,
+    data: Partial<{
+      testType: string;
+      testDate: string;
+      technicianName: string | null;
+      resultSummary: string | null;
+      fileUrl: string | null;
+      note: string | null;
+    }>
+  ) {
+    return apiRequest<{ success: boolean; labTest: LabTest }>(
+      `${API_BASE_URL}/api/doctor/patients/${patientId}/lab-tests/${id}`,
+      { method: 'PUT', body: JSON.stringify(data) }
+    );
+  },
+
+  // ═══ Surgeries ═══
+
+  async getSurgeries(patientId: number | string) {
+    return apiRequest<{
+      success: boolean;
+      surgeries: SurgeryRecord[];
+    }>(`${API_BASE_URL}/api/doctor/patients/${patientId}/surgeries`);
+  },
+
+  async createSurgery(
+    patientId: number | string,
+    data: {
+      procedureCode?: string;
+      procedureName: string;
+      surgeryDate?: string | null;
+      surgeonName?: string | null;
+      urgency?: string | null;
+      status?: string | null;
+      outcome?: string | null;
+      note?: string | null;
+    }
+  ) {
+    return apiRequest<{ success: boolean; surgery: SurgeryRecord }>(
+      `${API_BASE_URL}/api/doctor/patients/${patientId}/surgeries`,
+      { method: 'POST', body: JSON.stringify(data) }
+    );
+  },
+
+  async updateSurgery(
+    patientId: number | string,
+    id: number,
+    data: Partial<{
+      procedureCode: string | null;
+      procedureName: string;
+      surgeryDate: string | null;
+      surgeonName: string | null;
+      urgency: string | null;
+      status: string | null;
+      outcome: string | null;
+      note: string | null;
+    }>
+  ) {
+    return apiRequest<{ success: boolean; surgery: SurgeryRecord }>(
+      `${API_BASE_URL}/api/doctor/patients/${patientId}/surgeries/${id}`,
+      { method: 'PUT', body: JSON.stringify(data) }
+    );
   },
 
   // ═══ Appointments ═══
@@ -304,5 +513,9 @@ export const doctorService = {
     }>(`${API_BASE_URL}/api/doctor/appointments/${id}/confirm`, {
       method: 'PUT',
     });
+  },
+
+  async getDashboardSummary() {
+    return apiRequest<{ success: boolean } & DoctorDashboardSummary>(`${API_BASE_URL}/api/doctor/dashboard/summary`);
   },
 };

@@ -1,13 +1,13 @@
-﻿"use client"
+"use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { ChevronLeft, ChevronRight, Check, Calendar, Clock } from "lucide-react"
 import { PatientLayout } from "@/components/patient-layout"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { appointmentService } from "@/services/appointment-service"
+import { appointmentService, type DoctorOption } from "@/services/appointment-service"
 import { useAuth } from "@/contexts/AuthContext"
 import { format, isSameDay, startOfDay } from "date-fns"
 
@@ -36,53 +36,50 @@ export default function BookAppointmentPage() {
   const [showNotification, setShowNotification] = useState(false)
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null)
   const [checkedSymptom, setCheckedSymptom] = useState<"yes" | "no" | null>(null)
+  const [doctors, setDoctors] = useState<DoctorOption[]>([])
+  const [bookedSlots, setBookedSlots] = useState<Array<{ doctor: string; time: string }>>([])
+  const [loadingSlots, setLoadingSlots] = useState(false)
 
-  const specialtyGroups = [
-    { value: "outpatinent", label: "Outpatient Department" },
-    { value: "ophthalmology", label: "Ophthalmology" },
-    { value: "otolaryngology", label: "Otolaryngology" },
-    { value: "dermatology", label: "Dermatology" },
-    { value: "cardiology", label: "Cardiology" },
-    { value: "orthopedics", label: "Orthopedics" },
-  ]
+  const clinicTimes = ["08:00", "09:00", "10:00", "11:00", "13:30", "14:30", "15:30"]
 
-  const timeSlots: TimeSlot[] = [
-    // Cardiology
-    { time: "08:00", doctor: "Dr. Trang Thanh Nghia", department: "Cardiology", room: "Room A1-102", available: true },
-    { time: "09:30", doctor: "Dr. Le Van Tim", department: "Cardiology", room: "Room A1-104", available: true },
-    { time: "11:00", doctor: "Dr. Trang Thanh Nghia", department: "Cardiology", room: "Room A1-102", available: true },
-    { time: "11:40", doctor: "Dr. Trang Thanh Nghia", department: "Cardiology", room: "Room A1-102", available: true },
-    { time: "14:00", doctor: "Dr. Le Van Tim", department: "Cardiology", room: "Room A1-104", available: false },
-    
-    // Orthopedics
-    { time: "08:30", doctor: "Dr. Nguyen Duc Dung", department: "Orthopedics", room: "Room B1-102", available: true },
-    { time: "10:00", doctor: "Dr. Pham Van Xuong", department: "Orthopedics", room: "Room B1-105", available: true },
-    { time: "11:30", doctor: "Dr. Nguyen Duc Dung", department: "Orthopedics", room: "Room B1-102", available: true },
-    { time: "11:40", doctor: "Dr. Nguyen Duc Dung", department: "Orthopedics", room: "Room B1-102", available: false },
-    { time: "15:30", doctor: "Dr. Pham Van Xuong", department: "Orthopedics", room: "Room B1-105", available: true },
+  useEffect(() => {
+    const loadDoctors = async () => {
+      try {
+        const data = await appointmentService.getDoctors()
+        setDoctors(data)
+      } catch (error) {
+        console.error("Load doctors failed:", error)
+      }
+    }
+    loadDoctors()
+  }, [])
 
-    // Dermatology
-    { time: "09:00", doctor: "Dr. Nguyen Thi Van Anh", department: "Dermatology", room: "Room JA-04", available: true },
-    { time: "10:30", doctor: "Dr. Tran Thi Da", department: "Dermatology", room: "Room JA-05", available: true },
-    { time: "11:30", doctor: "Dr. Nguyen Thi Van Anh", department: "Dermatology", room: "Room JA-04", available: false },
-    { time: "14:30", doctor: "Dr. Tran Thi Da", department: "Dermatology", room: "Room JA-05", available: true },
+  useEffect(() => {
+    const loadBooked = async () => {
+      setLoadingSlots(true)
+      try {
+        const date = format(selectedDate, "yyyy-MM-dd")
+        const data = await appointmentService.getBookedSlots(date)
+        setBookedSlots(data)
+      } catch (error) {
+        console.error("Load booked slots failed:", error)
+        setBookedSlots([])
+      } finally {
+        setLoadingSlots(false)
+      }
+    }
+    loadBooked()
+  }, [selectedDate])
 
-    // Ophthalmology
-    { time: "08:15", doctor: "Dr. Tran Tien Minh", department: "Ophthalmology", room: "Room A1-102", available: true },
-    { time: "10:45", doctor: "Dr. Le Thi Mat", department: "Ophthalmology", room: "Room A1-103", available: true },
-    { time: "11:30", doctor: "Dr. Tran Tien Minh", department: "Ophthalmology", room: "Room A1-102", available: true },
-    { time: "16:00", doctor: "Dr. Le Thi Mat", department: "Ophthalmology", room: "Room A1-103", available: false },
-
-    // Otolaryngology (ENT)
-    { time: "09:15", doctor: "Dr. Hoang Van Tai", department: "Otolaryngology", room: "Room C1-201", available: true },
-    { time: "13:30", doctor: "Dr. Hoang Van Tai", department: "Otolaryngology", room: "Room C1-201", available: true },
-    { time: "15:00", doctor: "Dr. Nguyen Thi Mui", department: "Otolaryngology", room: "Room C1-202", available: true },
-
-    // Outpatient / General Medicine
-    { time: "07:30", doctor: "Dr. Vo Van Tong", department: "General Medicine", room: "Room G1-001", available: true },
-    { time: "10:00", doctor: "Dr. Vo Van Tong", department: "General Medicine", room: "Room G1-001", available: false },
-    { time: "13:00", doctor: "Dr. Phan Thi Quat", department: "General Medicine", room: "Room G1-002", available: true },
-  ]
+  const specialtyGroups = useMemo(() => {
+    const unique = new Map<string, string>()
+    for (const d of doctors) {
+      const label = (d.department || "General Medicine").trim()
+      const value = label.toLowerCase().replace(/\s+/g, "-")
+      if (!unique.has(value)) unique.set(value, label)
+    }
+    return Array.from(unique.entries()).map(([value, label]) => ({ value, label }))
+  }, [doctors])
 
   const getDaysInMonth = () => {
     const year = viewDate.getFullYear()
@@ -161,24 +158,37 @@ export default function BookAppointmentPage() {
     weeks.push(days.slice(i, i + 7))
   }
 
-  const departmentMap: Record<string, string> = {
-    cardiology: "Cardiology",
-    orthopedics: "Orthopedics",
-    dermatology: "Dermatology",
-    ophthalmology: "Ophthalmology",
-    otolaryngology: "Otolaryngology",
-    outpatinent: "General Medicine",
-  }
+  const selectedDepartmentLabel =
+    specialtyGroups.find((s) => s.value === selectedDepartment)?.label
+    ?? (selectedDepartment === "outpatient" ? "Outpatient" : undefined)
 
-  const filteredSlots = timeSlots.filter(slot => {
-    if (!selectedDepartment) return false
-    return slot.department === (departmentMap[selectedDepartment] || selectedDepartment)
-  })
+  const doctorSlots = useMemo(() => {
+    if (!selectedDepartmentLabel) return []
+    const byDepartment = doctors.filter((d) => (d.department || "General Medicine") === selectedDepartmentLabel)
+    const bookedSet = new Set(
+      bookedSlots.map((s) => `${String(s.doctor).toLowerCase()}|${String(s.time).slice(0, 5)}`)
+    )
+    const slots: TimeSlot[] = []
+    for (const d of byDepartment) {
+      const fullName = `${d.firstName || ""} ${d.lastName || ""}`.trim() || d.username
+      for (const t of clinicTimes) {
+        const key = `${fullName.toLowerCase()}|${t}`
+        slots.push({
+          time: t,
+          doctor: `Dr. ${fullName}`.trim(),
+          department: selectedDepartmentLabel,
+          room: d.room ? `Room ${d.room}` : "Room -",
+          available: !bookedSet.has(key),
+        })
+      }
+    }
+    return slots
+  }, [selectedDepartmentLabel, doctors, bookedSlots])
 
   return (
     <PatientLayout>
       <div className="space-y-8">
-        {/* Header vß╗¢i gradient */}
+        {/* Gradient header */}
         <div>
           <h2 className="text-4xl font-bold bg-linear-to-r from-[#06b6d4] via-[#0891b2] to-[#06b6d4] bg-clip-text text-transparent mb-2">
             Book Appointment
@@ -312,7 +322,7 @@ export default function BookAppointmentPage() {
                     name="checkedSymptom"
                     value="no"
                     checked={checkedSymptom === "no"}
-                    onChange={() => { setCheckedSymptom("no"); setSelectedDepartment("outpatinent") }}
+                    onChange={() => { setCheckedSymptom("no"); setSelectedDepartment("outpatient") }}
                     className="w-4 h-4 text-cyan-600"
                   />
                   <span className="font-medium text-slate-700">No, not yet</span>
@@ -329,7 +339,7 @@ export default function BookAppointmentPage() {
                   </SelectTrigger>
                   <SelectContent>
                     {checkedSymptom === "no" && (
-                      <SelectItem value="outpatinent">Outpatient Department</SelectItem>
+                      <SelectItem value="outpatient">Outpatient</SelectItem>
                     )}
                     {checkedSymptom === "yes" && specialtyGroups.map(group => (
                       <SelectItem key={group.value} value={group.value}>{group.label}</SelectItem>
@@ -342,7 +352,7 @@ export default function BookAppointmentPage() {
             {/* Time Slots List */}
             {checkedSymptom !== null && selectedDepartment && (
               <div className="flex-1 overflow-y-auto space-y-3 pr-2">
-                {filteredSlots.map((slot, index) => (
+                {doctorSlots.map((slot, index) => (
                   <button
                     key={index}
                     onClick={() => handleBookSlot(slot)}
@@ -381,7 +391,11 @@ export default function BookAppointmentPage() {
                     </div>
                   </button>
                 ))}
-                {filteredSlots.length === 0 && (
+                {loadingSlots ? (
+                  <div className="text-center py-12 text-slate-500">
+                    <p>Loading available slots...</p>
+                  </div>
+                ) : doctorSlots.length === 0 && (
                   <div className="text-center py-12 text-slate-500">
                     <Calendar className="h-16 w-16 mx-auto mb-4 text-slate-300" />
                     <p>No available slots for this selection</p>
@@ -408,19 +422,19 @@ export default function BookAppointmentPage() {
             <div className="bg-linear-to-br from-cyan-50 to-blue-50 rounded-xl p-5 mb-6 border border-cyan-100">
               <ul className="space-y-3">
                 <li className="flex items-start gap-3">
-                  <span className="text-cyan-600 font-bold">ΓÇó</span>
+                  <span className="text-cyan-600 font-bold">•</span>
                   <span className="text-slate-900 font-medium">{selectedSlot.doctor}</span>
                 </li>
                 <li className="flex items-start gap-3">
-                  <span className="text-cyan-600 font-bold">ΓÇó</span>
+                  <span className="text-cyan-600 font-bold">•</span>
                   <span className="text-slate-700">Department of {selectedSlot.department}</span>
                 </li>
                 <li className="flex items-start gap-3">
-                  <span className="text-cyan-600 font-bold">ΓÇó</span>
+                  <span className="text-cyan-600 font-bold">•</span>
                   <span className="text-slate-700">{selectedSlot.room}</span>
                 </li>
                 <li className="flex items-start gap-3">
-                  <span className="text-cyan-600 font-bold">ΓÇó</span>
+                  <span className="text-cyan-600 font-bold">•</span>
                   <span className="text-slate-700">At {selectedSlot.time}</span>
                 </li>
               </ul>

@@ -21,7 +21,7 @@ require('./models/Appointment');
 require('./models/Diagnosis');
 require('./models/Prescription');
 const Account = require('./models/Account');
-const User = require('./models/User');
+const User = require('./models/Users');
 const MedicalRecord = require('./models/MedicalRecord');
 const Patient = require('./models/Patient');
 const Relative = require('./models/Relative');
@@ -105,9 +105,7 @@ app.use((err: Error, req: Request, res: Response, next: Function) => {
 // Initialize database and start server
 async function startServer() {
   try {
-    // Sync database (create tables if they don't exist)
-    // await sequelize.sync();
-    console.log('✅ Database synced successfully');
+    console.log('✅ Database connection ready');
     
     app.listen(PORT, () => {
       console.log(`🚀 Server is running on http://localhost:${PORT}`);

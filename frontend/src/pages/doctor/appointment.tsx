@@ -1,22 +1,29 @@
-﻿"use client"
+"use client"
 
 import { useState, useMemo } from "react"
-import { Calendar, Search, Clock, User, CheckCircle, XCircle } from "lucide-react"
+import { Calendar, Search, Clock, User, XCircle, ArrowRightFromLine } from "lucide-react"
 import { DoctorLayout } from "@/components/doctor-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { useAuth } from "@/contexts/AuthContext"
 import { format, parseISO } from "date-fns"
 import { useDoctorAppointments } from "@/hooks/useDoctorAppointments"
 
-export default function DoctorAppointmentsPage() {
-  const { user } = useAuth()
+type AppointmentUiStatus = "Done" | "Upcoming" | "Confirmed" | "Cancelled"
 
+const normalizeAppointmentStatus = (status?: string): AppointmentUiStatus => {
+  const value = String(status || "").trim().toLowerCase()
+  if (value === "done" || value === "completed") return "Done"
+  if (value === "confirmed") return "Confirmed"
+  if (value === "cancelled" || value === "canceled" || value === "rejected") return "Cancelled"
+  return "Upcoming"
+}
+
+export default function DoctorAppointmentsPage() {
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
 
-  const { appointments, loading, confirm, reject } = useDoctorAppointments(user?.username)
+  const { appointments, loading, reject } = useDoctorAppointments()
 
   const filteredAppointments = useMemo(() => {
     let filtered = [...appointments]
@@ -37,10 +44,8 @@ export default function DoctorAppointmentsPage() {
     return filtered
   }, [appointments, startDate, endDate])
 
-  const handleAccept = (id: number) => confirm(id)
-
   const handleReject = async (id: number) => {
-    if (!window.confirm("Reject this appointment?")) return
+    if (!window.confirm("Take over this appointment?")) return
     await reject(id)
   }
 
@@ -102,7 +107,9 @@ export default function DoctorAppointmentsPage() {
               No appointments found.
             </div>
           ) : (
-            filteredAppointments.map((appointment) => (
+            filteredAppointments.map((appointment) => {
+              const uiStatus = normalizeAppointmentStatus(appointment.status)
+              return (
               <Card key={appointment.id} className="card-feature border-slate-200/60">
                 <CardContent className="p-6">
                   <div className="flex flex-col md:flex-row justify-between gap-6">
@@ -115,12 +122,12 @@ export default function DoctorAppointmentsPage() {
 
                       <div className="flex items-center text-slate-600 mb-2">
                         <User className="w-4 h-4 mr-2" />
-                        Patient: {appointment.patient}
+                        Patient: {appointment.patientName || "Unknown patient"}
                       </div>
 
                       <div className="flex items-center text-slate-500">
                         <Clock className="w-4 h-4 mr-2" />
-                        {format(parseISO(appointment.date), "dd MMM yyyy")} ΓÇö{" "}
+                        {format(parseISO(appointment.date), "dd MMM yyyy")} —{" "}
                         {appointment.time.substring(0, 5)}
                       </div>
 
@@ -138,36 +145,28 @@ export default function DoctorAppointmentsPage() {
                       <div
                         className={`px-4 py-1.5 rounded-full text-sm font-medium
                           ${
-                            appointment.status === "Pending"
-                              ? "bg-yellow-50 text-yellow-700 border border-yellow-100"
-                              : appointment.status === "Confirmed"
-                              ? "bg-cyan-50 text-cyan-700 border border-cyan-100"
-                              : appointment.status === "Done"
-                              ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
-                              : "bg-red-50 text-red-700 border border-red-100"
+                            uiStatus === "Done"
+                              ? "bg-green-100 text-green-700"
+                              : uiStatus === "Upcoming"
+                                ? "bg-blue-100 text-blue-700"
+                                : uiStatus === "Cancelled"
+                                  ? "bg-yellow-100 text-yellow-700"
+                                  : "bg-gray-100 text-gray-700"
                           }`}
                       >
-                        {appointment.status}
+                        {uiStatus}
                       </div>
 
                       {/* ACTION BUTTONS */}
-                      {appointment.status === "Pending" && (
+                      {uiStatus === "Upcoming" && (
                         <div className="flex gap-2">
-                          <Button
-                            className="bg-cyan-600 hover:bg-cyan-700 text-white"
-                            onClick={() => handleAccept(appointment.id)}
-                          >
-                            <CheckCircle className="w-4 h-4 mr-2" />
-                            Accept
-                          </Button>
-
                           <Button
                             variant="outline"
                             className="border-red-200 text-red-700 hover:bg-red-50"
                             onClick={() => handleReject(appointment.id)}
                           >
-                            <XCircle className="w-4 h-4 mr-2" />
-                            Reject
+                            <ArrowRightFromLine className="w-4 h-4 mr-2" />
+                            Cover
                           </Button>
                         </div>
                       )}
@@ -176,7 +175,7 @@ export default function DoctorAppointmentsPage() {
                   </div>
                 </CardContent>
               </Card>
-            ))
+            )})
           )}
         </div>
       </div>

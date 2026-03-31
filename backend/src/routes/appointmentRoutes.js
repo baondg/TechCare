@@ -12,6 +12,12 @@ router.get('/doctors', appointmentController.getDoctors);
 // Get already-booked slots for a date
 router.get('/booked-slots', appointmentController.getBookedSlots);
 router.get('/dashboard-summary', appointmentController.getPatientDashboardSummary);
+router.get('/feedback', appointmentController.getFeedbacks);
+router.post('/feedback', appointmentController.createFeedback);
+router.get('/ai-recommendations', appointmentController.getAiRecommendations);
+router.patch('/ai-recommendations/:id/feedback', appointmentController.updateAiRecommendationFeedback);
+router.post('/ai/chat', appointmentController.chatWithAiAndSave);
+router.post('/ai/symptom-analysis', appointmentController.analyzeSymptomsAndSave);
 
 // Apply authentication middleware to all routes
 router.use(authenticateToken);

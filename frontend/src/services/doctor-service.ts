@@ -52,6 +52,10 @@ export interface Patient {
 
 export interface PatientDetail extends Patient {
   latestDiagnosis: { icd10: string; interpretation: string; department: string } | null;
+  /** From PATIENT.in_department (enum in DB) */
+  inDepartment?: string | null;
+  /** HEALTH_INSURANCE.id */
+  healthInsuranceId?: string | null;
   bloodType: string | null;
   bmi: number | null;
 }
@@ -106,6 +110,8 @@ export interface DiseaseCode {
 export interface MedicineOption {
   id: number;
   name: string;
+  /** From MEDICINE.unit (varchar) — normalized on the prescription form */
+  unit?: string | null;
 }
 
 export interface Medication {
@@ -117,13 +123,16 @@ export interface Medication {
   note?: string;
 }
 
+export type PrescriptionSignatureStatus = 'Draft' | 'Signed' | 'Unsigned';
+
 export interface Prescription {
   id: number;
   patientId: number;
   doctorId: number;
   doctorName: string;
   department: string;
-  status: 'Active' | 'Completed' | 'Cancelled';
+  /** MEDICAL_PRESCRIPTION.status — controls edit / sign workflow */
+  signatureStatus: PrescriptionSignatureStatus;
   medications: Medication[];
   createdAt: string;
   updatedAt: string;
@@ -142,19 +151,22 @@ export interface LabTest {
   updatedAt?: string;
 }
 
+/** Aligns with SURGERY + PROCEDURE_.note; type is SURGERY.type ENUM */
 export interface SurgeryRecord {
   id: number;
   patientId: number;
-  procedureCode: string | null;
-  procedureName: string;
-  surgeryDate: string | null;
+  type:
+    | 'Minor Surgery'
+    | 'Intermediate Surgery'
+    | 'Major Ambulatory Surgery'
+    | 'Day Surgery'
+    | string;
+  start: string | null;
+  end: string | null;
   surgeonName: string | null;
   urgency: string | null;
-  status: string | null;
-  outcome: string | null;
+  result: string | null;
   note: string | null;
-  createdAt?: string;
-  updatedAt?: string;
 }
 
 export interface DoctorAppointment {
@@ -373,6 +385,26 @@ export const doctorService = {
     });
   },
 
+  async signPrescription(patientId: number | string, prescriptionId: number | string) {
+    return apiRequest<{
+      success: boolean;
+      signatureStatus: PrescriptionSignatureStatus;
+      id: number;
+    }>(`${API_BASE_URL}/api/doctor/patients/${patientId}/prescriptions/${prescriptionId}/sign`, {
+      method: 'PATCH',
+    });
+  },
+
+  async unsignPrescription(patientId: number | string, prescriptionId: number | string) {
+    return apiRequest<{
+      success: boolean;
+      signatureStatus: PrescriptionSignatureStatus;
+      id: number;
+    }>(`${API_BASE_URL}/api/doctor/patients/${patientId}/prescriptions/${prescriptionId}/unsign`, {
+      method: 'PATCH',
+    });
+  },
+
   // ═══ Lab tests ═══
 
   async getLabTests(patientId: number | string) {
@@ -429,13 +461,12 @@ export const doctorService = {
   async createSurgery(
     patientId: number | string,
     data: {
-      procedureCode?: string;
-      procedureName: string;
-      surgeryDate?: string | null;
+      type: string;
+      start?: string | null;
+      end?: string | null;
       surgeonName?: string | null;
       urgency?: string | null;
-      status?: string | null;
-      outcome?: string | null;
+      result?: string | null;
       note?: string | null;
     }
   ) {
@@ -449,13 +480,12 @@ export const doctorService = {
     patientId: number | string,
     id: number,
     data: Partial<{
-      procedureCode: string | null;
-      procedureName: string;
-      surgeryDate: string | null;
+      type: string;
+      start: string | null;
+      end: string | null;
       surgeonName: string | null;
       urgency: string | null;
-      status: string | null;
-      outcome: string | null;
+      result: string | null;
       note: string | null;
     }>
   ) {

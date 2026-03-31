@@ -54,9 +54,16 @@ const authenticateToken = async (req, res, next) => {
       });
     }
     
-    // Check if user is active
+    // Check if user is active (support both legacy text and tinyint values)
     const user = await Account.findOne({ where: { user_id: decoded.userId } }); // Use user_id (Users table ID) instead of PK (Account table ID)
-    if (!user || user.status !== 'Active') {
+    const rawStatus = user?.status;
+    const isActive =
+      rawStatus === 'Active' ||
+      rawStatus === 'active' ||
+      rawStatus === 1 ||
+      rawStatus === true ||
+      rawStatus === '1';
+    if (!user || !isActive) {
       return res.status(403).json({ 
         success: false,
         error: 'Account is inactive or not found',

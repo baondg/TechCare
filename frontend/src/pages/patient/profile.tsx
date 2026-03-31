@@ -24,7 +24,8 @@ export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false)
 
   // Personal information
-  const [fullName, setFullName] = useState("")
+  const [firstName, setFirstName] = useState("")
+  const [lastName, setLastName] = useState("")
   const [dob, setDob] = useState<Date | undefined>()
   const [sex, setSex] = useState("Male")
   const [phone, setPhone] = useState("")
@@ -70,7 +71,15 @@ export default function ProfilePage() {
   }
 
   const populateForm = (p: PatientProfile) => {
-    setFullName(p.fullName || "")
+    let fn = p.firstName ?? ""
+    let ln = p.lastName ?? ""
+    if (!fn && !ln && p.fullName?.trim()) {
+      const parts = p.fullName.trim().split(/\s+/)
+      fn = parts[0] || ""
+      ln = parts.slice(1).join(" ") || ""
+    }
+    setFirstName(fn)
+    setLastName(ln)
     setDob(p.dateOfBirth ? parseISO(p.dateOfBirth) : undefined)
     setSex(mapSex(p.sex))
     setPhone(p.phone || "")
@@ -95,7 +104,8 @@ export default function ProfilePage() {
     if (!user?.id) return
 
     const profileData: Partial<PatientProfile> = {
-      fullName,
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
       dateOfBirth: dob ? format(dob, "yyyy-MM-dd") : undefined,
       sex,
       phone,
@@ -127,7 +137,8 @@ export default function ProfilePage() {
   }
 
   const handleClear = () => {
-    setFullName("")
+    setFirstName("")
+    setLastName("")
     setDob(undefined)
     setSex("Male")
     setPhone("")
@@ -243,19 +254,34 @@ export default function ProfilePage() {
           )}
           <CardContent className="pt-6">
             <form className="space-y-6">
-              {/* Name */}
-              <div className="space-y-2">
-                <Label htmlFor="name" className="text-sm font-semibold text-slate-700">
-                  Full Name
-                </Label>
-                <Input 
-                  id="name" 
-                  placeholder="Enter your full name" 
-                  className="custom-input"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  disabled={!isEditing}
-                />
+              {/* First / Last name */}
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="firstName" className="text-sm font-semibold text-slate-700">
+                    First name
+                  </Label>
+                  <Input
+                    id="firstName"
+                    placeholder="First name"
+                    className="custom-input"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    disabled={!isEditing}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="lastName" className="text-sm font-semibold text-slate-700">
+                    Last name
+                  </Label>
+                  <Input
+                    id="lastName"
+                    placeholder="Last name"
+                    className="custom-input"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    disabled={!isEditing}
+                  />
+                </div>
               </div>
 
               {/* Date of Birth, Age & Sex */}

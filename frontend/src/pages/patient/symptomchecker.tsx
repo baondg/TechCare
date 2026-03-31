@@ -8,8 +8,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import {Dialog,DialogContent,DialogHeader,DialogTitle,DialogDescription,DialogFooter,} from "@/components/ui/dialog"
 import { PatientLayout } from "@/components/patient-layout"
 import { AlertCircle, X, Clock, Stethoscope, AlertTriangle, CheckCircle } from "lucide-react"
-import { analyzeSymptoms } from "@/services/ai-service"
-import type { SymptomInput, SymptomAnalysisResult } from "@/services/ai-service"
+import { appointmentService } from "@/services/appointment-service"
+import type { SymptomInput, SymptomAnalysisResult } from "@/types/ai-types"
 
 interface SelectedSymptom {
   name: string
@@ -19,9 +19,14 @@ interface SelectedSymptom {
 
 
 const commonSymptoms = [
-  "Headache", "Fever", "Cough", "Sore Throat", "Fatigue", "Nausea",
-  "Body Aches", "Runny Nose", "Shortness of Breath", "Chest Pain",
-  "Dizziness", "Loss of Taste/Smell", "Diarrhea", "Rash", "Joint Pain", "Vomiting"
+  "Fever",
+  "Cough",
+  "Sore Throat",
+  "Shortness of Breath",
+  "Chest Pain",
+  "Headache",
+  "Fatigue",
+  "Nausea",
 ]
 
 const durationOptions = [
@@ -64,6 +69,7 @@ export default function SymptomChecker() {
   // Temporary values while editing in dialog (before confirmation)
   const [tempSeverity, setTempSeverity] = useState<"mild" | "moderate" | "severe">("moderate")
   const [tempDuration, setTempDuration] = useState<SelectedSymptom["duration"]>("1to3days")
+  const [otherSymptomText, setOtherSymptomText] = useState("")
   
   // Analysis state
   const [isAnalyzing, setIsAnalyzing] = useState(false)
@@ -143,8 +149,8 @@ export default function SymptomChecker() {
         duration: s.duration
       }))
 
-      // Call AI service for symptom analysis
-      const response = await analyzeSymptoms(symptomsForAnalysis)
+      // Call backend AI endpoint (persist into AI_RECOMMENDATION)
+      const response = await appointmentService.analyzeSymptomsPersisted(symptomsForAnalysis)
 
       if (response.error) {
         setAnalysisError(response.error)
@@ -169,11 +175,18 @@ export default function SymptomChecker() {
     }
   }
 
+  const handleAddOtherSymptom = () => {
+    const normalized = otherSymptomText.trim()
+    if (!normalized) return
+    openDialog(normalized)
+    setOtherSymptomText("")
+  }
+
   return (
     <PatientLayout>
-      <div className="space-y-8 max-w-6xl">
+      <div className="w-full max-w-none space-y-6 min-h-[calc(100vh-110px)]">
         {/* Header */}
-        <div className="flex items-center justify-between w-full">
+        <div className="flex flex-wrap items-center justify-between gap-3 w-full">
           {/* Header Left */}
           <div>
             <h2 className="text-3xl font-bold text-gray-900">Symptom checker</h2>
@@ -183,7 +196,7 @@ export default function SymptomChecker() {
           </div>
 
           {/* Buttons Right */}
-          <div className="flex gap-4">
+          <div className="flex gap-3">
             <Button
               size="lg"
               onClick={handleAnalyze}
@@ -204,21 +217,21 @@ export default function SymptomChecker() {
         
 
 
-        <div className="grid grid-cols-2 max-w-full gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-12 w-full gap-6 items-start">
         {/* Symptom Grid */}
-          <Card>
+          <Card className="xl:col-span-6">
             <CardHeader>
               <CardTitle>Select Your Symptoms</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                 {commonSymptoms.map((symptom) => {
                   const isSelected = selectedSymptoms.some(s => s.name === symptom)
                   return (
                     <Button
                       key={symptom}
                       variant={isSelected ? "default" : "outline"}
-                      className={`h-12 text-lg font-medium transition-all ${
+                      className={`min-h-[3.25rem] h-auto px-3 py-2 text-sm md:text-base font-medium leading-tight whitespace-normal break-words text-center transition-all ${
                         isSelected 
                           ? "bg-linear-to-br from-[#06b6d4] to-[#0891b2] text-white border-none ring-4 ring-[#06b6d4]/30 shadow-md" 
                           : "hover:border-[#06b6d4] hover:text-[#06b6d4] hover:bg-[#06b6d4]/5"
@@ -230,10 +243,37 @@ export default function SymptomChecker() {
                   )
                 })}
               </div>
+
+              <div className="mt-4 space-y-2">
+                <p className="text-sm font-medium text-slate-700">Other symptom</p>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    value={otherSymptomText}
+                    onChange={(e) => setOtherSymptomText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault()
+                        handleAddOtherSymptom()
+                      }
+                    }}
+                    placeholder="Type your symptom (e.g., loss of appetite)"
+                    className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-10 shrink-0"
+                    onClick={handleAddOtherSymptom}
+                    disabled={!otherSymptomText.trim()}
+                  >
+                    Add Other
+                  </Button>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
-          <div className="space-y-6">
+          <div className="space-y-6 xl:col-span-6">
             {/* Selected Symptoms */}
             <Card className="border-2 border-primary/20">
                 <CardHeader>

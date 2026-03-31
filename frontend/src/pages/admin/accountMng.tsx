@@ -1,70 +1,140 @@
 // src/pages/reception/PatientManagement.tsx
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useLayoutEffect } from "react"
+import { createPortal } from "react-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { UserPlus, Trash2, Save, X, Edit3, CheckCircle, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ArrowUpDown, Search, Calendar } from "lucide-react"
+import { UserPlus, Trash2, Save, X, Edit3, CheckCircle, ArrowUp, ArrowDown, ArrowUpDown, Search, Calendar } from "lucide-react"
 import { AdminLayout } from "@/components/admin-layout"
 import { Checkbox } from "@/components/ui/checkbox"
+import { adminAccountService, type AdminAccountRow } from "@/services/admin-account-service"
+import { cn } from "@/lib/utils"
+import { usePauseableToast, type PauseableToastEntry } from "@/hooks/usePauseableToast"
+
+const ROLE_FILTER_OPTIONS = [
+  { value: "ADM", label: "Admin" },
+  { value: "DOC", label: "Doctor" },
+  { value: "NUR", label: "Nurse" },
+  { value: "PAT", label: "Patient" },
+  { value: "TEC", label: "Technician" },
+]
 
 interface Patient {
+  accountId: number
+  userId: number
+  roleCode: string
+  role: string
   id: string
-  nationalId: string
   name: string
   username: string
   sex: "Male" | "Female" | null
   dob: string
   phone: string
   email: string
-  enabled: boolean  
+  enabled: boolean
+  createdTime: string
+  createdBy: string
 }
 
-// Sample data helper
-const createPatient = (i: number): Patient => ({
-  id: `OP1234568${String(10 + i).padStart(2, "0")}`,
-  nationalId: `OP1234568${String(10 + i).padStart(2, "0")}`,
-  name: i % 2 === 0 ? "Nguyen Van An" : "Tran Thi Be",
-  username: i % 2 === 0 ? "anpv1977" : "betran1985",
-  sex: i % 2 === 0 ? "Male" : "Female",
-  dob: i % 2 === 0 ? "22/12/1977" : "15/03/1985",
-  phone: i % 2 === 0 ? "0123456789" : "0987654321",
-  email: i % 2 === 0 ? "patient@example.com" : "be.tran@gmail.com",
-  enabled: i % 2 === 0 ? true : false,
-})
+const EMPTY_PATIENT_DRAFT: Patient = {
+  accountId: 0,
+  userId: 0,
+  roleCode: "PAT",
+  role: "Patient",
+  id: "",
+  name: "",
+  username: "",
+  sex: null,
+  dob: "",
+  phone: "",
+  email: "",
+  enabled: true,
+  createdTime: "",
+  createdBy: "System",
+}
 
-const initialPatients: Patient[] = [
-  { id: "OP123456789", nationalId: "OP123456789", name: "Nguyen Van An", username: "anpv1977", sex: "Male", dob: "22/12/1977", phone: "0123456789", email: "patient@example.com",enabled: true },
-  { id: "OP123456790", nationalId: "OP123456790", name: "Tran Thi Be", username: "betran1985", sex: "Female", dob: "15/03/1985", phone: "0987654321", email: "be.tran@gmail.com",enabled: false },
-  { id: "OP123456791", nationalId: "OP123456791", name: "Le Van Cuong", username: "cuonglv", sex: "Male", dob: "10/08/1992", phone: "0909090909", email: "cuong.le@outlook.com",enabled: true },
-  { id: "OP123456792", nationalId: "OP123456792", name: "Pham Thi Dung", username: "dungpham", sex: "Female", dob: "05/11/1988", phone: "0912345678", email: "dung.pham@yahoo.com",enabled: false },
-  { id: "OP123456793", nationalId: "OP123456793", name: "Hoang Van Em", username: "emhv1990", sex: "Male", dob: "30/06/1990", phone: "0933333333", email: "em.hoang@gmail.com",enabled: true },
-  ...Array.from({ length: 35 }, (_, i) => createPatient(i)),
-]
+type FormMode = "view" | "add" | "edit"
+
+function mapAccountToPatientRow(a: AdminAccountRow): Patient {
+  const createdByDisplay =
+    a.createdBy === null || a.createdBy === undefined ? "System" : String(a.createdBy)
+
+  return {
+    accountId: a.id,
+    userId: a.userId,
+    roleCode: a.roleCode || "",
+    role: a.role || a.roleCode || "—",
+    id: String(a.userId),
+    name: a.name || "",
+    username: a.username || "",
+    sex: a.sex,
+    dob: a.dob ? String(a.dob).slice(0, 10) : "",
+    phone: a.phone || "",
+    email: a.email || "",
+    enabled: !!a.status,
+    createdTime: a.createdTime ? String(a.createdTime).replace("T", " ").slice(0, 19) : "",
+    createdBy: createdByDisplay,
+  }
+}
 
 export default function UserManagement() {
-  const [patients] = useState<Patient[]>(initialPatients)
+  const { toast, isExiting, showSuccess, showError, onMouseEnter, onMouseLeave } = usePauseableToast()
+  const [patients, setPatients] = useState<Patient[]>([])
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null)
+  const [formMode, setFormMode] = useState<FormMode>("view")
+  const [draftPatient, setDraftPatient] = useState<Patient | null>(null)
+  const [savingAccount, setSavingAccount] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)  // 
 
   const [filters, setFilters] = useState({
-    nationalId: "",
+    userId: "",
     name: "",
     username: "",
+    roleCode: "",
     sex: "",
     dob: "",
     phone: "",
     email: "",
   })
 
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await adminAccountService.getAccounts()
+        if (cancelled) return
+        const rows = (res.accounts || []).map(mapAccountToPatientRow)
+        setPatients(rows)
+        setSelectedPatient((prev) => {
+          if (!prev) return rows[0] || null
+          return rows.find((x) => x.accountId === prev.accountId) || rows[0] || null
+        })
+      } catch (e) {
+        console.error("Load accounts failed:", e)
+        showError(e instanceof Error ? e.message : "Failed to load accounts")
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [showError])
+
+  useEffect(() => {
+    if (formMode === "view") {
+      setDraftPatient(selectedPatient ? { ...selectedPatient } : null)
+    }
+  }, [selectedPatient, formMode])
+
   const filteredPatients = useMemo(() => {
     return patients.filter((p) =>
-      p.nationalId.toLowerCase().includes(filters.nationalId.toLowerCase()) &&
+      String(p.userId).includes(filters.userId.trim()) &&
       p.name.toLowerCase().includes(filters.name.toLowerCase()) &&
       p.username.toLowerCase().includes(filters.username.toLowerCase()) &&
+      (filters.roleCode === "" || p.roleCode === filters.roleCode) &&
       (filters.sex === "" || p.sex === filters.sex) &&
       p.dob.includes(filters.dob) &&
       p.phone.includes(filters.phone) &&
@@ -79,14 +149,15 @@ export default function UserManagement() {
   const startItem = (currentPage - 1) * pageSize + 1
   const endItem = Math.min(currentPage * pageSize, filteredPatients.length)
 
-  type ColumnKey = keyof Patient | "no"
+  type ColumnKey = "no" | "role" | "userId" | "name" | "username" | "sex" | "dob" | "phone" | "email"
 
   const columns: {
     key: ColumnKey
     label: string
   }[] = [
     { key: "no", label: "No." },
-    { key: "nationalId", label: "National ID" },
+    { key: "role", label: "Role" },
+    { key: "userId", label: "User ID" },
     { key: "name", label: "Name" },
     { key: "username", label: "Username" },
     { key: "sex", label: "Sex" },
@@ -100,6 +171,18 @@ export default function UserManagement() {
   const [visibleColumns, setVisibleColumns] = useState<ColumnKey[]>(allColumns)
 
   type SortKey = keyof Patient | "no"
+
+  const columnWidthClass: Record<ColumnKey, string> = {
+    no: "w-[56px] min-w-[56px]",
+    role: "w-[96px] min-w-[96px]",
+    userId: "w-[92px] min-w-[92px]",
+    name: "w-[210px] min-w-[210px]",
+    username: "w-[130px] min-w-[130px]",
+    sex: "w-[90px] min-w-[90px]",
+    dob: "w-[120px] min-w-[120px]",
+    phone: "w-[130px] min-w-[130px]",
+    email: "w-[170px] min-w-[170px]",
+  }
 
   const [sortConfig, setSortConfig] = useState<{
     key: SortKey
@@ -180,14 +263,14 @@ export default function UserManagement() {
       case "no":
         return null
 
-      case "nationalId":
+      case "userId":
         return (
           <div className="relative">
             <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <Input
-              value={filters.nationalId}
+              value={filters.userId}
               onChange={e =>
-                setFilters(f => ({ ...f, nationalId: e.target.value }))
+                setFilters(f => ({ ...f, userId: e.target.value }))
               }
               className="h-8 text-xs pr-8"
             />
@@ -220,6 +303,28 @@ export default function UserManagement() {
               className="h-8 text-xs pr-8"
             />
           </div>
+        )
+
+      case "role":
+        return (
+          <Select
+            value={filters.roleCode || "ALL"}
+            onValueChange={v =>
+              setFilters(f => ({ ...f, roleCode: v === "ALL" ? "" : v }))
+            }
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="All roles" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">All roles</SelectItem>
+              {ROLE_FILTER_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         )
 
       case "sex":
@@ -288,61 +393,172 @@ export default function UserManagement() {
     }
   }
 
+  const isEditing = formMode === "add" || formMode === "edit"
+  const activePatient = isEditing ? draftPatient : selectedPatient
+  const canAdd = formMode === "view"
+  const canEdit = formMode === "view" && !!selectedPatient
+  const canEditFields = isEditing
+  const canSaveOrClearOrCancel = isEditing && !savingAccount
 
+  const updateDraftField = <K extends keyof Patient>(key: K, value: Patient[K]) => {
+    setDraftPatient((prev) => (prev ? { ...prev, [key]: value } : prev))
+  }
+
+  const startAdd = () => {
+    if (!canAdd) return
+    setFormMode("add")
+    setDraftPatient({ ...EMPTY_PATIENT_DRAFT })
+  }
+
+  const startEdit = () => {
+    if (!selectedPatient || !canEdit) return
+    setFormMode("edit")
+    setDraftPatient({ ...selectedPatient })
+  }
+
+  const handleClear = () => {
+    if (!canSaveOrClearOrCancel) return
+    if (formMode === "add") {
+      setDraftPatient({ ...EMPTY_PATIENT_DRAFT })
+      return
+    }
+    setDraftPatient(selectedPatient ? { ...selectedPatient } : null)
+  }
+
+  const handleCancel = () => {
+    if (!canSaveOrClearOrCancel) return
+    setFormMode("view")
+    setDraftPatient(selectedPatient ? { ...selectedPatient } : null)
+  }
+
+  const handleSave = async () => {
+    if (!draftPatient || !canSaveOrClearOrCancel) return
+    setSavingAccount(true)
+    try {
+      const payload = {
+        username: draftPatient.username.trim(),
+        roleCode: (draftPatient.roleCode || "PAT") as "ADM" | "PAT" | "DOC" | "NUR" | "TEC",
+        name: draftPatient.name.trim(),
+        sex: draftPatient.sex,
+        dob: draftPatient.dob,
+        phone: draftPatient.phone.trim(),
+        email: draftPatient.email.trim(),
+        enabled: !!draftPatient.enabled,
+      }
+
+      const result =
+        formMode === "add"
+          ? await adminAccountService.createAccount(payload)
+          : await adminAccountService.updateAccount(draftPatient.accountId, payload)
+
+      const savedRow = mapAccountToPatientRow(result.account)
+      if (formMode === "add") {
+        setPatients((prev) => [savedRow, ...prev])
+      } else {
+        setPatients((prev) =>
+          prev.map((x) => (x.accountId === savedRow.accountId ? savedRow : x))
+        )
+      }
+      setSelectedPatient(savedRow)
+      setDraftPatient({ ...savedRow })
+      setFormMode("view")
+      showSuccess(formMode === "add" ? "Account created successfully" : "Account updated successfully")
+    } catch (e) {
+      console.error("Save account failed:", e)
+      showError(e instanceof Error ? e.message : "Failed to save account")
+    } finally {
+      setSavingAccount(false)
+    }
+  }
+
+  const pauseableToast =
+    toast &&
+    typeof document !== "undefined" &&
+    createPortal(
+      <AdminPageToast
+        toast={toast}
+        isExiting={isExiting}
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
+      />,
+      document.body
+    )
 
   return (
+  <>
   <AdminLayout>
-    <div className="max-w-7xl space-y-1">
+    <div className="w-full max-w-none space-y-2">
         {/* Header */}
-        <div className="flex justify-between items-center">
-          <div className="p-4">
-            <div className="flex flex-wrap gap-4">
-              <div className="flex flex-wrap gap-2">
-                <Checkbox
-                  label="Show All"
-                  checked={visibleColumns.length === allColumns.length}
-                  onChange={(checked) => {
-                    if (checked) {
-                      setVisibleColumns(allColumns)
-                    }
-                  }}
-                />
+        <div className="flex flex-wrap items-center justify-between gap-3 p-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Checkbox
+              label="Show All"
+              checked={visibleColumns.length === allColumns.length}
+              onChange={(checked) => {
+                if (checked) {
+                  setVisibleColumns(allColumns)
+                }
+              }}
+            />
 
-                {columns
-                  .filter(col => col.key !== "no")
-                  .map(col => (
-                    <Checkbox
-                      key={col.key}
-                      label={col.label}
-                      checked={visibleColumns.includes(col.key)}
-                      onChange={(checked) =>
-                        setVisibleColumns(prev =>
-                          checked
-                            ? [...prev, col.key]
-                            : prev.filter(k => k !== col.key)
-                        )
-                      }
-                    />
-                  ))}
-              </div>
-            </div>
+            {columns
+              .filter(col => col.key !== "no")
+              .map(col => (
+                <Checkbox
+                  key={col.key}
+                  label={col.label}
+                  checked={visibleColumns.includes(col.key)}
+                  onChange={(checked) =>
+                    setVisibleColumns(prev =>
+                      checked
+                        ? [...prev, col.key]
+                        : prev.filter(k => k !== col.key)
+                    )
+                  }
+                />
+              ))}
           </div>
-          <div className="flex gap-3">
-            <Button className="btn-gradient transition-transform duration-500 text-xl px-7 py-4">
-              <UserPlus className="w-5 h-5 mr-2" /> Add New Account
+
+          <div className="flex flex-wrap items-center justify-end gap-2 ml-auto">
+            <Button
+              className="btn-gradient transition-transform duration-500 text-sm px-4 h-9"
+              disabled={!canAdd}
+              onClick={startAdd}
+            >
+              <UserPlus className="w-4 h-4 mr-2" /> Add New Account
             </Button>
-            <Button className="btn-outline transition-transform duration-500 text-xl px-7 py-4"><Trash2 className="w-5 h-5 mr-2" /> Clear</Button>
-            <Button className="btn-gradient transition-transform duration-500 text-xl px-7 py-4"><Save className="w-5 h-5 mr-2" /> Save</Button>
-            <Button className="btn-gradient transition-transform duration-500 text-xl px-7 py-4"><X className="w-5 h-5 mr-2" /> Cancel</Button>
+            <Button
+              size="sm"
+              className="btn-gradient transition-transform duration-500 text-sm px-4 h-9"
+              disabled={!canEdit}
+              onClick={startEdit}
+            >
+              <Edit3 className="w-4 h-4 mr-2" /> Edit
+            </Button>
+            <Button
+              className="btn-outline transition-transform duration-500 text-sm px-4 h-9"
+              disabled={!canSaveOrClearOrCancel}
+              onClick={handleClear}
+            ><Trash2 className="w-4 h-4 mr-2" /> Clear</Button>
+            <Button
+              className="btn-gradient transition-transform duration-500 text-sm px-4 h-9"
+              disabled={!canSaveOrClearOrCancel}
+              onClick={() => void handleSave()}
+            ><Save className="w-4 h-4 mr-2" /> Save</Button>
+            <Button
+              className="btn-gradient transition-transform duration-500 text-sm px-4 h-9"
+              disabled={!canSaveOrClearOrCancel}
+              onClick={handleCancel}
+            ><X className="w-4 h-4 mr-2" /> Cancel</Button>
           </div>
         </div>
 
         {/* 2-column grid */}
-        <div className="grid lg:grid-cols-2 gap-6">
-          <Card className="flex flex-col h-[560px]">
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+          <Card className="flex flex-col h-[calc(100vh-120px)] min-h-[620px] xl:col-span-6">
             <CardContent className="flex-1 p-0 overflow-hidden">
               <div className="h-full overflow-y-auto">
-                <Table className="table-fixed w-max">
+                <Table className="table-fixed w-full min-w-[980px]">
                   {/* Fixed header */}
                   <TableHeader
                     className="sticky top-0 z-20 text-white"
@@ -356,7 +572,7 @@ export default function UserManagement() {
                           <TableHead
                             key={col.key}
                             onClick={() => handleSort(col.key)}
-                            className="cursor-pointer select-none whitespace-nowrap text-white transition"
+                            className={`cursor-pointer select-none whitespace-nowrap text-white transition ${columnWidthClass[col.key]}`}
                           >
                             {col.label}
                             <SortIcon column={col.key} />
@@ -367,7 +583,7 @@ export default function UserManagement() {
                     <TableRow className="border-b hover:bg-white transition-colors">
                       {columns.map(col =>
                         visibleColumns.includes(col.key) ? (
-                          <TableHead key={col.key} className="px-2 py-2">
+                          <TableHead key={col.key} className={`px-2 py-2 ${columnWidthClass[col.key]}`}>
                             {renderFilterCell(col.key)}
                           </TableHead>
                         ) : null
@@ -378,39 +594,48 @@ export default function UserManagement() {
                   <TableBody>
                     {paginatedPatients.map((patient, idx) => (
                       <TableRow key={patient.id} 
-                        onClick={() => setSelectedPatient(patient)} 
+                        onClick={() => {
+                          if (isEditing) return
+                          setSelectedPatient(patient)
+                        }} 
                         className={`cursor-pointer hover:bg-gray-100 ${
                           selectedPatient?.id === patient.id ? "bg-cyan-50" : ""
                         }`}
                       > 
-                        <TableCell>{startItem + idx}</TableCell>
+                        <TableCell className={columnWidthClass.no}>{startItem + idx}</TableCell>
 
-                        {visibleColumns.includes("nationalId") && (
-                          <TableCell>{patient.nationalId}</TableCell>
+                        {visibleColumns.includes("role") && (
+                          <TableCell className={columnWidthClass.role}>{patient.role}</TableCell>
+                        )}
+
+                        {visibleColumns.includes("userId") && (
+                          <TableCell className={columnWidthClass.userId}>{patient.userId}</TableCell>
                         )}
 
                         {visibleColumns.includes("name") && (
-                          <TableCell className="font-medium">{patient.name}</TableCell>
+                          <TableCell className={`${columnWidthClass.name} font-medium whitespace-nowrap overflow-hidden text-ellipsis`}>
+                            {patient.name}
+                          </TableCell>
                         )}
 
                         {visibleColumns.includes("username") && (
-                          <TableCell>{patient.username}</TableCell>
+                          <TableCell className={columnWidthClass.username}>{patient.username}</TableCell>
                         )}
 
                         {visibleColumns.includes("sex") && (
-                          <TableCell>{patient.sex}</TableCell>
+                          <TableCell className={columnWidthClass.sex}>{patient.sex}</TableCell>
                         )}
 
                         {visibleColumns.includes("dob") && (
-                          <TableCell>{patient.dob}</TableCell>
+                          <TableCell className={columnWidthClass.dob}>{patient.dob}</TableCell>
                         )}
 
                         {visibleColumns.includes("phone") && (
-                          <TableCell>{patient.phone}</TableCell>
+                          <TableCell className={columnWidthClass.phone}>{patient.phone}</TableCell>
                         )}
 
                         {visibleColumns.includes("email") && (
-                          <TableCell className="truncate max-w-xs">
+                          <TableCell className={`${columnWidthClass.email} truncate max-w-xs`}>
                             {patient.email}
                           </TableCell>
                         )}
@@ -497,110 +722,88 @@ export default function UserManagement() {
                 </div>
               </div>
 
-              {/* Pagination */}
-              <div className="flex flex-wrap items-center justify-start gap-4 px-6 py-4 bg-gray-50 border-t text-sm">
-                <div className="text-gray-700">
-                  Showing {startItem} - {endItem} of {filteredPatients.length} patients
-                </div>
-                <div className="flex gap-1">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    const page = currentPage <= 3 ? i + 1 : currentPage > totalPages - 3 ? totalPages - 4 + i : currentPage - 2 + i
-                    if (page < 1 || page > totalPages) return null
-                    return (
-                      <Button
-                        key={page}
-                        variant={currentPage === page ? "default" : "outline"}
-                        size="sm"
-                        className={currentPage === page ? "bg-[#06b6d4] hover:bg-[#0891b2]" : ""}
-                        onClick={() => setCurrentPage(page)}
-                      >
-                        {page}
-                      </Button>
-                    )
-                  })}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
             </CardContent>
           </Card>
           {/* Patient details (only when selected) */}
-          {selectedPatient ? (
-            <Card>
+          {activePatient ? (
+            <Card className="h-[calc(100vh-120px)] min-h-[620px] overflow-y-auto xl:col-span-6">
               <CardHeader>
-                <div className="flex justify-between items-center">
+                <div className="flex justify-between items-center gap-3">
                   <CardTitle className="flex items-center gap-3">
                     <UserPlus className="w-6 h-6 text-gray-700" />
                     Account Information
                   </CardTitle>
-                  <div className="flex gap-3 items-center">
-                    <Button size="sm" className="btn-gradient transition-transform duration-500 text-xl px-7 py-4">
-                      <Edit3 className="w-4 h-4 mr-2" /> Edit
-                    </Button>
-
-                    {/* TOGGLE ENABLE/DISABLE */}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className={`relative w-30 overflow-hidden font-medium transition-all duration-200 border
-                        ${selectedPatient?.enabled
-                          ? "bg-[#E9FFE9] hover:bg-[#388E3C] text-[#388E3C]"
-                          : "bg-[#FFEBEB] hover:bg-[#D32F2F] text-[#D32F2F]"
-                        }`}
-                      onClick={() => {
-                        if (selectedPatient) {
-                          setSelectedPatient({ ...selectedPatient, enabled: !selectedPatient.enabled })
-                        }
-                      }}
-                    >
-                      {/* Gray overlay on hover */}
-                      <span className="absolute inset-0 bg-black opacity-0 hover:opacity-30 transition-opacity" />
-
-                      {/* Icon and text always visible on hover */}
-                      <CheckCircle className="w-4 h-4 mr-2 transition-colors duration-200 group-hover:text-white" />
-                      <span className="relative z-10 transition-colors duration-200 group-hover:text-white">
-                        {selectedPatient?.enabled ? "Enabled" : "Disabled"}
-                      </span>
-                    </Button>
-                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!isEditing || savingAccount}
+                    className={`relative w-30 overflow-hidden font-medium transition-all duration-200 border h-9
+                      ${activePatient?.enabled
+                        ? "bg-[#E9FFE9] hover:bg-[#388E3C] text-[#388E3C]"
+                        : "bg-[#FFEBEB] hover:bg-[#D32F2F] text-[#D32F2F]"
+                      }`}
+                    onClick={() => {
+                      if (!activePatient || !isEditing || savingAccount) return
+                      const next = !activePatient.enabled
+                      updateDraftField("enabled", next)
+                    }}
+                  >
+                    <CheckCircle className="w-4 h-4 mr-2 transition-colors duration-200 group-hover:text-white" />
+                    <span className="relative z-10 transition-colors duration-200 group-hover:text-white">
+                      {activePatient?.enabled ? "Enabled" : "Disabled"}
+                    </span>
+                  </Button>
                 </div>
               </CardHeader>
 
               <CardContent className="space-y-5">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">User ID</label>
-                    <Input value={selectedPatient.id} disabled className="bg-gray-50" />
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
+                    <Input
+                      value={activePatient.name}
+                      disabled={!canEditFields}
+                      className="bg-gray-50"
+                      onChange={(e) => updateDraftField("name", e.target.value)}
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
-                    <Input value="Patient" disabled className="bg-gray-50" />
+                    {canEditFields ? (
+                      <Select
+                        value={activePatient.roleCode || "PAT"}
+                        onValueChange={(v) => {
+                          const selected = ROLE_FILTER_OPTIONS.find((x) => x.value === v)
+                          updateDraftField("roleCode", v)
+                          updateDraftField("role", selected?.label || v)
+                        }}
+                      >
+                        <SelectTrigger className="bg-gray-50">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ROLE_FILTER_OPTIONS.map((opt) => (
+                            <SelectItem key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input value={activePatient.role} disabled className="bg-gray-50" />
+                    )}
                   </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
-                  <Input value={selectedPatient.name} disabled className="bg-gray-50" />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Username</label>
-                    <Input value={selectedPatient.username} disabled className="bg-gray-50" />
+                    <Input
+                      value={activePatient.username}
+                      disabled={!canEditFields}
+                      className="bg-gray-50"
+                      onChange={(e) => updateDraftField("username", e.target.value)}
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
@@ -611,36 +814,88 @@ export default function UserManagement() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Sex</label>
-                    <Input value={selectedPatient.sex || ""} disabled className="bg-gray-50" />
+                    {canEditFields ? (
+                      <Select
+                        value={activePatient.sex || "UNKNOWN"}
+                        onValueChange={(v) =>
+                          updateDraftField("sex", v === "UNKNOWN" ? null : (v as "Male" | "Female"))
+                        }
+                      >
+                        <SelectTrigger className="bg-gray-50">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="UNKNOWN">Unknown</SelectItem>
+                          <SelectItem value="Male">Male</SelectItem>
+                          <SelectItem value="Female">Female</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input value={activePatient.sex || ""} disabled className="bg-gray-50" />
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Date of Birth</label>
-                    <Input value={selectedPatient.dob} disabled className="bg-gray-50" />
+                    <Input
+                      value={activePatient.dob}
+                      disabled={!canEditFields}
+                      className="bg-gray-50"
+                      onChange={(e) => updateDraftField("dob", e.target.value)}
+                    />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
-                    <Input value={selectedPatient.phone} disabled className="bg-gray-50" />
+                    <Input
+                      value={activePatient.phone}
+                      disabled={!canEditFields}
+                      className="bg-gray-50"
+                      onChange={(e) => updateDraftField("phone", e.target.value)}
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                    <Input value={selectedPatient.email} disabled className="bg-gray-50" />
+                    <Input
+                      value={activePatient.email}
+                      disabled={!canEditFields}
+                      className="bg-gray-50"
+                      onChange={(e) => updateDraftField("email", e.target.value)}
+                    />
                   </div>
                 </div>
 
                 {/* Trß║íng th├íi t├ái khoß║ún */}
-                <div className="pt-4 border-t">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-700">Account Status</span>
-                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                      selectedPatient.enabled 
-                        ? "bg-green-100 text-[#388E3C]" 
-                        : "bg-red-100 text-[#D32F2F]"
-                    }`}>
-                      {selectedPatient.enabled ? "Active" : "Inactive"}
-                    </span>
+                <div className="rounded-lg border-2 border-cyan-200 bg-gradient-to-br from-cyan-50 via-sky-50 to-indigo-50 p-4 space-y-3 shadow-sm">
+                  <div className="text-sm font-semibold text-cyan-800">Audit Information</div>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <div className="text-cyan-700">Account ID</div>
+                      <div className="font-semibold text-slate-900">{activePatient.accountId || "—"}</div>
+                    </div>
+                    <div>
+                      <div className="text-cyan-700">User ID</div>
+                      <div className="font-semibold text-slate-900">{activePatient.userId || "—"}</div>
+                    </div>
+                    <div>
+                      <div className="text-cyan-700">Created Time</div>
+                      <div className="font-semibold text-slate-900">{activePatient.createdTime || "—"}</div>
+                    </div>
+                    <div>
+                      <div className="text-cyan-700">Created By</div>
+                      <div className="font-semibold text-slate-900">{activePatient.createdBy || "—"}</div>
+                    </div>
+                    <div>
+                      <div className="text-cyan-700">Current Mode</div>
+                      <div className="font-semibold text-slate-900 uppercase">{formMode}</div>
+                    </div>
+                    <div>
+                      <div className="text-cyan-700">Status</div>
+                      <div className={`font-semibold ${activePatient.enabled ? "text-emerald-700" : "text-rose-700"}`}>
+                        {activePatient.enabled ? "Enabled" : "Disabled"}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -649,5 +904,48 @@ export default function UserManagement() {
         </div>
     </div>
   </AdminLayout>
+  {pauseableToast}
+  </>
+  )
+}
+
+function AdminPageToast({
+  toast,
+  isExiting,
+  onMouseEnter,
+  onMouseLeave,
+}: {
+  toast: PauseableToastEntry
+  isExiting: boolean
+  onMouseEnter: () => void
+  onMouseLeave: () => void
+}) {
+  const [entered, setEntered] = useState(false)
+
+  useLayoutEffect(() => {
+    setEntered(false)
+    const id = requestAnimationFrame(() => {
+      requestAnimationFrame(() => setEntered(true))
+    })
+    return () => cancelAnimationFrame(id)
+  }, [toast.id])
+
+  const visible = entered && !isExiting
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className={cn(
+        "pointer-events-auto fixed bottom-6 left-6 z-[100] max-w-md rounded-lg border px-4 py-3 text-sm shadow-lg transition-opacity duration-300 ease-out",
+        visible ? "opacity-100" : "opacity-0",
+        toast.variant === "success" && "bg-[#34A853] text-white",
+        toast.variant === "error" && "bg-[#EA4335] text-white"
+      )}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+    >
+      {toast.message}
+    </div>
   )
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -16,13 +16,18 @@ import {
   CheckCircle,
 } from "lucide-react"
 import { PatientLayout } from "@/components/patient-layout"
+import {
+  appointmentService,
+  type PatientAiRecommendation,
+  type PatientFeedback,
+} from "@/services/appointment-service"
 
 type FeedbackCategory = "ai-chatbot" | "ai-schedule" | "ai-recovery" | "general"
 type FeedbackRating = 1 | 2 | 3 | 4 | 5
 
 interface AIRecommendation {
-  id: string
-  type: "appointment" | "chatbot" | "recovery"
+  id: number
+  type: "chatbot" | "symptomchecker" | "other"
   title: string
   description: string
   suggestion: string
@@ -31,57 +36,136 @@ interface AIRecommendation {
   userResponse?: "accepted" | "rejected" | "pending"
 }
 
+function toDisplayTimestamp(raw: string | null) {
+  if (!raw) return "—"
+  try {
+    const d = new Date(raw)
+    if (Number.isNaN(d.getTime())) return String(raw)
+    return d.toLocaleString("en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    })
+  } catch {
+    return String(raw)
+  }
+}
+
+function mapDbRecommendationToUi(row: PatientAiRecommendation): AIRecommendation {
+  const normalizedFeedback = String(row.feedback || "").toLowerCase()
+  const userResponse =
+    normalizedFeedback === "accepted"
+      ? "accepted"
+      : normalizedFeedback === "rejected"
+        ? "rejected"
+        : "pending"
+
+  return {
+    id: row.id,
+    type: row.type === "chatbot" || row.type === "symptomchecker" ? row.type : "other",
+    title:
+      row.type === "chatbot"
+        ? "Chatbot Recommendation"
+        : row.type === "symptomchecker"
+          ? "Symptom Checker Recommendation"
+          : "AI Recommendation",
+    description: `${row.modelProvider || "AI"} • ${row.modelName || "Model"}`,
+    suggestion: row.content,
+    confidence: 90,
+    timestamp: toDisplayTimestamp(row.time),
+    userResponse,
+  }
+}
+
 export default function FeedbackPage() {
   const [activeTab, setActiveTab] = useState<"feedback" | "ai-suggestions">("feedback")
   const [selectedCategory, setSelectedCategory] = useState<FeedbackCategory>("general")
   const [feedbackText, setFeedbackText] = useState("")
   const [feedbackRating, setFeedbackRating] = useState<FeedbackRating | null>(null)
   const [submitted, setSubmitted] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [loadingHistory, setLoadingHistory] = useState(true)
+  const [feedbackHistory, setFeedbackHistory] = useState<PatientFeedback[]>([])
+  const [loadingRecommendations, setLoadingRecommendations] = useState(true)
+  const [aiRecommendations, setAiRecommendations] = useState<AIRecommendation[]>([])
 
-  const [aiRecommendations] = useState<AIRecommendation[]>([
-    {
-      id: "1",
-      type: "appointment",
-      title: "Optimal Appointment Slot",
-      description: "Based on your availability and doctor schedule",
-      suggestion: "Tuesday, 10:30 AM with Dr. Sarah Johnson - Cardiology",
-      confidence: 92,
-      timestamp: "Today at 2:45 PM",
-      userResponse: "pending",
-    },
-    {
-      id: "2",
-      type: "chatbot",
-      title: "Chatbot Response Quality",
-      description: "About your medication questions",
-      suggestion: "The AI chatbot answered your question about Amoxicillin dosage correctly",
-      confidence: 88,
-      timestamp: "Yesterday at 3:20 PM",
-      userResponse: "accepted",
-    },
-    {
-      id: "3",
-      type: "recovery",
-      title: "Recovery Progress Prediction",
-      description: "Estimated recovery timeline for your condition",
-      suggestion: "Based on current treatment, expect full recovery in 5-7 days",
-      confidence: 85,
-      timestamp: "2 days ago",
-      userResponse: "pending",
-    },
-  ])
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      setLoadingHistory(true)
+      try {
+        const rows = await appointmentService.getFeedbacks()
+        if (cancelled) return
+        setFeedbackHistory(rows)
+      } catch (e) {
+        console.error("Load feedback history failed:", e)
+      } finally {
+        if (!cancelled) setLoadingHistory(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
-  const handleSubmitFeedback = () => {
-    console.log("Feedback submitted:", { category: selectedCategory, rating: feedbackRating, text: feedbackText })
-    setSubmitted(true)
-    setFeedbackText("")
-    setFeedbackRating(null)
-    setTimeout(() => setSubmitted(false), 3000)
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      setLoadingRecommendations(true)
+      try {
+        const rows = await appointmentService.getAiRecommendations()
+        if (cancelled) return
+        const mapped = rows.map((r) => mapDbRecommendationToUi(r))
+        setAiRecommendations(mapped)
+      } catch (e) {
+        console.error("Load AI recommendations failed:", e)
+      } finally {
+        if (!cancelled) setLoadingRecommendations(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const handleSubmitFeedback = async () => {
+    if (!feedbackRating || !feedbackText.trim()) return
+    setSubmitting(true)
+    try {
+      const created = await appointmentService.createFeedback({
+        type: selectedCategory,
+        rating: feedbackRating,
+        content: feedbackText.trim(),
+      })
+      setFeedbackHistory((prev) => [created, ...prev])
+      setSubmitted(true)
+      setFeedbackText("")
+      setFeedbackRating(null)
+      window.setTimeout(() => setSubmitted(false), 3000)
+    } catch (e) {
+      console.error("Submit feedback failed:", e)
+    } finally {
+      setSubmitting(false)
+    }
   }
 
-  const handleAIResponse = (id: string, response: "accepted" | "rejected") => {
-    console.log(`AI recommendation ${id} ${response}`)
+  const handleAIResponse = async (id: number, response: "accepted" | "rejected") => {
+    try {
+      await appointmentService.updateAiRecommendationFeedback(id, response)
+      setAiRecommendations((prev) =>
+        prev.map((item) => (item.id === id ? { ...item, userResponse: response } : item))
+      )
+    } catch (e) {
+      console.error("Update AI recommendation feedback failed:", e)
+    }
   }
+
+  const latestVisibleFeedback = useMemo(
+    () => feedbackHistory.filter((x) => (x.status || "").toLowerCase() !== "hidden").slice(0, 5),
+    [feedbackHistory]
+  )
 
   return (
     <PatientLayout>
@@ -133,7 +217,7 @@ export default function FeedbackPage() {
                   {[
                     { value: "general" as FeedbackCategory, label: "General Experience", icon: MessageSquare },
                     { value: "ai-chatbot" as FeedbackCategory, label: "AI Chatbot", icon: MessageSquare },
-                    { value: "ai-schedule" as FeedbackCategory, label: "Appointment Suggestions", icon: Calendar },
+                    { value: "ai-schedule" as FeedbackCategory, label: "Symptom Checker", icon: Calendar },
                     { value: "ai-recovery" as FeedbackCategory, label: "Recovery Predictions", icon: TrendingUp },
                   ].map((cat) => {
                     const Icon = cat.icon
@@ -217,12 +301,12 @@ export default function FeedbackPage() {
                   className="min-h-40 resize-none custom-input"
                 />
                 <Button 
-                  onClick={handleSubmitFeedback} 
+                  onClick={() => void handleSubmitFeedback()} 
                   className="w-full btn-gradient h-12 text-base"
-                  disabled={!feedbackRating}
+                  disabled={!feedbackRating || !feedbackText.trim() || submitting}
                 >
                   <Send className="h-5 w-5 mr-2" />
-                  Submit Feedback
+                  {submitting ? "Submitting..." : "Submit Feedback"}
                 </Button>
                 {submitted && (
                   <div className="p-4 bg-linear-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl flex items-center gap-3">
@@ -234,13 +318,50 @@ export default function FeedbackPage() {
                 )}
               </CardContent>
             </Card>
+
+            <Card className="card-feature border-slate-200/60">
+              <CardHeader className="bg-linear-to-r from-indigo-50/50 to-transparent">
+                <CardTitle className="text-slate-900">Your Recent Feedback</CardTitle>
+                <CardDescription>Latest records from FEEDBACK table</CardDescription>
+              </CardHeader>
+              <CardContent className="pt-6">
+                {loadingHistory ? (
+                  <p className="text-sm text-slate-500">Loading feedback history...</p>
+                ) : latestVisibleFeedback.length === 0 ? (
+                  <p className="text-sm text-slate-500">No feedback submitted yet.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {latestVisibleFeedback.map((item) => (
+                      <div key={item.id} className="rounded-lg border border-slate-200 bg-white p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-cyan-700">
+                            {item.type}
+                          </span>
+                          <span className="text-xs text-slate-500">
+                            {item.time ? String(item.time).replace("T", " ").slice(0, 16) : "—"}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-sm text-slate-700">{item.content}</p>
+                        <p className="mt-2 text-xs text-amber-600 font-semibold">Rating: {item.rating}/5</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
         )}
 
         {/* AI Suggestions Tab */}
         {activeTab === "ai-suggestions" && (
           <div className="space-y-4">
-            {aiRecommendations.length === 0 ? (
+            {loadingRecommendations ? (
+              <Card className="card-feature">
+                <CardContent className="pt-12 pb-12 text-center">
+                  <p className="text-slate-500 text-lg">Loading AI suggestions...</p>
+                </CardContent>
+              </Card>
+            ) : aiRecommendations.length === 0 ? (
               <Card className="card-feature">
                 <CardContent className="pt-12 pb-12 text-center">
                   <Sparkles className="h-16 w-16 text-slate-300 mx-auto mb-4" />
@@ -255,13 +376,13 @@ export default function FeedbackPage() {
                       <div className="flex items-start gap-4 flex-1">
                         <div className="icon-feature-card">
                           <div className={`flex h-14 w-14 items-center justify-center rounded-xl ${
-                            rec.type === "appointment" ? "bg-linear-to-br from-blue-500 to-blue-600" :
-                            rec.type === "chatbot" ? "bg-linear-to-br from-purple-500 to-purple-600" :
-                            "bg-linear-to-br from-green-500 to-green-600"
+                            rec.type === "chatbot"
+                              ? "bg-linear-to-br from-purple-500 to-purple-600"
+                              : "bg-linear-to-br from-green-500 to-green-600"
                           }`}>
-                            {rec.type === "appointment" && <Calendar className="h-7 w-7 text-white" />}
                             {rec.type === "chatbot" && <MessageSquare className="h-7 w-7 text-white" />}
-                            {rec.type === "recovery" && <TrendingUp className="h-7 w-7 text-white" />}
+                            {rec.type === "symptomchecker" && <TrendingUp className="h-7 w-7 text-white" />}
+                            {rec.type === "other" && <Sparkles className="h-7 w-7 text-white" />}
                           </div>
                         </div>
                         <div className="flex-1">
@@ -272,7 +393,7 @@ export default function FeedbackPage() {
                       </div>
                       <div className="shrink-0">
                         <div className="inline-flex items-center px-4 py-2 bg-linear-to-r from-cyan-500 to-blue-500 text-white rounded-full text-sm font-bold shadow-md">
-                          {rec.confidence}% confidence
+                          {rec.confidence}% relevance
                         </div>
                       </div>
                     </div>
@@ -291,7 +412,7 @@ export default function FeedbackPage() {
                         <Button
                           variant="outline"
                           className="flex-1 btn-outline border-green-300 text-green-700 hover:bg-green-50"
-                          onClick={() => handleAIResponse(rec.id, "accepted")}
+                          onClick={() => void handleAIResponse(rec.id, "accepted")}
                         >
                           <ThumbsUp className="h-4 w-4 mr-2" />
                           Accept Suggestion
@@ -299,7 +420,7 @@ export default function FeedbackPage() {
                         <Button
                           variant="outline"
                           className="flex-1 border-red-300 text-red-700 hover:bg-red-50"
-                          onClick={() => handleAIResponse(rec.id, "rejected")}
+                          onClick={() => void handleAIResponse(rec.id, "rejected")}
                         >
                           <ThumbsDown className="h-4 w-4 mr-2" />
                           Decline

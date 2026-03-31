@@ -149,7 +149,6 @@
   }
 
   .btn-gradient:hover {
-    transform: translateY(-3px); /* bay lên */
     background-size: 400% 400%;
 
     box-shadow:
@@ -240,8 +239,6 @@ nav a:not(.sidebar):hover .nav-text::after {
       color:#ffffff !important;
       background-size: 400% 400%;
       animation: gradientShift 2.5s ease infinite;
-
-      transform: translateY(-4px);
 
       transition:
         all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);

@@ -2,6 +2,8 @@ const { QueryTypes } = require('sequelize');
 const sequelize = require('../common/database');
 
 const normalizeDoctorInput = (value) => String(value || '').replace(/^Dr\.\s*/i, '').trim();
+const MEDAI_CHAT_ENDPOINT = process.env.MEDAI_CHAT_ENDPOINT || 'http://localhost:3000/api/ai/chat';
+const MEDAI_SYMPTOM_ENDPOINT = process.env.MEDAI_SYMPTOM_ENDPOINT || 'http://localhost:8000/api/analyze_symptoms';
 
 async function getPatientIdByUserId(userId) {
   const rows = await sequelize.query(
@@ -10,6 +12,369 @@ async function getPatientIdByUserId(userId) {
   );
   return rows[0]?.patient_id || null;
 }
+
+async function getActiveAiModel() {
+  const [active] = await sequelize.query(
+    `SELECT id, name, provider
+     FROM AI_MODEL
+     WHERE status = 'active'
+     ORDER BY release_date DESC, id DESC
+     LIMIT 1`,
+    { type: QueryTypes.SELECT }
+  );
+  if (active) return active;
+  const [fallback] = await sequelize.query(
+    `SELECT id, name, provider
+     FROM AI_MODEL
+     ORDER BY id DESC
+     LIMIT 1`,
+    { type: QueryTypes.SELECT }
+  );
+  return fallback || null;
+}
+
+async function getLatestTreatmentIdByPatientId(patientId) {
+  const [row] = await sequelize.query(
+    `SELECT t.id
+     FROM TREATMENT t
+     JOIN REGIMEN r ON r.id = t.regimen_id
+     WHERE r.patient_id = :patientId
+     ORDER BY t.time DESC, t.id DESC
+     LIMIT 1`,
+    { replacements: { patientId }, type: QueryTypes.SELECT }
+  );
+  return row?.id || null;
+}
+
+exports.getFeedbacks = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const rows = await sequelize.query(
+      `SELECT
+         f.id,
+         f.content,
+         f.type,
+         f.time,
+         f.status,
+         f.rating
+       FROM FEEDBACK f
+       WHERE f.user_id = :userId
+       ORDER BY f.time DESC, f.id DESC`,
+      { replacements: { userId }, type: QueryTypes.SELECT }
+    );
+
+    res.json({
+      success: true,
+      feedbacks: (rows || []).map((r) => ({
+        id: Number(r.id),
+        content: r.content || '',
+        type: r.type || 'general',
+        time: r.time || null,
+        status: r.status || 'visible',
+        rating: Number(r.rating || 0),
+      })),
+    });
+  } catch (error) {
+    console.error('Get feedbacks error:', error);
+    res.status(500).json({ message: 'Internal server error', error: error.message });
+  }
+};
+
+exports.createFeedback = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const content = String(req.body?.content || '').trim();
+    const type = String(req.body?.type || 'general').trim();
+    const rating = Number(req.body?.rating);
+
+    if (!content) {
+      return res.status(400).json({ success: false, message: 'Feedback content is required' });
+    }
+    if (!Number.isFinite(rating) || rating < 1 || rating > 5) {
+      return res.status(400).json({ success: false, message: 'Rating must be between 1 and 5' });
+    }
+
+    const [insertId] = await sequelize.query(
+      `INSERT INTO FEEDBACK (user_id, content, type, rating, status)
+       VALUES (:userId, :content, :type, :rating, 'visible')`,
+      {
+        replacements: { userId, content, type, rating },
+        type: QueryTypes.INSERT,
+      }
+    );
+
+    const [created] = await sequelize.query(
+      `SELECT id, content, type, time, status, rating
+       FROM FEEDBACK
+       WHERE id = :id
+       LIMIT 1`,
+      { replacements: { id: insertId }, type: QueryTypes.SELECT }
+    );
+
+    res.status(201).json({
+      success: true,
+      feedback: {
+        id: Number(created.id),
+        content: created.content || '',
+        type: created.type || 'general',
+        time: created.time || null,
+        status: created.status || 'visible',
+        rating: Number(created.rating || 0),
+      },
+    });
+  } catch (error) {
+    console.error('Create feedback error:', error);
+    res.status(500).json({ message: 'Internal server error', error: error.message });
+  }
+};
+
+exports.getAiRecommendations = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const patientId = await getPatientIdByUserId(userId);
+    if (!patientId) {
+      return res.json({ success: true, recommendations: [] });
+    }
+
+    const rows = await sequelize.query(
+      `SELECT
+         ar.id,
+         ar.time,
+         ar.\`Type\` AS recType,
+         ar.content,
+         ar.feedback,
+         ar.treatment_id AS treatmentId,
+         am.name AS modelName,
+         am.provider AS modelProvider
+       FROM AI_RECOMMENDATION ar
+       JOIN AI_MODEL am ON am.id = ar.model_id
+       WHERE ar.patient_id = :patientId
+       ORDER BY ar.time DESC, ar.id DESC`,
+      { replacements: { patientId }, type: QueryTypes.SELECT }
+    );
+
+    const recommendations = (rows || []).map((r) => {
+      return {
+        id: Number(r.id),
+        type: String(r.recType || 'other'),
+        content: String(r.content || ''),
+        time: r.time || null,
+        modelName: r.modelName || '',
+        modelProvider: r.modelProvider || '',
+        treatmentId: r.treatmentId ?? null,
+        feedback: r.feedback || null,
+      };
+    });
+
+    return res.json({ success: true, recommendations });
+  } catch (error) {
+    console.error('Get AI recommendations error:', error);
+    return res.status(500).json({ message: 'Internal server error', error: error.message });
+  }
+};
+
+exports.updateAiRecommendationFeedback = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const patientId = await getPatientIdByUserId(userId);
+    const id = Number(req.params.id);
+    const feedback = String(req.body?.feedback || '').trim();
+
+    if (!patientId) return res.status(404).json({ success: false, message: 'Patient profile not found' });
+    if (!Number.isFinite(id)) return res.status(400).json({ success: false, message: 'Invalid recommendation id' });
+    if (!feedback) return res.status(400).json({ success: false, message: 'Feedback is required' });
+
+    const [exists] = await sequelize.query(
+      `SELECT ar.id
+       FROM AI_RECOMMENDATION ar
+       WHERE ar.id = :id AND ar.patient_id = :patientId
+       LIMIT 1`,
+      { replacements: { id, patientId }, type: QueryTypes.SELECT }
+    );
+    if (!exists) return res.status(404).json({ success: false, message: 'Recommendation not found' });
+
+    await sequelize.query(
+      `UPDATE AI_RECOMMENDATION
+       SET feedback = :feedback
+       WHERE id = :id`,
+      { replacements: { id, feedback }, type: QueryTypes.UPDATE }
+    );
+
+    return res.json({ success: true, id, feedback });
+  } catch (error) {
+    console.error('Update AI recommendation feedback error:', error);
+    return res.status(500).json({ message: 'Internal server error', error: error.message });
+  }
+};
+
+exports.chatWithAiAndSave = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const patientId = await getPatientIdByUserId(userId);
+    if (!patientId) return res.status(404).json({ success: false, message: 'Patient profile not found' });
+
+    const userMessage = String(req.body?.userMessage || '').trim();
+    const messages = Array.isArray(req.body?.messages) ? req.body.messages : [];
+    if (!userMessage) {
+      return res.status(400).json({ success: false, message: 'userMessage is required' });
+    }
+
+    const model = await getActiveAiModel();
+    if (!model?.id) {
+      return res.status(400).json({ success: false, message: 'No AI model configured in AI_MODEL table' });
+    }
+
+    const payload = {
+      messages: [...messages.filter((m) => m && m.role && m.content), { role: 'user', content: userMessage }],
+    };
+
+    let aiResp;
+    try {
+      aiResp = await fetch(MEDAI_CHAT_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+    } catch (upstreamError) {
+      return res.status(502).json({
+        success: false,
+        message: `Cannot connect to AI service at ${MEDAI_CHAT_ENDPOINT}`,
+        error: upstreamError?.message || 'Unknown upstream error',
+      });
+    }
+
+    const aiData = await aiResp.json().catch(() => ({}));
+    if (!aiResp.ok) {
+      return res.status(502).json({
+        success: false,
+        message: aiData?.message || aiData?.error || 'AI service returned an error',
+      });
+    }
+    const reply = String(aiData.reply || aiData.message || '').trim();
+    if (!reply) {
+      return res.status(502).json({ success: false, message: 'AI chatbot returned empty response' });
+    }
+
+    const now = new Date();
+    const treatmentId = await getLatestTreatmentIdByPatientId(patientId);
+
+    await sequelize.query(
+      `INSERT INTO CHAT_TURN (question, ask_time, response, rep_time, patient_id, model_id)
+       VALUES (:question, :askTime, :response, :repTime, :patientId, :modelId)`,
+      {
+        replacements: {
+          question: userMessage,
+          askTime: now,
+          response: reply,
+          repTime: now,
+          patientId,
+          modelId: model.id,
+        },
+        type: QueryTypes.INSERT,
+      }
+    );
+
+    const [recommendationId] = await sequelize.query(
+      `INSERT INTO AI_RECOMMENDATION (time, model_id, \`Type\`, content, treatment_id, patient_id)
+       VALUES (:time, :modelId, :type, :content, :treatmentId, :patientId)`,
+      {
+        replacements: {
+          time: now,
+          modelId: model.id,
+          type: 'chatbot',
+          content: reply,
+          treatmentId,
+          patientId,
+        },
+        type: QueryTypes.INSERT,
+      }
+    );
+
+    return res.json({
+      success: true,
+      message: reply,
+      recommendationId: Number(recommendationId),
+      model: { id: Number(model.id), name: model.name || '', provider: model.provider || '' },
+    });
+  } catch (error) {
+    console.error('chatWithAiAndSave error:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+  }
+};
+
+exports.analyzeSymptomsAndSave = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const patientId = await getPatientIdByUserId(userId);
+    if (!patientId) return res.status(404).json({ success: false, message: 'Patient profile not found' });
+
+    const symptoms = Array.isArray(req.body?.symptoms) ? req.body.symptoms : [];
+    if (!symptoms.length) {
+      return res.status(400).json({ success: false, message: 'symptoms is required' });
+    }
+
+    const model = await getActiveAiModel();
+    if (!model?.id) {
+      return res.status(400).json({ success: false, message: 'No AI model configured in AI_MODEL table' });
+    }
+
+    const aiResp = await fetch(MEDAI_SYMPTOM_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ symptoms }),
+    });
+    const aiData = await aiResp.json().catch(() => ({}));
+    const conditions = Array.isArray(aiData.possible_conditions) ? aiData.possible_conditions : [];
+    const recommendedAction = String(aiData.recommended_action || 'Please consult a healthcare professional.');
+    const suggestedMedication = Array.isArray(aiData.suggested_medication_type)
+      ? aiData.suggested_medication_type
+      : [];
+
+    const results = conditions.map((c) => {
+      const prob = String(c.probability || '').toLowerCase();
+      const severity = prob === 'high' ? 'high' : prob === 'medium' ? 'medium' : 'low';
+      return {
+        condition: String(c.disease || 'Unknown'),
+        severity,
+        recommendation: recommendedAction,
+        details: String(c.reason || ''),
+        possibleCauses: suggestedMedication,
+        whenToSeekHelp: 'Consult a doctor if symptoms worsen or do not improve within 48 hours.',
+      };
+    });
+
+    const disclaimer =
+      'This is not a medical diagnosis. Always consult a qualified healthcare professional for proper evaluation and treatment.';
+
+    const treatmentId = await getLatestTreatmentIdByPatientId(patientId);
+
+    const [recommendationId] = await sequelize.query(
+      `INSERT INTO AI_RECOMMENDATION (time, model_id, \`Type\`, content, treatment_id, patient_id)
+       VALUES (:time, :modelId, :type, :content, :treatmentId, :patientId)`,
+      {
+        replacements: {
+          time: new Date(),
+          modelId: model.id,
+          type: 'symptomchecker',
+          content: JSON.stringify({ symptoms, possible_conditions: conditions, recommended_action: recommendedAction }),
+          treatmentId,
+          patientId,
+        },
+        type: QueryTypes.INSERT,
+      }
+    );
+
+    return res.json({
+      success: true,
+      analysis: { results, disclaimer },
+      recommendationId: Number(recommendationId),
+      model: { id: Number(model.id), name: model.name || '', provider: model.provider || '' },
+    });
+  } catch (error) {
+    console.error('analyzeSymptomsAndSave error:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+  }
+};
 
 async function getDoctorByInput(doctorInput) {
   const normalized = normalizeDoctorInput(doctorInput);
@@ -263,7 +628,8 @@ exports.getPatientDashboardSummary = async (req, res) => {
          JOIN \`ORDER\` o ON o.id = rx.order_id
          JOIN TREATMENT t ON t.id = o.treatment_id
          JOIN REGIMEN r ON r.id = t.regimen_id
-         WHERE r.patient_id = :patientId`,
+         WHERE r.patient_id = :patientId
+           AND rx.status = 'Signed'`,
         { replacements: { patientId }, type: QueryTypes.SELECT }
       ),
       sequelize.query(
@@ -290,6 +656,7 @@ exports.getPatientDashboardSummary = async (req, res) => {
          LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id
          LEFT JOIN MEDICINE m ON m.id = pd.medicine_id
          WHERE r.patient_id = :patientId
+           AND rx.status = 'Signed'
          ORDER BY rx.time DESC, pd.no ASC`,
         { replacements: { patientId }, type: QueryTypes.SELECT }
       ),

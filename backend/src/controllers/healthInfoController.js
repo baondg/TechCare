@@ -125,8 +125,6 @@ exports.getHealthInfo = async (req, res) => {
       substanceAbuse: medicalHistory.substanceAbuse || [],
     };
 
-    console.log("Mapped Medical History Info:", patient.patient_id, mappedHealthInfo);
-
     res.json({
       success: true,
       healthInfo: mappedHealthInfo,

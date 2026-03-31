@@ -41,7 +41,8 @@ import { Input } from "@/components/ui/input"
 import { PatientLayout } from "@/components/patient-layout"
 import { Bot, Send, ThumbsUp, ThumbsDown } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { sendChatMessage, type ChatMessage as AIMessage } from "@/services/ai-service"
+import { appointmentService } from "@/services/appointment-service"
+import type { ChatMessage as AIMessage } from "@/types/ai-types"
 
 /**
  * Message type definition for chat messages
@@ -57,6 +58,31 @@ type Message = {
   content: string
   timestamp: Date
   isLoading?: boolean
+  recommendationId?: number | null
+  feedback?: "accepted" | "rejected"
+}
+
+function getReadableErrorMessage(error: unknown): string {
+  if (!(error instanceof Error)) {
+    return "Something went wrong. Please try again."
+  }
+
+  const raw = String(error.message || "").trim()
+  if (!raw) return "Something went wrong. Please try again."
+
+  try {
+    const parsed = JSON.parse(raw) as { message?: string; error?: string }
+    if (parsed?.message) return parsed.message
+    if (parsed?.error) return parsed.error
+  } catch {
+    // Non-JSON message, continue below.
+  }
+
+  if (raw.toLowerCase() === "failed to fetch") {
+    return "Cannot connect to backend service. Please check server status."
+  }
+
+  return raw
 }
 
 /**
@@ -166,7 +192,7 @@ export default function ChatbotPage() {
         }))
 
       // Call AI service
-      const response = await sendChatMessage(conversationHistory, currentInput)
+      const response = await appointmentService.sendPatientChatMessage(conversationHistory, currentInput)
 
       // Remove loading message and add actual response
       setMessages(prev => {
@@ -178,11 +204,13 @@ export default function ChatbotPage() {
             role: "assistant",
             content: response.message,
             timestamp: new Date(),
+            recommendationId: response.recommendationId,
           }
         ]
       })
     } catch (error) {
       console.error('Chat error:', error)
+      const errorText = getReadableErrorMessage(error)
       
       // Remove loading message and add error message
       setMessages(prev => {
@@ -192,13 +220,24 @@ export default function ChatbotPage() {
           {
             id: `msg-${Date.now()}-error`,
             role: "assistant",
-            content: "I'm having trouble connecting right now. Please try again in a moment, or contact our support team if the issue persists.",
+            content: errorText,
             timestamp: new Date(),
           }
         ]
       })
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleAssistantFeedback = async (messageId: string, feedback: "accepted" | "rejected") => {
+    const target = messages.find((m) => m.id === messageId && m.role === "assistant")
+    if (!target?.recommendationId) return
+    try {
+      await appointmentService.updateAiRecommendationFeedback(target.recommendationId, feedback)
+      setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, feedback } : m)))
+    } catch (error) {
+      console.error("Update chatbot feedback failed:", error)
     }
   }
 
@@ -245,10 +284,22 @@ export default function ChatbotPage() {
                           </p>
                           {message.role === "assistant" && (
                             <div className="flex gap-2 mt-3">
-                              <Button size="sm" variant="ghost" className="h-7 px-2">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className={`h-7 px-2 ${message.feedback === "accepted" ? "text-green-600" : ""}`}
+                                disabled={!message.recommendationId}
+                                onClick={() => void handleAssistantFeedback(message.id, "accepted")}
+                              >
                                 <ThumbsUp className="h-3 w-3" />
                               </Button>
-                              <Button size="sm" variant="ghost" className="h-7 px-2">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className={`h-7 px-2 ${message.feedback === "rejected" ? "text-red-600" : ""}`}
+                                disabled={!message.recommendationId}
+                                onClick={() => void handleAssistantFeedback(message.id, "rejected")}
+                              >
                                 <ThumbsDown className="h-3 w-3" />
                               </Button>
                             </div>

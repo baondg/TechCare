@@ -11,8 +11,9 @@
  */
 
 import type React from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Activity, LogOut, UserRound, Bell } from 'lucide-react'
+import { Activity, Bell, ChevronLeft, ChevronRight, LogOut, UserRound } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -38,9 +39,29 @@ interface AppShellProps {
   portalLabel: string
 }
 
+const SIDEBAR_COLLAPSED_KEY = 'techcare-sidebar-collapsed'
+
 export function AppShell({ children, navItems, portalLabel }: AppShellProps) {
   const { pathname } = useLocation()
   const { logout, user } = useAuth()
+
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, sidebarCollapsed ? '1' : '0')
+    } catch {
+      /* ignore */
+    }
+  }, [sidebarCollapsed])
+
+  const userBadgeLabel = sidebarUserLabel(portalLabel, user)
 
   return (
     <div className="min-h-screen w-screen bg-background">
@@ -93,42 +114,88 @@ export function AppShell({ children, navItems, portalLabel }: AppShellProps) {
 
       <div className="flex min-h-[calc(100vh-4rem)] w-full">
 
-        {/* ── Sidebar ── */}
-        <aside className="md:flex max-h-full w-64 flex-col border-r border-white/40 sticky top-16 bg-white/80 backdrop-blur-xl h-[calc(100vh-4rem)] shadow-[4px_0_20px_rgba(0,0,0,0.05)] z-40">
-          <nav className="flex-1 space-y-2 p-4">
-
-            {/* Portal badge */}
-            <div className="flex justify-center mb-8 mt-2">
-              <div className="group relative">
-                <div className="absolute -inset-0.5 bg-linear-to-r from-[#06b6d4] to-[#22d3ee] rounded-full blur-xs opacity-20 group-hover:opacity-40 transition duration-700" />
-                <div className="relative flex items-center gap-2 rounded-full bg-linear-to-r from-[#06b6d4] to-[#11adc9] dark:bg-gray-900 px-5 py-2.5">
-                  <UserRound className="h-4 w-4 text-white" strokeWidth={2.5} />
-                  <span className="font-bold text-sm tracking-wider text-white dark:text-cyan-500">
-                    {sidebarUserLabel(portalLabel, user)}
-                  </span>
+        {/* ── Sidebar + edge toggle (toggle centered on the divider) ── */}
+        <div className="relative shrink-0 sticky top-16 h-[calc(100vh-4rem)] self-start z-40">
+          <aside
+            className={cn(
+              'flex max-h-full h-full flex-col border-r border-white/40 bg-white/80 backdrop-blur-xl shadow-[4px_0_20px_rgba(0,0,0,0.05)] transition-[width] duration-200 ease-in-out overflow-hidden',
+              sidebarCollapsed ? 'w-[4.25rem]' : 'w-64',
+            )}
+          >
+            <nav className="flex-1 flex flex-col space-y-2 p-2 md:p-3 min-h-0 pt-4">
+              {/* Portal badge */}
+              <div
+                className={cn('flex justify-center mb-6 w-full px-0.5', sidebarCollapsed && 'mb-4')}
+                title={userBadgeLabel}
+              >
+                <div className="group relative w-full max-w-full flex justify-center">
+                  <div
+                    className={cn(
+                      'absolute -inset-0.5 bg-linear-to-r from-[#06b6d4] to-[#22d3ee] blur-xs opacity-20 group-hover:opacity-40 transition duration-700',
+                      sidebarCollapsed ? 'rounded-full' : 'rounded-2xl',
+                    )}
+                  />
+                  <div
+                    className={cn(
+                      'relative flex w-full max-w-full bg-linear-to-r from-[#06b6d4] to-[#11adc9] dark:bg-gray-900 text-white',
+                      sidebarCollapsed
+                        ? 'items-center justify-center rounded-full p-2.5'
+                        : 'flex-col items-center gap-2 rounded-2xl px-3 py-3 text-center',
+                    )}
+                  >
+                    <UserRound className="h-4 w-4 shrink-0" strokeWidth={2.5} />
+                    {!sidebarCollapsed && (
+                      <span className="w-full font-bold text-sm tracking-wide text-white dark:text-cyan-500 break-words whitespace-normal leading-snug">
+                        {userBadgeLabel}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Nav links */}
-            {navItems.map((item) => {
-              const isActive = pathname === item.href
-              return (
-                <Link
-                  key={item.name}
-                  to={item.href}
-                  className={cn(
-                    'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                    isActive ? 'sidebar' : 'nav text-[#0782a0]',
-                  )}
-                >
-                  <item.icon className="h-5 w-5" />
-                  <span className="nav-text">{item.name}</span>
-                </Link>
-              )
-            })}
-          </nav>
-        </aside>
+              {/* Nav links */}
+              <div className="space-y-1 flex-1 overflow-y-auto overflow-x-hidden min-h-0">
+                {navItems.map((item) => {
+                  const isActive = pathname === item.href
+                  return (
+                    <Link
+                      key={item.name}
+                      to={item.href}
+                      title={item.name}
+                      className={cn(
+                        'flex items-center rounded-lg py-2 text-sm font-medium transition-colors',
+                        sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3',
+                        isActive ? 'sidebar' : 'nav text-[#0782a0]',
+                      )}
+                    >
+                      <item.icon className="h-5 w-5 shrink-0" />
+                      {!sidebarCollapsed && <span className="nav-text truncate">{item.name}</span>}
+                    </Link>
+                  )
+                })}
+              </div>
+            </nav>
+          </aside>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className={cn(
+              'absolute top-1/2 left-full h-9 w-9 -translate-x-1/2 -translate-y-1/2 rounded-full border border-slate-200/90 bg-white text-slate-600 shadow-md',
+              'hover:bg-cyan-50 hover:text-cyan-800 hover:border-cyan-300 z-50',
+            )}
+            onClick={() => setSidebarCollapsed((c) => !c)}
+            aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {sidebarCollapsed ? (
+              <ChevronRight className="h-5 w-5" />
+            ) : (
+              <ChevronLeft className="h-5 w-5" />
+            )}
+          </Button>
+        </div>
 
         {/* ── Main content ── */}
         <main className="flex-1 w-full p-0 md:p-4 overflow-y-auto overflow-x-hidden relative z-10">

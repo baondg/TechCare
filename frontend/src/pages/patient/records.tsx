@@ -1,11 +1,13 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { PatientLayout } from "@/components/patient-layout"
-import { FileText, Download, Calendar, User, Pill,  AlertCircle } from "lucide-react"
+import { FileText, Download, Calendar, User, Pill, AlertCircle, Loader2 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useSearchParams } from "react-router-dom"
+import { appointmentService, type PatientDashboardSummary } from "@/services/appointment-service"
 
 const visits = [
   {
@@ -33,6 +35,28 @@ const visits = [
 export default function RecordsPage() {
   const [searchParams] = useSearchParams()
   const tab = searchParams.get("tab")
+  const [rxLoading, setRxLoading] = useState(true)
+  const [rxDashboard, setRxDashboard] = useState<PatientDashboardSummary | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const data = await appointmentService.getPatientDashboardSummary()
+        if (!cancelled) setRxDashboard(data)
+      } catch (e) {
+        console.error("Load prescriptions for records failed:", e)
+      } finally {
+        if (!cancelled) setRxLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const prescriptionGroups = rxDashboard?.activePrescriptionsList ?? []
+
   return (
     <PatientLayout>
       <div className="space-y-6">
@@ -110,38 +134,56 @@ export default function RecordsPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Pill className="h-5 w-5" />
-                  Current Prescriptions
+                  Prescriptions
                 </CardTitle>
+                <CardDescription>
+                  Only prescriptions your doctor has signed appear here. Draft or unsigned orders stay in the clinic
+                  portal.
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <div className="p-4 border rounded-lg">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <p className="font-medium">Amoxicillin 500mg</p>
-                        <p className="text-sm text-muted-foreground mt-1">3 times daily with food</p>
-                        <p className="text-sm text-muted-foreground">Prescribed: 2025-11-15</p>
-                        <p className="text-sm text-muted-foreground">Duration: 7 days</p>
-                      </div>
-                      <Button variant="outline" size="sm">
-                        Details
-                      </Button>
-                    </div>
+                {rxLoading ? (
+                  <div className="flex items-center justify-center gap-2 py-12 text-muted-foreground">
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    <span>Loading…</span>
                   </div>
-                  <div className="p-4 border rounded-lg">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <p className="font-medium">Vitamin D3 1000 IU</p>
-                        <p className="text-sm text-muted-foreground mt-1">Once daily</p>
-                        <p className="text-sm text-muted-foreground">Prescribed: 2025-12-10</p>
-                        <p className="text-sm text-muted-foreground">Duration: Ongoing</p>
-                      </div>
-                      <Button variant="outline" size="sm">
-                        Details
-                      </Button>
-                    </div>
+                ) : prescriptionGroups.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-muted-foreground">No signed prescriptions yet.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {prescriptionGroups.map((rx) => {
+                      const dateLabel = (() => {
+                        try {
+                          const d = new Date(rx.prescribedAt)
+                          return Number.isNaN(d.getTime()) ? String(rx.prescribedAt) : d.toLocaleString("vi-VN")
+                        } catch {
+                          return String(rx.prescribedAt)
+                        }
+                      })()
+                      return (
+                        <div key={rx.id} className="space-y-2 rounded-lg border p-4">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            Prescription · {dateLabel}
+                          </p>
+                          <div className="space-y-2">
+                            {rx.medications.map((med) => (
+                              <div
+                                key={med.id}
+                                className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-muted/50 px-3 py-2"
+                              >
+                                <div className="min-w-0">
+                                  <p className="font-medium">{med.name}</p>
+                                  <p className="text-sm text-muted-foreground">{med.frequency || "—"}</p>
+                                </div>
+                                <span className="text-xs text-muted-foreground">Qty: {med.quantity || "—"}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
-                </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

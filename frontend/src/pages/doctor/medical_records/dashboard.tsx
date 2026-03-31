@@ -62,10 +62,7 @@ export default function ViewingPatientDashboard() {
     )
   }
 
-  const activePrescriptions = useMemo(
-    () => prescriptions.filter((p) => p.status !== "Cancelled"),
-    [prescriptions]
-  )
+  const activePrescriptions = useMemo(() => prescriptions, [prescriptions])
 
   return (
     <div>

@@ -207,7 +207,7 @@ export default function PatientDiagnosis() {
             <p className="text-sm text-slate-500">Đang tải…</p>
           ) : (
             <div className="overflow-x-auto border rounded-lg">
-              <Table className="min-w-[500px] w-full text-sm">
+              <Table className="min-w-0 w-full text-sm">
                 <TableHeader
                   className="text-white"
                   style={{
@@ -216,9 +216,8 @@ export default function PatientDiagnosis() {
                   }}
                 >
                   <TableRow>
-                    <TableHead className="p-2 text-left w-[140px] text-white">Date</TableHead>
-                    <TableHead className="p-2 text-left w-[180px] text-white">Doctor</TableHead>
-                    <TableHead className="p-2 text-left w-[150px] text-white">Department</TableHead>
+                    <TableHead className="p-2 text-left text-white">Date</TableHead>
+                    <TableHead className="p-2 text-left text-white">Doctor</TableHead>
                   </TableRow>
                 </TableHeader>
 
@@ -236,7 +235,6 @@ export default function PatientDiagnosis() {
                     >
                       <TableCell className="p-2">{dx.date}</TableCell>
                       <TableCell className="p-2">{dx.doctor}</TableCell>
-                      <TableCell className="p-2">{dx.department || "—"}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

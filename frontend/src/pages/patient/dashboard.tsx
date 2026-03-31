@@ -81,9 +81,9 @@ export default function PatientDashboard() {
                   </div>
                   <ChevronRight className="h-5 w-5 text-slate-400 group-hover:text-cyan-500" />
                 </div>
-                <h3 className="text-sm font-medium text-slate-500 mb-1">Active prescriptions</h3>
+                <h3 className="text-sm font-medium text-slate-500 mb-1">Signed prescriptions</h3>
                 <div className="text-xl font-bold text-slate-900 mb-1">{activePrescriptionCount}</div>
-                <p className="text-sm text-slate-600">From medical records</p>
+                <p className="text-sm text-slate-600">Draft or unsigned orders are not shown</p>
               </CardContent>
             </Card>
           </Link>
@@ -108,7 +108,7 @@ export default function PatientDashboard() {
         <div className="grid gap-6 lg:grid-cols-2">
           <CollapsibleSection
             title="Active Medications"
-            description="Current prescriptions"
+            description="Signed prescriptions only"
             icon={<Pill className="h-5 w-5" />}
             defaultOpen={true}
           >

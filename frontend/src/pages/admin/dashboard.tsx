@@ -1,16 +1,43 @@
 "use client"
 
+import { useEffect, useMemo, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Users, UserCheck, Settings, AlertCircle } from "lucide-react"
 import { AdminLayout } from "@/components/admin-layout"
+import { adminAccountService, type AdminDashboardSummary } from "@/services/admin-account-service"
 
 export default function AdminDashboard() {
-  const stats = [
-    { label: "Total Users", value: "156", icon: Users, color: "bg-blue-500" },
-    { label: "Active Users", value: "142", icon: UserCheck, color: "bg-green-500" },
-    { label: "System Status", value: "Healthy", icon: AlertCircle, color: "bg-emerald-500" },
-    { label: "Config Updates", value: "12", icon: Settings, color: "bg-purple-500" },
-  ]
+  const [summary, setSummary] = useState<AdminDashboardSummary | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      setLoading(true)
+      try {
+        const res = await adminAccountService.getDashboardSummary()
+        if (cancelled) return
+        setSummary(res.summary)
+      } catch (e) {
+        console.error("Load admin dashboard summary failed:", e)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const stats = useMemo(
+    () => [
+      { label: "Total Users", value: summary ? String(summary.totalUsers) : "—", icon: Users, color: "bg-blue-500" },
+      { label: "Active Users", value: summary ? String(summary.activeUsers) : "—", icon: UserCheck, color: "bg-green-500" },
+      { label: "System Status", value: summary?.systemStatus || "Unknown", icon: AlertCircle, color: "bg-emerald-500" },
+      { label: "Inactive Users", value: summary ? String(summary.inactiveUsers) : "—", icon: Settings, color: "bg-purple-500" },
+    ],
+    [summary]
+  )
 
   return (
     <AdminLayout>
@@ -53,20 +80,52 @@ export default function AdminDashboard() {
             <div className="space-y-2">
               <div className="flex justify-between">
                 <span>Database Connection</span>
-                <span className="text-green-600 font-semibold">Connected</span>
+                <span className={`font-semibold ${summary ? "text-green-600" : "text-amber-600"}`}>
+                  {summary ? "Connected" : "Checking"}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span>API Gateway</span>
-                <span className="text-green-600 font-semibold">Running</span>
+                <span className={`font-semibold ${summary ? "text-green-600" : "text-amber-600"}`}>
+                  {summary ? "Running" : "Checking"}
+                </span>
               </div>
               <div className="flex justify-between">
-                <span>AI Services</span>
-                <span className="text-green-600 font-semibold">Active</span>
+                <span>Account Services</span>
+                <span className={`font-semibold ${summary ? "text-green-600" : "text-amber-600"}`}>
+                  {summary ? "Active" : "Checking"}
+                </span>
               </div>
               <div className="flex justify-between">
-                <span>Server Uptime</span>
-                <span className="text-green-600 font-semibold">99.8%</span>
+                <span>Dashboard Data</span>
+                <span className={`font-semibold ${loading ? "text-amber-600" : "text-green-600"}`}>
+                  {loading ? "Loading..." : "Up to date"}
+                </span>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Role Breakdown */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Settings className="h-5 w-5" />
+              Role Breakdown
+            </CardTitle>
+            <CardDescription>Total accounts by role from ACCOUNT table</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {(summary?.roleBreakdown || []).map((row) => (
+                <div key={row.roleCode} className="flex justify-between text-sm">
+                  <span>{row.roleLabel}</span>
+                  <span className="font-semibold">{row.total}</span>
+                </div>
+              ))}
+              {!summary?.roleBreakdown?.length ? (
+                <div className="text-sm text-muted-foreground">No role data.</div>
+              ) : null}
             </div>
           </CardContent>
         </Card>
@@ -82,18 +141,17 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              <div className="flex justify-between text-sm">
-                <span>User 'Dr. Sarah' created</span>
-                <span className="text-muted-foreground">2 hours ago</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span>System config updated</span>
-                <span className="text-muted-foreground">5 hours ago</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span>User 'John Nurse' deactivated</span>
-                <span className="text-muted-foreground">1 day ago</span>
-              </div>
+              {(summary?.recentActivity || []).map((item) => (
+                <div key={item.id} className="flex justify-between text-sm gap-3">
+                  <span className="truncate">{item.message}</span>
+                  <span className="text-muted-foreground whitespace-nowrap">
+                    {item.createdTime ? String(item.createdTime).replace("T", " ").slice(0, 16) : "—"}
+                  </span>
+                </div>
+              ))}
+              {!summary?.recentActivity?.length ? (
+                <div className="text-sm text-muted-foreground">No recent activity.</div>
+              ) : null}
             </div>
           </CardContent>
         </Card>

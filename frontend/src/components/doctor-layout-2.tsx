@@ -57,21 +57,24 @@ export function DoctorLayout2() {
     if (!patientData) return "Loading patient..."
     const { firstName, lastName, age, gender, bmi, latestDiagnosis } = patientData;
 
+    const dept =
+      patientData.inDepartment ??
+      patientData.in_department ??
+      null
+
     return (
       <div>
         <p className="font-semibold text-lg">
           {firstName} {lastName} | {age} {gender === "M" ? "Male" : "Female"} | BMI: {bmi ?? "N/A"}
         </p>
         {latestDiagnosis && (
-          <>
-            <p className="text-sm text-slate-600">
-              Diagnosis: {latestDiagnosis.icd10 || "—"} - {latestDiagnosis.interpretation || "—"}
-            </p>
-            <p className="text-sm text-slate-500">
-              Department: {latestDiagnosis.department || "—"}
-            </p>
-          </>
+          <p className="text-sm text-slate-600">
+            Diagnosis: {latestDiagnosis.icd10 || "—"} - {latestDiagnosis.interpretation || "—"}
+          </p>
         )}
+        <p className="text-sm text-slate-500">
+          Department: {dept || "—"}
+        </p>
       </div>
     )
   }

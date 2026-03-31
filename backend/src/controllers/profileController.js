@@ -1,17 +1,21 @@
-const sequelize = require('../common/database');
-// const defineProfile = require('../models/Profile');
-// const Profile = defineProfile(sequelize);
-
 const Account = require('../models/Account');
 const Patient = require('../models/Patient');
 const User = require('../models/Users');
 const Relative = require('../models/Relative');
 const HealthInsurance = require('../models/HealthInsurance');
 
-// ─── Internal helpers to keep controller logic small and readable ───
-
 function getUserIdFromParams(req) {
   return req.params.userId;
+}
+
+function parseUserIdParam(req, res) {
+  const raw = getUserIdFromParams(req);
+  const userId = parseInt(raw, 10);
+  if (Number.isNaN(userId)) {
+    res.status(400).json({ message: 'Invalid user ID' });
+    return null;
+  }
+  return userId;
 }
 
 function isSelfOrAdmin(req, userId) {
@@ -26,32 +30,32 @@ function ensureAuthorized(req, res, userId) {
   return true;
 }
 
-async function findProfileByUserId(userId) {
-  return Profile.findOne({ where: { userId } });
-}
-
-function sendProfileNotFound(res) {
-  return res.status(404).json({ message: 'Profile not found' });
+function splitFullName(fullName) {
+  const s = String(fullName || '').trim();
+  if (!s) return { first: '', last: '' };
+  const parts = s.split(/\s+/);
+  return { first: parts[0] || '', last: parts.slice(1).join(' ') || '' };
 }
 
 exports.getProfile = async (req, res) => {
   try {
-    const userId = getUserIdFromParams(req);
+    const userId = parseUserIdParam(req, res);
+    if (userId == null) return;
 
     if (!ensureAuthorized(req, res, userId)) return;
 
     const account = await Account.findOne({
-      where: { user_id },
+      where: { user_id: userId },
       include: [
         {
           model: User,
-          attributes: ['idcard', 'first_name', 'last_name', 'dob', 'sex', 'tel', 'email']
-        }
+          attributes: ['idcard', 'first_name', 'last_name', 'dob', 'sex', 'tel', 'email'],
+        },
       ],
     });
 
-    if (!profile) {
-      return sendProfileNotFound(res);
+    if (!account) {
+      return res.status(404).json({ message: 'Account not found' });
     }
 
     const u = account.User || account.user;
@@ -72,30 +76,34 @@ exports.getProfile = async (req, res) => {
       sex: raw.sex,
       phone: raw.tel,
       email: raw.email,
-      nationalId: raw.idcard
+      nationalId: raw.idcard != null ? String(raw.idcard) : '',
     };
 
-    const findRelative = await User.findOne({
-      where: { id: user_id },
+    let relative = null;
+    let insurance = null;
+
+    const userRow = await User.findOne({
+      where: { id: userId },
       include: [
         {
           model: Patient,
           attributes: ['patient_id'],
           include: [
             {
-              model: Relative
-            }
-          ]
-        }
-      ]
+              model: Relative,
+            },
+          ],
+        },
+      ],
     });
 
-    var data = findRelative.get({ plain: true });
+    if (userRow) {
+      const relData = userRow.get({ plain: true });
+      relative = relData.Patient?.Relative ?? null;
+    }
 
-    const relative = data.Patient?.Relative;
-
-    const findInsurance = await User.findOne({
-      where: { id: user_id },
+    const userIns = await User.findOne({
+      where: { id: userId },
       include: [
         {
           model: Patient,
@@ -103,34 +111,35 @@ exports.getProfile = async (req, res) => {
           include: [
             {
               model: HealthInsurance,
-              as: 'insurance'
-            }
-          ]
-        }
-      ]
+              as: 'insurance',
+            },
+          ],
+        },
+      ],
     });
 
-    data = findInsurance.get({ plain: true });
-    const insurance = data.Patient?.insurance;
+    if (userIns) {
+      const insData = userIns.get({ plain: true });
+      insurance = insData.Patient?.insurance ?? null;
+    }
 
-    console.log('findInsurance', insurance);
-
-
-    res.json({ profile: profile, relative: relative, insurance: insurance });
-
+    res.json({ profile, relative, insurance });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: err.message });
   }
 };
 
-exports.updateProfile = async (req, res) => {   //partial update, only update fields that are provided in the request body
+exports.updateProfile = async (req, res) => {
   try {
-    const userId = getUserIdFromParams(req);
+    const userId = parseUserIdParam(req, res);
+    if (userId == null) return;
 
     if (!ensureAuthorized(req, res, userId)) return;
 
     const {
+      firstName,
+      lastName,
       fullName,
       dateOfBirth,
       sex,
@@ -144,38 +153,40 @@ exports.updateProfile = async (req, res) => {   //partial update, only update fi
       relativeSex,
       relativePhone,
       relativeEmail,
-      relativeNationalId
+      relativeNationalId,
     } = req.body;
 
-    // =====================
-    // 1. UPDATE USER
-    // =====================
-    const user = await User.findByPk(user_id);
+    const fnRaw = (firstName ?? req.body.first_name ?? '').toString().trim();
+    const lnRaw = (lastName ?? req.body.last_name ?? '').toString().trim();
+    let first = fnRaw;
+    let last = lnRaw;
+    if (!first && !last && fullName != null && String(fullName).trim()) {
+      const sp = splitFullName(fullName);
+      first = sp.first;
+      last = sp.last;
+    }
+
+    const user = await User.findByPk(userId);
 
     if (user) {
       await user.update({
-        name: fullName,
+        first_name: first || null,
+        last_name: last || null,
         dob: dateOfBirth,
         sex: sex === 'Male' ? 'M' : sex === 'Female' ? 'F' : 'O',
         tel: phone,
-        email: email,
-        idcard: nationalId
+        email,
+        idcard: nationalId,
       });
     }
 
-    // =====================
-    // 2. FIND PATIENT
-    // =====================
     const patient = await Patient.findOne({
-      where: { user_id }
+      where: { user_id: userId },
     });
 
-    // =====================
-    // 3. UPDATE RELATIVE
-    // =====================
     if (patient) {
       let relative = await Relative.findOne({
-        where: { patient_id: patient.patient_id }
+        where: { patient_id: patient.patient_id },
       });
 
       if (relative) {
@@ -186,10 +197,9 @@ exports.updateProfile = async (req, res) => {   //partial update, only update fi
           sex: relativeSex === 'Male' ? 'M' : relativeSex === 'Female' ? 'F' : 'O',
           tel: relativePhone,
           email: relativeEmail,
-          idcard: relativeNationalId
+          idcard: relativeNationalId,
         });
       } else {
-        // nếu chưa có thì tạo mới
         await Relative.create({
           patient_id: patient.patient_id,
           name: relativeName,
@@ -198,34 +208,28 @@ exports.updateProfile = async (req, res) => {   //partial update, only update fi
           sex: relativeSex === 'Male' ? 'M' : relativeSex === 'Female' ? 'F' : 'O',
           tel: relativePhone,
           email: relativeEmail,
-          idcard: relativeNationalId
+          idcard: relativeNationalId,
         });
       }
     }
 
     return res.json({ message: 'Profile updated successfully' });
-
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: err.message });
   }
 };
 
-// DELETE /api/profile/:userId
-// Delete the patient's profile information
 exports.deleteProfile = async (req, res) => {
   try {
-    const userId = getUserIdFromParams(req);
+    const userId = parseUserIdParam(req, res);
+    if (userId == null) return;
 
     if (!ensureAuthorized(req, res, userId)) return;
 
-    const deletedCount = await Profile.destroy({ where: { userId } });
-
-    if (!deletedCount) {
-      return sendProfileNotFound(res);
-    }
-
-    return res.status(200).json({ message: 'Profile deleted successfully' });
+    return res.status(501).json({
+      message: 'Deleting the full patient profile is not supported; user data lives on the USER record.',
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

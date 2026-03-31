@@ -43,6 +43,8 @@ router.put('/patients/:patientId/diagnoses/:id', doctorController.updateDiagnosi
 router.get('/patients/:patientId/prescriptions', doctorController.getPrescriptions);
 router.post('/patients/:patientId/prescriptions', doctorController.createPrescription);
 router.put('/patients/:patientId/prescriptions/:id', doctorController.updatePrescription);
+router.patch('/patients/:patientId/prescriptions/:id/sign', doctorController.signPrescription);
+router.patch('/patients/:patientId/prescriptions/:id/unsign', doctorController.unsignPrescription);
 
 // ─── Lab tests ───
 router.get('/patients/:patientId/lab-tests', doctorController.getLabTests);

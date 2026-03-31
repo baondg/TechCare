@@ -3,7 +3,10 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000
 export interface PatientProfile {
   id?: number;
   userId: number;
+  /** Legacy combined name; prefer firstName + lastName from API. */
   fullName?: string;
+  firstName?: string;
+  lastName?: string;
   dateOfBirth?: string;
   sex?: string;
   phone?: string;
@@ -54,8 +57,18 @@ export const profileService = {
       }
 
       const data = await response.json();
+      const p = data.profile || {};
+
       return {
-        ...data.profile, // profile
+        userId: p.user_id ?? userId,
+        firstName: p.firstName ?? '',
+        lastName: p.lastName ?? '',
+        fullName: p.fullName,
+        dateOfBirth: p.dateOfBirth,
+        sex: p.sex,
+        phone: p.phone,
+        email: p.email,
+        nationalId: p.nationalId != null ? String(p.nationalId) : '',
 
         // map relative
         relativeName: data.relative?.name,
@@ -64,7 +77,7 @@ export const profileService = {
         relativeSex: data.relative?.sex,
         relativePhone: data.relative?.tel,
         relativeEmail: data.relative?.email,
-        relativeNationalId: data.relative?.idcard,
+        relativeNationalId: data.relative?.idcard != null ? String(data.relative.idcard) : '',
 
         // map insurance
         insuranceId: data.insurance?.id,

@@ -13,6 +13,7 @@ const appointmentRoutes = require('./routes/appointmentRoutes');
 const profileRoutes = require('./routes/profileRoutes');
 const healthInfoRoutes = require('./routes/healthInfoRoutes');
 const doctorRoutes = require('./routes/doctorRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 const sessionMiddleware = require('./middleware/sessionMiddleware');
 const sequelize = require('./common/database');
 
@@ -64,6 +65,7 @@ app.use('/api/appointments', appointmentRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/health-info', healthInfoRoutes);
 app.use('/api/doctor', doctorRoutes);
+app.use('/api/admin', adminRoutes);
 
 
 

@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { PatientLayout } from "@/components/patient-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Activity, Heart, AlertCircle, FileText, Save, History, X, Loader2, Stethoscope, Plus, Edit, Search, Copy } from "lucide-react"
+import { Activity, Heart, AlertCircle, FileText, Save, History, X, Loader2, Stethoscope, Plus, Edit, Search, Copy, PenLine, PenOff, FileDown, Trash2 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { CollapsibleSection } from "@/components/collapsible-section"
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
@@ -18,10 +18,15 @@ import { doctorService } from "@/services/doctor-service"
 import type { HealthInfo } from "@/services/doctor-service"
 import { useAuth } from "@/contexts/AuthContext"
 import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, AreaChart, Area, ReferenceLine, ReferenceArea } from "recharts"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { BarChart3 } from "lucide-react"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { generateHealthInfoTrackingPdfBlob } from "@/lib/export-health-info-tracking-pdf"
 
-export default function HealthInfoPage() {
+type HealthInfoPageProps = {
+  mode?: "doctor" | "nurse"
+}
+
+export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps) {
   const { user } = useAuth()
   const params = useParams<{ patientId: string }>()
   // Strip "OP000..." prefix → numeric ID (e.g. "OP000000001" → 1)
@@ -43,6 +48,7 @@ export default function HealthInfoPage() {
 
     symptoms: string
     updatedBy: string
+    status: "draft" | "signed" | "unsigned"
 
     // ✅ thêm
     bloodType?: string
@@ -97,8 +103,6 @@ export default function HealthInfoPage() {
   // Current health info ID for updates
   const [currentHealthInfoId, setCurrentHealthInfoId] = useState<number | null>(null)
 
-  const [openChart, setOpenChart] = useState(false)
-
   const bmi = useMemo(() => {
     const h = parseFloat(height)
     const w = parseFloat(weight)
@@ -109,7 +113,7 @@ export default function HealthInfoPage() {
   const [healthHistory, setHealthHistory] = useState<HealthRecord[]>([])
   
   const filteredHistory = healthHistory.filter(r => {
-    const status = r.updatedBy === "Patient" ? "Draft" : "Confirmed"
+    const status = r.status === "signed" ? "Signed" : r.status === "unsigned" ? "Voided" : "Draft"
     return (
       (!filters.date || r.updatedAt.toLocaleDateString("vi-VN").includes(filters.date)) &&
       (!filters.height || r.height.toString().includes(filters.height)) &&
@@ -130,6 +134,22 @@ export default function HealthInfoPage() {
   const [selectedRecord, setSelectedRecord] = useState<HealthRecord | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
+  const [exportingPdf, setExportingPdf] = useState(false)
+  const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false)
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null)
+  const [pdfPreviewFilename, setPdfPreviewFilename] = useState<string | null>(null)
+  //Thêm state để lưu các record được chọn:
+  const [selectedRecords, setSelectedRecords] = useState<HealthRecord[]>([])
+  const selectedStatus = selectedRecord?.status
+  const canEditSelected = !!selectedRecord && selectedStatus === "draft" && !isEditing
+  const canSignSelected = !!selectedRecord && selectedStatus === "draft" && !isEditing
+  const canUnsignSelected = !!selectedRecord && selectedStatus === "signed" && !isEditing
+  const canDeleteSelected =
+    mode === "nurse" &&
+    !isEditing &&
+    selectedRecords.length > 0 &&
+    selectedRecords.every((r) => r.status === "draft")
+  const canExportSelected = mode === "nurse" && selectedRecords.length > 0 && !exportingPdf
 
   const toArray = (value: unknown): string[] => {
     if (Array.isArray(value)) return value.filter((item): item is string => typeof item === "string")
@@ -171,9 +191,6 @@ export default function HealthInfoPage() {
     currentPage * pageSize
   )
 
-  //Thêm state để lưu các record được chọn:
-  const [selectedRecords, setSelectedRecords] = useState<HealthRecord[]>([])
-
   const chartData = useMemo(() => {
     const source = selectedRecords.length > 0
       ? selectedRecords
@@ -203,6 +220,84 @@ export default function HealthInfoPage() {
     } else {
       setSelectedRecords(prev => prev.filter(r => r.id !== record.id))
     }
+  }
+
+  const releasePdfBlobUrl = (next: string | null) => {
+    setPdfPreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev)
+      return next
+    })
+  }
+
+  const closePdfPreview = () => {
+    setPdfPreviewOpen(false)
+    setPdfPreviewFilename(null)
+    releasePdfBlobUrl(null)
+  }
+
+  const handleDeleteSelectedRecords = async () => {
+    if (!patientId || !canDeleteSelected) return
+    if (!confirm(`Delete ${selectedRecords.length} selected draft record(s)?`)) return
+    setSaving(true)
+    try {
+      await Promise.all(selectedRecords.map((r) => doctorService.deleteHealthInfo(patientId, r.id)))
+      setSelectedRecords([])
+      setSelectedRecord(null)
+      setSuccess(`${selectedRecords.length} record(s) deleted successfully.`)
+      setError(null)
+      await loadHealthHistory()
+    } catch (err: any) {
+      setError(err?.message || "Failed to delete records")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleExportTrackingPdf = async () => {
+    if (!patientId || !canExportSelected) return
+    setExportingPdf(true)
+    try {
+      const patientRes = await doctorService.getPatient(patientId)
+      if (!patientRes.success || !patientRes.patient) throw new Error("Failed to load patient information")
+      const p = patientRes.patient
+      const diagnosis = p.latestDiagnosis
+        ? `${p.latestDiagnosis.icd10 || ""}${p.latestDiagnosis.icd10 && p.latestDiagnosis.interpretation ? " - " : ""}${p.latestDiagnosis.interpretation || ""}`
+        : ""
+      const rows = [...selectedRecords].sort((a, b) => a.updatedAt.getTime() - b.updatedAt.getTime())
+      const { blob, filename } = await generateHealthInfoTrackingPdfBlob({
+        patientName: `${p.firstName || ""} ${p.lastName || ""}`.trim() || p.username || "",
+        age: p.age == null ? "" : String(p.age),
+        gender: p.gender === "M" ? "Nam" : p.gender === "F" ? "Nữ" : "",
+        diagnosis,
+        rows: rows.map((r) => ({
+          updatedAt: r.updatedAt,
+          bloodPressure: r.bloodPressure,
+          pulse: r.heartRate,
+          temperature: r.temperature,
+          weight: r.weight,
+          respiratoryRate: r.respiratoryRate,
+          spo2: r.spo2,
+          symptoms: r.symptoms,
+        })),
+      })
+      const url = URL.createObjectURL(blob)
+      setPdfPreviewFilename(filename)
+      releasePdfBlobUrl(url)
+      setPdfPreviewOpen(true)
+    } catch (err: any) {
+      setError(err?.message || "Failed to export PDF")
+    } finally {
+      setExportingPdf(false)
+    }
+  }
+
+  const handleSavePdfFromPreview = () => {
+    if (!pdfPreviewUrl || !pdfPreviewFilename) return
+    const a = document.createElement("a")
+    a.href = pdfPreviewUrl
+    a.download = pdfPreviewFilename
+    a.rel = "noopener"
+    a.click()
   }
 
   // Load health info on mount
@@ -387,6 +482,7 @@ const loadHealthHistory = async () => {
 
           // ✅ FIX condition → symptoms
           symptoms: h.condition || "",
+          status: (h.status as "draft" | "signed" | "unsigned") || "draft",
 
           updatedBy: "Patient",
 
@@ -454,6 +550,88 @@ const loadHealthHistory = async () => {
     // #region agent log
     fetch('http://127.0.0.1:7313/ingest/0fad1357-b396-4ed7-94eb-d59495bf0e42',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'73987d'},body:JSON.stringify({sessionId:'73987d',runId:'doctor-healthinfo-initial',hypothesisId:'H4',location:'doctor/medical_records/health-info.tsx:loadRecordToForm',message:'row selected payload',data:{id:record?.id,bloodType:record?.bloodType,drugAllergiesLen:record?.drugAllergies?.length,foodAllergiesLen:record?.foodAllergies?.length,otherAllergiesLen:record?.otherAllergies?.length,chronicConditionsLen:record?.chronicConditions?.length,pastSurgeriesLen:record?.pastSurgeries?.length},timestamp:Date.now()})}).catch(()=>{});
     // #endregion
+  }
+
+  const clearForm = () => {
+    setHeight("")
+    setWeight("")
+    setBpSys("")
+    setBpDia("")
+    setHeartRate("")
+    setRespiratoryRate("")
+    setTemperature("")
+    setSpo2("")
+    setBloodType("O")
+    setSymptoms("")
+    setDrugAllergies([])
+    setFoodAllergies([])
+    setOtherAllergies([])
+    setChronicConditions([])
+    setPastSurgeries([])
+    setFamilyHistory([])
+    setPastIllnesses([])
+    setVaccinations([])
+    setSubstanceAbuse([])
+    setSelectedRecord(null)
+    setCurrentHealthInfoId(null)
+  }
+
+  const handleCopyRecord = () => {
+    if (!selectedRecord) return
+    loadRecordToForm(selectedRecord)
+    setCurrentHealthInfoId(null)
+    setSelectedRecord(null)
+    setIsAdding(true)
+    setIsEditing(true)
+  }
+
+  const handleSave = async () => {
+    if (!patientId) return
+    setSaving(true)
+    setError(null)
+    setSuccess(null)
+
+    try {
+      const payload = {
+        height: height ? parseFloat(height) : undefined,
+        weight: weight ? parseFloat(weight) : undefined,
+        bloodPressureSys: bpSys ? parseInt(bpSys, 10) : undefined,
+        bloodPressureDia: bpDia ? parseInt(bpDia, 10) : undefined,
+        heartRate: heartRate ? parseInt(heartRate, 10) : undefined,
+        respiratoryRate: respiratoryRate ? parseInt(respiratoryRate, 10) : undefined,
+        temperature: temperature ? parseFloat(temperature) : undefined,
+        spo2: spo2 ? parseInt(spo2, 10) : undefined,
+        bloodType: bloodType as any,
+        currentSymptoms: symptoms,
+        drugAllergies,
+        foodAllergies,
+        otherAllergies,
+        chronicConditions,
+        pastSurgeries,
+        familyHistory,
+        pastIllnesses,
+        vaccinations,
+        substanceAbuse,
+        updatedBy: "Doctor",
+      }
+
+      if (currentHealthInfoId && !isAdding) {
+        await doctorService.updateHealthInfo(patientId, currentHealthInfoId, payload)
+        setSuccess("Health record updated successfully.")
+      } else {
+        await doctorService.createHealthInfo(patientId, payload)
+        setSuccess("Health record created successfully.")
+      }
+
+      setIsEditing(false)
+      setIsAdding(false)
+      await loadHealthInfo()
+      await loadHealthHistory()
+    } catch (err: any) {
+      setError(err?.message || "Failed to save health information")
+    } finally {
+      setSaving(false)
+    }
   }
 
   const [drugAllergies, setDrugAllergies] = useState<string[]>([])
@@ -552,32 +730,73 @@ const loadHealthHistory = async () => {
 
   return (
       <div className="space-y-6">
-        {/* Data table */}
-        <Card className="flex flex-col h-fit">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2 text-xl">
-                <History className="h-5 w-5" />
-                Health Information History
-              </CardTitle>
+        <Dialog open={pdfPreviewOpen} onOpenChange={(open) => (!open ? closePdfPreview() : setPdfPreviewOpen(open))}>
+          <DialogContent className="flex max-h-[90vh] w-[min(920px,96vw)] max-w-none flex-col gap-3 p-4 sm:p-6">
+            <DialogHeader>
+              <DialogTitle>Xem trước phiếu theo dõi (PDF)</DialogTitle>
+            </DialogHeader>
+            {pdfPreviewUrl ? (
+              <iframe
+                title="Health tracking PDF preview"
+                src={pdfPreviewUrl}
+                className="min-h-[min(520px,60vh)] w-full flex-1 rounded-md border border-slate-200 bg-slate-50"
+              />
+            ) : null}
+            <DialogFooter className="gap-2 sm:gap-2">
+              <Button type="button" variant="outline" className="btn-outline" onClick={closePdfPreview}>
+                Close
+              </Button>
+              <Button type="button" className="btn-gradient" onClick={handleSavePdfFromPreview}>
+                <FileDown className="h-4 w-4 mr-2" />
+                Save / Download
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
-              <p className="text-sm text-muted-foreground">
-                Click on any row to load that record into the form below
-              </p>
-            </div>
+        <div>
+          <h3 className="text-xl font-semibold flex items-center gap-2">
+            <History className="h-5 w-5" />
+            Health Information History
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            Click on any row to load that record into the form below
+          </p>
+        </div>
 
-              <div className="flex items-center gap-2 justify-start">
+        <Tabs defaultValue="records" className="w-full">
+          <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsTrigger value="records">Health Records</TabsTrigger>
+            <TabsTrigger value="charts">Charts</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="records" className="mt-4">
+            {mode === "nurse" ? (
+              <div className="mb-3 flex items-center justify-end gap-2">
                 <Button
-                  variant="outline"
-                  className="flex items-center gap-2"
-                  onClick={() => setOpenChart(true)}
+                  type="button"
+                  size="sm"
+                  className="btn-outline"
+                  disabled={!canExportSelected}
+                  onClick={() => void handleExportTrackingPdf()}
                 >
-                  <BarChart3 className="h-4 w-4" />
-                  View Charts
+                  {exportingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+                  <span className="ml-2">Export</span>
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="btn-outline text-red-600"
+                  disabled={!canDeleteSelected}
+                  onClick={() => void handleDeleteSelectedRecords()}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  <span className="ml-2">Delete</span>
                 </Button>
               </div>
-          </CardHeader>
-          <CardContent className="flex-1 p-0 overflow-hidden">
+            ) : null}
+            <Card className="flex flex-col h-fit">
+              <CardContent className="flex-1 p-0 overflow-hidden">
             <div className="h-full overflow-auto">
               <Table>
                 <TableHeader
@@ -735,7 +954,8 @@ const loadHealthHistory = async () => {
                         <SelectContent>
                           <SelectItem value="All">All</SelectItem>
                           <SelectItem value="Draft">Draft</SelectItem>
-                          <SelectItem value="Confirmed">Confirmed</SelectItem>
+                          <SelectItem value="Signed">Signed</SelectItem>
+                          <SelectItem value="Voided">Voided</SelectItem>
                         </SelectContent>
                       </Select>
                     </TableHead>
@@ -794,11 +1014,13 @@ const loadHealthHistory = async () => {
                       </TableCell>
                       <TableCell>
                         <span className={`px-2 py-1 text-xs rounded-full ${
-                          r.updatedBy === "Patient"
-                            ? "bg-yellow-100 text-yellow-800"
-                            : "bg-green-100 text-green-800"
+                          r.status === "signed"
+                            ? "bg-green-100 text-green-800"
+                            : r.status === "unsigned"
+                              ? "bg-red-100 text-red-800"
+                              : "bg-yellow-100 text-yellow-800"
                         }`}>
-                          {r.updatedBy === "Patient" ? "Draft" : "Confirmed"}
+                          {r.status === "signed" ? "Signed" : r.status === "unsigned" ? "Voided" : "Draft"}
                         </span>
                       </TableCell>
                         <TableCell className="text-center">
@@ -859,9 +1081,219 @@ const loadHealthHistory = async () => {
                 </div>
               </div>
             </div>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
+          <TabsContent value="charts" className="mt-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>
+                  Health Trends {selectedRecords.length > 0 && `(Selected ${selectedRecords.length} records)`}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-10">
+                <div className="h-[350px] w-full">
+                  <h3 className="font-semibold mb-2">Blood Pressure Trend (Systolic & Diastolic)</h3>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={chartData}>
+                      <XAxis dataKey="time" />
+                      <YAxis domain={[60,160]} />
+                      <Tooltip content={<CustomBPTooltip />} />
+                      <Legend />
+                      <Line type="monotone" dataKey="systolic" stroke="#ef4444" name="Systolic BP"/>
+                      <Line type="monotone" dataKey="diastolic" stroke="#3b82f6" name="Diastolic BP"/>
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="h-[350px] w-full">
+                  <h3 className="font-semibold mb-2">Blood Oxygen (SpO₂)</h3>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={chartData}>
+                      <XAxis dataKey="time" />
+                      <YAxis domain={[80, 100]} />
+                      <Tooltip />
+                      <Legend />
+                      <ReferenceLine y={95} stroke="#ef4444" strokeDasharray="4 4" label="Normal ≥95%" />
+                      <Area type="monotone" dataKey="spo2" stroke="#facc15" fill="#fde68a" name="SpO₂ (%)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="h-[350px] w-full">
+                  <h3 className="font-semibold mb-2">Respiratory Rate</h3>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={chartData}>
+                      <XAxis dataKey="time" />
+                      <YAxis domain={[10,30]} />
+                      <Tooltip />
+                      <Legend />
+                      <ReferenceArea y1={12} y2={20} fill="#d1fae5" label="Normal 12-20" />
+                      <Area type="monotone" dataKey="respiratoryRate" stroke="#10b981" fill="#a7f3d0" name="Respiratory Rate (breaths/min)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="h-[350px] w-full">
+                  <h3 className="font-semibold mb-2">Heart Rate</h3>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={chartData}>
+                      <XAxis dataKey="time" />
+                      <YAxis domain={[40,120]} />
+                      <Tooltip />
+                      <Legend />
+                      <ReferenceArea y1={60} y2={100} fill="#dbeafe" label="Normal 60-100 bpm" />
+                      <Area type="monotone" dataKey="heartRate" stroke="#2563eb" fill="#93c5fd" name="Heart Rate (bpm)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="h-[350px] w-full">
+                  <h3 className="font-semibold mb-2">BMI</h3>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={chartData}>
+                      <XAxis dataKey="time" />
+                      <YAxis domain={[15,40]} />
+                      <Tooltip />
+                      <Legend />
+                      <ReferenceArea y1={0} y2={18.5} fill="#fef3c7" label="Underweight" />
+                      <ReferenceArea y1={18.5} y2={24.9} fill="#d1fae5" label="Normal" />
+                      <ReferenceArea y1={25} y2={29.9} fill="#fef08a" label="Overweight" />
+                      <ReferenceArea y1={30} y2={40} fill="#fca5a5" label="Obese" />
+                      <Area type="monotone" dataKey="bmi" stroke="#06b6d4" fill="#bae6fd" name="BMI" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="h-[350px] w-full">
+                  <h3 className="font-semibold mb-2">Weight & Height</h3>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={chartData}>
+                      <XAxis dataKey="time" />
+                      <YAxis yAxisId="left" domain={[30,120]} />
+                      <YAxis yAxisId="right" orientation="right" domain={[100,210]} />
+                      <Tooltip />
+                      <Legend />
+                      <Line yAxisId="left" type="monotone" dataKey="weight" stroke="#f97316" name="Weight (kg)" />
+                      <Line yAxisId="right" type="monotone" dataKey="height" stroke="#2563eb" name="Height (cm)" />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+
+
+        {mode === "nurse" && (
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-2xl font-bold">Health Information</h3>
+              <p className="text-muted-foreground">Update patient health data before examination</p>
+            </div>
+            <div className="flex gap-3">
+              <Button
+                onClick={() => {
+                  if (healthHistory.length > 0) {
+                    loadRecordToForm(healthHistory[0])
+                    setCurrentHealthInfoId(null)
+                  } else {
+                    clearForm()
+                  }
+                  setIsAdding(true)
+                  setIsEditing(true)
+                }}
+                disabled={isEditing}
+                variant="outline"
+                className="btn-outline text-lg px-6 py-4 flex items-center gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                Add
+              </Button>
+              <Button
+                onClick={() => {
+                  if (!selectedRecord) return
+                  setIsAdding(false)
+                  setIsEditing(true)
+                }}
+                disabled={!canEditSelected}
+                variant="outline"
+                className="btn-outline text-lg px-6 py-4 flex items-center gap-2"
+              >
+                <Edit className="h-4 w-4" />
+                Edit
+              </Button>
+              <Button
+                onClick={handleCopyRecord}
+                disabled={!selectedRecord}
+                className="btn-outline text-lg px-6 py-4 flex items-center gap-2"
+              >
+                <Copy className="h-4 w-4" />
+                Inherit
+              </Button>
+              <Button
+                onClick={handleSave}
+                disabled={!isEditing || saving}
+                className="btn-gradient text-lg px-6 py-4 flex items-center gap-2"
+              >
+                <Save className="h-4 w-4" />
+                Save
+              </Button>
+              <Button
+                onClick={async () => {
+                  if (!selectedRecord) return
+                  try {
+                    await doctorService.signHealthInfo(patientId, selectedRecord.id)
+                    setSuccess("Health record signed successfully.")
+                    setError(null)
+                    setSelectedRecord(null)
+                    await loadHealthHistory()
+                  } catch (err: any) {
+                    setError(err?.message || "Failed to sign health record")
+                  }
+                }}
+                disabled={!canSignSelected}
+                className="!bg-[#16a34a] hover:bg-green-700 text-white text-lg px-6 py-4"
+              >
+                <PenLine className="h-4 w-4" />
+                Sign
+              </Button>
+              <Button
+                onClick={async () => {
+                  if (!selectedRecord) return
+                  try {
+                    await doctorService.unsignHealthInfo(patientId, selectedRecord.id)
+                    setSuccess("Health record voided successfully.")
+                    setError(null)
+                    setSelectedRecord(null)
+                    await loadHealthHistory()
+                  } catch (err: any) {
+                    setError(err?.message || "Failed to void health record")
+                  }
+                }}
+                disabled={!canUnsignSelected}
+                className="!bg-[#dc2626] hover:bg-red-700 text-white text-lg px-6 py-4"
+              >
+                <PenOff className="h-4 w-4" />
+                Void
+              </Button>
+              <Button
+                onClick={() => {
+                  clearForm()
+                  setIsEditing(false)
+                  setIsAdding(false)
+                }}
+                disabled={!isEditing}
+                variant="destructive"
+                className="btn-outline text-lg px-6 py-4 flex items-center gap-2"
+              >
+                <X className="h-4 w-4" />
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Success/Error Messages */}
         {success && (
@@ -1102,111 +1534,6 @@ const loadHealthHistory = async () => {
           </div>
         </CollapsibleSection>
 
-
-        <Dialog open={openChart} onOpenChange={setOpenChart}>
-          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>
-                Health Trends {selectedRecords.length > 0 && `(Selected ${selectedRecords.length} records)`}
-              </DialogTitle>
-            </DialogHeader>
-
-            {/* ----------------- BLOOD PRESSURE ----------------- */}
-            <div className="h-[350px] w-full mb-10">
-              <h3 className="font-semibold mb-2">Blood Pressure Trend (Systolic & Diastolic)</h3>
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData}>
-                  <XAxis dataKey="time" />
-                  <YAxis domain={[60,160]} />
-                  <Tooltip content={<CustomBPTooltip />} />
-                  <Legend />
-                  <Line type="monotone" dataKey="systolic" stroke="#ef4444" name="Systolic BP"/>
-                  <Line type="monotone" dataKey="diastolic" stroke="#3b82f6" name="Diastolic BP"/>
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* ----------------- SPO2 ----------------- */}
-            <div className="h-[350px] w-full mb-10">
-              <h3 className="font-semibold mb-2">Blood Oxygen (SpO₂)</h3>
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData}>
-                  <XAxis dataKey="time" />
-                  <YAxis domain={[80, 100]} />
-                  <Tooltip />
-                  <Legend />
-                  <ReferenceLine y={95} stroke="#ef4444" strokeDasharray="4 4" label="Normal ≥95%" />
-                  <Area type="monotone" dataKey="spo2" stroke="#facc15" fill="#fde68a" name="SpO₂ (%)" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* ----------------- Respiratory Rate ----------------- */}
-            <div className="h-[350px] w-full mb-10">
-              <h3 className="font-semibold mb-2">Respiratory Rate</h3>
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData}>
-                  <XAxis dataKey="time" />
-                  <YAxis domain={[10,30]} />
-                  <Tooltip />
-                  <Legend />
-                  <ReferenceArea y1={12} y2={20} fill="#d1fae5" label="Normal 12-20" />
-                  <Area type="monotone" dataKey="respiratoryRate" stroke="#10b981" fill="#a7f3d0" name="Respiratory Rate (breaths/min)" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* ----------------- Heart Rate ----------------- */}
-            <div className="h-[350px] w-full mb-10">
-              <h3 className="font-semibold mb-2">Heart Rate</h3>
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData}>
-                  <XAxis dataKey="time" />
-                  <YAxis domain={[40,120]} />
-                  <Tooltip />
-                  <Legend />
-                  <ReferenceArea y1={60} y2={100} fill="#dbeafe" label="Normal 60-100 bpm" />
-                  <Area type="monotone" dataKey="heartRate" stroke="#2563eb" fill="#93c5fd" name="Heart Rate (bpm)" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* ----------------- BMI ----------------- */}
-            <div className="h-[350px] w-full mb-10">
-              <h3 className="font-semibold mb-2">BMI</h3>
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData}>
-                  <XAxis dataKey="time" />
-                  <YAxis domain={[15,40]} />
-                  <Tooltip />
-                  <Legend />
-                  {/* Reference Areas for BMI categories */}
-                  <ReferenceArea y1={0} y2={18.5} fill="#fef3c7" label="Underweight" />
-                  <ReferenceArea y1={18.5} y2={24.9} fill="#d1fae5" label="Normal" />
-                  <ReferenceArea y1={25} y2={29.9} fill="#fef08a" label="Overweight" />
-                  <ReferenceArea y1={30} y2={40} fill="#fca5a5" label="Obese" />
-                  <Area type="monotone" dataKey="bmi" stroke="#06b6d4" fill="#bae6fd" name="BMI" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* ----------------- Weight & Height ----------------- */}
-            <div className="h-[350px] w-full">
-              <h3 className="font-semibold mb-2">Weight & Height</h3>
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData}>
-                  <XAxis dataKey="time" />
-                  <YAxis yAxisId="left" domain={[30,120]} />
-                  <YAxis yAxisId="right" orientation="right" domain={[100,210]} />
-                  <Tooltip />
-                  <Legend />
-                  <Line yAxisId="left" type="monotone" dataKey="weight" stroke="#f97316" name="Weight (kg)" />
-                  <Line yAxisId="right" type="monotone" dataKey="height" stroke="#2563eb" name="Height (cm)" />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </DialogContent>
-        </Dialog>
       </div>
   )
 }

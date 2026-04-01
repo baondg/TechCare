@@ -39,6 +39,7 @@ export default function HealthInfoPage() {
     spo2: number
     symptoms: string
     updatedBy: string
+    status: "draft" | "signed" | "unsigned"
   }
 
   // Loading states
@@ -87,7 +88,7 @@ export default function HealthInfoPage() {
   const [healthHistory, setHealthHistory] = useState<HealthRecord[]>([])
   
   const filteredHistory = healthHistory.filter(r => {
-    const status = r.updatedBy === "Patient" ? "Draft" : "Confirmed"
+    const status = r.status === "signed" ? "Signed" : r.status === "unsigned" ? "Unsigned" : "Draft"
     return (
       (!filters.date || r.updatedAt.toLocaleDateString("vi-VN").includes(filters.date)) &&
       (!filters.height || r.height.toString().includes(filters.height)) &&
@@ -119,6 +120,10 @@ export default function HealthInfoPage() {
   } | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
+  const selectedStatus = selectedRecord?.status
+  const canEditSelected = !!selectedRecord && selectedStatus === "draft" && !isEditing && !inlineEditingId
+  const canSignSelected = !!selectedRecord && selectedStatus === "draft" && !isEditing && !inlineEditingId
+  const canUnsignSelected = !!selectedRecord && selectedStatus === "signed" && !isEditing && !inlineEditingId
 
   const toArray = (value: unknown): string[] => {
     if (Array.isArray(value)) return value.filter((item): item is string => typeof item === "string")
@@ -230,6 +235,7 @@ export default function HealthInfoPage() {
 
   const startInlineEdit = () => {
     if (!selectedRecord) return
+    if (selectedRecord.status !== "draft") return
     setInlineEditingId(selectedRecord.id)
     setInlineEditDraft({
       height: String(selectedRecord.height),
@@ -321,7 +327,8 @@ export default function HealthInfoPage() {
             temperature: h.temperature || 0,
             spo2: h.spo2 || 0,
             symptoms: h.currentSymptoms || "",
-            updatedBy: h.updatedBy || "Patient"
+            updatedBy: h.updatedBy || "Patient",
+            status: (h.status as "draft" | "signed" | "unsigned") || "draft",
           }))
           // 🔥 SORT MỚI NHẤT LÊN ĐẦU
           .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
@@ -589,14 +596,6 @@ export default function HealthInfoPage() {
               Click on any row to load that record into the form below
             </p>
           </div>
-          <Button
-            className="text-red-600 flex items-center gap-2"
-            disabled={selectedRecords.length === 0 || !!inlineEditingId}
-            onClick={handleDeleteRecords}
-          >
-            <X className="h-4 w-4" />
-            Delete
-          </Button>
         </div>
 
         <Tabs defaultValue="records" className="w-full">
@@ -766,7 +765,8 @@ export default function HealthInfoPage() {
                         <SelectContent>
                           <SelectItem value="All">All</SelectItem>
                           <SelectItem value="Draft">Draft</SelectItem>
-                          <SelectItem value="Confirmed">Confirmed</SelectItem>
+                          <SelectItem value="Signed">Signed</SelectItem>
+                          <SelectItem value="Unsigned">Unsigned</SelectItem>
                         </SelectContent>
                       </Select>
                     </TableHead>
@@ -896,11 +896,13 @@ export default function HealthInfoPage() {
                       </TableCell>
                       <TableCell>
                         <span className={`px-2 py-1 text-xs rounded-full ${
-                          r.updatedBy === "Patient"
-                            ? "bg-yellow-100 text-yellow-800"
-                            : "bg-green-100 text-green-800"
+                          r.status === "signed"
+                            ? "bg-green-100 text-green-800"
+                            : r.status === "unsigned"
+                              ? "bg-red-100 text-red-800"
+                              : "bg-yellow-100 text-yellow-800"
                         }`}>
-                          {r.updatedBy === "Patient" ? "Draft" : "Confirmed"}
+                          {r.status === "signed" ? "Signed" : r.status === "unsigned" ? "Unsigned" : "Draft"}
                         </span>
                       </TableCell>
                         <TableCell className="text-center">
@@ -1107,7 +1109,7 @@ export default function HealthInfoPage() {
                   setIsEditing(true) // bật editing mode
                   startInlineEdit()
                 }}
-                disabled={isEditing || !selectedRecord || !!inlineEditingId} // disable khi đang edit/add
+                disabled={!canEditSelected}
                 variant="outline"
                 className="btn-outline text-lg px-6 py-4 flex items-center gap-2"
               >
@@ -1123,6 +1125,15 @@ export default function HealthInfoPage() {
               >
                 <Copy className="h-4 w-4" />
                 Inherit
+              </Button>
+
+              <Button
+                onClick={handleDeleteRecords}
+                disabled={selectedRecords.length === 0 || !!inlineEditingId}
+                className="btn-outline text-red-600 text-lg px-6 py-4 flex items-center gap-2"
+              >
+                <X className="h-4 w-4" />
+                Delete
               </Button>
 
               {/* Save Changes */}

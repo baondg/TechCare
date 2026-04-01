@@ -115,8 +115,16 @@ function formatHistoryTableDate(iso: string) {
 }
 
 function normalizeSignatureStatus(s: string | undefined): PrescriptionSignatureStatus {
-  if (s === "Signed") return "Signed"
-  if (s === "Unsigned") return "Unsigned"
+  const raw = String(s || "").trim().toLowerCase()
+  if (raw === "signed") return "signed"
+  if (raw === "voided") return "voided"
+  if (raw === "unsigned") return "voided"
+  return "draft"
+}
+
+function signatureStatusLabel(s: PrescriptionSignatureStatus): "Draft" | "Signed" | "Voided" {
+  if (s === "signed") return "Signed"
+  if (s === "voided") return "Voided"
   return "Draft"
 }
 
@@ -401,7 +409,7 @@ export default function PatientPrescription() {
       date: "—",
       doctor: "—",
       medications: [],
-      signatureStatus: "Draft",
+      signatureStatus: "draft",
       isDraft: true,
     })
     setDraftMeds([emptyMed()])
@@ -410,7 +418,7 @@ export default function PatientPrescription() {
 
   const handleEditPrescription = () => {
     if (!selectedRx || selectedRx.isDraft) return
-    if (selectedRx.signatureStatus !== "Draft") return
+    if (selectedRx.signatureStatus !== "draft") return
     setViewRxBeforeEdit(selectedRx)
     setSelectedRx({ ...selectedRx, isDraft: true })
     setDraftMeds([
@@ -435,7 +443,7 @@ export default function PatientPrescription() {
       createdAt: "",
       date: "—",
       doctor: "—",
-      signatureStatus: "Draft",
+      signatureStatus: "draft",
       isDraft: true,
     })
     setDraftMeds([
@@ -529,7 +537,7 @@ export default function PatientPrescription() {
 
   const hasSelectedViewRow = !!selectedRx && !selectedRx.isDraft
   const selectedIsDraftRecord =
-    hasSelectedViewRow && selectedRx!.signatureStatus === "Draft"
+    hasSelectedViewRow && selectedRx!.signatureStatus === "draft"
   /** Any saved row (Draft / Signed / Unsigned) — copy into a new draft */
   const selectedCanInherit = hasSelectedViewRow
   const canAdd = !isEditMode && !loading && !saving
@@ -540,14 +548,14 @@ export default function PatientPrescription() {
   const canSaveOrCancel = isEditMode && !loading
   const canSign =
     hasSelectedViewRow &&
-    selectedRx!.signatureStatus === "Draft" &&
+    selectedRx!.signatureStatus === "draft" &&
     !isEditMode &&
     !loading &&
     !saving &&
     !signingKind
   const canUnsign =
     hasSelectedViewRow &&
-    selectedRx!.signatureStatus === "Signed" &&
+    selectedRx!.signatureStatus === "signed" &&
     !isEditMode &&
     !loading &&
     !saving &&
@@ -581,8 +589,8 @@ export default function PatientPrescription() {
           : "—"
       releasePdfBlobUrl(null)
       const sigForPdf: PrescriptionSignatureStatus = selectedRx?.isDraft
-        ? "Draft"
-        : selectedRx?.signatureStatus ?? "Draft"
+        ? "draft"
+        : selectedRx?.signatureStatus ?? "draft"
 
       const { blob, filename } = await generatePrescriptionPdfBlob({
         patient: res.patient,
@@ -619,7 +627,7 @@ export default function PatientPrescription() {
   }
 
   const handleSignPrescription = async () => {
-    if (!patientId || !selectedRx || selectedRx.isDraft || selectedRx.signatureStatus !== "Draft") return
+    if (!patientId || !selectedRx || selectedRx.isDraft || selectedRx.signatureStatus !== "draft") return
     setSigningKind("sign")
     try {
       await doctorService.signPrescription(patientId, selectedRx.id)
@@ -633,7 +641,7 @@ export default function PatientPrescription() {
   }
 
   const handleUnsignPrescription = async () => {
-    if (!patientId || !selectedRx || selectedRx.isDraft || selectedRx.signatureStatus !== "Signed") return
+    if (!patientId || !selectedRx || selectedRx.isDraft || selectedRx.signatureStatus !== "signed") return
     setSigningKind("unsign")
     try {
       await doctorService.unsignPrescription(patientId, selectedRx.id)
@@ -774,8 +782,8 @@ export default function PatientPrescription() {
                         </span>
                       </TableCell>
                       <TableCell className="max-w-0 p-1.5 align-top leading-snug">
-                        <span className="block truncate" title={rx.signatureStatus}>
-                          {rx.signatureStatus}
+                        <span className="block truncate" title={signatureStatusLabel(rx.signatureStatus)}>
+                          {signatureStatusLabel(rx.signatureStatus)}
                         </span>
                       </TableCell>
                     </TableRow>
@@ -838,11 +846,11 @@ export default function PatientPrescription() {
                 className="h-9 gap-2 border-0 !bg-[#dc2626] px-4 text-white shadow-sm hover:bg-[#b91c1c] focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2"
                 onClick={() => void handleUnsignPrescription()}
                 disabled={!canUnsign}
-                title="Hủy ký số — revoke signature (Signed → Unsigned)"
+                title="revoke signature (Signed → Voided)"
               >
                 <PenOff className="h-4 w-4" />
                 {signingKind === "unsign" ? <Loader2 className="h-4 w-4 animate-spin shrink-0" /> : null}
-                Unsign
+                Void Signature
               </Button>
               <Button
                 size="sm"
@@ -871,16 +879,16 @@ export default function PatientPrescription() {
             <div
               className={cn(
                 "relative overflow-x-hidden border rounded-lg",
-                !selectedRx.isDraft && selectedRx.signatureStatus === "Unsigned" && "overflow-hidden"
+                !selectedRx.isDraft && selectedRx.signatureStatus === "voided" && "overflow-hidden"
               )}
             >
-              {!selectedRx.isDraft && selectedRx.signatureStatus === "Unsigned" ? (
+              {!selectedRx.isDraft && selectedRx.signatureStatus === "voided" ? (
                 <div
                   className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center overflow-hidden"
                   aria-hidden
                 >
                   <span className="text-red-600/45 text-5xl sm:text-6xl font-black -rotate-[18deg] select-none tracking-[0.2em] whitespace-nowrap drop-shadow-sm">
-                    UNSIGNED
+                    VOIDED
                   </span>
                 </div>
               ) : null}
@@ -984,7 +992,7 @@ export default function PatientPrescription() {
                   )}
                 </TableBody>
               </Table>
-              {!selectedRx.isDraft && selectedRx.signatureStatus === "Signed" ? (
+              {!selectedRx.isDraft && selectedRx.signatureStatus === "signed" ? (
                 <div className="relative z-[1] flex items-start gap-3 border-t border-slate-200 bg-emerald-50/90 px-4 py-3">
                   <CheckCircle2 className="mt-0.5 h-6 w-6 shrink-0 text-green-600" aria-hidden />
                   <div className="min-w-0">

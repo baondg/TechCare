@@ -64,6 +64,11 @@ const MedicalRecord = sequelize.define('MedicalRecord', {
       max: 60
     }
   },
+  status: {
+    type: DataTypes.ENUM('draft', 'signed', 'unsigned'),
+    allowNull: false,
+    defaultValue: 'draft'
+  },
   patient_id: {
     type: DataTypes.INTEGER,
     allowNull: false

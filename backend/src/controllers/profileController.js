@@ -22,6 +22,11 @@ function isSelfOrAdmin(req, userId) {
   return String(req.user.userId) === String(userId) || req.user.role === 'admin';
 }
 
+function isMedicalStaff(req) {
+  const role = String(req.user?.role || '').toLowerCase();
+  return role === 'doctor' || role === 'nurse' || role === 'technician';
+}
+
 function ensureAuthorized(req, res, userId) {
   if (!isSelfOrAdmin(req, userId)) {
     res.status(403).json({ message: 'Forbidden' });
@@ -42,7 +47,10 @@ exports.getProfile = async (req, res) => {
     const userId = parseUserIdParam(req, res);
     if (userId == null) return;
 
-    if (!ensureAuthorized(req, res, userId)) return;
+    // Allow medical staff to view patient profile; writes still require self/admin below.
+    if (!(isSelfOrAdmin(req, userId) || isMedicalStaff(req))) {
+      return res.status(403).json({ message: 'Forbidden' });
+    }
 
     const account = await Account.findOne({
       where: { user_id: userId },

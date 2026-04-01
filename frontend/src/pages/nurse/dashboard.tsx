@@ -1,144 +1,227 @@
 "use client"
 
+import { useEffect, useMemo, useState } from "react"
+import { format, addDays } from "date-fns"
+import { Link } from "react-router-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Users, Calendar, Clock, TrendingUp } from "lucide-react"
-import { Link } from "react-router-dom";
 import { NurseLayout } from "@/components/nurse-layout"
-import { CollapsibleSection } from "@/components/collapsible-section"
+import { appointmentService, type NurseOpenSlot } from "@/services/appointment-service"
+import { CalendarDays, Clock3, FolderKanban, Stethoscope, UserRound } from "lucide-react"
+
+function badgeClass(status: NurseOpenSlot["status"]) {
+  if (status === "open") return "bg-green-100 text-green-700"
+  if (status === "booked") return "bg-blue-100 text-blue-700"
+  return "bg-slate-200 text-slate-600"
+}
 
 export default function NurseDashboard() {
+  const [todaySlots, setTodaySlots] = useState<NurseOpenSlot[]>([])
+  const [weekSlots, setWeekSlots] = useState<NurseOpenSlot[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
+
+  const today = useMemo(() => new Date(), [])
+  const todayKey = useMemo(() => format(today, "yyyy-MM-dd"), [today])
+  const weekEndKey = useMemo(() => format(addDays(today, 6), "yyyy-MM-dd"), [today])
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true)
+      setError("")
+      try {
+        const [todayData, weekData] = await Promise.all([
+          appointmentService.getOpenSlots({ startDate: todayKey, endDate: todayKey }),
+          appointmentService.getOpenSlots({ startDate: todayKey, endDate: weekEndKey }),
+        ])
+        setTodaySlots(todayData || [])
+        setWeekSlots(weekData || [])
+      } catch (e: any) {
+        setError(e?.message || "Failed to load dashboard data")
+      } finally {
+        setLoading(false)
+      }
+    }
+    void load()
+  }, [todayKey, weekEndKey])
+
+  const stats = useMemo(() => {
+    const totalToday = todaySlots.length
+    const openToday = todaySlots.filter((s) => s.status === "open").length
+    const bookedToday = todaySlots.filter((s) => s.status === "booked").length
+    const cancelledToday = todaySlots.filter((s) => s.status === "cancelled").length
+    const departments = new Set(todaySlots.map((s) => String(s.department || "").trim()).filter(Boolean))
+    const doctors = new Set(todaySlots.map((s) => String(s.doctorName || "").trim()).filter(Boolean))
+    return {
+      totalToday,
+      openToday,
+      bookedToday,
+      cancelledToday,
+      departments: departments.size,
+      doctors: doctors.size,
+    }
+  }, [todaySlots])
+
+  const nextOpenSlot = useMemo(() => {
+    const nowKey = format(new Date(), "HH:mm")
+    return todaySlots
+      .filter((s) => s.status === "open" && s.time >= nowKey)
+      .sort((a, b) => a.time.localeCompare(b.time))[0]
+  }, [todaySlots])
+  const nextBookedSlot = useMemo(() => {
+    const nowKey = format(new Date(), "HH:mm")
+    return todaySlots
+      .filter((s) => s.status === "booked" && s.time >= nowKey)
+      .sort((a, b) => a.time.localeCompare(b.time))[0]
+  }, [todaySlots])
+
+  const departmentLoad = useMemo(() => {
+    const map = new Map<string, { total: number; booked: number }>()
+    for (const slot of weekSlots) {
+      const dept = String(slot.department || "General").trim() || "General"
+      const current = map.get(dept) || { total: 0, booked: 0 }
+      current.total += 1
+      if (slot.status === "booked") current.booked += 1
+      map.set(dept, current)
+    }
+    return Array.from(map.entries())
+      .map(([department, values]) => ({
+        department,
+        total: values.total,
+        booked: values.booked,
+        ratio: values.total > 0 ? Math.round((values.booked / values.total) * 100) : 0,
+      }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 5)
+  }, [weekSlots])
+
   return (
     <NurseLayout>
       <div className="space-y-6">
-        <div>
-          <h2 className="text-3xl font-bold">Welcome! Here's your overview</h2>
+        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h2 className="text-3xl font-bold bg-linear-to-r from-[#06b6d4] via-[#0891b2] to-[#06b6d4] bg-clip-text text-transparent">
+              Nurse Operations Dashboard
+            </h2>
+            <p className="text-slate-600">Quick view of the most-used appointment data for today.</p>
+          </div>
         </div>
 
-        <CollapsibleSection title="Overview Statistics" description="Today's performance metrics" defaultOpen={true}>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Today's Patients</CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">12</div>
-                <p className="text-xs text-muted-foreground">3 completed, 9 remaining</p>
-              </CardContent>
-            </Card>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <Card className="card-feature">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2"><CalendarDays className="h-4 w-4" />Today Slots</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-3xl font-bold">{loading ? "..." : stats.totalToday}</p>
+              <p className="text-xs text-slate-500 mt-1">Open {stats.openToday} • Booked {stats.bookedToday}</p>
+            </CardContent>
+          </Card>
+          <Card className="card-feature">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2"><Clock3 className="h-4 w-4" />Next Booked Slot</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-2xl font-bold">{loading ? "..." : nextBookedSlot?.time || "No booking"}</p>
+              <p className="text-xs text-slate-500 mt-1">
+                {nextBookedSlot?.patientId ? (
+                  <Link to={`/nurse/patients/${nextBookedSlot.patientId}/profile`} className="text-cyan-700 hover:underline">
+                    {nextBookedSlot.patientName || `Patient #${nextBookedSlot.patientId}`}
+                  </Link>
+                ) : nextBookedSlot ? (
+                  nextBookedSlot.patientName || "Patient assigned"
+                ) : (
+                  "No booked slots left today"
+                )}
+              </p>
+              <p className="text-xs text-slate-500">{nextBookedSlot ? `${nextBookedSlot.department} - ${nextBookedSlot.roomName || "-"}` : ""}</p>
+            </CardContent>
+          </Card>
+          <Card className="card-feature">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2"><Stethoscope className="h-4 w-4" />Doctors Active</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-3xl font-bold">{loading ? "..." : stats.doctors}</p>
+              <p className="text-xs text-slate-500 mt-1">Across {stats.departments} departments</p>
+            </CardContent>
+          </Card>
+          <Card className="card-feature">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2"><FolderKanban className="h-4 w-4" />Cancelled Today</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-3xl font-bold">{loading ? "..." : stats.cancelledToday}</p>
+              <p className="text-xs text-slate-500 mt-1">Need reschedule follow-up</p>
+            </CardContent>
+          </Card>
+        </div>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Appointments</CardTitle>
-                <Calendar className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">8</div>
-                <p className="text-xs text-muted-foreground">This week</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Avg Wait Time</CardTitle>
-                <Clock className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">18 min</div>
-                <p className="text-xs text-muted-foreground">-5 min from last week</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Patient Satisfaction</CardTitle>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">4.8/5</div>
-                <p className="text-xs text-muted-foreground">Based on 45 reviews</p>
-              </CardContent>
-            </Card>
-          </div>
-        </CollapsibleSection>
-
-        <CollapsibleSection
-          title="Today's Schedule"
-          description="Your appointments for December 15, 2025"
-          defaultOpen={true}
-        >
-          <div className="space-y-4">
-            {[
-              { time: "09:00 AM", patient: "John Doe", type: "General Checkup", status: "completed" },
-              { time: "10:00 AM", patient: "Jane Smith", type: "Follow-up", status: "in-progress" },
-              { time: "11:00 AM", patient: "Michael Brown", type: "New Patient", status: "waiting" },
-              { time: "02:00 PM", patient: "Emily Davis", type: "Consultation", status: "scheduled" },
-            ].map((apt, idx) => (
-              <div key={idx} className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="flex items-center gap-4">
-                  <div className="text-sm font-medium w-20">{apt.time}</div>
-                  <div>
-                    <p className="font-medium">{apt.patient}</p>
-                    <p className="text-sm text-muted-foreground">{apt.type}</p>
-                  </div>
+        <div className="grid gap-6 lg:grid-cols-3">
+          <Card className="card-feature lg:col-span-2">
+            <CardHeader className="pb-3">
+              <CardTitle>Today Schedule ({format(today, "dd/MM/yyyy")})</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <p className="text-sm text-slate-500">Loading schedule...</p>
+              ) : error ? (
+                <p className="text-sm text-red-600">{error}</p>
+              ) : todaySlots.length === 0 ? (
+                <p className="text-sm text-slate-500">No slots created for today.</p>
+              ) : (
+                <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+                  {todaySlots.slice().sort((a, b) => a.time.localeCompare(b.time)).map((slot) => (
+                    <div key={slot.id} className="rounded-lg border border-slate-200 p-3 flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-slate-900">{slot.time} - Dr. {slot.doctorName}</p>
+                        <p className="text-sm text-slate-600">{slot.department} • Room {slot.roomName || "-"}</p>
+                        <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                          <UserRound className="h-3.5 w-3.5" />
+                          {slot.patientId ? (
+                            <Link to={`/nurse/patients/${slot.patientId}/profile`} className="text-cyan-700 hover:underline">
+                              {slot.patientName || `Patient #${slot.patientId}`}
+                            </Link>
+                          ) : (
+                            "No patient yet"
+                          )}
+                        </p>
+                      </div>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${badgeClass(slot.status)}`}>
+                        {slot.status === "open" ? "Open" : slot.status === "booked" ? "Booked" : "Cancelled"}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`text-xs px-2 py-1 rounded-full ${
-                      apt.status === "completed"
-                        ? "bg-green-100 text-green-700"
-                        : apt.status === "in-progress"
-                          ? "bg-blue-100 text-blue-700"
-                          : apt.status === "waiting"
-                            ? "bg-yellow-100 text-yellow-700"
-                            : "bg-gray-100 text-gray-700"
-                    }`}
-                  >
-                    {apt.status}
-                  </span>
-                  <Button variant="outline" size="sm" asChild>
-                    <Link to={`/doctor/patients/${idx + 1}`}>View</Link>
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </CollapsibleSection>
+              )}
+            </CardContent>
+          </Card>
 
-        <div className="grid gap-6 md:grid-cols-2">
-          <CollapsibleSection title="Recent Patients" description="Patients you've seen recently" defaultOpen={true}>
-            <div className="space-y-3">
-              {["John Doe", "Jane Smith", "Michael Brown"].map((name, idx) => (
-                <div key={idx} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <p className="font-medium">{name}</p>
-                    <p className="text-sm text-muted-foreground">Last visit: Dec {15 - idx}, 2025</p>
-                  </div>
-                  <Button variant="ghost" size="sm" asChild>
-                    <Link to={`/doctor/patients/${idx + 1}`}>View EMR</Link>
-                  </Button>
+          <Card className="card-feature">
+            <CardHeader className="pb-3">
+              <CardTitle>Department Load (7 days)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <p className="text-sm text-slate-500">Loading data...</p>
+              ) : departmentLoad.length === 0 ? (
+                <p className="text-sm text-slate-500">No slot data in this week.</p>
+              ) : (
+                <div className="space-y-3">
+                  {departmentLoad.map((d) => (
+                    <div key={d.department}>
+                      <div className="flex items-center justify-between text-sm mb-1">
+                        <span className="font-medium text-slate-800 truncate mr-2">{d.department}</span>
+                        <span className="text-slate-500">{d.booked}/{d.total}</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                        <div className="h-full bg-cyan-500" style={{ width: `${d.ratio}%` }} />
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </CollapsibleSection>
-
-          <CollapsibleSection title="AI Insights" description="Intelligent recommendations" defaultOpen={true}>
-            <div className="space-y-3">
-              <div className="p-3 border rounded-lg bg-primary/5">
-                <p className="text-sm font-medium">High Priority</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Patient Michael Brown shows symptoms requiring immediate attention
-                </p>
-              </div>
-              <div className="p-3 border rounded-lg">
-                <p className="text-sm font-medium">Schedule Optimization</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Consider adding 2 more slots on Thursday for better patient flow
-                </p>
-              </div>
-            </div>
-          </CollapsibleSection>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
     </NurseLayout>

@@ -8,8 +8,8 @@ router.use(authenticateToken);
 
 // Middleware to check doctor role
 const requireDoctor = (req, res, next) => {
-  if (req.user.role !== 'doctor' && req.user.role !== 'admin') {
-    return res.status(403).json({ success: false, message: 'Access denied. Doctor role required.' });
+  if (!['doctor', 'admin', 'nurse', 'technician'].includes(req.user.role)) {
+    return res.status(403).json({ success: false, message: 'Access denied. Medical staff role required.' });
   }
   next();
 };
@@ -32,6 +32,8 @@ router.get('/patients/:patientId/health-info', doctorController.getHealthInfo);
 router.get('/patients/:patientId/health-info/history', doctorController.getHealthInfoHistory);
 router.post('/patients/:patientId/health-info', doctorController.createHealthInfo);
 router.put('/patients/:patientId/health-info/:id', doctorController.updateHealthInfo);
+router.patch('/patients/:patientId/health-info/:id/sign', doctorController.signHealthInfo);
+router.patch('/patients/:patientId/health-info/:id/unsign', doctorController.unsignHealthInfo);
 router.delete('/patients/:patientId/health-info/:id', doctorController.deleteHealthInfo);
 
 // ─── Diagnoses ───

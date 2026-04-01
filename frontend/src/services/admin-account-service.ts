@@ -66,6 +66,21 @@ export interface AdminDashboardSummary {
   }>
 }
 
+export interface AdminFeedbackRow {
+  id: number
+  userId: number
+  username: string
+  userName: string
+  roleCode: string
+  role: string
+  type: string
+  content: string
+  rating: number
+  time: string | null
+  status: boolean
+  response: string
+}
+
 export const adminAccountService = {
   async getAccounts() {
     return apiRequest<{ success: boolean; accounts: AdminAccountRow[] }>(
@@ -106,6 +121,22 @@ export const adminAccountService = {
   async getDashboardSummary() {
     return apiRequest<{ success: boolean; summary: AdminDashboardSummary }>(
       `${API_BASE_URL}/api/admin/dashboard-summary`
+    )
+  },
+
+  async getFeedbacks() {
+    return apiRequest<{ success: boolean; feedbacks: AdminFeedbackRow[] }>(
+      `${API_BASE_URL}/api/admin/feedbacks`
+    )
+  },
+
+  async updateFeedback(id: number, payload: { response?: string; status?: boolean }) {
+    return apiRequest<{ success: boolean; feedback: AdminFeedbackRow }>(
+      `${API_BASE_URL}/api/admin/feedbacks/${id}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      }
     )
   },
 }

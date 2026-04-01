@@ -99,6 +99,7 @@ export default function UserManagement() {
     dob: "",
     phone: "",
     email: "",
+    enabled: "",
   })
 
   useEffect(() => {
@@ -138,7 +139,9 @@ export default function UserManagement() {
       (filters.sex === "" || p.sex === filters.sex) &&
       p.dob.includes(filters.dob) &&
       p.phone.includes(filters.phone) &&
-      p.email.toLowerCase().includes(filters.email.toLowerCase())
+      p.email.toLowerCase().includes(filters.email.toLowerCase()) &&
+      (filters.enabled === "" ||
+        (filters.enabled === "active" ? p.enabled : !p.enabled))
     )
   }, [patients, filters])
 
@@ -149,7 +152,7 @@ export default function UserManagement() {
   const startItem = (currentPage - 1) * pageSize + 1
   const endItem = Math.min(currentPage * pageSize, filteredPatients.length)
 
-  type ColumnKey = "no" | "role" | "userId" | "name" | "username" | "sex" | "dob" | "phone" | "email"
+  type ColumnKey = "no" | "role" | "userId" | "name" | "username" | "sex" | "dob" | "phone" | "email" | "enabled"
 
   const columns: {
     key: ColumnKey
@@ -164,6 +167,7 @@ export default function UserManagement() {
     { key: "dob", label: "DOB" },
     { key: "phone", label: "Phone" },
     { key: "email", label: "Email" },
+    { key: "enabled", label: "Active" },
   ]
 
   const allColumns = columns.map(c => c.key)
@@ -173,15 +177,16 @@ export default function UserManagement() {
   type SortKey = keyof Patient | "no"
 
   const columnWidthClass: Record<ColumnKey, string> = {
-    no: "w-[56px] min-w-[56px]",
-    role: "w-[96px] min-w-[96px]",
-    userId: "w-[92px] min-w-[92px]",
+    no: "w-[30px] min-w-[30px]",
+    role: "w-[80px] min-w-[80px]",
+    userId: "w-[80px] min-w-[80px]",
     name: "w-[210px] min-w-[210px]",
     username: "w-[130px] min-w-[130px]",
     sex: "w-[90px] min-w-[90px]",
     dob: "w-[120px] min-w-[120px]",
     phone: "w-[130px] min-w-[130px]",
     email: "w-[170px] min-w-[170px]",
+    enabled: "w-[95px] min-w-[95px]",
   }
 
   const [sortConfig, setSortConfig] = useState<{
@@ -388,6 +393,25 @@ export default function UserManagement() {
           </div>
         )
 
+      case "enabled":
+        return (
+          <Select
+            value={filters.enabled || "ALL"}
+            onValueChange={v =>
+              setFilters(f => ({ ...f, enabled: v === "ALL" ? "" : v }))
+            }
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="All" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">All</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="inactive">Inactive</SelectItem>
+            </SelectContent>
+          </Select>
+        )
+
       default:
         return null
     }
@@ -490,10 +514,11 @@ export default function UserManagement() {
     <div className="w-full max-w-none space-y-2">
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3 p-2">
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
             <Checkbox
               label="Show All"
               checked={visibleColumns.length === allColumns.length}
+              compact
               onChange={(checked) => {
                 if (checked) {
                   setVisibleColumns(allColumns)
@@ -507,6 +532,7 @@ export default function UserManagement() {
                 <Checkbox
                   key={col.key}
                   label={col.label}
+                  compact
                   checked={visibleColumns.includes(col.key)}
                   onChange={(checked) =>
                     setVisibleColumns(prev =>
@@ -525,7 +551,7 @@ export default function UserManagement() {
               disabled={!canAdd}
               onClick={startAdd}
             >
-              <UserPlus className="w-4 h-4 mr-2" /> Add New Account
+              <UserPlus className="w-4 h-4 mr-2" /> Add
             </Button>
             <Button
               size="sm"
@@ -637,6 +663,14 @@ export default function UserManagement() {
                         {visibleColumns.includes("email") && (
                           <TableCell className={`${columnWidthClass.email} truncate max-w-xs`}>
                             {patient.email}
+                          </TableCell>
+                        )}
+
+                        {visibleColumns.includes("enabled") && (
+                          <TableCell className={columnWidthClass.enabled}>
+                            <span className={patient.enabled ? "text-emerald-700 font-medium" : "text-rose-700 font-medium"}>
+                              {patient.enabled ? "Active" : "Inactive"}
+                            </span>
                           </TableCell>
                         )}
                       </TableRow>

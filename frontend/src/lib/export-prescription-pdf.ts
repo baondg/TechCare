@@ -10,16 +10,16 @@ export interface ExportMedicationRow {
   note?: string
 }
 
-const unitLabelsEn: Record<string, string> = {
-  tablet: "tablet(s)",
-  capsule: "capsule(s)",
-  syrup: "bottle (syrup)",
-  injection: "ampoule / vial",
-  drop: "drop(s)",
-  cream: "tube (cream)",
-  ointment: "tube (ointment)",
-  powder: "sachet(s)",
-  spray: "spray bottle",
+const unitLabelsVi: Record<string, string> = {
+  tablet: "viên nén",
+  capsule: "viên nang",
+  syrup: "chai (siro)",
+  injection: "ống tiêm / lọ",
+  drop: "giọt",
+  cream: "tuýp kem",
+  ointment: "tuýp thuốc mỡ",
+  powder: "gói bột",
+  spray: "chai xịt",
 }
 
 function escapeHtml(s: string): string {
@@ -30,10 +30,10 @@ function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;")
 }
 
-function genderEn(g: string | null): string {
-  if (g === "M") return "Male"
-  if (g === "F") return "Female"
-  return "Other"
+function genderVi(g: string | null): string {
+  if (g === "M") return "Nam"
+  if (g === "F") return "Nữ"
+  return "Khác"
 }
 
 function slugFilenamePart(s: string): string {
@@ -90,7 +90,7 @@ export type PrescriptionPdfResult = { blob: Blob; filename: string }
  * Renders HTML in a sandboxed iframe, then captures with html2canvas inside that document only
  * (avoids Tailwind oklch on the main page).
  */
-export type ExportPrescriptionSignatureStatus = "Draft" | "Signed" | "Unsigned"
+export type ExportPrescriptionSignatureStatus = "draft" | "signed" | "voided"
 
 export async function generatePrescriptionPdfBlob(opts: {
   patient: PatientDetail
@@ -98,7 +98,7 @@ export async function generatePrescriptionPdfBlob(opts: {
   prescriptionDate: string
   doctorName: string
   filename?: string
-  /** Red diagonal watermark on PDF when Unsigned */
+  /** Red diagonal watermark on PDF when voided */
   signatureStatus?: ExportPrescriptionSignatureStatus
 }): Promise<PrescriptionPdfResult> {
   const { patient, medications, prescriptionDate, doctorName } = opts
@@ -120,7 +120,7 @@ export async function generatePrescriptionPdfBlob(opts: {
 
   const rows = medications
     .map((m, i) => {
-      const unitLabel = unitLabelsEn[m.unit] ?? m.unit
+      const unitLabel = unitLabelsVi[m.unit] ?? m.unit
       const name = escapeHtml(m.name)
       const qty = escapeHtml(m.quantity || "—")
       const usage = escapeHtml(m.usage || "—")
@@ -130,16 +130,16 @@ export async function generatePrescriptionPdfBlob(opts: {
         <td style="vertical-align:top;border:1px solid #222222;padding:6px;color:#111111;background:#ffffff">
           <div style="font-weight:700;font-size:12px;color:#111111">${name}</div>
           <div style="margin-top:4px;font-size:11px;color:#111111">
-            <span style="font-weight:600">Quantity:</span> ${qty}
+            <span style="font-weight:600">Số lượng:</span> ${qty}
             &nbsp;&nbsp;|&nbsp;&nbsp;
-            <span style="font-weight:600">Unit:</span> ${escapeHtml(unitLabel)}
+            <span style="font-weight:600">Đơn vị:</span> ${escapeHtml(unitLabel)}
           </div>
         </td>
       </tr>
       <tr>
         <td style="border:1px solid #222222;background:#f5f5f5"></td>
         <td style="border:1px solid #222222;padding:6px 8px 10px 14px;font-size:11px;color:#111111;background:#ffffff">
-          <span style="font-style:italic">Directions:</span> ${usage}
+          <span style="font-style:italic">Cách dùng:</span> ${usage}
         </td>
       </tr>`
     })
@@ -148,7 +148,7 @@ export async function generatePrescriptionPdfBlob(opts: {
   const css = `
     html, body { margin: 0; padding: 0; color: #111111; background: #ffffff; }
     body {
-      font-family: 'Segoe UI', Arial, sans-serif;
+      font-family: "Times New Roman", Times, "DejaVu Serif", serif;
       font-size: 12px;
       line-height: 1.45;
       padding: 12px 16px 28px;
@@ -168,49 +168,49 @@ export async function generatePrescriptionPdfBlob(opts: {
   `
 
   const unsignedWatermark =
-    opts.signatureStatus === "Unsigned"
+    opts.signatureStatus === "voided"
       ? `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:5;overflow:hidden">
-          <span style="transform:rotate(-18deg);font-size:56px;font-weight:900;color:rgba(220,38,38,0.2);letter-spacing:0.2em;white-space:nowrap;font-family:Arial,sans-serif">UNSIGNED</span>
+          <span style="transform:rotate(-18deg);font-size:56px;font-weight:900;color:rgba(220,38,38,0.2);letter-spacing:0.2em;white-space:nowrap;font-family:'Times New Roman',Times,'DejaVu Serif',serif">ĐÃ HỦY KÝ SỐ</span>
         </div>`
       : ""
 
-  /** Draft: empty under signature box; Signed & Unsigned: show doctor name */
-  const showSignatureBlockName = opts.signatureStatus !== "Draft"
+  /** Draft: empty under signature box; Signed & Voided: show doctor name */
+  const showSignatureBlockName = opts.signatureStatus !== "draft"
   const signatureDoctorLine = showSignatureBlockName ? escapeHtml(doctorName) : ""
 
   const bodyHtml = `
     <div class="pdf-doc-root" style="position:relative;min-height:100%">
-    <h1>PRESCRIPTION</h1>
+    <h1>ĐƠN THUỐC</h1>
     <div class="sub">TechCare</div>
     <div class="meta">
-      <div><span class="label">Full name:</span> ${escapeHtml(fullName)}</div>
+      <div><span class="label">Họ và tên:</span> ${escapeHtml(fullName)}</div>
       <div>
-        <span class="label">Age:</span> ${escapeHtml(age)}
-        &nbsp;|&nbsp; <span class="label">Sex:</span> ${escapeHtml(genderEn(patient.gender))}
+        <span class="label">Tuổi:</span> ${escapeHtml(age)}
+        &nbsp;|&nbsp; <span class="label">Giới tính:</span> ${escapeHtml(genderVi(patient.gender))}
         &nbsp;|&nbsp; <span class="label">BMI:</span> ${escapeHtml(bmi)}
       </div>
-      <div><span class="label">Diagnosis:</span> ${escapeHtml(diagnosisLine)}</div>
+      <div><span class="label">Chẩn đoán:</span> ${escapeHtml(diagnosisLine)}</div>
       <div>
-        <span class="label">Prescription date:</span> ${escapeHtml(prescriptionDate)}
-        &nbsp;|&nbsp; <span class="label">Doctor:</span> ${escapeHtml(doctorName)}
+        <span class="label">Ngày kê đơn:</span> ${escapeHtml(prescriptionDate)}
+        &nbsp;|&nbsp; <span class="label">Bác sĩ:</span> ${escapeHtml(doctorName)}
       </div>
     </div>
     <table class="rx">
       <thead>
         <tr>
           <th style="width:32px">No.</th>
-          <th>Medication (row 1: name, quantity, unit — row 2: directions)</th>
+          <th>Thuốc (dòng 1: tên, số lượng, đơn vị - dòng 2: cách dùng)</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
     </table>
     <div class="footer">
       <div class="advice">
-        <div class="label" style="text-decoration:underline;margin-bottom:6px">Advice / notes</div>
+        <div class="label" style="text-decoration:underline;margin-bottom:6px">Lời dặn / ghi chú</div>
         <div>${adviceLines}</div>
       </div>
       <div class="sig">
-        <div style="font-weight:600">Doctor</div>
+        <div style="font-weight:600">Bác sĩ</div>
         <div class="sig-box" aria-hidden="true"></div>
         <div>${signatureDoctorLine}</div>
       </div>

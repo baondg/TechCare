@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useEffect, useState, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent} from "@/components/ui/card"
@@ -11,7 +11,6 @@ import { TechnicianLayout } from "@/components/technician-layout"
 import { Popover,  PopoverContent,  PopoverTrigger} from "@/components/ui/popover"
 import { format } from "date-fns"
 import { vi } from "date-fns/locale"
-import { cn } from "@/lib/utils"
 import { Calendar } from "@/components/ui/calendar"
 import { useNavigate } from "react-router-dom"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -21,13 +20,14 @@ import {Tooltip,TooltipContent,TooltipProvider,TooltipTrigger,} from "@/componen
 type Patient = {
   id: string
   name: string
-  sex: "M" | "F"
-  age: number
+  sex: "M" | "F" | "O" | null
+  age: string
   latestVisit: string
   diagnosis: string
+  diagnosisDescription: string
   doctor: string
-  recoverDays: number
-  recoverPercent: number
+  recoverDays: number | null
+  recoverPercent: number | null
 }
 
 type ColumnKey = keyof Patient | "no"
@@ -63,20 +63,43 @@ const ICD10_MAP: Record<string, string> = {
 }
 
 
-export default function DoctorPatients() {
+export default function TechnicianPatients() {
     const navigate = useNavigate()
-    const [patients] = useState<Patient[]>([
-        { id: "OP123456789", name: "Nguyễn Văn An", sex: "M", age: 46, latestVisit: "07/10/2025", diagnosis: "Z59.1", doctor: "Dr. Trần Thanh Nghiệp", recoverDays: 2, recoverPercent: 70 },
-        { id: "OP987654321", name: "Trần Thị Bình", sex: "F", age: 38, latestVisit: "05/11/2025", diagnosis: "J45.9", doctor: "Dr. Lê Minh Tuấn", recoverDays: 5, recoverPercent: 85 },
-        { id: "OP456789123", name: "Lê Văn Công", sex: "M", age: 52, latestVisit: "01/12/2025", diagnosis: "I10", doctor: "Dr. Phạm Thị Hoa", recoverDays: 3, recoverPercent: 60 },
-        { id: "OP321654987", name: "Phạm Thị Dung", sex: "F", age: 29, latestVisit: "20/09/2025", diagnosis: "E11.9", doctor: "Dr. Nguyễn Văn Hải", recoverDays: 8, recoverPercent: 92 },
-        { id: "OP789123456", name: "Hoàng Văn Em", sex: "M", age: 61, latestVisit: "15/10/2025", diagnosis: "K29.5", doctor: "Dr. Trần Thanh Nghiệp", recoverDays: 4, recoverPercent: 75 },
-        { id: "OP654321789", name: "Vũ Thị Giang", sex: "F", age: 44, latestVisit: "28/11/2025", diagnosis: "M79.1", doctor: "Dr. Lê Minh Tuấn", recoverDays: 6, recoverPercent: 88 },
-        { id: "OP147258369", name: "Đặng Văn Hùng", sex: "M", age: 35, latestVisit: "10/12/2025", diagnosis: "J06.9", doctor: "Dr. Phạm Thị Hoa", recoverDays: 2, recoverPercent: 95 },
-        { id: "OP258369147", name: "Ngô Thị Lan", sex: "F", age: 50, latestVisit: "03/10/2025", diagnosis: "I50.9", doctor: "Dr. Nguyễn Văn Hải", recoverDays: 10, recoverPercent: 65 },
-        { id: "OP369147258", name: "Bùi Văn Minh", sex: "M", age: 67, latestVisit: "18/11/2025", diagnosis: "N39.0", doctor: "Dr. Trần Thanh Nghiệp", recoverDays: 7, recoverPercent: 80 },
-        { id: "OP741852963", name: "Đỗ Thị Nga", sex: "F", age: 41, latestVisit: "25/09/2025", diagnosis: "R51", doctor: "Dr. Lê Minh Tuấn", recoverDays: 3, recoverPercent: 90 },
-    ])
+    const [patients, setPatients] = useState<Patient[]>([])
+
+    useEffect(() => {
+      const fetchPatients = async () => {
+        try {
+          const token = localStorage.getItem("authToken")
+          const res = await fetch("http://localhost:3000/api/appointments/patients", {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${token}`
+            }
+          })
+          const data = await res.json()
+          if (!data.success) return
+
+          const mapped = (data.patients || []).map((p: any) => ({
+            id: "OP" + String(p.id).padStart(9, "0"),
+            name: `${p.firstName || ""} ${p.lastName || ""}`.trim() || p.username || `Patient #${p.id}`,
+            sex: p.gender || null,
+            age: String(p.age || ""),
+            latestVisit: p.latestVisit ? new Date(p.latestVisit).toLocaleDateString("vi-VN") : "",
+            diagnosis: p.latestDiagnosis?.icd10 || "",
+            diagnosisDescription: p.latestDiagnosis?.interpretation || "",
+            doctor: p.doctor || "",
+            recoverDays: null,
+            recoverPercent: null,
+          }))
+          setPatients(mapped)
+        } catch (err) {
+          console.error("Fetch patients error:", err)
+        }
+      }
+      void fetchPatients()
+    }, [])
 
     const [filters, setFilters] = useState({
         patientId: "",
@@ -95,8 +118,9 @@ export default function DoctorPatients() {
 
     const filteredPatients = useMemo(() => {
         return patients.filter(p => {
+            const ageValue = parseInt(String(p.age || "").replace(/[^\d]/g, ""), 10)
             const matchAge =
-            !filters.age || p.age === Number(filters.age)
+            !filters.age || (!Number.isNaN(ageValue) && ageValue === Number(filters.age))
 
             const matchRecoverDays =
             !filters.recoverDays || p.recoverDays === Number(filters.recoverDays)
@@ -443,7 +467,7 @@ export default function DoctorPatients() {
                                 </TooltipTrigger>
                                 <TooltipContent side="top" className="bg-linear-to-br from-[#06b6d4] to-[#0891b2]">
                                   <b className="text-sm max-w-xs ">
-                                    {ICD10_MAP[patient.diagnosis] ?? "No description"}
+                                    {patient.diagnosisDescription || ICD10_MAP[patient.diagnosis] || "No description"}
                                   </b>
                                 </TooltipContent>
                               </Tooltip>
@@ -457,13 +481,13 @@ export default function DoctorPatients() {
 
                         {visibleColumns.includes("recoverDays") && (
                           <TableCell className="text-center">
-                            {patient.recoverDays} days
+                            {patient.recoverDays ?? "-"}{patient.recoverDays != null ? " days" : ""}
                           </TableCell>
                         )}
 
                         {visibleColumns.includes("recoverPercent") && (
                           <TableCell className="text-center">
-                            {patient.recoverPercent}%
+                            {patient.recoverPercent != null ? `${patient.recoverPercent}%` : "-"}
                           </TableCell>
                         )}
                       </TableRow>

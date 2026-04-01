@@ -34,6 +34,26 @@ export interface DoctorOption {
   room?: string;
 }
 
+export interface NurseOpenSlot {
+  id: number;
+  date: string;
+  time: string;
+  doctorId: number;
+  doctorName: string;
+  department: string;
+  roomId: number | null;
+  roomName: string;
+  patientId: number | null;
+  patientName: string;
+  status: 'open' | 'booked' | 'cancelled';
+}
+
+export interface ClinicRoomOption {
+  id: number;
+  name: string;
+  capacity?: number | null;
+}
+
 export interface PatientDashboardSummary {
   summary: {
     nextAppointment: {
@@ -75,11 +95,14 @@ export interface PatientDashboardSummary {
 
 export interface PatientFeedback {
   id: number;
+  userId?: number;
+  userName?: string;
   content: string;
   type: string;
   time: string | null;
-  status: string;
+  status: boolean;
   rating: number;
+  response?: string;
 }
 
 export interface PatientAiRecommendation {
@@ -109,11 +132,41 @@ export const appointmentService = {
     return data.doctors || [];
   },
 
+  async getClinicRooms(): Promise<ClinicRoomOption[]> {
+    const data = await apiClient.get<{ success: boolean; rooms: ClinicRoomOption[] }>('/api/appointments/clinic-rooms');
+    return data.rooms || [];
+  },
+
   async getBookedSlots(date: string): Promise<Array<{ doctor: string; time: string }>> {
     const data = await apiClient.get<{ success: boolean; slots: Array<{ doctor: string; time: string }> }>(
       `/api/appointments/booked-slots?date=${encodeURIComponent(date)}`
     );
     return data.slots || [];
+  },
+
+  async getOpenSlots(params?: { startDate?: string; endDate?: string }): Promise<NurseOpenSlot[]> {
+    const q = new URLSearchParams();
+    if (params?.startDate) q.set('startDate', params.startDate);
+    if (params?.endDate) q.set('endDate', params.endDate);
+    const data = await apiClient.get<{ success: boolean; slots: NurseOpenSlot[] }>(
+      `/api/appointments/open-slots${q.toString() ? `?${q.toString()}` : ''}`
+    );
+    return data.slots || [];
+  },
+
+  async createOpenSlot(payload: { doctorId: number; date: string; time: string; roomId?: number; condition?: string }) {
+    return apiClient.post<{ success: boolean; slot: NurseOpenSlot }>('/api/appointments/open-slots', payload);
+  },
+
+  async updateOpenSlot(id: number, payload: { date: string; time: string; roomId?: number }) {
+    return apiClient.put<{ success: boolean; id: number; date: string; time: string }>(
+      `/api/appointments/open-slots/${id}`,
+      payload
+    );
+  },
+
+  async deleteOpenSlot(id: number) {
+    return apiClient.delete<{ success: boolean; id: number }>(`/api/appointments/open-slots/${id}`);
   },
 
   async getPatientDashboardSummary(): Promise<PatientDashboardSummary> {
@@ -132,6 +185,11 @@ export const appointmentService = {
 
   async getFeedbacks(): Promise<PatientFeedback[]> {
     const data = await apiClient.get<{ success: boolean; feedbacks: PatientFeedback[] }>('/api/appointments/feedback');
+    return data.feedbacks || [];
+  },
+
+  async getVisibleFeedbacks(): Promise<PatientFeedback[]> {
+    const data = await apiClient.get<{ success: boolean; feedbacks: PatientFeedback[] }>('/api/appointments/feedback/visible');
     return data.feedbacks || [];
   },
 

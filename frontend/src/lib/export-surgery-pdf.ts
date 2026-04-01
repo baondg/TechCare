@@ -78,7 +78,7 @@ function fmtWhen(iso: string) {
   try {
     const d = new Date(iso)
     if (Number.isNaN(d.getTime())) return iso
-    return d.toLocaleString("en-GB")
+    return d.toLocaleString("vi-VN")
   } catch {
     return iso
   }
@@ -104,7 +104,7 @@ export async function generateSurgeryPdfBlob(opts: ExportSurgeryPdfInput): Promi
   const safePatient = escapeHtml(patientLabel || "—")
   const safeAge = escapeHtml(patientAge == null ? "—" : String(patientAge))
   const safeGender = escapeHtml(
-    patientGender === "M" ? "Male" : patientGender === "F" ? "Female" : patientGender ? patientGender : "—"
+    patientGender === "M" ? "Nam" : patientGender === "F" ? "Nữ" : patientGender ? patientGender : "—"
   )
   const safeInsuranceId = escapeHtml(healthInsuranceId || "—")
   const safeSurgeon = escapeHtml(surgeon || "—")
@@ -116,65 +116,65 @@ export async function generateSurgeryPdfBlob(opts: ExportSurgeryPdfInput): Promi
   const safeNote = escapeHtml(note || "")
   const safeLatestDiagnosis = escapeHtml(latestDiagnosisText || "—")
 
-  // Demo template: English Surgical Certificate, showing all fields currently available in the Surgery web UI.
+  // Mẫu giấy xác nhận phẫu thuật tiếng Việt, hiển thị toàn bộ trường đang có trên UI.
   const bodyHtml = `
-    <div style="font-family: Arial, sans-serif; color:#111; background:#fff; padding: 14px 18px 28px; box-sizing:border-box;">
+    <div style="font-family:'Times New Roman',Times,'DejaVu Serif',serif; color:#111; background:#fff; padding: 14px 18px 28px; box-sizing:border-box;">
       <div style="text-align:center; margin-bottom: 10px;">
-        <div style="font-size:18px; font-weight:900; letter-spacing:0.4px; text-transform:uppercase;">Surgical Certificate</div>
+        <div style="font-size:18px; font-weight:900; letter-spacing:0.4px; text-transform:uppercase;">Giấy xác nhận phẫu thuật</div>
         <div style="font-size:12px; color:#444; margin-top:4px;">MS: 14/BV-01</div>
       </div>
 
       <div style="margin-top: 6px;">
         <div style="display:flex; justify-content:space-between; align-items:flex-start; gap: 12px;">
           <div style="font-size:13px; flex: 1;">
-            <span style="font-weight:700;">Patient:</span> ${safePatient}
+            <span style="font-weight:700;">Bệnh nhân:</span> ${safePatient}
             <span style="margin-left:12px; display:inline-block; min-width: 120px;">
-              <span style="font-weight:700;">Age:</span> ${safeAge}
+              <span style="font-weight:700;">Tuổi:</span> ${safeAge}
             </span>
             <span style="display:inline-block; min-width: 120px;">
-              <span style="font-weight:700;">Gender:</span> ${safeGender}
+              <span style="font-weight:700;">Giới tính:</span> ${safeGender}
             </span>
           </div>
         </div>
 
         <div style="display:flex; justify-content:space-between; margin-top: 6px; gap: 12px;">
           <div style="font-size:13px;">
-            <span style="font-weight:700;">Health insurance No.:</span> ${safeInsuranceId}
+            <span style="font-weight:700;">Số BHYT:</span> ${safeInsuranceId}
           </div>
           <div style="font-size:13px;">
-            <span style="font-weight:700;">Latest diagnosis:</span> ${safeLatestDiagnosis}
+            <span style="font-weight:700;">Chẩn đoán gần nhất:</span> ${safeLatestDiagnosis}
           </div>
         </div>
       </div>
 
       <div style="display:grid; grid-template-columns: 1fr 1fr; column-gap: 26px; row-gap: 10px; margin-top: 12px;">
         <div style="font-size:13px;">
-          <span style="font-weight:700;">Surgeon:</span> ${safeSurgeon}
+          <span style="font-weight:700;">Bác sĩ phẫu thuật:</span> ${safeSurgeon}
         </div>
         <div style="font-size:13px;">
-          <span style="font-weight:700;">Type of surgery:</span> ${safeType}
+          <span style="font-weight:700;">Loại phẫu thuật:</span> ${safeType}
         </div>
         <div style="font-size:13px;">
-          <span style="font-weight:700;">Urgency:</span> ${safeUrgency}
+          <span style="font-weight:700;">Mức độ khẩn cấp:</span> ${safeUrgency}
         </div>
         <div style="font-size:13px;">
-          <span style="font-weight:700;">Start:</span> ${safeStart}
+          <span style="font-weight:700;">Bắt đầu:</span> ${safeStart}
         </div>
         <div style="font-size:13px; grid-column: 1 / -1;">
-          <span style="font-weight:700;">End:</span> ${safeEnd}
+          <span style="font-weight:700;">Kết thúc:</span> ${safeEnd}
         </div>
       </div>
 
       <div style="margin-top: 14px; border:1px solid #111;">
         <div style="text-align:center; font-weight:900; font-size:16px; padding: 8px 0; border-bottom: 1px solid #111;">
-          Operative / Surgery Summary
+          Tóm tắt ca phẫu thuật
         </div>
         <div style="padding: 12px 14px;">
           <div style="font-size:13px; margin-bottom: 8px;">
-            <span style="font-weight:700;">Result (Short description):</span> ${safeResult}
+            <span style="font-weight:700;">Kết quả (mô tả ngắn):</span> ${safeResult}
           </div>
           <div style="font-size:13px; margin-bottom: 6px;">
-            <span style="font-weight:700;">Doctor's note:</span>
+            <span style="font-weight:700;">Ghi chú của bác sĩ:</span>
           </div>
           <div style="font-size:13px; white-space:pre-wrap; min-height: 140px; border: 1px dashed #666; padding: 10px;">
             ${safeNote ? safeNote : "—"}
@@ -184,7 +184,7 @@ export async function generateSurgeryPdfBlob(opts: ExportSurgeryPdfInput): Promi
 
       <div style="margin-top: 18px; display:flex; justify-content:flex-end;">
         <div style="width: 52%;">
-          <div style="font-size:13px; font-weight:700; margin-bottom: 8px;">Surgeon's signature</div>
+          <div style="font-size:13px; font-weight:700; margin-bottom: 8px;">Chữ ký bác sĩ phẫu thuật</div>
           <div style="border-bottom:1px solid #111; height: 28px;"></div>
           <div style="font-size:12px; color:#444; margin-top: 6px; text-align:right;">${safeSurgeon}</div>
         </div>

@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { AdminLayout } from "@/components/admin-layout"
-import { MessageSquare, Eye, EyeOff, Reply, Trash2 } from 'lucide-react'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Edit, Eye, EyeOff, Reply, Search } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -14,100 +15,101 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
+import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { adminAccountService, type AdminFeedbackRow } from '@/services/admin-account-service'
+import { usePauseableToast, type PauseableToastEntry } from "@/hooks/usePauseableToast"
+import { createPortal } from "react-dom"
+import { cn } from "@/lib/utils"
 
-interface Feedback {
-  id: string
-  userId: string
-  userName: string
-  role: string
-  category: string
-  rating: number
-  comment: string
+interface Feedback extends AdminFeedbackRow {
   submittedDate: string
   isVisible: boolean
-  response?: string
 }
 
 export default function FeedbackManagement() {
-  const [feedbacks, setFeedbacks] = useState<Feedback[]>([
-    {
-      id: '1',
-      userId: 'OP12345678',
-      userName: 'Dr. Sarah Johnson',
-      role: 'Doctor',
-      category: 'User Interface',
-      rating: 4,
-      comment: 'Should add "Clear all" button',
-      submittedDate: '07/10/2025 10:30',
-      isVisible: true,
-    },
-    {
-      id: '2',
-      userId: 'OP12345678',
-      userName: 'Nurse Michael Chen',
-      role: 'Nurse',
-      category: 'AI Chatbot',
-      rating: 3.5,
-      comment: 'The chatbot doesn\'t give the correct answer',
-      submittedDate: '07/10/2025 14:23',
-      isVisible: false,
-    },
-    {
-      id: '3',
-      userId: 'OP12345678',
-      userName: 'John Doe',
-      role: 'Patient',
-      category: 'User Interface',
-      rating: 5,
-      comment: 'The test out of the screen so I cannot view it',
-      submittedDate: '07/10/2025 14:23',
-      isVisible: true,
-    },
-    {
-      id: '4',
-      userId: 'OP12345678',
-      userName: 'Admin User',
-      role: 'Admin',
-      category: 'Recovery Prediction',
-      rating: 4.5,
-      comment: 'It must have longer recovery because the patient have obesity',
-      submittedDate: '07/10/2025 14:23',
-      isVisible: true,
-    },
-    {
-      id: '5',
-      userId: 'OP12345678',
-      userName: 'Tech Support',
-      role: 'Technician',
-      category: 'Notification',
-      rating: 5,
-      comment: 'I haven\'t receive any notification!',
-      submittedDate: '07/10/2025 14:23',
-      isVisible: true,
-    },
-  ])
+  const { toast, isExiting, showSuccess, showError, onMouseEnter, onMouseLeave } = usePauseableToast()
+  const [feedbacks, setFeedbacks] = useState<Feedback[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
 
   const [selectedFeedback, setSelectedFeedback] = useState<Feedback | null>(null)
   const [responseText, setResponseText] = useState('')
+  const [tableFilters, setTableFilters] = useState({
+    user: '',
+    role: 'ALL',
+    category: '',
+    rating: 'ALL',
+    feedback: '',
+    response: '',
+    dateFrom: '',
+    dateTo: '',
+  })
+  const [recentSearch, setRecentSearch] = useState('')
 
-  const toggleVisibility = (id: string) => {
-    setFeedbacks(feedbacks.map(f => 
-      f.id === id ? { ...f, isVisible: !f.isVisible } : f
-    ))
-  }
-
-  const handleResponse = (id: string) => {
-    if (responseText.trim()) {
-      setFeedbacks(feedbacks.map(f => 
-        f.id === id ? { ...f, response: responseText } : f
-      ))
-      setResponseText('')
-      setSelectedFeedback(null)
+  const loadFeedbacks = async () => {
+    setLoading(true)
+    try {
+      const res = await adminAccountService.getFeedbacks()
+      setFeedbacks(
+        (res.feedbacks || []).map((f) => ({
+          ...f,
+          submittedDate: f.time ? String(f.time).replace("T", " ").slice(0, 16) : "—",
+          isVisible: !!f.status,
+        }))
+      )
+    } catch (e) {
+      console.error("Load admin feedbacks failed:", e)
+      showError(e instanceof Error ? e.message : "Failed to load feedbacks")
+    } finally {
+      setLoading(false)
     }
   }
 
-  const deleteFeedback = (id: string) => {
-    setFeedbacks(feedbacks.filter(f => f.id !== id))
+  useEffect(() => {
+    void loadFeedbacks()
+  }, [])
+
+  const toggleVisibility = async (feedback: Feedback) => {
+    setSaving(true)
+    try {
+      const res = await adminAccountService.updateFeedback(feedback.id, { status: !feedback.isVisible })
+      const updated = {
+        ...res.feedback,
+        submittedDate: res.feedback.time ? String(res.feedback.time).replace("T", " ").slice(0, 16) : "—",
+        isVisible: !!res.feedback.status,
+      }
+      setFeedbacks((prev) => prev.map((f) => (f.id === feedback.id ? updated : f)))
+      showSuccess(updated.isVisible ? "Feedback is now visible" : "Feedback has been hidden")
+    } catch (e) {
+      console.error("Toggle visibility failed:", e)
+      showError(e instanceof Error ? e.message : "Failed to update feedback visibility")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleResponse = async () => {
+    if (!selectedFeedback) return
+    if (!responseText.trim()) return
+    setSaving(true)
+    try {
+      const res = await adminAccountService.updateFeedback(selectedFeedback.id, { response: responseText.trim() })
+      const updated = {
+        ...res.feedback,
+        submittedDate: res.feedback.time ? String(res.feedback.time).replace("T", " ").slice(0, 16) : "—",
+        isVisible: !!res.feedback.status,
+      }
+      setFeedbacks((prev) => prev.map((f) => (f.id === selectedFeedback.id ? updated : f)))
+      setResponseText("")
+      setSelectedFeedback(null)
+      showSuccess("Response saved successfully")
+    } catch (e) {
+      console.error("Save response failed:", e)
+      showError(e instanceof Error ? e.message : "Failed to save response")
+    } finally {
+      setSaving(false)
+    }
   }
 
   const getRatingColor = (rating: number) => {
@@ -118,7 +120,6 @@ export default function FeedbackManagement() {
 
   const renderStars = (rating: number) => {
     const fullStars = Math.floor(rating)
-    const hasHalfStar = rating % 1 !== 0
     return (
       <div className="flex gap-1">
         {[...Array(5)].map((_, i) => (
@@ -130,15 +131,72 @@ export default function FeedbackManagement() {
     )
   }
 
+  const filteredFeedbacks = useMemo(() => {
+    const roleMatches = (f: Feedback) => {
+      if (tableFilters.role === 'ALL') return true
+      return String(f.role || '').toLowerCase() === tableFilters.role.toLowerCase()
+    }
+
+    const ratingMatches = (f: Feedback) => {
+      if (tableFilters.rating === 'ALL') return true
+      return Number(f.rating) === Number(tableFilters.rating)
+    }
+
+    const dateMatches = (f: Feedback) => {
+      if (!tableFilters.dateFrom && !tableFilters.dateTo) return true
+      if (!f.time) return false
+      const rawDate = String(f.time).slice(0, 10)
+      if (tableFilters.dateFrom && rawDate < tableFilters.dateFrom) return false
+      if (tableFilters.dateTo && rawDate > tableFilters.dateTo) return false
+      return true
+    }
+
+    return feedbacks.filter((f) =>
+      `${f.userName} ${f.username}`.toLowerCase().includes(tableFilters.user.toLowerCase()) &&
+      roleMatches(f) &&
+      String(f.type || '').toLowerCase().includes(tableFilters.category.toLowerCase()) &&
+      ratingMatches(f) &&
+      String(f.content || '').toLowerCase().includes(tableFilters.feedback.toLowerCase()) &&
+      String(f.response || '').toLowerCase().includes(tableFilters.response.toLowerCase()) &&
+      dateMatches(f)
+    )
+  }, [feedbacks, tableFilters])
+
+  const respondedFeedbacks = useMemo(
+    () =>
+      feedbacks.filter((f) =>
+        String(f.response || "").trim().length > 0 &&
+        `${f.userName} ${f.username} ${f.type} ${f.content} ${f.response}`
+          .toLowerCase()
+          .includes(recentSearch.toLowerCase())
+      ),
+    [feedbacks, recentSearch]
+  )
+
+  const recentRespondedFeedbacks = useMemo(() => respondedFeedbacks.slice(0, 3), [respondedFeedbacks])
+
+  const pauseableToast =
+    toast &&
+    typeof document !== "undefined" &&
+    createPortal(
+      <AdminPageToast
+        toast={toast}
+        isExiting={isExiting}
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
+      />,
+      document.body
+    )
+
   return (
+    <>
     <AdminLayout>
       <div className="space-y-8">
         <div>
           <h2 className="text-3xl font-bold text-foreground flex items-center gap-2">
-
             Feedback Management
           </h2>
-          <p className="text-muted-foreground mt-2">View, manage, and respond to user feedbacks</p>
+          <p className="text-muted-foreground mt-2">View, respond, and control visibility of all user feedback</p>
         </div>
 
         {/* Summary Cards */}
@@ -165,7 +223,9 @@ export default function FeedbackManagement() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {(feedbacks.reduce((sum, f) => sum + f.rating, 0) / feedbacks.length).toFixed(1)}
+                {feedbacks.length > 0
+                  ? (feedbacks.reduce((sum, f) => sum + f.rating, 0) / feedbacks.length).toFixed(1)
+                  : "0.0"}
               </div>
             </CardContent>
           </Card>
@@ -174,69 +234,178 @@ export default function FeedbackManagement() {
         {/* Feedbacks Table */}
         <Card>
           <CardHeader>
-            <CardTitle>All Feedbacks</CardTitle>
-            <CardDescription>Manage user feedbacks and responses</CardDescription>
+            <CardTitle></CardTitle>
           </CardHeader>
           <CardContent>
+            {loading ? (
+              <p className="text-sm text-muted-foreground">Loading feedbacks...</p>
+            ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-100 border-b">
-                  <tr>
-                    <th className="px-4 py-3 text-left font-semibold">No.</th>
-                    <th className="px-4 py-3 text-left font-semibold">User</th>
-                    <th className="px-4 py-3 text-left font-semibold">Role</th>
-                    <th className="px-4 py-3 text-left font-semibold">Category</th>
-                    <th className="px-4 py-3 text-left font-semibold">Rating</th>
-                    <th className="px-4 py-3 text-left font-semibold">Feedback</th>
-                    <th className="px-4 py-3 text-left font-semibold">Date</th>
-                    <th className="px-4 py-3 text-left font-semibold">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {feedbacks.map((feedback, index) => (
-                    <tr key={feedback.id} className="border-b hover:bg-slate-50">
-                      <td className="px-4 py-3 font-medium">{index + 1}</td>
-                      <td className="px-4 py-3">{feedback.userName}</td>
-                      <td className="px-4 py-3">
+              <Table className="w-full text-sm">
+                <TableHeader
+                  className="text-white"
+                  style={{ background: "linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)" }}
+                >
+                  <TableRow>
+                    <TableHead className="px-4 py-3 text-left font-semibold text-white">No.</TableHead>
+                    <TableHead className="px-4 py-3 text-left font-semibold text-white">User</TableHead>
+                    <TableHead className="px-4 py-3 text-left font-semibold text-white">Role</TableHead>
+                    <TableHead className="px-4 py-3 text-left font-semibold text-white">Category</TableHead>
+                    <TableHead className="px-4 py-3 text-left font-semibold text-white">Rating</TableHead>
+                    <TableHead className="px-4 py-3 text-left font-semibold text-white">Feedback</TableHead>
+                    <TableHead className="px-4 py-3 text-left font-semibold text-white">Response</TableHead>
+                    <TableHead className="px-4 py-3 text-left font-semibold text-white">Date</TableHead>
+                    <TableHead className="px-4 py-3 text-left font-semibold text-white">Actions</TableHead>
+                  </TableRow>
+                  <TableRow className="bg-white/95">
+                    <TableHead className="px-2 py-2" />
+                    <TableHead className="px-2 py-2">
+                      <div className="relative">
+                        <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Input
+                          value={tableFilters.user}
+                          onChange={(e) => setTableFilters((prev) => ({ ...prev, user: e.target.value }))}
+                          className="h-8 text-xs pr-8"
+                        />
+                      </div>
+                    </TableHead>
+                    <TableHead className="px-2 py-2">
+                      <Select
+                        value={tableFilters.role}
+                        onValueChange={(value) => setTableFilters((prev) => ({ ...prev, role: value }))}
+                      >
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue placeholder="All roles" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ALL">All roles</SelectItem>
+                          <SelectItem value="Admin">Admin</SelectItem>
+                          <SelectItem value="Doctor">Doctor</SelectItem>
+                          <SelectItem value="Nurse">Nurse</SelectItem>
+                          <SelectItem value="Patient">Patient</SelectItem>
+                          <SelectItem value="Technician">Technician</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </TableHead>
+                    <TableHead className="px-2 py-2">
+                      <Input
+                        value={tableFilters.category}
+                        onChange={(e) => setTableFilters((prev) => ({ ...prev, category: e.target.value }))}
+                        className="h-8 text-xs"
+                      />
+                    </TableHead>
+                    <TableHead className="px-2 py-2">
+                      <Select
+                        value={tableFilters.rating}
+                        onValueChange={(value) => setTableFilters((prev) => ({ ...prev, rating: value }))}
+                      >
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue placeholder="All ratings" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ALL">All</SelectItem>
+                          <SelectItem value="5">5 stars</SelectItem>
+                          <SelectItem value="4">4 stars</SelectItem>
+                          <SelectItem value="3">3 stars</SelectItem>
+                          <SelectItem value="2">2 stars</SelectItem>
+                          <SelectItem value="1">1 star</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </TableHead>
+                    <TableHead className="px-2 py-2">
+                      <div className="relative">
+                        <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Input
+                          value={tableFilters.feedback}
+                          onChange={(e) => setTableFilters((prev) => ({ ...prev, feedback: e.target.value }))}
+                          className="h-8 text-xs pr-8"
+                        />
+                      </div>
+                    </TableHead>
+                    <TableHead className="px-2 py-2">
+                      <div className="relative">
+                        <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Input
+                          value={tableFilters.response}
+                          onChange={(e) => setTableFilters((prev) => ({ ...prev, response: e.target.value }))}
+                          className="h-8 text-xs pr-8"
+                        />
+                      </div>
+                    </TableHead>
+                    <TableHead className="px-2 py-2">
+                      <div className="flex items-center gap-1">
+                        <Input
+                          type="date"
+                          value={tableFilters.dateFrom}
+                          onChange={(e) => setTableFilters((prev) => ({ ...prev, dateFrom: e.target.value }))}
+                          className="h-8 text-xs"
+                        />
+                        <span className="text-[10px] text-slate-500">-</span>
+                        <Input
+                          type="date"
+                          value={tableFilters.dateTo}
+                          onChange={(e) => setTableFilters((prev) => ({ ...prev, dateTo: e.target.value }))}
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                    </TableHead>
+                    <TableHead className="px-2 py-2" />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredFeedbacks.map((feedback, index) => (
+                    <TableRow key={feedback.id} className="hover:bg-slate-50">
+                      <TableCell className="px-4 py-3 font-medium">{index + 1}</TableCell>
+                      <TableCell className="px-4 py-3">
+                        <div className="font-medium">{feedback.userName}</div>
+                        <div className="text-xs text-slate-500">@{feedback.username || `user-${feedback.userId}`}</div>
+                      </TableCell>
+                      <TableCell className="px-4 py-3">
                         <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-xs font-semibold">
                           {feedback.role}
                         </span>
-                      </td>
-                      <td className="px-4 py-3">{feedback.category}</td>
-                      <td className="px-4 py-3">
+                      </TableCell>
+                      <TableCell className="px-4 py-3">{feedback.type}</TableCell>
+                      <TableCell className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           {renderStars(feedback.rating)}
                           <span className={`font-semibold ${getRatingColor(feedback.rating)}`}>
                             {feedback.rating}
                           </span>
                         </div>
-                      </td>
-                      <td className="px-4 py-3 max-w-xs truncate">{feedback.comment}</td>
-                      <td className="px-4 py-3 text-muted-foreground text-xs">{feedback.submittedDate}</td>
-                      <td className="px-4 py-3">
+                      </TableCell>
+                      <TableCell className="px-4 py-3 max-w-xs truncate">{feedback.content}</TableCell>
+                      <TableCell className="px-4 py-3 max-w-xs">
+                        <p className="truncate text-slate-700">{feedback.response || "—"}</p>
+                      </TableCell>
+                      <TableCell className="px-4 py-3 text-muted-foreground text-xs">{feedback.submittedDate}</TableCell>
+                      <TableCell className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <Dialog>
                             <DialogTrigger asChild>
                               <Button
-                                variant="outline"
+                                className='btn-gradient'
                                 size="sm"
-                                onClick={() => setSelectedFeedback(feedback)}
+                                onClick={() => {
+                                  setSelectedFeedback(feedback)
+                                  setResponseText(feedback.response || "")
+                                }}
                               >
-                                <Reply className="h-4 w-4" />
+                                <span>{feedback.response ? <Edit className="h-4 w-4" /> : <Reply className="h-4 w-4" />}</span>
                               </Button>
                             </DialogTrigger>
                             <DialogContent className="max-w-lg">
                               <DialogHeader>
-                                <DialogTitle>Respond to Feedback</DialogTitle>
+                                <DialogTitle>Response to feedback</DialogTitle>
                                 <DialogDescription>
-                                  Reply to {selectedFeedback?.userName}'s feedback
+                                  {selectedFeedback?.response ? "Edit your response" : "Create a response"} for {selectedFeedback?.userName}
                                 </DialogDescription>
                               </DialogHeader>
                               <div className="space-y-4">
                                 <div>
                                   <p className="text-sm font-semibold mb-2">Original Feedback:</p>
                                   <div className="bg-slate-100 p-3 rounded text-sm">
-                                    {selectedFeedback?.comment}
+                                    {selectedFeedback?.content}
                                   </div>
                                 </div>
                                 <div>
@@ -249,19 +418,21 @@ export default function FeedbackManagement() {
                                   />
                                 </div>
                                 <Button
-                                  onClick={() => handleResponse(feedback.id)}
-                                  className="w-full"
+                                  onClick={() => void handleResponse()}
+                                  className="w-full btn-gradient"
+                                  disabled={saving}
                                 >
-                                  Send Response
+                                  {saving ? "Saving..." : selectedFeedback?.response ? "Update Response" : "Send Response"}
                                 </Button>
                               </div>
                             </DialogContent>
                           </Dialog>
 
                           <Button
-                            variant="outline"
+                            className='btn-gradient'
                             size="sm"
-                            onClick={() => toggleVisibility(feedback.id)}
+                            onClick={() => void toggleVisibility(feedback)}
+                            disabled={saving}
                             title={feedback.isVisible ? 'Hide feedback' : 'Show feedback'}
                           >
                             {feedback.isVisible ? (
@@ -270,45 +441,47 @@ export default function FeedbackManagement() {
                               <EyeOff className="h-4 w-4" />
                             )}
                           </Button>
-
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => deleteFeedback(feedback.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
                         </div>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
+            )}
           </CardContent>
         </Card>
 
         {/* Responded Feedbacks */}
-        {feedbacks.some(f => f.response) && (
+        {respondedFeedbacks.length > 0 && (
           <Card>
             <CardHeader>
-              <CardTitle>Your Responses</CardTitle>
+              <CardTitle>Your Recent Responses</CardTitle>
               <CardDescription>Feedbacks you have already responded to</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {feedbacks.map(feedback => 
-                feedback.response && (
+              <div className="relative">
+                <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Input
+                  value={recentSearch}
+                  onChange={(e) => setRecentSearch(e.target.value)}
+                  className="h-9 pr-8"
+                  placeholder="Search recent responses..."
+                />
+              </div>
+
+              {recentRespondedFeedbacks.map(feedback => (
                   <div key={feedback.id} className="border rounded-lg p-4 space-y-2">
                     <div className="flex justify-between items-start">
                       <div>
                         <p className="font-semibold">{feedback.userName} ({feedback.role})</p>
                         <p className="text-sm text-muted-foreground">{feedback.submittedDate}</p>
                       </div>
-                      <span className="text-xs text-muted-foreground">Category: {feedback.category}</span>
+                      <span className="text-xs text-muted-foreground">Category: {feedback.type}</span>
                     </div>
                     <div className="bg-slate-50 p-3 rounded text-sm">
                       <p className="font-semibold text-xs mb-1">Original:</p>
-                      <p>{feedback.comment}</p>
+                      <p>{feedback.content}</p>
                     </div>
                     <div className="bg-blue-50 p-3 rounded text-sm border border-blue-200">
                       <p className="font-semibold text-xs mb-1 text-blue-900">Your Response:</p>
@@ -317,10 +490,76 @@ export default function FeedbackManagement() {
                   </div>
                 )
               )}
+
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button variant="outline" className="w-full">
+                    View all feedback
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-4xl">
+                  <DialogHeader>
+                    <DialogTitle>All responded feedback</DialogTitle>
+                    <DialogDescription>All feedback entries that already have responses</DialogDescription>
+                  </DialogHeader>
+                  <div className="max-h-[65vh] overflow-y-auto space-y-3">
+                    {respondedFeedbacks.map((feedback) => (
+                      <div key={feedback.id} className="border rounded-lg p-4 space-y-2">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-semibold">{feedback.userName} ({feedback.role})</p>
+                            <p className="text-sm text-muted-foreground">{feedback.submittedDate}</p>
+                          </div>
+                          <span className="text-xs text-muted-foreground">Category: {feedback.type}</span>
+                        </div>
+                        <div className="bg-slate-50 p-3 rounded text-sm">
+                          <p className="font-semibold text-xs mb-1">Original:</p>
+                          <p>{feedback.content}</p>
+                        </div>
+                        <div className="bg-blue-50 p-3 rounded text-sm border border-blue-200">
+                          <p className="font-semibold text-xs mb-1 text-blue-900">Your Response:</p>
+                          <p className="text-blue-900">{feedback.response}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </DialogContent>
+              </Dialog>
             </CardContent>
           </Card>
         )}
       </div>
     </AdminLayout>
+    {pauseableToast}
+    </>
+  )
+}
+
+function AdminPageToast({
+  toast,
+  isExiting,
+  onMouseEnter,
+  onMouseLeave,
+}: {
+  toast: PauseableToastEntry
+  isExiting: boolean
+  onMouseEnter: () => void
+  onMouseLeave: () => void
+}) {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className={cn(
+        "pointer-events-auto fixed bottom-6 left-6 z-[100] max-w-md rounded-lg border px-4 py-3 text-sm shadow-lg transition-opacity duration-300 ease-out",
+        isExiting ? "opacity-0" : "opacity-100",
+        toast.variant === "success" && "bg-[#34A853] text-white",
+        toast.variant === "error" && "bg-[#EA4335] text-white"
+      )}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+    >
+      {toast.message}
+    </div>
   )
 }

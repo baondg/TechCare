@@ -4,15 +4,17 @@ interface ColumnCheckboxProps {
   label: string
   checked: boolean
   onChange: (checked: boolean) => void
+  compact?: boolean
 }
 
 export function Checkbox({
   label,
   checked,
   onChange,
+  compact = false,
 }: ColumnCheckboxProps) {
   return (
-    <label className="flex items-center gap-2 cursor-pointer select-none">
+    <label className={`flex items-center cursor-pointer select-none ${compact ? "gap-1" : "gap-2"}`}>
       <input
         type="checkbox"
         checked={checked}
@@ -22,7 +24,7 @@ export function Checkbox({
 
       <span
         className={`
-          w-4 h-4
+          ${compact ? "w-3.5 h-3.5" : "w-4 h-4"}
           border rounded-sm
           flex items-center justify-center
           transition-colors
@@ -33,13 +35,13 @@ export function Checkbox({
       >
         {checked && (
           <Check
-            className="w-3 h-3 text-white"
+            className={`${compact ? "w-2.5 h-2.5" : "w-3 h-3"} text-white`}
             strokeWidth={3}
           />
         )}
       </span>
 
-      <span className="text-sm">{label}</span>
+      <span className={compact ? "text-xs" : "text-sm"}>{label}</span>
     </label>
   )
 }

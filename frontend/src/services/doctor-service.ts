@@ -83,6 +83,7 @@ export interface HealthInfo {
   pastIllnesses: string[];
   vaccinations: string[];
   substanceAbuse: string[];
+  status?: 'draft' | 'signed' | 'unsigned';
   updatedBy: string | null;
   createdAt: string;
   updatedAt: string;
@@ -123,7 +124,7 @@ export interface Medication {
   note?: string;
 }
 
-export type PrescriptionSignatureStatus = 'Draft' | 'Signed' | 'Unsigned';
+export type PrescriptionSignatureStatus = 'draft' | 'signed' | 'voided';
 
 export interface Prescription {
   id: number;
@@ -280,6 +281,20 @@ export const doctorService = {
     return apiRequest<{ success: boolean; message: string }>(
       `${API_BASE_URL}/api/doctor/patients/${patientId}/health-info/${id}`,
       { method: 'DELETE' }
+    );
+  },
+
+  async signHealthInfo(patientId: number | string, id: number | string) {
+    return apiRequest<{ success: boolean; id: number; status: 'signed' }>(
+      `${API_BASE_URL}/api/doctor/patients/${patientId}/health-info/${id}/sign`,
+      { method: 'PATCH' }
+    );
+  },
+
+  async unsignHealthInfo(patientId: number | string, id: number | string) {
+    return apiRequest<{ success: boolean; id: number; status: 'unsigned' }>(
+      `${API_BASE_URL}/api/doctor/patients/${patientId}/health-info/${id}/unsign`,
+      { method: 'PATCH' }
     );
   },
 

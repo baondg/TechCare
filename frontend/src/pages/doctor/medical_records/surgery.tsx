@@ -494,11 +494,11 @@ export default function PatientSurgery() {
                 }
               }}
               disabled={!canUnsign}
-              title="Unsign (revoke) — Web demo"
+              title="Void (revoke signature) — Web demo"
             >
               {signingKind === "unsign" ? <Loader2 className="h-4 w-4 animate-spin shrink-0" /> : null}
               <PenOff className="h-5 w-5" />
-              Unsign
+              Void Signature
             </Button>
 
             <Button

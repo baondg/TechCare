@@ -7,13 +7,12 @@ import { PatientLayout } from "@/components/patient-layout"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { appointmentService, type DoctorOption } from "@/services/appointment-service"
+import { appointmentService, type DoctorOption, type NurseOpenSlot } from "@/services/appointment-service"
 import { useAuth } from "@/contexts/AuthContext"
 import { format, isSameDay, startOfDay } from "date-fns"
 
-type ViewMode = "month" | "week" | "day"
-
 interface TimeSlot {
+  id: number
   time: string
   doctor: string
   department: string
@@ -31,19 +30,16 @@ export default function BookAppointmentPage() {
   // selectedDate is the specific date selected for the appointment
   const [selectedDate, setSelectedDate] = useState(new Date())
   
-  const [viewMode, setViewMode] = useState<ViewMode>("month")
   const [selectedDepartment, setSelectedDepartment] = useState("")
   const [showNotification, setShowNotification] = useState(false)
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null)
   const [checkedSymptom, setCheckedSymptom] = useState<"yes" | "no" | null>(null)
   const [doctors, setDoctors] = useState<DoctorOption[]>([])
-  const [bookedSlots, setBookedSlots] = useState<Array<{ doctor: string; time: string }>>([])
+  const [openSlots, setOpenSlots] = useState<NurseOpenSlot[]>([])
   const [loadingSlots, setLoadingSlots] = useState(false)
   const [aiRecommending, setAiRecommending] = useState(false)
   const [aiRecommendations, setAiRecommendations] = useState<Array<{ doctorName: string; department: string; reason: string; priority: number }> | null>(null)
   const [aiAdvice, setAiAdvice] = useState<string | null>(null)
-
-  const clinicTimes = ["08:00", "09:00", "10:00", "11:00", "13:30", "14:30", "15:30"]
 
   useEffect(() => {
     const loadDoctors = async () => {
@@ -58,20 +54,23 @@ export default function BookAppointmentPage() {
   }, [])
 
   useEffect(() => {
-    const loadBooked = async () => {
+    const loadOpenSlots = async () => {
       setLoadingSlots(true)
       try {
         const date = format(selectedDate, "yyyy-MM-dd")
-        const data = await appointmentService.getBookedSlots(date)
-        setBookedSlots(data)
+        const data = await appointmentService.getOpenSlots({
+          startDate: date,
+          endDate: date,
+        })
+        setOpenSlots(data || [])
       } catch (error) {
-        console.error("Load booked slots failed:", error)
-        setBookedSlots([])
+        console.error("Load open slots failed:", error)
+        setOpenSlots([])
       } finally {
         setLoadingSlots(false)
       }
     }
-    loadBooked()
+    void loadOpenSlots()
   }, [selectedDate])
 
   const specialtyGroups = useMemo(() => {
@@ -141,7 +140,7 @@ export default function BookAppointmentPage() {
         department: selectedSlot.department,
         date: formattedDate,
         time: formattedTime,
-        room: selectedSlot.room,
+        room: selectedSlot.room === "Room -" ? "" : selectedSlot.room,
         symptoms: checkedSymptom === 'yes' ? 'Patient reported symptoms' : 'No symptoms reported',
         notes: 'Booked via web portal'
       })
@@ -167,42 +166,32 @@ export default function BookAppointmentPage() {
 
   const doctorSlots = useMemo(() => {
     if (!selectedDepartmentLabel) return []
-    const byDepartment = doctors.filter((d) => (d.department || "General Medicine") === selectedDepartmentLabel)
-    const bookedSet = new Set(
-      bookedSlots.map((s) => `${String(s.doctor).toLowerCase()}|${String(s.time).slice(0, 5)}`)
-    )
-    const slots: TimeSlot[] = []
-    for (const d of byDepartment) {
-      const fullName = `${d.firstName || ""} ${d.lastName || ""}`.trim() || d.username
-      for (const t of clinicTimes) {
-        const key = `${fullName.toLowerCase()}|${t}`
-        slots.push({
-          time: t,
-          doctor: `Dr. ${fullName}`.trim(),
-          department: selectedDepartmentLabel,
-          room: d.room ? `Room ${d.room}` : "Room -",
-          available: !bookedSet.has(key),
-        })
-      }
-    }
-    return slots
-  }, [selectedDepartmentLabel, doctors, bookedSlots])
+    return openSlots
+      .filter((slot) => {
+        if (!slot?.date || !slot?.time) return false
+        if (String(slot.status || "").toLowerCase() !== "open") return false
+        const sameDate = isSameDay(new Date(`${slot.date}T00:00:00`), startOfDay(selectedDate))
+        if (!sameDate) return false
+        return (slot.department || "").trim().toLowerCase() === selectedDepartmentLabel.trim().toLowerCase()
+      })
+      .map((slot) => ({
+        id: slot.id,
+        time: String(slot.time || "").slice(0, 5),
+        doctor: `Dr. ${slot.doctorName}`.trim(),
+        department: slot.department || selectedDepartmentLabel,
+        room: slot.roomName || "",
+        available: true,
+      }))
+  }, [selectedDepartmentLabel, openSlots, selectedDate])
 
   return (
     <PatientLayout>
       <div className="space-y-8">
-        {/* Gradient header */}
-        <div>
-          <h2 className="text-4xl font-bold bg-linear-to-r from-[#06b6d4] via-[#0891b2] to-[#06b6d4] bg-clip-text text-transparent mb-2">
-            Book Appointment
-          </h2>
-          <p className="text-slate-600 text-lg">Select your preferred date and time slot</p>
-        </div>
 
         {/* Calendar and Time Slots */}
-        <div className="grid gap-6 lg:grid-cols-5">
+        <div className="grid gap-6 lg:grid-cols-5 lg:min-h-[calc(100vh-170px)]">
           {/* Calendar Section */}
-          <Card className="card-feature lg:col-span-2 p-6">
+          <Card className="card-feature lg:col-span-2 p-6 flex flex-col h-full lg:overflow-hidden">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-2xl font-bold text-slate-900">{monthName}</h3>
               <div className="flex items-center gap-2">
@@ -215,23 +204,8 @@ export default function BookAppointmentPage() {
               </div>
             </div>
 
-            {/* View Mode Selector */}
-            <div className="flex gap-2 mb-6 p-1 bg-slate-100 rounded-xl">
-              {(["month", "week", "day"] as ViewMode[]).map(mode => (
-                <Button
-                  key={mode}
-                  variant={viewMode === mode ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => setViewMode(mode)}
-                  className={viewMode === mode ? "btn-gradient flex-1" : "flex-1"}
-                >
-                  {mode.charAt(0).toUpperCase() + mode.slice(1)}
-                </Button>
-              ))}
-            </div>
-
             {/* Calendar Grid */}
-            <div>
+            <div className="flex-1 overflow-y-auto pr-1">
               <div className="grid grid-cols-8 gap-2 mb-3">
                 <div className="text-xs text-slate-500 text-center font-semibold">Week</div>
                 {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(day => (
@@ -257,16 +231,21 @@ export default function BookAppointmentPage() {
                       return (
                         <button
                           key={dayIndex}
-                          disabled={isPast || !dayObj.isCurrentMonth}
-                          onClick={() => dayObj.isCurrentMonth && setSelectedDate(dayObj.date)}
+                          disabled={isPast}
+                          onClick={() => {
+                            setSelectedDate(dayObj.date)
+                            if (!dayObj.isCurrentMonth) {
+                              setViewDate(new Date(dayObj.date.getFullYear(), dayObj.date.getMonth(), 1))
+                            }
+                          }}
                           className={`
                             aspect-square flex items-center justify-center rounded-lg text-sm font-semibold transition-all duration-300
-                            ${!dayObj.isCurrentMonth || isPast ? "text-slate-300 cursor-not-allowed" : ""}
+                            ${isPast ? "text-slate-300 cursor-not-allowed" : ""}
                             ${isSelected 
                               ? "bg-linear-to-br from-[#06b6d4] to-[#0891b2] text-white shadow-lg scale-110" 
                               : isSelectedWeek && !isPast
                                 ? "bg-cyan-50 text-cyan-700 hover:bg-cyan-100" 
-                                : !isPast && dayObj.isCurrentMonth ? "hover:bg-slate-100 text-slate-700" : ""
+                                : !isPast ? (dayObj.isCurrentMonth ? "hover:bg-slate-100 text-slate-700" : "text-slate-500 hover:bg-slate-100") : ""
                             }
                           `}
                         >
@@ -279,7 +258,7 @@ export default function BookAppointmentPage() {
               })}
             </div>
 
-            <div className="mt-6 text-center p-3 bg-linear-to-r from-cyan-50 to-blue-50 rounded-xl">
+            <div className="mt-4 text-center p-3 bg-linear-to-r from-cyan-50 to-blue-50 rounded-xl">
               <p className="text-sm text-slate-600">
                 <span className="font-semibold">Week {getWeekNumber(weeks.find(w => w.some(d => isSameDay(d.date, selectedDate)))?.[0].date || new Date())}</span>
               </p>
@@ -287,48 +266,63 @@ export default function BookAppointmentPage() {
           </Card>
 
           {/* Time Slots Section */}
-          <Card className="card-feature lg:col-span-3 p-6 flex flex-col">
-            <div className="mb-6">
-              <h3 className="text-2xl font-bold text-slate-900 mb-1">
-                Available Slots
-              </h3>
-              <p className="text-slate-600">
-                {format(selectedDate, "MMMM d, yyyy")}
-              </p>
-            </div>
+          <Card className="card-feature lg:col-span-3 p-6 flex flex-col h-full lg:overflow-hidden">
 
             {/* Question Section */}
-            <div className="mb-6 p-5 rounded-xl bg-linear-to-br from-cyan-50 to-blue-50 border border-cyan-100">
-              <p className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
+            <div className="mb-4 p-4 rounded-xl bg-linear-to-br from-cyan-50 to-blue-50 border border-cyan-100">
+              <p className="font-semibold text-slate-900 mb-3 flex items-center gap-2 text-sm">
                 <Calendar className="h-5 w-5 text-cyan-600" />
                 Have you checked your symptoms?
               </p>
 
               <div className="space-y-3">
-                <label className="flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all hover:bg-white
+                <label className="flex items-center justify-between gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all hover:bg-white
                   ${checkedSymptom === 'yes' ? 'border-cyan-500 bg-white shadow-md' : 'border-transparent bg-white/50'}">
-                  <input
-                    type="radio"
-                    name="checkedSymptom"
-                    value="yes"
-                    checked={checkedSymptom === "yes"}
-                    onChange={() => { setCheckedSymptom("yes"); setSelectedDepartment("") }}
-                    className="w-4 h-4 text-cyan-600"
-                  />
-                  <span className="font-medium text-slate-700">Yes, I know which department</span>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <input
+                      type="radio"
+                      name="checkedSymptom"
+                      value="yes"
+                      checked={checkedSymptom === "yes"}
+                      onChange={() => { setCheckedSymptom("yes"); setSelectedDepartment("") }}
+                      className="w-4 h-4 text-cyan-600 shrink-0"
+                    />
+                    <span className="font-medium text-slate-700 text-sm">Yes, I know which department</span>
+                  </div>
+                  <div className="w-56 shrink-0">
+                    <Select
+                      value={checkedSymptom === "yes" ? selectedDepartment : ""}
+                      onValueChange={setSelectedDepartment}
+                      disabled={checkedSymptom !== "yes"}
+                    >
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Select specialty" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {specialtyGroups.map(group => (
+                          <SelectItem key={group.value} value={group.value}>{group.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </label>
 
-                <label className="flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all hover:bg-white
+                <label className="flex items-center justify-between gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all hover:bg-white
                   ${checkedSymptom === 'no' ? 'border-cyan-500 bg-white shadow-md' : 'border-transparent bg-white/50'}">
-                  <input
-                    type="radio"
-                    name="checkedSymptom"
-                    value="no"
-                    checked={checkedSymptom === "no"}
-                    onChange={() => { setCheckedSymptom("no"); setSelectedDepartment("outpatient") }}
-                    className="w-4 h-4 text-cyan-600"
-                  />
-                  <span className="font-medium text-slate-700">No, not yet</span>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <input
+                      type="radio"
+                      name="checkedSymptom"
+                      value="no"
+                      checked={checkedSymptom === "no"}
+                      onChange={() => { setCheckedSymptom("no"); setSelectedDepartment("outpatient") }}
+                      className="w-4 h-4 text-cyan-600 shrink-0"
+                    />
+                    <span className="font-medium text-slate-700 text-sm">No, not yet</span>
+                  </div>
+                  <span className="w-56 shrink-0 h-9 px-3 inline-flex items-center rounded-md border bg-slate-100 text-slate-700 text-sm">
+                    Outpatient
+                  </span>
                 </label>
               </div>
             </div>
@@ -414,7 +408,7 @@ export default function BookAppointmentPage() {
               <div className="flex-1 overflow-y-auto space-y-3 pr-2">
                 {doctorSlots.map((slot, index) => (
                   <button
-                    key={index}
+                    key={slot.id}
                     onClick={() => handleBookSlot(slot)}
                     disabled={!slot.available}
                     className={`
@@ -441,7 +435,7 @@ export default function BookAppointmentPage() {
                           </span>
                         </div>
                         <p className="font-semibold text-slate-900 mb-1">{slot.doctor}</p>
-                        <p className="text-sm text-slate-600">{slot.room}</p>
+                        <p className="text-sm text-slate-600">{slot.room ? `Room ${slot.room}` : "Room -"}</p>
                       </div>
                       {slot.available && (
                         <div className="card-icon-wrapper h-12 w-12">
@@ -461,8 +455,13 @@ export default function BookAppointmentPage() {
                     <p>No available slots for this selection</p>
                   </div>
                 )}
-              </div>
-            )}
+                </div>
+              ) : (
+                <div className="h-full flex items-center justify-center text-slate-500 text-sm text-center px-6">
+                  Select Yes/No and specialty to view available appointment slots.
+                </div>
+              )}
+            </div>
           </Card>
         </div>
       </div>
@@ -491,7 +490,7 @@ export default function BookAppointmentPage() {
                 </li>
                 <li className="flex items-start gap-3">
                   <span className="text-cyan-600 font-bold">•</span>
-                  <span className="text-slate-700">{selectedSlot.room}</span>
+                  <span className="text-slate-700">{selectedSlot.room ? `Room ${selectedSlot.room}` : "Room -"}</span>
                 </li>
                 <li className="flex items-start gap-3">
                   <span className="text-cyan-600 font-bold">•</span>

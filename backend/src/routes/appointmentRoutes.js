@@ -8,11 +8,18 @@ router.use(authenticateToken);
 
 // Get available doctors (for booking page)
 router.get('/doctors', appointmentController.getDoctors);
+router.get('/clinic-rooms', appointmentController.getClinicRooms);
+router.get('/patients', appointmentController.getPortalPatients);
 
 // Get already-booked slots for a date
 router.get('/booked-slots', appointmentController.getBookedSlots);
+router.get('/open-slots', appointmentController.getOpenSlots);
+router.post('/open-slots', appointmentController.createOpenSlot);
+router.put('/open-slots/:id', appointmentController.updateOpenSlot);
+router.delete('/open-slots/:id', appointmentController.deleteOpenSlot);
 router.get('/dashboard-summary', appointmentController.getPatientDashboardSummary);
 router.get('/feedback', appointmentController.getFeedbacks);
+router.get('/feedback/visible', appointmentController.getVisibleFeedbacks);
 router.post('/feedback', appointmentController.createFeedback);
 router.get('/ai-recommendations', appointmentController.getAiRecommendations);
 router.patch('/ai-recommendations/:id/feedback', appointmentController.updateAiRecommendationFeedback);

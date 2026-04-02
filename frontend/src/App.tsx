@@ -1,4 +1,4 @@
-﻿import './App.css'
+import './App.css'
 
 import FadeTransition from "@/components/FadeTransition"
 import NetworkBackground from "@/components/NetworkBackground";
@@ -31,6 +31,7 @@ import { NurseLayout2 } from "@/components/nurse-layout-2"
 import Nurse_EMRManagement from "./pages/nurse/medical_records/dashboard"
 import NurseAppointment from "./pages/nurse/appointment"
 import NurseFeedback from "./pages/nurse/feedback"
+import NursePatientProfilePage from "./pages/nurse/patient-profile"
 import TechnicianDashboard from './pages/technician/dashboard'
 import TechnicianPatients from './pages/technician/patients'
 import { TechnicianLayout2 } from "@/components/technician-layout-2"
@@ -73,6 +74,7 @@ function App() {
             <Route index element={<Doctor_EMRManagement />} />
           </Route>
           <Route path="/doctor/appointments" element={<DoctorAppointment />} />
+          <Route path="/doctor/patients/:patientId/profile" element={<NursePatientProfilePage />} />
           <Route path="/doctor/feedback" element={<DoctorFeedback />} />
 
           {/* Protected nurse Routes */}
@@ -82,6 +84,7 @@ function App() {
             <Route index element={<Nurse_EMRManagement />} />
           </Route>
           <Route path="/nurse/appointments" element={<NurseAppointment />} />
+          <Route path="/nurse/patients/:patientId/profile" element={<NursePatientProfilePage />} />
           <Route path="/nurse/feedback" element={<NurseFeedback />} />
 
           {/* Protected technician Routes */}

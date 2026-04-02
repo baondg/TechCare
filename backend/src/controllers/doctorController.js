@@ -28,6 +28,20 @@ async function resolveDoctorDisplayName(req) {
   return `Doctor #${userId}`;
 }
 
+const normalizeMedicalRecordStatus = (value) => {
+  const raw = String(value || '').toLowerCase();
+  if (raw === 'signed') return 'signed';
+  if (raw === 'unsigned') return 'unsigned';
+  return 'draft';
+};
+
+const normalizePrescriptionStatus = (value) => {
+  const raw = String(value || '').trim().toLowerCase();
+  if (raw === 'signed') return 'signed';
+  if (raw === 'voided' || raw === 'unsigned') return 'voided';
+  return 'draft';
+};
+
 async function getDoctorIdByUserId(userId, transaction) {
   const row = await sequelize.query(
     'SELECT doctor_id FROM DOCTOR WHERE user_id = :userId LIMIT 1',
@@ -179,7 +193,9 @@ exports.getPatients = async (req, res) => {
           required: true,
           where: {
             type: 'PAT',
-            status: 'Active'
+            status: {
+              [Op.in]: [1, '1', true, 'Active', 'active']
+            }
           },
           attributes: ['username']
         }
@@ -254,8 +270,8 @@ exports.getPatient = async (req, res) => {
   try {
     const { patientId } = req.params;
 
-    // Chỉ doctor mới được phép
-    if (req.user.role !== "doctor") {
+    // Medical staff can view patient details from EMR pages
+    if (!["doctor", "admin", "nurse", "technician"].includes(req.user.role)) {
       return res.status(403).json({ success: false, message: "Forbidden" });
     }
 
@@ -447,8 +463,9 @@ exports.createHealthInfo = async (req, res) => {
     }
 
     const healthInfo = await HealthInfo.create({
-      patientId: parseInt(patientId),
+      patient_id: parseInt(patientId),
       ...req.body,
+      status: normalizeMedicalRecordStatus(req.body?.status),
       updatedBy: doctorUser.username || `Doctor #${doctorUser.userId}`
     });
 
@@ -467,13 +484,18 @@ exports.updateHealthInfo = async (req, res) => {
   try {
     const { patientId, id } = req.params;
     const doctorUser = req.user;
+    const numericPatientId = Number(String(patientId).replace(/^OP0*/, ''));
 
     const healthInfo = await HealthInfo.findOne({
-      where: { id, patientId }
+      where: { id, patient_id: numericPatientId }
     });
 
     if (!healthInfo) {
       return res.status(404).json({ success: false, message: 'Health info record not found' });
+    }
+
+    if (normalizeMedicalRecordStatus(healthInfo.status) !== 'draft') {
+      return res.status(400).json({ success: false, message: 'Only draft records can be edited' });
     }
 
     await healthInfo.update({
@@ -495,9 +517,10 @@ exports.updateHealthInfo = async (req, res) => {
 exports.deleteHealthInfo = async (req, res) => {
   try {
     const { patientId, id } = req.params;
+    const numericPatientId = Number(String(patientId).replace(/^OP0*/, ''));
 
     const healthInfo = await HealthInfo.findOne({
-      where: { id, patientId }
+      where: { id, patient_id: numericPatientId }
     });
 
     if (!healthInfo) {
@@ -510,6 +533,48 @@ exports.deleteHealthInfo = async (req, res) => {
   } catch (error) {
     console.error('Delete health info error:', error);
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+  }
+};
+
+exports.signHealthInfo = async (req, res) => {
+  try {
+    const numericPatientId = Number(String(req.params.patientId).replace(/^OP0*/, ''));
+    const id = Number(req.params.id);
+    const healthInfo = await HealthInfo.findOne({
+      where: { id, patient_id: numericPatientId }
+    });
+    if (!healthInfo) {
+      return res.status(404).json({ success: false, message: 'Health info record not found' });
+    }
+    if (normalizeMedicalRecordStatus(healthInfo.status) !== 'draft') {
+      return res.status(400).json({ success: false, message: 'Only draft records can be signed' });
+    }
+    await healthInfo.update({ status: 'signed', time: new Date() });
+    return res.json({ success: true, id: healthInfo.id, status: 'signed' });
+  } catch (error) {
+    console.error('Sign health info error:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+  }
+};
+
+exports.unsignHealthInfo = async (req, res) => {
+  try {
+    const numericPatientId = Number(String(req.params.patientId).replace(/^OP0*/, ''));
+    const id = Number(req.params.id);
+    const healthInfo = await HealthInfo.findOne({
+      where: { id, patient_id: numericPatientId }
+    });
+    if (!healthInfo) {
+      return res.status(404).json({ success: false, message: 'Health info record not found' });
+    }
+    if (normalizeMedicalRecordStatus(healthInfo.status) !== 'signed') {
+      return res.status(400).json({ success: false, message: 'Only signed records can be unsigned' });
+    }
+    await healthInfo.update({ status: 'unsigned', time: new Date() });
+    return res.json({ success: true, id: healthInfo.id, status: 'unsigned' });
+  } catch (error) {
+    console.error('Unsign health info error:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
 
@@ -827,7 +892,7 @@ exports.getPrescriptions = async (req, res) => {
           doctorId: row.doctorUserId || req.user.userId,
           doctorName: row.doctorName || '',
           department: 'General',
-          signatureStatus: row.signatureStatus || 'Draft',
+          signatureStatus: normalizePrescriptionStatus(row.signatureStatus),
           medications: [],
           createdAt: row.time,
           updatedAt: row.time
@@ -897,7 +962,7 @@ exports.createPrescription = async (req, res) => {
     );
     await sequelize.query(
       `INSERT INTO MEDICAL_PRESCRIPTION (order_id, duration, time, note, status)
-       VALUES (:orderId, 7, NOW(), :note, 'Draft')`,
+       VALUES (:orderId, 7, NOW(), :note, 'draft')`,
       {
         replacements: { orderId, note: department || '' },
         type: QueryTypes.INSERT,
@@ -958,7 +1023,7 @@ exports.createPrescription = async (req, res) => {
       doctorId: doctorUser.userId,
       doctorName,
       department: department || '',
-      signatureStatus: 'Draft',
+      signatureStatus: 'draft',
       medications: meds,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -1006,11 +1071,11 @@ exports.updatePrescription = async (req, res) => {
       await transaction.rollback();
       return res.status(404).json({ success: false, message: 'Prescription not found' });
     }
-    if (exists[0].signatureStatus !== 'Draft') {
+    if (normalizePrescriptionStatus(exists[0].signatureStatus) !== 'draft') {
       await transaction.rollback();
       return res.status(403).json({
         success: false,
-        message: 'Only prescriptions in Draft status can be edited'
+        message: 'Only prescriptions in draft status can be edited'
       });
     }
 
@@ -1094,7 +1159,7 @@ exports.updatePrescription = async (req, res) => {
       doctorId: req.user.userId,
       doctorName,
       department: department || '',
-      signatureStatus: 'Draft',
+      signatureStatus: 'draft',
       medications: meds,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -1137,7 +1202,7 @@ exports.signPrescription = async (req, res) => {
       await transaction.rollback();
       return res.status(404).json({ success: false, message: 'Prescription not found' });
     }
-    if (rows[0].signatureStatus !== 'Draft') {
+    if (normalizePrescriptionStatus(rows[0].signatureStatus) !== 'draft') {
       await transaction.rollback();
       return res.status(400).json({
         success: false,
@@ -1150,13 +1215,13 @@ exports.signPrescription = async (req, res) => {
        JOIN \`ORDER\` o ON o.id = rx.order_id
        JOIN TREATMENT t ON t.id = o.treatment_id
        JOIN REGIMEN r ON r.id = t.regimen_id
-       SET rx.status = 'Signed', rx.time = NOW()
+       SET rx.status = 'signed', rx.time = NOW()
        WHERE rx.order_id = :orderId AND r.patient_id = :patientId`,
       { replacements: { orderId, patientId: numericId }, type: QueryTypes.UPDATE, transaction }
     );
 
     await transaction.commit();
-    res.json({ success: true, signatureStatus: 'Signed', id: orderId });
+    res.json({ success: true, signatureStatus: 'signed', id: orderId });
   } catch (error) {
     await transaction.rollback();
     console.error('Sign prescription error:', error);
@@ -1166,7 +1231,7 @@ exports.signPrescription = async (req, res) => {
 
 /**
  * PATCH /api/doctor/patients/:patientId/prescriptions/:id/unsign
- * Signed → Unsigned (cannot edit after)
+ * Signed → Voided (cannot edit after)
  */
 exports.unsignPrescription = async (req, res) => {
   const transaction = await sequelize.transaction();
@@ -1192,11 +1257,11 @@ exports.unsignPrescription = async (req, res) => {
       await transaction.rollback();
       return res.status(404).json({ success: false, message: 'Prescription not found' });
     }
-    if (rows[0].signatureStatus !== 'Signed') {
+    if (normalizePrescriptionStatus(rows[0].signatureStatus) !== 'signed') {
       await transaction.rollback();
       return res.status(400).json({
         success: false,
-        message: 'Only a signed prescription can be unsigned'
+        message: 'Only a signed prescription can be voided'
       });
     }
 
@@ -1205,13 +1270,13 @@ exports.unsignPrescription = async (req, res) => {
        JOIN \`ORDER\` o ON o.id = rx.order_id
        JOIN TREATMENT t ON t.id = o.treatment_id
        JOIN REGIMEN r ON r.id = t.regimen_id
-       SET rx.status = 'Unsigned', rx.time = NOW()
+       SET rx.status = 'voided', rx.time = NOW()
        WHERE rx.order_id = :orderId AND r.patient_id = :patientId`,
       { replacements: { orderId, patientId: numericId }, type: QueryTypes.UPDATE, transaction }
     );
 
     await transaction.commit();
-    res.json({ success: true, signatureStatus: 'Unsigned', id: orderId });
+    res.json({ success: true, signatureStatus: 'voided', id: orderId });
   } catch (error) {
     await transaction.rollback();
     console.error('Unsign prescription error:', error);

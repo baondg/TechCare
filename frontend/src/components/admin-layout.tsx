@@ -7,7 +7,7 @@ const navigation: NavItem[] = [
   { href: '/admin/dashboard', name: 'Dashboard',            icon: LayoutDashboard },
   { href: '/admin/users',     name: 'Account Management',   icon: Users },
   { href: '/admin/config',    name: 'System Configuration', icon: Settings },
-  { href: '/admin/feedback',  name: 'Feedback',             icon: MessageSquareText },
+  { href: '/admin/feedback',  name: 'Feedback Management',  icon: MessageSquareText },
 ]
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {

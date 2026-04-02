@@ -10,6 +10,8 @@ router.get('/accounts', adminController.getAccounts);
 router.post('/accounts', adminController.createAccount);
 router.patch('/accounts/:id', adminController.updateAccount);
 router.patch('/accounts/:id/status', adminController.updateAccountStatus);
+router.get('/feedbacks', adminController.getFeedbacks);
+router.patch('/feedbacks/:id', adminController.updateFeedback);
 
 module.exports = router;
 

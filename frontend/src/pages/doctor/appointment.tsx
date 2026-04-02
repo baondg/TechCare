@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { format, parseISO } from "date-fns"
 import { useDoctorAppointments } from "@/hooks/useDoctorAppointments"
+import { Link } from "react-router-dom"
 
 type AppointmentUiStatus = "Done" | "Upcoming" | "Confirmed" | "Cancelled"
 
@@ -122,7 +123,14 @@ export default function DoctorAppointmentsPage() {
 
                       <div className="flex items-center text-slate-600 mb-2">
                         <User className="w-4 h-4 mr-2" />
-                        Patient: {appointment.patientName || "Unknown patient"}
+                        Patient:{" "}
+                        {appointment.patientId ? (
+                          <Link to={`/doctor/patients/${appointment.patientId}/profile`} className="text-cyan-700 hover:underline">
+                            {appointment.patientName || `Patient #${appointment.patientId}`}
+                          </Link>
+                        ) : (
+                          appointment.patientName || "Unknown patient"
+                        )}
                       </div>
 
                       <div className="flex items-center text-slate-500">

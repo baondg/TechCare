@@ -123,7 +123,15 @@ export default function DoctorDashboard() {
                 <div className="flex items-center gap-4">
                   <div className="text-sm font-medium w-20">{String(apt.time || "").slice(0, 5)}</div>
                   <div>
-                    <p className="font-medium">{apt.patientName || "Unknown patient"}</p>
+                    <p className="font-medium">
+                      {apt.patientId ? (
+                        <Link to={`/doctor/patients/${apt.patientId}/profile`} className="text-cyan-700 hover:underline">
+                          {apt.patientName || `Patient #${apt.patientId}`}
+                        </Link>
+                      ) : (
+                        apt.patientName || "Unknown patient"
+                      )}
+                    </p>
                     <p className="text-sm text-muted-foreground">{apt.department || "General consultation"}</p>
                   </div>
                 </div>
@@ -159,7 +167,11 @@ export default function DoctorDashboard() {
               {(dashboardSummary?.recentPatients || []).map((patient) => (
                 <div key={patient.patientId} className="flex items-center justify-between p-3 border rounded-lg">
                   <div>
-                    <p className="font-medium">{patient.patientName}</p>
+                    <p className="font-medium">
+                      <Link to={`/doctor/patients/${patient.patientId}/profile`} className="text-cyan-700 hover:underline">
+                        {patient.patientName}
+                      </Link>
+                    </p>
                     <p className="text-sm text-muted-foreground">
                       Last visit: {patient.lastTime ? new Date(patient.lastTime).toLocaleString("vi-VN") : "—"}
                     </p>

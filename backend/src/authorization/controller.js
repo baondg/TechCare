@@ -368,6 +368,7 @@ exports.login = async (req, res) => {
       'PAT': 'patient',
       'DOC': 'doctor',
       'NUR': 'nurse',
+      'TEC': 'technician',
       'PHY': 'technician'
     };
     const role = roleMap[user.type] || 'patient';

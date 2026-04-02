@@ -22,7 +22,7 @@ import {
   type PatientFeedback,
 } from "@/services/appointment-service"
 
-type FeedbackCategory = "ai-chatbot" | "ai-schedule" | "ai-recovery" | "general"
+type FeedbackCategory = "ai-chatbot" | "ai-schedule" | "ai-recovery" | "general" | "other"
 type FeedbackRating = 1 | 2 | 3 | 4 | 5
 
 interface AIRecommendation {
@@ -80,8 +80,9 @@ function mapDbRecommendationToUi(row: PatientAiRecommendation): AIRecommendation
 }
 
 export default function FeedbackPage() {
-  const [activeTab, setActiveTab] = useState<"feedback" | "ai-suggestions">("feedback")
+  const [activeTab, setActiveTab] = useState<"feedback" | "all-feedback" | "ai-suggestions">("feedback")
   const [selectedCategory, setSelectedCategory] = useState<FeedbackCategory>("general")
+  const [customCategory, setCustomCategory] = useState("")
   const [feedbackText, setFeedbackText] = useState("")
   const [feedbackRating, setFeedbackRating] = useState<FeedbackRating | null>(null)
   const [submitted, setSubmitted] = useState(false)
@@ -90,6 +91,8 @@ export default function FeedbackPage() {
   const [feedbackHistory, setFeedbackHistory] = useState<PatientFeedback[]>([])
   const [loadingRecommendations, setLoadingRecommendations] = useState(true)
   const [aiRecommendations, setAiRecommendations] = useState<AIRecommendation[]>([])
+  const [loadingAllFeedback, setLoadingAllFeedback] = useState(true)
+  const [allVisibleFeedback, setAllVisibleFeedback] = useState<PatientFeedback[]>([])
 
   useEffect(() => {
     let cancelled = false
@@ -103,6 +106,25 @@ export default function FeedbackPage() {
         console.error("Load feedback history failed:", e)
       } finally {
         if (!cancelled) setLoadingHistory(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      setLoadingAllFeedback(true)
+      try {
+        const rows = await appointmentService.getVisibleFeedbacks()
+        if (cancelled) return
+        setAllVisibleFeedback(rows)
+      } catch (e) {
+        console.error("Load visible feedback failed:", e)
+      } finally {
+        if (!cancelled) setLoadingAllFeedback(false)
       }
     })()
     return () => {
@@ -132,17 +154,21 @@ export default function FeedbackPage() {
 
   const handleSubmitFeedback = async () => {
     if (!feedbackRating || !feedbackText.trim()) return
+    const mappedType = selectedCategory === "other" ? customCategory.trim() : selectedCategory
+    if (!mappedType) return
     setSubmitting(true)
     try {
       const created = await appointmentService.createFeedback({
-        type: selectedCategory,
+        type: mappedType,
         rating: feedbackRating,
         content: feedbackText.trim(),
       })
       setFeedbackHistory((prev) => [created, ...prev])
+      setAllVisibleFeedback((prev) => [created, ...prev])
       setSubmitted(true)
       setFeedbackText("")
       setFeedbackRating(null)
+      setCustomCategory("")
       window.setTimeout(() => setSubmitted(false), 3000)
     } catch (e) {
       console.error("Submit feedback failed:", e)
@@ -163,7 +189,7 @@ export default function FeedbackPage() {
   }
 
   const latestVisibleFeedback = useMemo(
-    () => feedbackHistory.filter((x) => (x.status || "").toLowerCase() !== "hidden").slice(0, 5),
+    () => feedbackHistory.filter((x) => !!x.status).slice(0, 5),
     [feedbackHistory]
   )
 
@@ -189,6 +215,16 @@ export default function FeedbackPage() {
             }`}
           >
             Submit Feedback
+          </button>
+          <button
+            onClick={() => setActiveTab("all-feedback")}
+            className={`px-6 py-2.5 rounded-lg font-medium transition-all duration-300 ${
+              activeTab === "all-feedback"
+                ? "bg-white text-cyan-600 shadow-md"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            View All Feedback
           </button>
           <button
             onClick={() => setActiveTab("ai-suggestions")}
@@ -219,6 +255,7 @@ export default function FeedbackPage() {
                     { value: "ai-chatbot" as FeedbackCategory, label: "AI Chatbot", icon: MessageSquare },
                     { value: "ai-schedule" as FeedbackCategory, label: "Symptom Checker", icon: Calendar },
                     { value: "ai-recovery" as FeedbackCategory, label: "Recovery Predictions", icon: TrendingUp },
+                    { value: "other" as FeedbackCategory, label: "Other", icon: Sparkles },
                   ].map((cat) => {
                     const Icon = cat.icon
                     const isSelected = selectedCategory === cat.value
@@ -250,6 +287,16 @@ export default function FeedbackPage() {
                     )
                   })}
                 </div>
+                {selectedCategory === "other" && (
+                  <div className="mt-4">
+                    <Textarea
+                      placeholder="Enter custom feedback category..."
+                      value={customCategory}
+                      onChange={(e) => setCustomCategory(e.target.value)}
+                      className="min-h-16 resize-none custom-input"
+                    />
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -303,7 +350,7 @@ export default function FeedbackPage() {
                 <Button 
                   onClick={() => void handleSubmitFeedback()} 
                   className="w-full btn-gradient h-12 text-base"
-                  disabled={!feedbackRating || !feedbackText.trim() || submitting}
+                  disabled={!feedbackRating || !feedbackText.trim() || submitting || (selectedCategory === "other" && !customCategory.trim())}
                 >
                   <Send className="h-5 w-5 mr-2" />
                   {submitting ? "Submitting..." : "Submit Feedback"}
@@ -322,7 +369,6 @@ export default function FeedbackPage() {
             <Card className="card-feature border-slate-200/60">
               <CardHeader className="bg-linear-to-r from-indigo-50/50 to-transparent">
                 <CardTitle className="text-slate-900">Your Recent Feedback</CardTitle>
-                <CardDescription>Latest records from FEEDBACK table</CardDescription>
               </CardHeader>
               <CardContent className="pt-6">
                 {loadingHistory ? (
@@ -350,6 +396,47 @@ export default function FeedbackPage() {
               </CardContent>
             </Card>
           </div>
+        )}
+
+        {activeTab === "all-feedback" && (
+          <Card className="card-feature border-slate-200/60">
+            <CardHeader className="bg-linear-to-r from-indigo-50/50 to-transparent">
+              <CardTitle className="text-slate-900">All Visible Feedback</CardTitle>
+              <CardDescription>Feedback records that admin allows everyone to view</CardDescription>
+            </CardHeader>
+            <CardContent className="pt-6">
+              {loadingAllFeedback ? (
+                <p className="text-sm text-slate-500">Loading visible feedback...</p>
+              ) : allVisibleFeedback.length === 0 ? (
+                <p className="text-sm text-slate-500">No visible feedback available.</p>
+              ) : (
+                <div className="space-y-3">
+                  {allVisibleFeedback.map((item) => (
+                    <div key={item.id} className="rounded-lg border border-slate-200 bg-white p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-xs font-semibold uppercase tracking-wide text-cyan-700">
+                          {item.type}
+                        </span>
+                        <span className="text-xs text-slate-500">
+                          {item.time ? String(item.time).replace("T", " ").slice(0, 16) : "—"}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-sm text-slate-700">{item.content}</p>
+                      {item.response ? (
+                        <div className="mt-2 rounded-md border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs text-cyan-800">
+                          <span className="font-semibold">Admin Response:</span> {item.response}
+                        </div>
+                      ) : null}
+                      <div className="mt-2 flex items-center justify-between text-xs">
+                        <span className="text-amber-600 font-semibold">Rating: {item.rating}/5</span>
+                        <span className="text-slate-500">{item.userName || `User #${item.userId || "?"}`}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         )}
 
         {/* AI Suggestions Tab */}

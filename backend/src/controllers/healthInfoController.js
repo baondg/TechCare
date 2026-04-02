@@ -53,6 +53,13 @@ const parseJSON = (value) => {
   return {};
 };
 
+const normalizeRecordStatus = (value) => {
+  const raw = String(value || '').toLowerCase();
+  if (raw === 'signed') return 'signed';
+  if (raw === 'unsigned') return 'unsigned';
+  return 'draft';
+};
+
 const buildResponseRecord = (r) => {
   const [sys, dia] = r.blood_pressure ? r.blood_pressure.split('/') : [0, 0];
   const h = parseFloat(r.height) || 0;
@@ -70,6 +77,7 @@ const buildResponseRecord = (r) => {
       temperature: r.temperature,
       spo2: r.spo2,
       currentSymptoms: r.condition || '',
+      status: normalizeRecordStatus(r.status),
       updatedAt: r.time,
       createdAt: r.time,
       updatedBy: 'Patient',
@@ -167,6 +175,7 @@ exports.createHealthInfo = async (req, res) => {
       pastIllnesses,
       vaccinations,
       substanceAbuse,
+      status,
     } = req.body;
 
     const record = await MedicalRecord.create({
@@ -180,6 +189,7 @@ exports.createHealthInfo = async (req, res) => {
       blood_pressure: toBloodPressure(bloodPressureSys, bloodPressureDia),
       temperature: toNullableNumber(temperature),
       respiratory_rate: toNullableNumber(respiratoryRate),
+      status: normalizeRecordStatus(status),
     });
 
     const mappedBloodType = toPatientBloodType(bloodType);
@@ -249,6 +259,7 @@ exports.updateHealthInfo = async (req, res) => {
       pastIllnesses,
       vaccinations,
       substanceAbuse,
+      status,
     } = req.body;
 
     const record = await MedicalRecord.findOne({
@@ -257,6 +268,10 @@ exports.updateHealthInfo = async (req, res) => {
 
     if (!record) {
       return res.status(404).json({ message: 'Medical record not found' });
+    }
+
+    if (normalizeRecordStatus(record.status) !== 'draft') {
+      return res.status(400).json({ success: false, message: 'Only draft records can be edited' });
     }
 
     await record.update({
@@ -269,6 +284,7 @@ exports.updateHealthInfo = async (req, res) => {
       temperature: toNullableNumber(temperature),
       respiratory_rate: toNullableNumber(respiratoryRate),
       time: new Date(),
+      status: status ? normalizeRecordStatus(status) : record.status,
     });
 
     const mappedBloodType = toPatientBloodType(bloodType);
@@ -300,6 +316,56 @@ exports.updateHealthInfo = async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: err.message });
+  }
+};
+
+exports.signHealthInfo = async (req, res) => {
+  try {
+    const user_id = Number(req.params.userId);
+    const recordId = Number(req.params.recordId);
+    if (req.user.userId !== user_id && req.user.role !== 'ADM') {
+      return res.status(403).json({ message: 'Forbidden' });
+    }
+
+    const patient = await Patient.findOne({ where: { user_id } });
+    if (!patient) return res.status(404).json({ message: 'Patient not found' });
+
+    const record = await MedicalRecord.findOne({ where: { id: recordId, patient_id: patient.patient_id } });
+    if (!record) return res.status(404).json({ message: 'Medical record not found' });
+    if (normalizeRecordStatus(record.status) !== 'draft') {
+      return res.status(400).json({ success: false, message: 'Only draft records can be signed' });
+    }
+
+    await record.update({ status: 'signed', time: new Date() });
+    return res.json({ success: true, id: record.id, status: 'signed' });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: err.message });
+  }
+};
+
+exports.unsignHealthInfo = async (req, res) => {
+  try {
+    const user_id = Number(req.params.userId);
+    const recordId = Number(req.params.recordId);
+    if (req.user.userId !== user_id && req.user.role !== 'ADM') {
+      return res.status(403).json({ message: 'Forbidden' });
+    }
+
+    const patient = await Patient.findOne({ where: { user_id } });
+    if (!patient) return res.status(404).json({ message: 'Patient not found' });
+
+    const record = await MedicalRecord.findOne({ where: { id: recordId, patient_id: patient.patient_id } });
+    if (!record) return res.status(404).json({ message: 'Medical record not found' });
+    if (normalizeRecordStatus(record.status) !== 'signed') {
+      return res.status(400).json({ success: false, message: 'Only signed records can be unsigned' });
+    }
+
+    await record.update({ status: 'unsigned', time: new Date() });
+    return res.json({ success: true, id: record.id, status: 'unsigned' });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: err.message });
   }
 };
 

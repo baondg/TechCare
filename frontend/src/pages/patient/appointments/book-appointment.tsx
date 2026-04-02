@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { ChevronLeft, ChevronRight, Check, Calendar, Clock } from "lucide-react"
+import { ChevronLeft, ChevronRight, Check, Calendar, Clock, Sparkles, Loader2 } from "lucide-react"
 import { PatientLayout } from "@/components/patient-layout"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -39,6 +39,9 @@ export default function BookAppointmentPage() {
   const [doctors, setDoctors] = useState<DoctorOption[]>([])
   const [bookedSlots, setBookedSlots] = useState<Array<{ doctor: string; time: string }>>([])
   const [loadingSlots, setLoadingSlots] = useState(false)
+  const [aiRecommending, setAiRecommending] = useState(false)
+  const [aiRecommendations, setAiRecommendations] = useState<Array<{ doctorName: string; department: string; reason: string; priority: number }> | null>(null)
+  const [aiAdvice, setAiAdvice] = useState<string | null>(null)
 
   const clinicTimes = ["08:00", "09:00", "10:00", "11:00", "13:30", "14:30", "15:30"]
 
@@ -346,6 +349,63 @@ export default function BookAppointmentPage() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+            )}
+
+            {/* AI Doctor Recommendation */}
+            {checkedSymptom !== null && selectedDepartment && (
+              <div className="mb-6">
+                <Button
+                  onClick={async () => {
+                    setAiRecommending(true)
+                    setAiRecommendations(null)
+                    setAiAdvice(null)
+                    try {
+                      const res = await appointmentService.getAiDoctorRecommendation({
+                        symptoms: checkedSymptom === 'yes' ? (selectedDepartmentLabel || '') : 'General check-up needed',
+                        department: selectedDepartmentLabel,
+                        preferredDate: format(selectedDate, 'yyyy-MM-dd'),
+                        availableDoctors: doctors.filter(d => (d.department || 'General Medicine') === selectedDepartmentLabel),
+                      })
+                      if (res.success && res.recommendations) {
+                        setAiRecommendations(res.recommendations)
+                        setAiAdvice(res.generalAdvice || null)
+                      }
+                    } catch (err) {
+                      console.error('AI recommendation failed:', err)
+                    } finally {
+                      setAiRecommending(false)
+                    }
+                  }}
+                  disabled={aiRecommending}
+                  className="w-full h-12 gap-2 !bg-gradient-to-r !from-violet-500 !to-purple-600 text-white shadow-lg hover:shadow-xl transition-all"
+                >
+                  {aiRecommending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5" />}
+                  {aiRecommending ? 'Finding best doctor...' : 'AI Recommend Best Doctor'}
+                </Button>
+
+                {aiRecommendations && aiRecommendations.length > 0 && (
+                  <div className="mt-4 space-y-3">
+                    <h4 className="text-sm font-semibold text-purple-700 flex items-center gap-2">
+                      <Sparkles className="h-4 w-4" />
+                      AI Recommendations
+                    </h4>
+                    {aiRecommendations.map((rec, i) => (
+                      <div key={i} className="p-4 rounded-xl bg-gradient-to-r from-purple-50 to-violet-50 border border-purple-100">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <span className="font-semibold text-slate-900">{rec.doctorName}</span>
+                            <span className="ml-2 text-xs text-purple-600 bg-purple-100 px-2 py-0.5 rounded-full">Priority #{rec.priority}</span>
+                          </div>
+                        </div>
+                        <p className="text-sm text-slate-600 mt-1">{rec.reason}</p>
+                      </div>
+                    ))}
+                    {aiAdvice && (
+                      <p className="text-xs text-slate-500 italic px-1">{aiAdvice}</p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 

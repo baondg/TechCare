@@ -172,6 +172,25 @@ export const appointmentService = {
     );
     return data.analysis;
   },
+
+  async getAiDoctorRecommendation(data: {
+    symptoms: string;
+    department?: string;
+    preferredDate?: string;
+    availableDoctors: DoctorOption[];
+  }) {
+    return apiClient.post<{
+      success: boolean;
+      recommendations?: Array<{
+        doctorName: string;
+        department: string;
+        reason: string;
+        priority: number;
+      }>;
+      generalAdvice?: string;
+      raw?: string;
+    }>('/api/ai/recommend-doctor', data);
+  },
 };
 
 

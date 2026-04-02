@@ -23,6 +23,7 @@ import {
   CheckCircle2,
   PenOff,
   PenLine,
+  Sparkles,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
@@ -41,6 +42,7 @@ import {
 } from "@/services/doctor-service"
 import { generatePrescriptionPdfBlob } from "@/lib/export-prescription-pdf"
 import { usePauseableToast, type PauseableToastEntry } from "@/hooks/usePauseableToast"
+import { SignaturePad } from "@/components/SignaturePad"
 import {
   Dialog,
   DialogContent,
@@ -553,6 +555,68 @@ export default function PatientPrescription() {
     !saving &&
     !signingKind
 
+  // ── AI Suggest State ──
+  const [aiSuggesting, setAiSuggesting] = useState(false)
+  const [showSignaturePad, setShowSignaturePad] = useState(false)
+  const [savedSignature, setSavedSignature] = useState<string | null>(null)
+
+  // Load saved signature on mount
+  useEffect(() => {
+    doctorService.getSignature()
+      .then(res => { if (res.success && res.signature) setSavedSignature(res.signature) })
+      .catch(() => { /* ignore */ })
+  }, [])
+
+  const handleAiSuggest = async () => {
+    if (!patientId || !selectedRx?.isDraft) return
+    setAiSuggesting(true)
+    try {
+      const patientRes = await doctorService.getPatient(patientId)
+      const patient = patientRes.patient
+      const diagnosis = patient?.latestDiagnosis
+        ? `${patient.latestDiagnosis.icd10} - ${patient.latestDiagnosis.interpretation}`
+        : 'General consultation'
+      const patientInfo = patient
+        ? `Age: ${patient.age || 'N/A'}, Gender: ${patient.gender || 'N/A'}, BMI: ${patient.bmi || 'N/A'}`
+        : ''
+
+      const res = await doctorService.getAiMedicineSuggestions({
+        diagnosis,
+        symptoms: diagnosis,
+        patientInfo,
+      })
+
+      if (res.success && res.suggestions.length > 0) {
+        const newMeds: Medication[] = res.suggestions.map(s => ({
+          name: s.name || '',
+          quantity: String(s.quantity || ''),
+          unit: normalizeMedicationUnit(s.unit),
+          usage: s.usage || '',
+          note: s.note || '',
+        }))
+        setDraftMeds([...newMeds, emptyMed()])
+        showSuccess(`AI suggested ${res.suggestions.length} medications (${res.provider})`)
+      } else {
+        showError('AI returned no suggestions. Try again or add manually.')
+      }
+    } catch (err: any) {
+      showError(err?.message || 'Failed to get AI suggestions')
+    } finally {
+      setAiSuggesting(false)
+    }
+  }
+
+  const handleSignatureConfirm = async (dataUrl: string) => {
+    setSavedSignature(dataUrl)
+    setShowSignaturePad(false)
+    try {
+      await doctorService.saveSignature(dataUrl)
+      showSuccess('Signature saved successfully')
+    } catch {
+      showError('Failed to save signature to server')
+    }
+  }
+
   const getMedicationsForExport = (): Medication[] => {
     if (!selectedRx) return []
     if (selectedRx.isDraft) {
@@ -800,6 +864,19 @@ export default function PatientPrescription() {
                 <Plus className="h-4 w-4" />
                 Add
               </Button>
+              {/* AI Suggest Medicine Button */}
+              {selectedRx?.isDraft && isEditMode && (
+                <Button
+                  size="sm"
+                  className="h-9 gap-2 border-0 !bg-gradient-to-r !from-violet-500 !to-purple-600 px-4 text-white shadow-sm hover:from-violet-600 hover:to-purple-700"
+                  onClick={handleAiSuggest}
+                  disabled={aiSuggesting}
+                  title="Let AI suggest medications based on the patient's diagnosis"
+                >
+                  {aiSuggesting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                  AI Suggest
+                </Button>
+              )}
               <Button
                 size="sm"
                 className="btn-outline transition-transform duration-500 text-xl px-7 py-4"
@@ -987,10 +1064,13 @@ export default function PatientPrescription() {
               {!selectedRx.isDraft && selectedRx.signatureStatus === "Signed" ? (
                 <div className="relative z-[1] flex items-start gap-3 border-t border-slate-200 bg-emerald-50/90 px-4 py-3">
                   <CheckCircle2 className="mt-0.5 h-6 w-6 shrink-0 text-green-600" aria-hidden />
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Signed</div>
                     <div className="text-base font-semibold text-slate-900">{selectedRx.doctor}</div>
                   </div>
+                  {savedSignature && (
+                    <img src={savedSignature} alt="Doctor signature" className="h-12 object-contain opacity-80" />
+                  )}
                 </div>
               ) : null}
             </div>
@@ -999,6 +1079,36 @@ export default function PatientPrescription() {
       </Card>
     </div>
     {pauseableToast}
+
+    {/* Signature Pad Dialog */}
+    <Dialog open={showSignaturePad} onOpenChange={setShowSignaturePad}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <PenLine className="h-5 w-5 text-cyan-600" />
+            Doctor Signature
+          </DialogTitle>
+        </DialogHeader>
+        <SignaturePad
+          onSave={handleSignatureConfirm}
+          onCancel={() => setShowSignaturePad(false)}
+          initialSignature={savedSignature}
+        />
+      </DialogContent>
+    </Dialog>
+
+    {/* Manage Signature floating button */}
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      className="fixed bottom-6 right-6 z-50 h-10 gap-2 rounded-full shadow-lg border-cyan-200 hover:border-cyan-400 bg-white/90 backdrop-blur-sm"
+      onClick={() => setShowSignaturePad(true)}
+      title="Manage your digital signature"
+    >
+      <PenLine className="h-4 w-4 text-cyan-600" />
+      <span className="text-xs font-medium text-slate-700">Signature</span>
+    </Button>
     </>
   )
 }

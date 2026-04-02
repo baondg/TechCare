@@ -100,6 +100,8 @@ export async function generatePrescriptionPdfBlob(opts: {
   filename?: string
   /** Red diagonal watermark on PDF when Unsigned */
   signatureStatus?: ExportPrescriptionSignatureStatus
+  /** Base64 data URL of the doctor's signature image */
+  signatureDataUrl?: string | null
 }): Promise<PrescriptionPdfResult> {
   const { patient, medications, prescriptionDate, doctorName } = opts
   const fullName = `${patient.firstName || ""} ${patient.lastName || ""}`.trim() || patient.username
@@ -211,7 +213,10 @@ export async function generatePrescriptionPdfBlob(opts: {
       </div>
       <div class="sig">
         <div style="font-weight:600">Doctor</div>
-        <div class="sig-box" aria-hidden="true"></div>
+        ${opts.signatureDataUrl
+          ? `<div style="margin:10px 0 8px;margin-left:auto;max-width:200px"><img src="${opts.signatureDataUrl}" style="max-width:200px;max-height:72px;object-fit:contain" /></div>`
+          : `<div class="sig-box" aria-hidden="true"></div>`
+        }
         <div>${signatureDoctorLine}</div>
       </div>
     </div>

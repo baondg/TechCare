@@ -2004,3 +2004,59 @@ exports.getDashboardSummary = async (req, res) => {
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
+
+// ═══════════════════════════════════════════════
+//  DOCTOR SIGNATURE
+// ═══════════════════════════════════════════════
+
+/**
+ * GET /api/doctor/signature
+ * Get the current doctor's signature
+ */
+exports.getSignature = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const doctorId = await getDoctorIdByUserId(userId);
+    if (!doctorId) {
+      return res.status(400).json({ success: false, message: 'Doctor profile not found' });
+    }
+
+    const [row] = await sequelize.query(
+      'SELECT signature FROM DOCTOR WHERE doctor_id = :doctorId LIMIT 1',
+      { replacements: { doctorId }, type: QueryTypes.SELECT }
+    );
+
+    return res.json({
+      success: true,
+      signature: row?.signature || null,
+    });
+  } catch (error) {
+    console.error('Get signature error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+  }
+};
+
+/**
+ * PUT /api/doctor/signature
+ * Save the doctor's signature (base64 data URL)
+ */
+exports.saveSignature = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { signature } = req.body;
+    const doctorId = await getDoctorIdByUserId(userId);
+    if (!doctorId) {
+      return res.status(400).json({ success: false, message: 'Doctor profile not found' });
+    }
+
+    await sequelize.query(
+      'UPDATE DOCTOR SET signature = :signature WHERE doctor_id = :doctorId',
+      { replacements: { signature: signature || null, doctorId }, type: QueryTypes.UPDATE }
+    );
+
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('Save signature error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+  }
+};

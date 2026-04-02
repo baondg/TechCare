@@ -1,29 +1,31 @@
 import { Router, Request, Response } from 'express';
-
 const router = Router();
 
 // ============================================================
-// Local LLM configuration (set in backend/.env)
+// AI Provider Configuration
 //
-// LOCAL_LLM_BASE_URL  – base URL of the OpenAI-compatible server
-//                       Ollama  : http://localhost:11434
-//                       LM Studio: http://localhost:1234
-//                       LocalAI : http://localhost:8080
+// The system supports two providers:
+// 1. Groq Cloud API  — set GROQ_API_KEY in .env
+// 2. Local LLM       — Ollama / LM Studio / LocalAI
 //
-// LOCAL_LLM_MODEL     – model name to pass in the request
-//                       Ollama examples : llama3, mistral, qwen2
-//                       LM Studio       : use the model name shown in the UI
-//
-// LOCAL_LLM_API_KEY   – optional; most local servers don't need one;
-//                       set to any non-empty string if the server requires it
+// If GROQ_API_KEY is set, Groq is used. Otherwise falls back to local LLM.
 // ============================================================
-// Read lazily at request time so that any dotenv loading order issues
-// do not cause these to freeze at their default values.
+
+const getGroqConfig = () => ({
+  apiKey: process.env.GROQ_API_KEY || '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',
+  model: process.env.GROQ_MODEL || 'llama-3.1-8b-instant',
+  baseUrl: 'https://api.groq.com/openai/v1',
+});
+
 const getLocalLLMConfig = () => ({
   baseUrl: process.env.LOCAL_LLM_BASE_URL || 'http://localhost:11434',
   model:   process.env.LOCAL_LLM_MODEL   || 'llama3',
   apiKey:  process.env.LOCAL_LLM_API_KEY || 'ollama',
 });
+
+function getActiveProvider(): 'groq' | 'local' {
+  return process.env.GROQ_API_KEY ? 'groq' : 'local';
+}
 
 // ============================================================
 // Types
@@ -35,7 +37,7 @@ interface ChatMessage {
 
 interface ChatRequest {
   messages: ChatMessage[];
-  systemPrompt?: string; // optional override (e.g. used by symptom checker)
+  systemPrompt?: string;
 }
 
 // ============================================================
@@ -56,6 +58,71 @@ Important guidelines:
 - Never diagnose conditions — provide general information only`;
 
 // ============================================================
+// Medicine suggestion system prompt
+// ============================================================
+const MEDICINE_SUGGEST_PROMPT = `You are an expert clinical pharmacist AI assistant helping doctors prescribe medications.
+Given a diagnosis and symptoms, suggest appropriate medications.
+
+IMPORTANT: You must respond ONLY with a valid JSON array. No explanation, no markdown, no extra text.
+Each item must have exactly these fields:
+[
+  {
+    "name": "Medicine name (e.g. Paracetamol 500mg)",
+    "quantity": "Recommended quantity (e.g. 20)",
+    "unit": "One of: tablet, capsule, syrup, injection, drop, cream, ointment, powder, spray",
+    "usage": "Dosage instructions (e.g. 1 tablet every 6 hours after meals)",
+    "note": "Important notes or warnings"
+  }
+]
+
+Suggest 3-6 medications including both causal treatment and symptomatic relief.
+Always include standard dosages and common warnings.`;
+
+// ============================================================
+// Helper: call Groq API
+// ============================================================
+async function callGroqAPI(messages: ChatMessage[], systemPrompt?: string): Promise<string> {
+  const config = getGroqConfig();
+  const url = `${config.baseUrl}/chat/completions`;
+
+  const body = {
+    model: config.model,
+    messages: [
+      { role: 'system', content: systemPrompt || SYSTEM_PROMPT },
+      ...messages.filter(m => m.role !== 'system'),
+    ],
+    temperature: 0.7,
+    max_tokens: 1024,
+    stream: false,
+  };
+
+  console.log(`[AI] Calling Groq API with model "${config.model}"`);
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${config.apiKey}`,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Groq API error (${response.status}): ${errorText}`);
+  }
+
+  const data = (await response.json()) as any;
+  const text: string | undefined = data?.choices?.[0]?.message?.content;
+
+  if (!text) {
+    throw new Error('Groq API returned an empty response');
+  }
+
+  return text;
+}
+
+// ============================================================
 // Helper: call local LLM via OpenAI-compatible /v1/chat/completions
 // ============================================================
 async function callLocalLLM(messages: ChatMessage[], systemPrompt?: string): Promise<string> {
@@ -66,7 +133,7 @@ async function callLocalLLM(messages: ChatMessage[], systemPrompt?: string): Pro
     model,
     messages: [
       { role: 'system', content: systemPrompt || SYSTEM_PROMPT },
-      ...messages.filter(m => m.role !== 'system'), // avoid duplicate system msg
+      ...messages.filter(m => m.role !== 'system'),
     ],
     temperature: 0.7,
     max_tokens: 1024,
@@ -86,16 +153,11 @@ async function callLocalLLM(messages: ChatMessage[], systemPrompt?: string): Pro
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(
-      `Local LLM error (${response.status}): ${errorText}`
-    );
+    throw new Error(`Local LLM error (${response.status}): ${errorText}`);
   }
 
   const data = (await response.json()) as any;
-
-  // Standard OpenAI-compatible response shape
-  const text: string | undefined =
-    data?.choices?.[0]?.message?.content;
+  const text: string | undefined = data?.choices?.[0]?.message?.content;
 
   if (!text) {
     throw new Error('Local LLM returned an empty response');
@@ -105,39 +167,47 @@ async function callLocalLLM(messages: ChatMessage[], systemPrompt?: string): Pro
 }
 
 // ============================================================
+// Unified AI call — auto-selects provider
+// ============================================================
+async function callAI(messages: ChatMessage[], systemPrompt?: string): Promise<string> {
+  const provider = getActiveProvider();
+  if (provider === 'groq') {
+    return callGroqAPI(messages, systemPrompt);
+  }
+  return callLocalLLM(messages, systemPrompt);
+}
+
+// ============================================================
 // Routes
 // ============================================================
 
 /**
- * GET /api/ai/chat
- * Health-check / info endpoint
+ * GET /api/ai/chat — Health-check / info endpoint
  */
 router.get('/chat', (_req: Request, res: Response) => {
-  const { baseUrl, model } = getLocalLLMConfig();
+  const provider = getActiveProvider();
+  const config = provider === 'groq' ? getGroqConfig() : getLocalLLMConfig();
   res.json({
     status: 'ok',
     message: 'AI Chat API is running!',
-    provider: 'Local LLM (OpenAI-compatible)',
-    model,
-    baseUrl,
-    usage:
-      'Send POST request with { "messages": [{ "role": "user", "content": "your message" }] }',
+    provider: provider === 'groq' ? 'Groq Cloud API' : 'Local LLM (OpenAI-compatible)',
+    model: provider === 'groq' ? (config as any).model : (config as any).model,
     endpoints: {
       test: 'GET /api/ai/chat',
       chat: 'POST /api/ai/chat',
+      suggestMedicine: 'POST /api/ai/suggest-medicine',
+      recommendDoctor: 'POST /api/ai/recommend-doctor',
+    },
+    env: {
+      GROQ_API_KEY: process.env.GROQ_API_KEY ? '***set***' : '(not set — using local LLM)',
+      LOCAL_LLM_BASE_URL: getLocalLLMConfig().baseUrl,
+      LOCAL_LLM_MODEL: getLocalLLMConfig().model,
     },
   });
 });
 
 /**
- * POST /api/ai/chat
- * Send a message to the local LLM and return the response.
- *
- * Request body:
- *   { "messages": ChatMessage[] }
- *
- * Response:
- *   { "message": string, "timestamp": string }
+ * POST /api/ai/chat — Chat with AI
  */
 router.post('/chat', async (req: Request, res: Response) => {
   try {
@@ -149,34 +219,163 @@ router.post('/chat', async (req: Request, res: Response) => {
       });
     }
 
-    const reply = await callLocalLLM(messages, systemPrompt);
+    const reply = await callAI(messages, systemPrompt);
 
     return res.json({
       message: reply,
       timestamp: new Date().toISOString(),
+      provider: getActiveProvider(),
     });
   } catch (error: any) {
-    console.error('[AI] Local LLM Error:', error?.message);
+    console.error('[AI] Error:', error?.message);
 
-    // Friendly fallback so the UI stays functional even when the local model is offline
     const userMessage =
       (req.body?.messages as ChatMessage[] | undefined)
         ?.filter(m => m.role === 'user')
         ?.pop()?.content ?? '';
 
-    // Return 200 so the browser doesn't log a console error – we still
-    // include `fallback: true` so callers can detect the degraded state.
-    const { baseUrl, model } = getLocalLLMConfig();
+    const provider = getActiveProvider();
     return res.status(200).json({
       message: getFallbackResponse(userMessage),
       fallback: true,
-      hint: `Local LLM unavailable at ${baseUrl} with model "${model}". Start Ollama / LM Studio or check that the model is loaded.`,
+      hint: provider === 'groq'
+        ? `Groq API error: ${error?.message}`
+        : `Local LLM unavailable. Start Ollama or set GROQ_API_KEY in backend/.env`,
+    });
+  }
+});
+
+/**
+ * POST /api/ai/suggest-medicine
+ * Used by doctors to get AI-powered medication suggestions.
+ *
+ * Body: { diagnosis: string, symptoms: string, patientInfo?: string }
+ * Response: { suggestions: Medication[], raw: string }
+ */
+router.post('/suggest-medicine', async (req: Request, res: Response) => {
+  try {
+    const { diagnosis, symptoms, patientInfo } = req.body;
+
+    if (!diagnosis && !symptoms) {
+      return res.status(400).json({
+        error: 'At least one of "diagnosis" or "symptoms" is required.',
+      });
+    }
+
+    const userMessage = `
+Patient Information: ${patientInfo || 'Not provided'}
+Doctor's Diagnosis: ${diagnosis || 'Not provided'}
+Patient Symptoms: ${symptoms || 'Not provided'}
+
+Based on the above, suggest appropriate medications.`;
+
+    const reply = await callAI(
+      [{ role: 'user', content: userMessage }],
+      MEDICINE_SUGGEST_PROMPT
+    );
+
+    // Parse JSON from reply
+    let suggestions: any[] = [];
+    try {
+      // Try to extract JSON array from the reply
+      const jsonMatch = reply.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        suggestions = JSON.parse(jsonMatch[0]);
+      }
+    } catch (parseErr) {
+      console.error('[AI] Failed to parse medicine suggestions JSON:', parseErr);
+    }
+
+    return res.json({
+      success: true,
+      suggestions,
+      raw: reply,
+      provider: getActiveProvider(),
+    });
+  } catch (error: any) {
+    console.error('[AI] suggest-medicine error:', error?.message);
+    return res.status(500).json({
+      success: false,
+      error: error?.message || 'Failed to get medicine suggestions',
+      suggestions: [],
+    });
+  }
+});
+
+/**
+ * POST /api/ai/recommend-doctor
+ * AI-powered doctor recommendation based on patient needs and availability.
+ *
+ * Body: { symptoms: string, department?: string, preferredDate?: string }
+ */
+router.post('/recommend-doctor', async (req: Request, res: Response) => {
+  try {
+    const { symptoms, department, preferredDate, availableDoctors } = req.body;
+
+    if (!symptoms && !department) {
+      return res.status(400).json({
+        error: 'At least one of "symptoms" or "department" is required.',
+      });
+    }
+
+    const doctorListText = Array.isArray(availableDoctors)
+      ? availableDoctors.map((d: any) =>
+        `- Dr. ${d.firstName || ''} ${d.lastName || ''} (${d.department || 'General'}, Room: ${d.room || 'N/A'})`
+      ).join('\n')
+      : 'No doctor list provided.';
+
+    const prompt = `You are a hospital scheduling assistant. Based on the patient's needs, recommend the most suitable doctor.
+
+Patient symptoms: ${symptoms || 'Not specified'}
+Preferred department: ${department || 'Not specified'}
+Preferred date: ${preferredDate || 'Not specified'}
+
+Available doctors:
+${doctorListText}
+
+Respond with a JSON object:
+{
+  "recommendations": [
+    {
+      "doctorName": "Full name",
+      "department": "Specialty",
+      "reason": "Brief explanation why this doctor is suitable",
+      "priority": 1
+    }
+  ],
+  "generalAdvice": "Any scheduling advice"
+}`;
+
+    const reply = await callAI(
+      [{ role: 'user', content: prompt }],
+      'You are a hospital scheduling AI. You return structured JSON only.'
+    );
+
+    let parsed: any = {};
+    try {
+      const jsonMatch = reply.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        parsed = JSON.parse(jsonMatch[0]);
+      }
+    } catch { /* ignore */ }
+
+    return res.json({
+      success: true,
+      ...parsed,
+      raw: reply,
+      provider: getActiveProvider(),
+    });
+  } catch (error: any) {
+    console.error('[AI] recommend-doctor error:', error?.message);
+    return res.status(500).json({
+      success: false,
+      error: error?.message || 'Failed to get doctor recommendations',
     });
   }
 });
 
 // ============================================================
-// Rule-based fallback (only used when local LLM is offline)
+// Rule-based fallback (only used when AI is offline)
 // ============================================================
 function getFallbackResponse(query: string): string {
   const q = query.toLowerCase();

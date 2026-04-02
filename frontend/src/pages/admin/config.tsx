@@ -166,19 +166,84 @@ export default function SystemConfig() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Settings className="h-5 w-5" />
-              AI Model Configuration
+              AI Provider Configuration
             </CardTitle>
-            <CardDescription>Configure AI model and parameters</CardDescription>
+            <CardDescription>Configure AI chatbot, medicine suggestions, and doctor recommendation providers</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="aiModel">AI Model Version</Label>
-              <Input id="aiModel" value={config.aiModel} onChange={(e) => handleChange("aiModel", e.target.value)} className="custom-input" />
+          <CardContent className="space-y-6">
+            {/* Provider info */}
+            <div className="rounded-xl bg-gradient-to-r from-cyan-50 to-blue-50 border border-cyan-100 p-4">
+              <p className="text-sm text-slate-700">
+                <span className="font-semibold">How it works:</span> If a Groq API key is set (in backend <code className="bg-white/60 px-1 rounded">.env</code>), all AI features use Groq Cloud.
+                Otherwise, the system uses the local LLM (Ollama).
+              </p>
+              <p className="text-xs text-slate-500 mt-2">
+                Set <code className="bg-white/60 px-1 rounded">GROQ_API_KEY</code>, <code className="bg-white/60 px-1 rounded">GROQ_MODEL</code>,
+                <code className="bg-white/60 px-1 rounded">LOCAL_LLM_BASE_URL</code>, <code className="bg-white/60 px-1 rounded">LOCAL_LLM_MODEL</code> in <code className="bg-white/60 px-1 rounded">backend/.env</code>
+              </p>
             </div>
-            <Button className="gap-2 btn-gradient">
-              <Save size={20} />
-              Save AI Config
-            </Button>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="groqApiKey">Groq API Key</Label>
+                <Input
+                  id="groqApiKey"
+                  type="password"
+                  placeholder="gsk_..."
+                  value={config.apiKey}
+                  onChange={(e) => handleChange("apiKey", e.target.value)}
+                  className="custom-input"
+                />
+                <p className="text-xs text-slate-500">Get your key from <a href="https://console.groq.com" target="_blank" rel="noopener noreferrer" className="text-cyan-600 underline">console.groq.com</a></p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="aiModel">AI Model</Label>
+                <Input id="aiModel" value={config.aiModel} onChange={(e) => handleChange("aiModel", e.target.value)} className="custom-input" placeholder="llama-3.1-8b-instant" />
+                <p className="text-xs text-slate-500">Model name for Groq or Ollama (e.g., llama3, meditron)</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="localLlmUrl">Local LLM URL (Ollama)</Label>
+                <Input id="localLlmUrl" value="http://localhost:11434" disabled className="custom-input bg-slate-50" />
+                <p className="text-xs text-slate-500">Set via <code className="bg-slate-100 px-1 rounded">LOCAL_LLM_BASE_URL</code> env var</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="localModel">Local Model Name</Label>
+                <Input id="localModel" value="llama3" disabled className="custom-input bg-slate-50" />
+                <p className="text-xs text-slate-500">Set via <code className="bg-slate-100 px-1 rounded">LOCAL_LLM_MODEL</code> env var</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4 pt-2">
+              <Button className="gap-2 btn-gradient">
+                <Save size={20} />
+                Save AI Config
+              </Button>
+              <Button
+                variant="outline"
+                className="gap-2"
+                onClick={async () => {
+                  try {
+                    const token = localStorage.getItem('authToken');
+                    const res = await fetch('http://localhost:3000/api/ai/chat', {
+                      headers: { 'Authorization': `Bearer ${token}` },
+                    });
+                    const data = await res.json();
+                    setMessage({
+                      type: 'success',
+                      text: `AI is online! Provider: ${data.provider || 'unknown'}, Model: ${data.model || 'unknown'}`
+                    });
+                    setTimeout(() => setMessage(null), 5000);
+                  } catch {
+                    setMessage({ type: 'error', text: 'Cannot reach AI service. Check backend server.' });
+                  }
+                }}
+              >
+                Test AI Connection
+              </Button>
+            </div>
           </CardContent>
         </Card>
 

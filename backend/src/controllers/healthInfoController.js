@@ -55,8 +55,7 @@ const parseJSON = (value) => {
 
 const normalizeRecordStatus = (value) => {
   const raw = String(value || '').toLowerCase();
-  if (raw === 'signed') return 'signed';
-  if (raw === 'unsigned') return 'unsigned';
+  if (raw === 'confirmed' || raw === 'signed') return 'confirmed';
   return 'draft';
 };
 
@@ -319,7 +318,7 @@ exports.updateHealthInfo = async (req, res) => {
   }
 };
 
-exports.signHealthInfo = async (req, res) => {
+exports.confirmHealthInfo = async (req, res) => {
   try {
     const user_id = Number(req.params.userId);
     const recordId = Number(req.params.recordId);
@@ -333,36 +332,11 @@ exports.signHealthInfo = async (req, res) => {
     const record = await MedicalRecord.findOne({ where: { id: recordId, patient_id: patient.patient_id } });
     if (!record) return res.status(404).json({ message: 'Medical record not found' });
     if (normalizeRecordStatus(record.status) !== 'draft') {
-      return res.status(400).json({ success: false, message: 'Only draft records can be signed' });
+      return res.status(400).json({ success: false, message: 'Only draft records can be confirmed' });
     }
 
-    await record.update({ status: 'signed', time: new Date() });
-    return res.json({ success: true, id: record.id, status: 'signed' });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: err.message });
-  }
-};
-
-exports.unsignHealthInfo = async (req, res) => {
-  try {
-    const user_id = Number(req.params.userId);
-    const recordId = Number(req.params.recordId);
-    if (req.user.userId !== user_id && req.user.role !== 'ADM') {
-      return res.status(403).json({ message: 'Forbidden' });
-    }
-
-    const patient = await Patient.findOne({ where: { user_id } });
-    if (!patient) return res.status(404).json({ message: 'Patient not found' });
-
-    const record = await MedicalRecord.findOne({ where: { id: recordId, patient_id: patient.patient_id } });
-    if (!record) return res.status(404).json({ message: 'Medical record not found' });
-    if (normalizeRecordStatus(record.status) !== 'signed') {
-      return res.status(400).json({ success: false, message: 'Only signed records can be unsigned' });
-    }
-
-    await record.update({ status: 'unsigned', time: new Date() });
-    return res.json({ success: true, id: record.id, status: 'unsigned' });
+    await record.update({ status: 'confirmed', time: new Date() });
+    return res.json({ success: true, id: record.id, status: 'confirmed' });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: err.message });

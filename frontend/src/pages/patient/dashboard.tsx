@@ -137,6 +137,9 @@ export default function PatientDashboard() {
                             Prescription
                           </p>
                           <p className="text-sm font-medium text-slate-800">{dateLabel}</p>
+                          {rx.doctorName?.trim() ? (
+                            <p className="text-xs text-slate-500 mt-0.5">Signed by {rx.doctorName.trim()}</p>
+                          ) : null}
                         </div>
                       </div>
                       <div className="space-y-2">
@@ -151,7 +154,10 @@ export default function PatientDashboard() {
                               </div>
                               <div className="min-w-0">
                                 <p className="font-semibold text-slate-900 truncate">{med.name}</p>
-                                <p className="text-sm text-slate-600 line-clamp-2">{med.frequency || "—"}</p>
+                                <p className="text-sm text-slate-600 line-clamp-2">
+                                  {med.frequency || "—"}
+                                  {med.duration ? ` · ${med.duration} day(s)` : ""}
+                                </p>
                               </div>
                             </div>
                             <span className="inline-flex shrink-0 items-center px-2.5 py-1 rounded-full text-xs font-medium bg-white text-slate-700 border border-slate-200 ml-2">

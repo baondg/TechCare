@@ -1,10 +1,10 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useState, useRef } from "react"
 import { useParams } from "react-router-dom"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Copy, Edit, History, Plus, Save, Search, X } from "lucide-react"
+import { Copy, FileDown, History, Plus, Save, Search, X, Loader2 } from "lucide-react"
 import {
   Table,
   TableHeader,
@@ -17,7 +17,17 @@ import {
   doctorService,
   type Diagnosis as ApiDiagnosis,
   type DiseaseCode,
+  type PatientDetail,
 } from "@/services/doctor-service"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { generateTreatmentFollowupPdfBlob } from "@/lib/export-treatment-followup-pdf"
+import { useEmrSession } from "@/contexts/emr-session-context"
 
 type UiDiagnosis = {
   id: string
@@ -55,13 +65,33 @@ function mapApiToUi(d: ApiDiagnosis): UiDiagnosis {
 
 export default function PatientDiagnosis() {
   const { patientId } = useParams<{ patientId: string }>()
+  const { mutationsAllowed } = useEmrSession()
   const [diagnoses, setDiagnoses] = useState<UiDiagnosis[]>([])
   const [selectedDx, setSelectedDx] = useState<UiDiagnosis | null>(null)
   const [viewDxBeforeEdit, setViewDxBeforeEdit] = useState<UiDiagnosis | null>(null)
-  const [isEditMode, setIsEditMode] = useState(false)
   const [diseaseCodes, setDiseaseCodes] = useState<DiseaseCode[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+
+  const [exportingPdf, setExportingPdf] = useState(false)
+  const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false)
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null)
+  const [pdfPreviewFilename, setPdfPreviewFilename] = useState("")
+  const pdfBlobUrlRef = useRef<string | null>(null)
+
+  const releasePdfBlobUrl = (next: string | null) => {
+    if (pdfBlobUrlRef.current && pdfBlobUrlRef.current !== next) {
+      URL.revokeObjectURL(pdfBlobUrlRef.current)
+    }
+    pdfBlobUrlRef.current = next
+    setPdfPreviewUrl(next)
+  }
+
+  const closePdfPreview = () => {
+    setPdfPreviewOpen(false)
+    releasePdfBlobUrl(null)
+    setPdfPreviewFilename("")
+  }
 
   const load = useCallback(async () => {
     if (!patientId) return
@@ -75,7 +105,6 @@ export default function PatientDiagnosis() {
         const matched = rows.find((r) => r.id === prev.id)
         return matched ? { ...matched, isDraft: false } : null
       })
-      setIsEditMode(false)
       setViewDxBeforeEdit(null)
     } catch (e) {
       console.error(e)
@@ -102,6 +131,7 @@ export default function PatientDiagnosis() {
   }, [])
 
   const handleAddDiagnosis = () => {
+    if (!mutationsAllowed) return
     setViewDxBeforeEdit(selectedDx && !selectedDx.isDraft ? selectedDx : null)
     const createDraft = (complaint = "") => {
       setSelectedDx({
@@ -115,7 +145,6 @@ export default function PatientDiagnosis() {
         note: "",
         isDraft: true,
       })
-      setIsEditMode(true)
     }
     if (!patientId) {
       createDraft("")
@@ -131,14 +160,8 @@ export default function PatientDiagnosis() {
       .catch(() => createDraft(""))
   }
 
-  const handleEditDiagnosis = () => {
-    if (!selectedDx || selectedDx.isDraft) return
-    setViewDxBeforeEdit(selectedDx)
-    setSelectedDx({ ...selectedDx, isDraft: true })
-    setIsEditMode(true)
-  }
-
   const handleInheritDiagnosis = () => {
+    if (!mutationsAllowed) return
     if (!selectedDx || selectedDx.isDraft) return
     setViewDxBeforeEdit(selectedDx)
     setSelectedDx({
@@ -148,13 +171,17 @@ export default function PatientDiagnosis() {
       doctor: "—",
       isDraft: true,
     })
-    setIsEditMode(true)
   }
 
   const handleSave = async () => {
-    if (!patientId || !selectedDx || !isEditMode) return
+    if (!mutationsAllowed) return
+    if (!patientId || !selectedDx || !selectedDx.isDraft) return
     if (!selectedDx.complaint.trim() || !selectedDx.icd10.trim()) {
       alert("Vui lòng nhập triệu chứng và mã ICD-10")
+      return
+    }
+    if (selectedDx.id !== "new") {
+      alert("Chỉ có thể lưu chẩn đoán mới. Chọn Add hoặc Inherit để tạo mới.")
       return
     }
     setSaving(true)
@@ -166,15 +193,8 @@ export default function PatientDiagnosis() {
         note: selectedDx.note?.trim() || undefined,
         department: selectedDx.department.trim() || undefined,
       }
-      const isUpdate =
-        selectedDx.id !== "new" && Number.isFinite(Number(selectedDx.id))
-      if (isUpdate) {
-        await doctorService.updateDiagnosis(patientId, selectedDx.id, payload)
-      } else {
-        await doctorService.createDiagnosis(patientId, payload)
-      }
+      await doctorService.createDiagnosis(patientId, payload)
       await load()
-      setIsEditMode(false)
     } catch (e) {
       alert(e instanceof Error ? e.message : "Lưu thất bại")
     } finally {
@@ -183,19 +203,110 @@ export default function PatientDiagnosis() {
   }
 
   const handleCancel = () => {
-    setIsEditMode(false)
     setSelectedDx(viewDxBeforeEdit ? { ...viewDxBeforeEdit, isDraft: false } : null)
     setViewDxBeforeEdit(null)
   }
 
   const hasSelectedViewRow = !!selectedDx && !selectedDx.isDraft
-  const canAdd = !isEditMode && !loading && !saving
-  const canEditOrInherit = !isEditMode && hasSelectedViewRow && !loading && !saving
-  const canSaveOrCancel = isEditMode && !loading
+  const canAdd = !selectedDx?.isDraft && !loading && !saving && mutationsAllowed
+  const canInherit = hasSelectedViewRow && !loading && !saving && mutationsAllowed
+  const canCancelDraft = !!selectedDx?.isDraft && !loading
+  const canSaveDraft = !!selectedDx?.isDraft && !loading && mutationsAllowed
   const diseaseMap = new Map(diseaseCodes.map((d) => [d.code, d.description]))
+
+  const canExportPdf = !!patientId && !!selectedDx && !exportingPdf
+
+  const handleExportPdf = async () => {
+    if (!patientId || !selectedDx) return
+    setExportingPdf(true)
+    try {
+      const res = await doctorService.getPatient(patientId)
+      const p: PatientDetail | undefined = res.patient
+      if (!p) throw new Error("Fail to load patient information")
+
+      const fullName = `${p.firstName || ""} ${p.lastName || ""}`.trim() || p.username || ""
+      const age = p.age != null ? String(p.age) : ""
+      const department = (p.inDepartment || (p as any).in_department || "").toString()
+
+      releasePdfBlobUrl(null)
+      const { blob, filename } = await generateTreatmentFollowupPdfBlob({
+        patientName: fullName,
+        age,
+        gender: p.gender,
+        department,
+        diagnosisIcd10: selectedDx.icd10 || "",
+        diagnosisInterpretation: selectedDx.interpretation || "",
+        complaintSymptoms: selectedDx.complaint || "",
+        doctorName: selectedDx.doctor || "",
+        note: selectedDx.note || "",
+        dateLabel: selectedDx.date && selectedDx.date !== "—" ? selectedDx.date : "",
+      })
+      const url = URL.createObjectURL(blob)
+      setPdfPreviewFilename(filename)
+      releasePdfBlobUrl(url)
+      setPdfPreviewOpen(true)
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Export PDF failed")
+    } finally {
+      setExportingPdf(false)
+    }
+  }
+
+  const handleSavePdfFromPreview = () => {
+    if (!pdfPreviewUrl || !pdfPreviewFilename) return
+    const a = document.createElement("a")
+    a.href = pdfPreviewUrl
+    a.download = pdfPreviewFilename
+    a.rel = "noopener"
+    a.click()
+  }
+
+  useEffect(() => {
+    return () => {
+      if (pdfBlobUrlRef.current) {
+        URL.revokeObjectURL(pdfBlobUrlRef.current)
+        pdfBlobUrlRef.current = null
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <div className="grid grid-cols-12 gap-6">
+      <Dialog
+        open={pdfPreviewOpen}
+        onOpenChange={(open) => {
+          if (!open) closePdfPreview()
+        }}
+      >
+        <DialogContent className="flex max-h-[90vh] w-[min(920px,96vw)] max-w-none flex-col gap-3 p-4 sm:p-6">
+          <DialogHeader>
+            <DialogTitle>Phiếu theo dõi điều trị (PDF preview)</DialogTitle>
+          </DialogHeader>
+          {pdfPreviewUrl ? (
+            <iframe
+              title="Treatment follow-up PDF preview"
+              src={pdfPreviewUrl}
+              className="min-h-[min(520px,60vh)] w-full flex-1 rounded-md border border-slate-200 bg-slate-50"
+            />
+          ) : null}
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button type="button" variant="outline" className="btn-outline" onClick={closePdfPreview}>
+              Close
+            </Button>
+            <Button
+              type="button"
+              className="btn-gradient"
+              onClick={handleSavePdfFromPreview}
+              disabled={!pdfPreviewUrl}
+            >
+              <FileDown className="h-4 w-4 mr-2" />
+              Save / Download
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Card className="col-span-4">
         <CardContent className="p-4 space-y-3">
           <div className="flex items-center gap-2">
@@ -226,7 +337,7 @@ export default function PatientDiagnosis() {
                     <TableRow
                       key={dx.id}
                       onClick={() => {
-                        if (isEditMode) return
+                        if (selectedDx?.isDraft) return
                         setSelectedDx({ ...dx, isDraft: false })
                       }}
                       className={`border-t cursor-pointer transition ${
@@ -265,17 +376,8 @@ export default function PatientDiagnosis() {
               <Button
                 size="sm"
                 className="btn-outline transition-transform duration-500 text-xl px-7 py-4"
-                onClick={handleEditDiagnosis}
-                disabled={!canEditOrInherit}
-              >
-                <Edit className="h-4 w-4" />
-                Edit
-              </Button>
-              <Button
-                size="sm"
-                className="btn-outline transition-transform duration-500 text-xl px-7 py-4"
                 onClick={handleInheritDiagnosis}
-                disabled={!canEditOrInherit}
+                disabled={!canInherit}
               >
                 <Copy className="h-4 w-4" />
                 Inherit
@@ -284,7 +386,7 @@ export default function PatientDiagnosis() {
                 size="sm"
                 className="btn-outline transition-transform duration-500 text-xl px-7 py-4"
                 onClick={handleSave}
-                disabled={!canSaveOrCancel || saving}
+                disabled={!canSaveDraft || saving}
               >
                 <Save className="h-4 w-4" />
                 Save
@@ -293,10 +395,21 @@ export default function PatientDiagnosis() {
                 size="sm"
                 className="btn-outline transition-transform duration-500 text-xl px-7 py-4"
                 onClick={handleCancel}
-                disabled={!canSaveOrCancel || saving}
+                disabled={!canCancelDraft || saving}
               >
                 <X className="h-4 w-4" />
                 Cancel
+              </Button>
+
+              <Button
+                size="sm"
+                className="btn-outline transition-transform duration-500 text-xl px-7 py-4"
+                onClick={() => void handleExportPdf()}
+                disabled={!canExportPdf}
+                title="Export phiếu theo dõi điều trị"
+              >
+                {exportingPdf ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FileDown className="h-4 w-4 mr-2" />}
+                Export
               </Button>
             </div>
           </div>
@@ -310,14 +423,14 @@ export default function PatientDiagnosis() {
               <FormField
                 label="Chief complaint / symptoms"
                 value={selectedDx.complaint}
-                editable={isEditMode}
+                editable={selectedDx.isDraft && mutationsAllowed}
                 onChange={(v) => setSelectedDx({ ...selectedDx, complaint: v })}
               />
 
               <DiagnosisCodeField
                 label="Diagnosis (ICD-10)"
                 value={selectedDx.icd10}
-                editable={isEditMode}
+                editable={!!selectedDx.isDraft && mutationsAllowed}
                 options={diseaseCodes}
                 onChange={(v) => {
                   const autoDescription = diseaseMap.get(v.trim())
@@ -339,11 +452,11 @@ export default function PatientDiagnosis() {
               <FormField
                 label="Note"
                 value={selectedDx.note ?? ""}
-                editable={isEditMode}
+                editable={!!selectedDx.isDraft && mutationsAllowed}
                 onChange={(v) => setSelectedDx({ ...selectedDx, note: v })}
               />
 
-              {!isEditMode && (
+              {!selectedDx.isDraft && (
                 <div className="grid grid-cols-2 gap-2 text-sm text-slate-600">
                   <div>
                     <span className="font-medium">Date:</span> {selectedDx.date}

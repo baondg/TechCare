@@ -73,9 +73,16 @@ export default function BookAppointmentPage() {
   const specialtyGroups = useMemo(() => {
     const unique = new Map<string, string>()
     for (const d of doctors) {
-      const label = (d.department || "General Medicine").trim()
-      const value = label.toLowerCase().replace(/\s+/g, "-")
-      if (!unique.has(value)) unique.set(value, label)
+      const fromSet = d.departments?.length
+        ? d.departments
+        : d.department
+          ? [d.department]
+          : []
+      const labels = fromSet.length > 0 ? fromSet.map((x) => String(x).trim()).filter(Boolean) : ["General Medicine"]
+      for (const label of labels) {
+        const value = label.toLowerCase().replace(/\s+/g, "-")
+        if (!unique.has(value)) unique.set(value, label)
+      }
     }
     return Array.from(unique.entries()).map(([value, label]) => ({ value, label }))
   }, [doctors])

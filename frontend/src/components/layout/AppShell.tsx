@@ -37,11 +37,13 @@ interface AppShellProps {
   children: React.ReactNode
   navItems: NavItem[]
   portalLabel: string
+  /** Replaces the default header bell when set (e.g. patient notifications). */
+  headerEnd?: React.ReactNode
 }
 
 const SIDEBAR_COLLAPSED_KEY = 'techcare-sidebar-collapsed'
 
-export function AppShell({ children, navItems, portalLabel }: AppShellProps) {
+export function AppShell({ children, navItems, portalLabel, headerEnd }: AppShellProps) {
   const { pathname } = useLocation()
   const { logout, user } = useAuth()
 
@@ -85,17 +87,16 @@ export function AppShell({ children, navItems, portalLabel }: AppShellProps) {
           {/* Logout */}
           <div className="flex items-center gap-2">
 
-            {/* Notification button */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="btn-outline transition-transform duration-500 text-xl px-7 py-4"
-            >
-              <Bell className="h-5 w-5" />
-
-              {/* Optional: badge số thông báo */}
-              {/* <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-red-500" /> */}
-            </Button>
+            {headerEnd ?? (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="btn-outline transition-transform duration-500 text-xl px-7 py-4"
+                aria-label="Notifications"
+              >
+                <Bell className="h-5 w-5" />
+              </Button>
+            )}
 
             {/* Logout */}
             <Button

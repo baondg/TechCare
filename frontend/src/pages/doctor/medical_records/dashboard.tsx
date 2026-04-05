@@ -236,7 +236,8 @@ export default function ViewingPatientDashboard() {
                               <div>
                                 <p className="font-medium">{med.name}</p>
                                 <p className="text-slate-500">
-                                  {med.unit || "-"} | {med.usage || "-"} | {med.note || "-"}
+                                  {med.unit || "-"} | {med.duration != null ? `${med.duration}d` : "—"} |{" "}
+                                  {med.usage || "-"} | {med.note || "-"}
                                 </p>
                               </div>
                               <span className="text-xs px-2 py-1 rounded-full bg-slate-100">

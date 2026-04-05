@@ -123,7 +123,9 @@ export default function LoginPage() {
                 </Alert>
               )}
               <div className="space-y-2">
-                <Label htmlFor="username">Username</Label>
+                <Label htmlFor="username">
+                  Username <span className="text-red-500">*</span>
+                </Label>
                 <Input
                   id="username"
                   type="text"
@@ -135,7 +137,9 @@ export default function LoginPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">
+                  Password <span className="text-red-500">*</span>
+                </Label>
                 <div className="relative"> 
                   <Input 
                     id="password" 

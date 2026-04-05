@@ -1,6 +1,15 @@
 "use client"
 
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react"
 import { createPortal } from "react-dom"
 import { useParams } from "react-router-dom"
 import { Card, CardContent } from "@/components/ui/card"
@@ -12,7 +21,6 @@ import {
   Trash2,
   History,
   Plus,
-  Edit,
   Copy,
   Save,
   X,
@@ -20,9 +28,6 @@ import {
   FileDown,
   Loader2,
   Printer,
-  CheckCircle2,
-  PenOff,
-  PenLine,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
@@ -37,7 +42,6 @@ import {
   doctorService,
   type Prescription as ApiPrescription,
   type MedicineOption,
-  type PrescriptionSignatureStatus,
 } from "@/services/doctor-service"
 import { generatePrescriptionPdfBlob } from "@/lib/export-prescription-pdf"
 import { usePauseableToast, type PauseableToastEntry } from "@/hooks/usePauseableToast"
@@ -48,6 +52,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { useEmrSession } from "@/contexts/emr-session-context"
 
 const PRESCRIPTION_UNITS = [
   "tablet",
@@ -67,6 +72,8 @@ type Medication = {
   name: string
   quantity: string
   unit: MedUnit
+  /** Số ngày dùng thuốc (PRESCRIPTION_DETAIL.duration). */
+  duration: string
   usage: string
   note?: string
 }
@@ -97,7 +104,6 @@ type UiPrescription = {
   date: string
   doctor: string
   medications: Medication[]
-  signatureStatus: PrescriptionSignatureStatus
   isDraft?: boolean
 }
 
@@ -114,20 +120,6 @@ function formatHistoryTableDate(iso: string) {
   }
 }
 
-function normalizeSignatureStatus(s: string | undefined): PrescriptionSignatureStatus {
-  const raw = String(s || "").trim().toLowerCase()
-  if (raw === "signed") return "signed"
-  if (raw === "voided") return "voided"
-  if (raw === "unsigned") return "voided"
-  return "draft"
-}
-
-function signatureStatusLabel(s: PrescriptionSignatureStatus): "Draft" | "Signed" | "Voided" {
-  if (s === "signed") return "Signed"
-  if (s === "voided") return "Voided"
-  return "Draft"
-}
-
 function formatDt(iso: string) {
   try {
     return new Date(iso).toLocaleString("vi-VN")
@@ -142,11 +134,11 @@ function mapApi(p: ApiPrescription): UiPrescription {
     createdAt: p.createdAt,
     date: formatDt(p.createdAt),
     doctor: p.doctorName,
-    signatureStatus: normalizeSignatureStatus(p.signatureStatus),
     medications: (p.medications || []).map((m) => ({
       name: m.name,
       quantity: m.quantity || "",
       unit: normalizeMedicationUnit(m.unit),
+      duration: m.duration != null && String(m.duration).trim() !== "" ? String(m.duration).trim() : "7",
       usage: m.usage || "",
       note: m.note || "",
     })),
@@ -158,6 +150,7 @@ const emptyMed = (): Medication => ({
   name: "",
   quantity: "",
   unit: "tablet",
+  duration: "7",
   usage: "",
   note: "",
 })
@@ -305,9 +298,99 @@ function MedicineNameCombobox({
   )
 }
 
+/** Per-day amount: quantity ÷ duration (for usage typeahead). */
+function formatDailyDoseFromQtyDuration(quantityStr: string, durationStr: string): string | null {
+  const qty = Number.parseFloat(String(quantityStr).trim().replace(",", "."))
+  const dur = Number.parseFloat(String(durationStr).trim().replace(",", "."))
+  if (!Number.isFinite(qty) || qty <= 0) return null
+  if (!Number.isFinite(dur) || dur <= 0) return null
+  const per = qty / dur
+  if (!Number.isFinite(per) || per <= 0) return null
+  const rounded = Math.round(per * 100) / 100
+  if (Number.isInteger(rounded)) return String(rounded)
+  return rounded.toFixed(2).replace(/\.?0+$/, "")
+}
+
+function buildUsageTypeaheadSuggestion(
+  med: Pick<Medication, "quantity" | "duration" | "unit">
+): string | null {
+  const n = formatDailyDoseFromQtyDuration(med.quantity, med.duration)
+  if (n == null) return null
+  const unit = (med.unit || "tablet").trim() || "tablet"
+  return `Use ${n} ${unit} daily, `
+}
+
+function usageTypeaheadGhostTail(suggestion: string | null, usage: string): string | null {
+  if (!suggestion) return null
+  if (!usage) return suggestion
+  if (suggestion.startsWith(usage)) return suggestion.slice(usage.length)
+  return null
+}
+
+function UsageTypeaheadInput({
+  value,
+  onChange,
+  quantity,
+  duration,
+  unit,
+  disabled,
+}: {
+  value: string
+  onChange: (v: string) => void
+  quantity: string
+  duration: string
+  unit: MedUnit
+  disabled?: boolean
+}) {
+  const suggestion = useMemo(
+    () => buildUsageTypeaheadSuggestion({ quantity, duration, unit }),
+    [quantity, duration, unit]
+  )
+  const ghostTail = usageTypeaheadGhostTail(suggestion, value)
+
+  const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== "Enter") return
+    if (!suggestion) return
+    if (value === suggestion) return
+    if (value === "" || suggestion.startsWith(value)) {
+      e.preventDefault()
+      onChange(suggestion)
+    }
+  }
+
+  return (
+    <div
+      className={cn(
+        "relative h-7 w-full min-w-[7rem] rounded border border-slate-200 bg-white",
+        !disabled && "focus-within:border-cyan-500 focus-within:ring-1 focus-within:ring-cyan-500/30"
+      )}
+    >
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 flex items-center overflow-hidden rounded px-1.5 text-xs leading-tight"
+      >
+        <span className="whitespace-pre text-slate-900">{value}</span>
+        {ghostTail ? <span className="whitespace-pre text-slate-400">{ghostTail}</span> : null}
+      </div>
+      <input
+        className="relative z-10 h-7 w-full box-border rounded bg-transparent px-1.5 text-xs leading-tight text-transparent caret-slate-900 selection:bg-cyan-200/80"
+        value={value}
+        placeholder={suggestion ? "" : "Usage"}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={onKeyDown}
+        title={suggestion ? `Press Enter to insert: ${suggestion.trimEnd()}` : undefined}
+        spellCheck={false}
+        autoComplete="off"
+      />
+    </div>
+  )
+}
+
 export default function PatientPrescription() {
   const { toast, isExiting, showSuccess, showError, onMouseEnter, onMouseLeave } = usePauseableToast()
   const { patientId } = useParams<{ patientId: string }>()
+  const { mutationsAllowed } = useEmrSession()
   const [prescriptions, setPrescriptions] = useState<UiPrescription[]>([])
   const [selectedRx, setSelectedRx] = useState<UiPrescription | null>(null)
   const [viewRxBeforeEdit, setViewRxBeforeEdit] = useState<UiPrescription | null>(null)
@@ -316,7 +399,6 @@ export default function PatientPrescription() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [exportingPdf, setExportingPdf] = useState(false)
-  const [signingKind, setSigningKind] = useState<null | "sign" | "unsign">(null)
   const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false)
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null)
   const [pdfPreviewFilename, setPdfPreviewFilename] = useState("")
@@ -402,6 +484,7 @@ export default function PatientPrescription() {
   }
 
   const handleAddPrescription = () => {
+    if (!mutationsAllowed) return
     setViewRxBeforeEdit(selectedRx && !selectedRx.isDraft ? selectedRx : null)
     setSelectedRx({
       id: "new",
@@ -409,32 +492,14 @@ export default function PatientPrescription() {
       date: "—",
       doctor: "—",
       medications: [],
-      signatureStatus: "draft",
       isDraft: true,
     })
     setDraftMeds([emptyMed()])
     setIsEditMode(true)
   }
 
-  const handleEditPrescription = () => {
-    if (!selectedRx || selectedRx.isDraft) return
-    if (selectedRx.signatureStatus !== "draft") return
-    setViewRxBeforeEdit(selectedRx)
-    setSelectedRx({ ...selectedRx, isDraft: true })
-    setDraftMeds([
-      ...(selectedRx.medications || []).map((m) => ({
-        name: m.name || "",
-        quantity: m.quantity || "",
-        unit: m.unit || "tablet",
-        usage: m.usage || "",
-        note: m.note || "",
-      })),
-      emptyMed(),
-    ])
-    setIsEditMode(true)
-  }
-
   const handleInheritPrescription = () => {
+    if (!mutationsAllowed) return
     if (!selectedRx || selectedRx.isDraft) return
     setViewRxBeforeEdit(selectedRx)
     setSelectedRx({
@@ -443,7 +508,6 @@ export default function PatientPrescription() {
       createdAt: "",
       date: "—",
       doctor: "—",
-      signatureStatus: "draft",
       isDraft: true,
     })
     setDraftMeds([
@@ -451,6 +515,7 @@ export default function PatientPrescription() {
         name: m.name || "",
         quantity: m.quantity || "",
         unit: m.unit || "tablet",
+        duration: m.duration?.trim() || "7",
         usage: m.usage || "",
         note: m.note || "",
       })),
@@ -488,6 +553,7 @@ export default function PatientPrescription() {
   }, [])
 
   const handleSave = async () => {
+    if (!mutationsAllowed) return
     if (!patientId || !selectedRx || !isEditMode) return
     const meds = draftMeds
       .filter((m) => !isEmptyMedication(m))
@@ -495,6 +561,7 @@ export default function PatientPrescription() {
         name: m.name.trim(),
         quantity: m.quantity.trim(),
         unit: m.unit,
+        duration: m.duration.trim() || "7",
         usage: m.usage.trim(),
         ...(m.note?.trim() ? { note: m.note.trim() } : {}),
       }))
@@ -502,23 +569,26 @@ export default function PatientPrescription() {
       showError("Thêm ít nhất một thuốc có tên")
       return
     }
+    if (selectedRx.id !== "new") {
+      showError("Chỉ có thể lưu đơn mới. Chọn Add để tạo đơn mới.")
+      return
+    }
     setSaving(true)
     try {
-      const isUpdate =
-        selectedRx.id !== "new" && Number.isFinite(Number(selectedRx.id))
-      if (isUpdate) {
-        await doctorService.updatePrescription(patientId, selectedRx.id, {
-          medications: meds,
-        })
-        await load()
-      } else {
-        const created = await doctorService.createPrescription(patientId, { medications: meds })
-        const newId =
-          created.success && created.prescription?.id != null
-            ? String(created.prescription.id)
-            : undefined
-        await load(newId ? { selectPrescriptionId: newId } : undefined)
-      }
+      const lineDurations = meds.map((m) => {
+        const n = parseInt(String(m.duration), 10)
+        return Number.isFinite(n) && n >= 1 ? n : 7
+      })
+      const headerDuration = Math.max(...lineDurations, 1)
+      const created = await doctorService.createPrescription(patientId, {
+        medications: meds,
+        duration: headerDuration,
+      })
+      const newId =
+        created.success && created.prescription?.id != null
+          ? String(created.prescription.id)
+          : undefined
+      await load(newId ? { selectPrescriptionId: newId } : undefined)
       setIsEditMode(false)
       showSuccess("Success")
     } catch (e) {
@@ -536,30 +606,12 @@ export default function PatientPrescription() {
   }
 
   const hasSelectedViewRow = !!selectedRx && !selectedRx.isDraft
-  const selectedIsDraftRecord =
-    hasSelectedViewRow && selectedRx!.signatureStatus === "draft"
-  /** Any saved row (Draft / Signed / Unsigned) — copy into a new draft */
   const selectedCanInherit = hasSelectedViewRow
-  const canAdd = !isEditMode && !loading && !saving
-  const canEdit =
-    !isEditMode && hasSelectedViewRow && selectedIsDraftRecord && !loading && !saving
+  const canAdd = !isEditMode && !loading && !saving && mutationsAllowed
   const canInherit =
-    !isEditMode && selectedCanInherit && !loading && !saving
-  const canSaveOrCancel = isEditMode && !loading
-  const canSign =
-    hasSelectedViewRow &&
-    selectedRx!.signatureStatus === "draft" &&
-    !isEditMode &&
-    !loading &&
-    !saving &&
-    !signingKind
-  const canUnsign =
-    hasSelectedViewRow &&
-    selectedRx!.signatureStatus === "signed" &&
-    !isEditMode &&
-    !loading &&
-    !saving &&
-    !signingKind
+    !isEditMode && selectedCanInherit && !loading && !saving && mutationsAllowed
+  const canCancelEdit = isEditMode && !loading
+  const canSaveRx = isEditMode && !loading && mutationsAllowed
 
   const getMedicationsForExport = (): Medication[] => {
     if (!selectedRx) return []
@@ -588,9 +640,8 @@ export default function PatientPrescription() {
           ? selectedRx.doctor
           : "—"
       releasePdfBlobUrl(null)
-      const sigForPdf: PrescriptionSignatureStatus = selectedRx?.isDraft
-        ? "draft"
-        : selectedRx?.signatureStatus ?? "draft"
+      /** Saved prescriptions always show doctor name on PDF (no separate sign step). */
+      const sigForPdf = selectedRx?.isDraft ? ("draft" as const) : ("signed" as const)
 
       const { blob, filename } = await generatePrescriptionPdfBlob({
         patient: res.patient,
@@ -598,6 +649,7 @@ export default function PatientPrescription() {
           name: m.name,
           quantity: m.quantity,
           unit: m.unit,
+          duration: m.duration,
           usage: m.usage,
           note: m.note,
         })),
@@ -624,34 +676,6 @@ export default function PatientPrescription() {
     a.download = pdfPreviewFilename
     a.rel = "noopener"
     a.click()
-  }
-
-  const handleSignPrescription = async () => {
-    if (!patientId || !selectedRx || selectedRx.isDraft || selectedRx.signatureStatus !== "draft") return
-    setSigningKind("sign")
-    try {
-      await doctorService.signPrescription(patientId, selectedRx.id)
-      await load()
-      showSuccess("Success")
-    } catch (e) {
-      showError(e instanceof Error ? e.message : "Fail")
-    } finally {
-      setSigningKind(null)
-    }
-  }
-
-  const handleUnsignPrescription = async () => {
-    if (!patientId || !selectedRx || selectedRx.isDraft || selectedRx.signatureStatus !== "signed") return
-    setSigningKind("unsign")
-    try {
-      await doctorService.unsignPrescription(patientId, selectedRx.id)
-      await load()
-      showSuccess("Success")
-    } catch (e) {
-      showError(e instanceof Error ? e.message : "Fail")
-    } finally {
-      setSigningKind(null)
-    }
   }
 
   const pauseableToast =
@@ -746,14 +770,11 @@ export default function PatientPrescription() {
                   }}
                 >
                   <TableRow>
-                    <TableHead className="w-[32%] p-1.5 text-left text-[13px] font-semibold text-white">
+                    <TableHead className="w-[38%] p-1.5 text-left text-[13px] font-semibold text-white">
                       Date
                     </TableHead>
-                    <TableHead className="w-[48%] p-1.5 text-left text-[13px] font-semibold text-white">
+                    <TableHead className="p-1.5 text-left text-[13px] font-semibold text-white">
                       Doctor
-                    </TableHead>
-                    <TableHead className="w-[20%] p-1.5 text-left text-[13px] font-semibold text-white">
-                      Status
                     </TableHead>
                   </TableRow>
                 </TableHeader>
@@ -781,11 +802,6 @@ export default function PatientPrescription() {
                           {rx.doctor}
                         </span>
                       </TableCell>
-                      <TableCell className="max-w-0 p-1.5 align-top leading-snug">
-                        <span className="block truncate" title={signatureStatusLabel(rx.signatureStatus)}>
-                          {signatureStatusLabel(rx.signatureStatus)}
-                        </span>
-                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -811,15 +827,6 @@ export default function PatientPrescription() {
               <Button
                 size="sm"
                 className="btn-outline transition-transform duration-500 text-xl px-7 py-4"
-                onClick={handleEditPrescription}
-                disabled={!canEdit}
-              >
-                <Edit className="h-4 w-4" />
-                Edit
-              </Button>
-              <Button
-                size="sm"
-                className="btn-outline transition-transform duration-500 text-xl px-7 py-4"
                 onClick={handleInheritPrescription}
                 disabled={!canInherit}
               >
@@ -827,36 +834,10 @@ export default function PatientPrescription() {
                 Inherit
               </Button>
               <Button
-                type="button"
-                variant="default"
-                size="sm"
-                className="h-9 gap-2 border-0 !bg-[#16a34a] px-4 text-white shadow-sm hover:bg-[#15803d] focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2"
-                onClick={() => void handleSignPrescription()}
-                disabled={!canSign}
-                title="Ký số — finalize prescription (Draft → Signed)"
-              >
-                <PenLine className="h-4 w-4" />
-                {signingKind === "sign" ? <Loader2 className="h-4 w-4 animate-spin shrink-0" /> : null}
-                Sign
-              </Button>
-              <Button
-                type="button"
-                variant="default"
-                size="sm"
-                className="h-9 gap-2 border-0 !bg-[#dc2626] px-4 text-white shadow-sm hover:bg-[#b91c1c] focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2"
-                onClick={() => void handleUnsignPrescription()}
-                disabled={!canUnsign}
-                title="revoke signature (Signed → Voided)"
-              >
-                <PenOff className="h-4 w-4" />
-                {signingKind === "unsign" ? <Loader2 className="h-4 w-4 animate-spin shrink-0" /> : null}
-                Void Signature
-              </Button>
-              <Button
                 size="sm"
                 className="btn-outline transition-transform duration-500 text-xl px-7 py-4"
                 onClick={handleSave}
-                disabled={!canSaveOrCancel || saving}
+                disabled={!canSaveRx || saving}
               >
                 <Save className="h-4 w-4" />
                 Save
@@ -865,7 +846,7 @@ export default function PatientPrescription() {
                 size="sm"
                 className="btn-outline transition-transform duration-500 text-xl px-7 py-4"
                 onClick={handleCancel}
-                disabled={!canSaveOrCancel || saving}
+                disabled={!canCancelEdit || saving}
               >
                 <X className="h-4 w-4" />
                 Cancel
@@ -876,22 +857,7 @@ export default function PatientPrescription() {
           {!selectedRx ? (
             <p className="text-sm text-slate-500">Click on any row to load that record into the form below or click "Add" button to create a new record</p>
           ) : (
-            <div
-              className={cn(
-                "relative overflow-x-hidden border rounded-lg",
-                !selectedRx.isDraft && selectedRx.signatureStatus === "voided" && "overflow-hidden"
-              )}
-            >
-              {!selectedRx.isDraft && selectedRx.signatureStatus === "voided" ? (
-                <div
-                  className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center overflow-hidden"
-                  aria-hidden
-                >
-                  <span className="text-red-600/45 text-5xl sm:text-6xl font-black -rotate-[18deg] select-none tracking-[0.2em] whitespace-nowrap drop-shadow-sm">
-                    VOIDED
-                  </span>
-                </div>
-              ) : null}
+            <div className="relative overflow-x-hidden border rounded-lg">
               <Table className="relative z-0 w-full table-fixed text-xs">
                 <TableHeader>
                   <TableRow
@@ -904,6 +870,7 @@ export default function PatientPrescription() {
                     <TableHead className="w-[18%] min-w-0 p-1.5 text-left text-white">Medication</TableHead>
                     <TableHead className="w-[9%] p-1.5 text-white">Qty</TableHead>
                     <TableHead className="w-[10%] p-1.5 text-white">Unit</TableHead>
+                    <TableHead className="w-[9%] p-1.5 text-white">Duration</TableHead>
                     <TableHead className="min-w-0 p-1.5 text-white">Usage</TableHead>
                     <TableHead className="min-w-0 p-1.5 text-white">Note</TableHead>
                     <TableHead className="w-7 p-1 text-center text-white" aria-label="Remove row" />
@@ -925,7 +892,7 @@ export default function PatientPrescription() {
                             value={med.name}
                             onChange={(v) => updateMedication(index, "name", v)}
                             onMedicinePickOrResolve={(m) => applyPickedMedicineToDraft(index, m)}
-                            disabled={saving}
+                            disabled={saving || !mutationsAllowed}
                           />
                         </TableCell>
                         <TableCell className="p-0.5 align-middle">
@@ -933,6 +900,7 @@ export default function PatientPrescription() {
                             className="h-7 w-full box-border rounded border border-slate-200 px-1.5 text-xs leading-tight"
                             value={med.quantity}
                             placeholder="Qty"
+                            disabled={!mutationsAllowed}
                             onChange={(e) => updateMedication(index, "quantity", e.target.value)}
                           />
                         </TableCell>
@@ -947,10 +915,24 @@ export default function PatientPrescription() {
                         </TableCell>
                         <TableCell className="p-0.5 align-middle">
                           <input
+                            type="number"
+                            min={1}
                             className="h-7 w-full box-border rounded border border-slate-200 px-1.5 text-xs leading-tight"
+                            value={med.duration}
+                            placeholder="Days"
+                            title="Số ngày dùng thuốc"
+                            disabled={!mutationsAllowed}
+                            onChange={(e) => updateMedication(index, "duration", e.target.value)}
+                          />
+                        </TableCell>
+                        <TableCell className="p-0.5 align-middle">
+                          <UsageTypeaheadInput
                             value={med.usage}
-                            placeholder="Usage"
-                            onChange={(e) => updateMedication(index, "usage", e.target.value)}
+                            onChange={(v) => updateMedication(index, "usage", v)}
+                            quantity={med.quantity}
+                            duration={med.duration}
+                            unit={med.unit}
+                            disabled={!mutationsAllowed}
                           />
                         </TableCell>
                         <TableCell className="p-0.5 align-middle">
@@ -958,6 +940,7 @@ export default function PatientPrescription() {
                             className="h-7 w-full box-border rounded border border-slate-200 px-1.5 text-xs leading-tight"
                             value={med.note}
                             placeholder="Note"
+                            disabled={!mutationsAllowed}
                             onChange={(e) => updateMedication(index, "note", e.target.value)}
                           />
                         </TableCell>
@@ -966,7 +949,8 @@ export default function PatientPrescription() {
                             <button
                               type="button"
                               onClick={() => removeMedication(index)}
-                              className="inline-flex h-7 w-6 shrink-0 items-center justify-center rounded text-red-500 hover:bg-red-50"
+                              disabled={!mutationsAllowed}
+                              className="inline-flex h-7 w-6 shrink-0 items-center justify-center rounded text-red-500 hover:bg-red-50 disabled:opacity-40"
                               title="Remove medication"
                             >
                               <Trash2 className="h-3.5 w-3.5 " strokeWidth={2} aria-hidden />
@@ -984,6 +968,9 @@ export default function PatientPrescription() {
                         <TableCell className="p-0.5 align-middle text-xs">{med.name}</TableCell>
                         <TableCell className="p-0.5 text-center align-middle text-xs">{med.quantity}</TableCell>
                         <TableCell className="p-0.5 align-middle text-xs">{med.unit}</TableCell>
+                        <TableCell className="p-0.5 text-center align-middle text-xs tabular-nums">
+                          {med.duration || "—"}
+                        </TableCell>
                         <TableCell className="p-0.5 align-middle text-xs">{med.usage}</TableCell>
                         <TableCell className="p-0.5 align-middle text-xs">{med.note ?? "—"}</TableCell>
                         <TableCell className="w-7 p-0.5" />
@@ -992,11 +979,12 @@ export default function PatientPrescription() {
                   )}
                 </TableBody>
               </Table>
-              {!selectedRx.isDraft && selectedRx.signatureStatus === "signed" ? (
-                <div className="relative z-[1] flex items-start gap-3 border-t border-slate-200 bg-emerald-50/90 px-4 py-3">
-                  <CheckCircle2 className="mt-0.5 h-6 w-6 shrink-0 text-green-600" aria-hidden />
+              {!selectedRx.isDraft ? (
+                <div className="relative z-[1] flex items-start gap-3 border-t border-slate-200 bg-cyan-50/80 px-4 py-3">
                   <div className="min-w-0">
-                    <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Signed</div>
+                    <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                      Doctor:
+                    </div>
                     <div className="text-base font-semibold text-slate-900">{selectedRx.doctor}</div>
                   </div>
                 </div>

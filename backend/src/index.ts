@@ -6,6 +6,7 @@ dotenv.config();
 
 import express, { Express, Request, Response } from 'express';
 import cors from 'cors';
+import path from 'path';
 import aiRoutes from './routes/ai';
 const authRoutes = require('./authorization/routes');
 const systemConfigRoutes = require('./routes/systemConfig');
@@ -14,6 +15,7 @@ const profileRoutes = require('./routes/profileRoutes');
 const healthInfoRoutes = require('./routes/healthInfoRoutes');
 const doctorRoutes = require('./routes/doctorRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 const sessionMiddleware = require('./middleware/sessionMiddleware');
 const sequelize = require('./common/database');
 
@@ -53,6 +55,7 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 // Session middleware for checking timeout
 app.use(sessionMiddleware.checkSessionTimeout);
@@ -66,6 +69,7 @@ app.use('/api/profile', profileRoutes);
 app.use('/api/health-info', healthInfoRoutes);
 app.use('/api/doctor', doctorRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 
 

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const doctorController = require('../controllers/doctorController');
 const authenticateToken = require('../middleware/authMiddleware');
+const { requireActiveEmrVisitForDoctorTech } = require('../middleware/emrActiveVisitMiddleware');
 
 // All routes require authentication
 router.use(authenticateToken);
@@ -15,10 +16,12 @@ const requireDoctor = (req, res, next) => {
 };
 
 router.use(requireDoctor);
+router.use(requireActiveEmrVisitForDoctorTech);
 
 // ─── Dictionary / master data ───
 router.get('/diseases', doctorController.getDiseaseCodes);
 router.get('/medicines', doctorController.getMedicines);
+router.get('/technicians', doctorController.getTechnicians);
 
 // ─── Dashboard ───
 router.get('/dashboard/summary', doctorController.getDashboardSummary);
@@ -26,14 +29,15 @@ router.get('/dashboard/summary', doctorController.getDashboardSummary);
 // ─── Patients ───
 router.get('/patients', doctorController.getPatients);
 router.get('/patients/:patientId', doctorController.getPatient);
+router.get('/patients/:patientId/regimen/active', doctorController.getActiveRegimenForPatient);
+router.post('/patients/:patientId/regimen/close', doctorController.closeOpenRegimenForPatient);
 
 // ─── Health Info ───
 router.get('/patients/:patientId/health-info', doctorController.getHealthInfo);
 router.get('/patients/:patientId/health-info/history', doctorController.getHealthInfoHistory);
 router.post('/patients/:patientId/health-info', doctorController.createHealthInfo);
 router.put('/patients/:patientId/health-info/:id', doctorController.updateHealthInfo);
-router.patch('/patients/:patientId/health-info/:id/sign', doctorController.signHealthInfo);
-router.patch('/patients/:patientId/health-info/:id/unsign', doctorController.unsignHealthInfo);
+router.patch('/patients/:patientId/health-info/:id/confirm', doctorController.confirmHealthInfo);
 router.delete('/patients/:patientId/health-info/:id', doctorController.deleteHealthInfo);
 
 // ─── Diagnoses ───
@@ -45,13 +49,14 @@ router.put('/patients/:patientId/diagnoses/:id', doctorController.updateDiagnosi
 router.get('/patients/:patientId/prescriptions', doctorController.getPrescriptions);
 router.post('/patients/:patientId/prescriptions', doctorController.createPrescription);
 router.put('/patients/:patientId/prescriptions/:id', doctorController.updatePrescription);
-router.patch('/patients/:patientId/prescriptions/:id/sign', doctorController.signPrescription);
-router.patch('/patients/:patientId/prescriptions/:id/unsign', doctorController.unsignPrescription);
+router.post('/patients/:patientId/transfers', doctorController.createPatientTransfer);
 
 // ─── Lab tests ───
 router.get('/patients/:patientId/lab-tests', doctorController.getLabTests);
 router.post('/patients/:patientId/lab-tests', doctorController.createLabTest);
 router.put('/patients/:patientId/lab-tests/:id', doctorController.updateLabTest);
+router.get('/patients/:patientId/lab-tests/:id/details', doctorController.getLabTestDetails);
+router.post('/lab-attachments', doctorController.uploadLabAttachment);
 
 // ─── Surgeries ───
 router.get('/patients/:patientId/surgeries', doctorController.getSurgeries);

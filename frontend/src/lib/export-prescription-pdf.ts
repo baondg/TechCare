@@ -6,6 +6,8 @@ export interface ExportMedicationRow {
   name: string
   quantity: string
   unit: string
+  /** Treatment days (PRESCRIPTION_DETAIL.duration). */
+  duration?: string
   usage: string
   note?: string
 }
@@ -123,6 +125,10 @@ export async function generatePrescriptionPdfBlob(opts: {
       const unitLabel = unitLabelsVi[m.unit] ?? m.unit
       const name = escapeHtml(m.name)
       const qty = escapeHtml(m.quantity || "—")
+      const dur =
+        m.duration != null && String(m.duration).trim() !== ""
+          ? escapeHtml(String(m.duration).trim())
+          : "—"
       const usage = escapeHtml(m.usage || "—")
       return `
       <tr>
@@ -133,6 +139,8 @@ export async function generatePrescriptionPdfBlob(opts: {
             <span style="font-weight:600">Số lượng:</span> ${qty}
             &nbsp;&nbsp;|&nbsp;&nbsp;
             <span style="font-weight:600">Đơn vị:</span> ${escapeHtml(unitLabel)}
+            &nbsp;&nbsp;|&nbsp;&nbsp;
+            <span style="font-weight:600">Số ngày dùng:</span> ${dur}
           </div>
         </td>
       </tr>

@@ -15,6 +15,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { useNavigate } from "react-router-dom"
 import { Checkbox } from "@/components/ui/checkbox"
 import {Tooltip,TooltipContent,TooltipProvider,TooltipTrigger,} from "@/components/ui/tooltip"
+import { PATIENT_IN_DEPARTMENT_OPTIONS } from "@/lib/patient-departments"
 
 
 type Patient = {
@@ -26,6 +27,8 @@ type Patient = {
   diagnosis: string
   diagnosisDescription: string
   doctor: string
+  /** PATIENT.in_department */
+  department: string | null
   recoverDays: number
   recoverPercent: number
 }
@@ -79,7 +82,7 @@ export default function DoctorPatients() {
               diagnosis: p.latestDiagnosis?.icd10 || "",
               diagnosisDescription: p.latestDiagnosis?.interpretation || "",
               doctor: p.doctor || "",
-              
+              department: p.inDepartment != null ? String(p.inDepartment) : null,
               recoverDays: null,
               recoverPercent: null,
             }))
@@ -104,6 +107,7 @@ export default function DoctorPatients() {
         latestVisit: null as Date | null,
         diagnosis: "",
         doctor: "",
+        department: "All" as "All" | (typeof PATIENT_IN_DEPARTMENT_OPTIONS)[number],
         })
 
     const [currentPage, setCurrentPage] = useState(1)
@@ -120,14 +124,23 @@ export default function DoctorPatients() {
             const matchRecoverPercent =
             !filters.recoverPercent || p.recoverPercent === Number(filters.recoverPercent)
 
+            const matchDepartment =
+              filters.department === "All" ||
+              (p.department != null && p.department === filters.department)
+
             return (
             p.id.toLowerCase().includes(filters.patientId.toLowerCase()) &&
             p.name.toLowerCase().includes(filters.name.toLowerCase()) &&
-            p.diagnosis.toLowerCase().includes(filters.diagnosis.toLowerCase()) &&
-            p.doctor.toLowerCase().includes(filters.doctor.toLowerCase()) &&
+            String(p.diagnosis ?? "")
+              .toLowerCase()
+              .includes(String(filters.diagnosis ?? "").toLowerCase()) &&
+            String(p.doctor ?? "")
+              .toLowerCase()
+              .includes(String(filters.doctor ?? "").toLowerCase()) &&
             matchAge &&
             matchRecoverDays &&
-            matchRecoverPercent
+            matchRecoverPercent &&
+            matchDepartment
             )
         })
     }, [patients, filters])
@@ -215,47 +228,70 @@ export default function DoctorPatients() {
   return (
     <DoctorLayout>
       <div className="p-1 space-y-1">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold">Patient List</h2>
-            <div className="flex flex-wrap gap-4">
+        {/* Header — one toolbar row: column toggles + filters */}
+        <div className="space-y-2">
+          <div className="flex flex-nowrap items-center gap-3 overflow-x-auto pb-1 -mx-1 px-1">
+            <Checkbox
+              label="Show All"
+              checked={visibleColumns.length === allColumns.length}
+              onChange={(checked) => {
+                if (checked) {
+                  setVisibleColumns(allColumns)
+                }
+              }}
+            />
+            {columns.filter(col => col.key !== "no").map(col => (
               <Checkbox
-                label="Show All"
-                checked={visibleColumns.length === allColumns.length}
-                onChange={(checked) => {
-                  if (checked) {
-                    setVisibleColumns(allColumns)
-                  }
-                }}
+                key={col.key}
+                label={col.label}
+                checked={visibleColumns.includes(col.key)}
+                onChange={(checked) =>
+                  setVisibleColumns(prev =>
+                    checked
+                      ? [...prev, col.key]
+                      : prev.filter(k => k !== col.key)
+                  )
+                }
               />
-              {columns.filter(col => col.key !== "no").map(col => (
-                <Checkbox
-                  key={col.key}
-                  label={col.label}
-                  checked={visibleColumns.includes(col.key)}
-                  onChange={(checked) =>
-                    setVisibleColumns(prev =>
-                      checked
-                        ? [...prev, col.key]
-                        : prev.filter(k => k !== col.key)
-                    )
-                  }
-                />
-              ))}
+            ))}
+            <span className="h-5 w-px shrink-0 bg-slate-200" aria-hidden />
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-xs font-medium text-slate-600 whitespace-nowrap">Department</span>
+              <Select
+                value={filters.department}
+                onValueChange={(value) =>
+                  setFilters({
+                    ...filters,
+                    department: value as typeof filters.department,
+                  })
+                }
+              >
+                <SelectTrigger className="h-9 w-[min(12rem,42vw)] btn-outline text-sm">
+                  <SelectValue placeholder="All" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="All">All</SelectItem>
+                  {PATIENT_IN_DEPARTMENT_OPTIONS.map((d) => (
+                    <SelectItem key={d} value={d}>
+                      {d}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <Select defaultValue="All">
-              <SelectTrigger className="w-32 btn-outline transition-transform duration-500 text-xl px-7 py-4">
-                <SelectValue placeholder="All" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="All">All</SelectItem>
-                <SelectItem value="Active">Active</SelectItem>
-                <SelectItem value="Recovered">Recovered</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-xs font-medium text-slate-600 whitespace-nowrap">Status</span>
+              <Select defaultValue="All">
+                <SelectTrigger className="h-9 w-[8.5rem] btn-outline text-sm">
+                  <SelectValue placeholder="All" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="All">All</SelectItem>
+                  <SelectItem value="Active">Active</SelectItem>
+                  <SelectItem value="Recovered">Recovered</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
 

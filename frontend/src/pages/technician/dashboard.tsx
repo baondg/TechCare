@@ -1,144 +1,242 @@
 "use client"
 
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { Link } from "react-router-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Users, Calendar, Clock, TrendingUp } from "lucide-react"
-import { Link } from "react-router-dom";
+import {
+  ClipboardList,
+  FlaskConical,
+  AlertCircle,
+  UserRound,
+  ArrowRight,
+  Loader2,
+  FileSearch,
+} from "lucide-react"
 import { TechnicianLayout } from "@/components/technician-layout"
-import { CollapsibleSection } from "@/components/collapsible-section"
+import { doctorService, type DoctorDashboardSummary } from "@/services/doctor-service"
 
-export default function NurseDashboard() {
+function formatPatientPath(patientId: number) {
+  return `/technician/medical_records/${patientId}/lab`
+}
+
+export default function TechnicianDashboard() {
+  const [summary, setSummary] = useState<DoctorDashboardSummary | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await doctorService.getDashboardSummary()
+      setSummary(res)
+    } catch (e) {
+      console.error(e)
+      setSummary(null)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  const todayLabel = useMemo(
+    () =>
+      new Date().toLocaleDateString("vi-VN", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      }),
+    []
+  )
+
+  const stats = summary?.summary
+  const queue = summary?.todaysSchedule ?? []
+  const recent = summary?.recentPatients ?? []
+
   return (
     <TechnicianLayout>
-      <div className="space-y-6">
-        <div>
-          <h2 className="text-3xl font-bold">Welcome! Here's your overview</h2>
+      <div className="space-y-8 max-w-6xl mx-auto">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex gap-2">
+            <Button size="sm" className="btn-gradient gap-1" asChild>
+              <Link to="/technician/patients">
+                Patient List <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </Button>
+            <Button size="sm" variant="outline" asChild>
+              <Link to="/technician/feedback">Feedback</Link>
+            </Button>
+          </div>
         </div>
 
-        <CollapsibleSection title="Overview Statistics" description="Today's performance metrics" defaultOpen={true}>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Today's Patients</CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">12</div>
-                <p className="text-xs text-muted-foreground">3 completed, 9 remaining</p>
-              </CardContent>
-            </Card>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Card className="border-cyan-100 shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-slate-700">Tests Today</CardTitle>
+              <FlaskConical className="h-4 w-4 text-cyan-600" />
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <Loader2 className="h-6 w-6 animate-spin text-cyan-600" />
+              ) : (
+                <div className="text-2xl font-bold text-slate-900">{stats?.labTestsToday ?? 0}</div>
+              )}
+              <p className="text-xs text-muted-foreground mt-1">Total TEST records for today</p>
+            </CardContent>
+          </Card>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Appointments</CardTitle>
-                <Calendar className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">8</div>
-                <p className="text-xs text-muted-foreground">This week</p>
-              </CardContent>
-            </Card>
+          <Card className="border-amber-100 shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-slate-700">Pending Results</CardTitle>
+              <AlertCircle className="h-4 w-4 text-amber-600" />
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <Loader2 className="h-6 w-6 animate-spin text-amber-600" />
+              ) : (
+                <div className="text-2xl font-bold text-slate-900">{stats?.appointmentsToday ?? 0}</div>
+              )}
+              <p className="text-xs text-muted-foreground mt-1">
+                No summary result or attachment uploaded yet
+              </p>
+            </CardContent>
+          </Card>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Avg Wait Time</CardTitle>
-                <Clock className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">18 min</div>
-                <p className="text-xs text-muted-foreground">-5 min from last week</p>
-              </CardContent>
-            </Card>
+          <Card className="border-emerald-100 shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-slate-700">Assigned to Me</CardTitle>
+              <ClipboardList className="h-4 w-4 text-emerald-600" />
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
+              ) : (
+                <div className="text-2xl font-bold text-slate-900">{stats?.diagnosesToday ?? 0}</div>
+              )}
+              <p className="text-xs text-muted-foreground mt-1">Matched by technician on TEST/PROCEDURE_</p>
+            </CardContent>
+          </Card>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Patient Satisfaction</CardTitle>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">4.8/5</div>
-                <p className="text-xs text-muted-foreground">Based on 45 reviews</p>
-              </CardContent>
-            </Card>
-          </div>
-        </CollapsibleSection>
+          <Card className="border-slate-200 shadow-sm opacity-90">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-slate-700">Recent Patients</CardTitle>
+              <UserRound className="h-4 w-4 text-slate-500" />
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <Loader2 className="h-6 w-6 animate-spin text-slate-500" />
+              ) : (
+                <div className="text-2xl font-bold text-slate-900">{recent.length}</div>
+              )}
+              <p className="text-xs text-muted-foreground mt-1">Patients with latest lab history</p>
+            </CardContent>
+          </Card>
+        </div>
 
-        <CollapsibleSection
-          title="Today's Schedule"
-          description="Your appointments for December 15, 2025"
-          defaultOpen={true}
-        >
-          <div className="space-y-4">
-            {[
-              { time: "09:00 AM", patient: "John Doe", type: "General Checkup", status: "completed" },
-              { time: "10:00 AM", patient: "Jane Smith", type: "Follow-up", status: "in-progress" },
-              { time: "11:00 AM", patient: "Michael Brown", type: "New Patient", status: "waiting" },
-              { time: "02:00 PM", patient: "Emily Davis", type: "Consultation", status: "scheduled" },
-            ].map((apt, idx) => (
-              <div key={idx} className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="flex items-center gap-4">
-                  <div className="text-sm font-medium w-20">{apt.time}</div>
-                  <div>
-                    <p className="font-medium">{apt.patient}</p>
-                    <p className="text-sm text-muted-foreground">{apt.type}</p>
-                  </div>
+        <div className="grid gap-6 lg:grid-cols-5">
+          <Card className="lg:col-span-3 border-slate-200 shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <div>
+                <CardTitle className="text-lg">Today's Lab Queue</CardTitle>
+                <p className="text-sm text-muted-foreground">Sorted by time — open patient lab record</p>
+              </div>
+              <FileSearch className="h-5 w-5 text-cyan-600" />
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {loading && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground py-8 justify-center">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Loading...
                 </div>
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`text-xs px-2 py-1 rounded-full ${
-                      apt.status === "completed"
-                        ? "bg-green-100 text-green-700"
-                        : apt.status === "in-progress"
-                          ? "bg-blue-100 text-blue-700"
-                          : apt.status === "waiting"
-                            ? "bg-yellow-100 text-yellow-700"
-                            : "bg-gray-100 text-gray-700"
-                    }`}
+              )}
+              {!loading && queue.length === 0 && (
+                <p className="text-sm text-muted-foreground py-8 text-center">
+                  No lab records for today.
+                </p>
+              )}
+              {!loading &&
+                queue.map((row) => (
+                  <div
+                    key={row.id}
+                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-lg border border-slate-100 bg-slate-50/50 px-4 py-3"
                   >
-                    {apt.status}
-                  </span>
-                  <Button variant="outline" size="sm" asChild>
-                    <Link to={`/doctor/patients/${idx + 1}`}>View</Link>
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </CollapsibleSection>
-
-        <div className="grid gap-6 md:grid-cols-2">
-          <CollapsibleSection title="Recent Patients" description="Patients you've seen recently" defaultOpen={true}>
-            <div className="space-y-3">
-              {["John Doe", "Jane Smith", "Michael Brown"].map((name, idx) => (
-                <div key={idx} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <p className="font-medium">{name}</p>
-                    <p className="text-sm text-muted-foreground">Last visit: Dec {15 - idx}, 2025</p>
+                    <div className="space-y-1 min-w-0">
+                      <p className="font-medium text-slate-900 truncate">
+                        <Link
+                          to={formatPatientPath(row.patientId)}
+                          className="text-cyan-700 hover:underline"
+                        >
+                          {row.patientName || `Patient #${row.patientId}`}
+                        </Link>
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {row.department || "Lab Test"} ·{" "}
+                        {row.time
+                          ? `${String(row.time).slice(0, 5)} ${row.date || ""}`
+                          : row.date || ""}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span
+                        className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+                          row.status === "Done"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : "bg-amber-100 text-amber-800"
+                        }`}
+                      >
+                        {row.status === "Done" ? "Completed" : "Pending"}
+                      </span>
+                      <Button size="sm" variant="outline" asChild>
+                        <Link to={formatPatientPath(row.patientId)}>Open Lab</Link>
+                      </Button>
+                    </div>
                   </div>
-                  <Button variant="ghost" size="sm" asChild>
-                    <Link to={`/doctor/patients/${idx + 1}`}>View EMR</Link>
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </CollapsibleSection>
+                ))}
+            </CardContent>
+          </Card>
 
-          <CollapsibleSection title="AI Insights" description="Intelligent recommendations" defaultOpen={true}>
-            <div className="space-y-3">
-              <div className="p-3 border rounded-lg bg-primary/5">
-                <p className="text-sm font-medium">High Priority</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Patient Michael Brown shows symptoms requiring immediate attention
-                </p>
-              </div>
-              <div className="p-3 border rounded-lg">
-                <p className="text-sm font-medium">Schedule Optimization</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Consider adding 2 more slots on Thursday for better patient flow
-                </p>
-              </div>
-            </div>
-          </CollapsibleSection>
+          <Card className="lg:col-span-2 border-slate-200 shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg">Recent Lab Patients</CardTitle>
+              <p className="text-sm text-muted-foreground">Quick access to result entry</p>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {loading && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground py-6 justify-center">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Loading...
+                </div>
+              )}
+              {!loading && recent.length === 0 && (
+                <p className="text-sm text-muted-foreground py-6 text-center">No data yet.</p>
+              )}
+              {!loading &&
+                recent.map((p) => (
+                  <div
+                    key={p.patientId}
+                    className="flex items-center justify-between gap-2 rounded-lg border border-slate-100 px-3 py-2.5"
+                  >
+                    <div className="min-w-0">
+                      <Link
+                        to={formatPatientPath(p.patientId)}
+                        className="font-medium text-cyan-700 hover:underline truncate block"
+                      >
+                        {p.patientName}
+                      </Link>
+                      <p className="text-xs text-muted-foreground">
+                        {p.lastTime
+                          ? new Date(p.lastTime).toLocaleString("vi-VN")
+                          : "—"}
+                      </p>
+                    </div>
+                    <Button size="sm" variant="ghost" className="shrink-0" asChild>
+                      <Link to={formatPatientPath(p.patientId)}>Open</Link>
+                    </Button>
+                  </div>
+                ))}
+            </CardContent>
+          </Card>
         </div>
       </div>
     </TechnicianLayout>

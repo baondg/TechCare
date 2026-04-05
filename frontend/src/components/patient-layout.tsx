@@ -1,6 +1,7 @@
 import type React from 'react'
 import { AppShell } from '@/components/layout/AppShell'
 import type { NavItem } from '@/components/layout/AppShell'
+import { PatientNotificationBell } from '@/components/patient-notification-bell'
 import { Airplay, Calendar, ScanHeart, Heart, FileText, BotMessageSquare, User, MessageSquare } from 'lucide-react'
 
 const navigation: NavItem[] = [
@@ -8,13 +9,21 @@ const navigation: NavItem[] = [
   { name: 'Appointments',    href: '/patient/appointments',   icon: Calendar },
   { name: 'Symptom Checker', href: '/patient/symptom-checker',icon: ScanHeart },
   { name: 'Health Info',     href: '/patient/health-info',    icon: Heart },
-  { name: 'History',         href: '/patient/records',        icon: FileText },
+  { name: 'History',         href: '/patient/history',        icon: FileText },
   { name: 'AI Chatbot',      href: '/patient/chatbot',        icon: BotMessageSquare },
   { name: 'Profile',         href: '/patient/profile',        icon: User },
   { name: 'Feedback',        href: '/patient/feedback',       icon: MessageSquare },
 ]
 
 export function PatientLayout({ children }: { children: React.ReactNode }) {
-  return <AppShell navItems={navigation} portalLabel="Patient Portal">{children}</AppShell>
+  return (
+    <AppShell
+      navItems={navigation}
+      portalLabel="Patient Portal"
+      headerEnd={<PatientNotificationBell />}
+    >
+      {children}
+    </AppShell>
+  )
 }
 

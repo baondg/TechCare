@@ -6,14 +6,11 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import {
   Plus,
-  Pencil,
   Copy,
   FileDown,
   Loader2,
   Save,
   X,
-  PenLine,
-  PenOff,
 } from "lucide-react"
 import {
   Table,
@@ -32,6 +29,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { useEmrSession } from "@/contexts/emr-session-context"
 
 const URGENCY_OPTIONS = ["HIGH", "MEDIUM", "LOW"] as const
 
@@ -112,9 +110,9 @@ function mapApi(s: SurgeryRecord): UiSurgery {
 
 export default function PatientSurgery() {
   const { patientId } = useParams<{ patientId: string }>()
+  const { mutationsAllowed } = useEmrSession()
   const [surgeries, setSurgeries] = useState<UiSurgery[]>([])
   const [selected, setSelected] = useState<UiSurgery | null>(null)
-  const [isEdit, setIsEdit] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [exportingPdf, setExportingPdf] = useState(false)
@@ -176,7 +174,6 @@ export default function PatientSurgery() {
       setSurgeries(list)
       if (list.length > 0) {
         setSelected(list[0])
-        setIsEdit(false)
       } else {
         setSelected(null)
       }
@@ -198,6 +195,7 @@ export default function PatientSurgery() {
   }
 
   const handleAdd = () => {
+    if (!mutationsAllowed) return
     const now = new Date()
     const end = new Date(now.getTime() + 60 * 60 * 1000)
     setSelected({
@@ -211,10 +209,10 @@ export default function PatientSurgery() {
       note: "",
       isDraft: true,
     })
-    setIsEdit(true)
   }
 
   const handleInherit = () => {
+    if (!mutationsAllowed) return
     if (!selected) return
     if (selected.isDraft) {
       handleAdd()
@@ -225,10 +223,10 @@ export default function PatientSurgery() {
       id: "new",
       isDraft: true,
     })
-    setIsEdit(true)
   }
 
   const handleSave = async () => {
+    if (!mutationsAllowed) return
     if (!patientId || !selected) return
     if (!selected.startIso || !selected.endIso) {
       alert("Chọn thời gian bắt đầu và kết thúc")
@@ -241,41 +239,22 @@ export default function PatientSurgery() {
       return
     }
 
-    if (selected.isDraft) {
-      setSaving(true)
-      try {
-        await doctorService.createSurgery(patientId, {
-          type: normalizeSurgeryType(selected.type),
-          start: selected.startIso,
-          end: selected.endIso,
-          surgeonName: selected.surgeon.trim() || null,
-          urgency: normalizeUrgency(selected.urgency),
-          result: selected.result.trim() || null,
-          note: selected.note?.trim() || null,
-        })
-        await load()
-        setIsEdit(false)
-      } catch (e) {
-        alert(e instanceof Error ? e.message : "Lưu thất bại")
-      } finally {
-        setSaving(false)
-      }
+    if (!selected.isDraft) {
+      alert("Chỉ có thể lưu ca phẫu thuật mới. Chọn Add hoặc Inherit để tạo mới.")
       return
     }
-    if (selected.id === "new") return
     setSaving(true)
     try {
-      await doctorService.updateSurgery(patientId, Number(selected.id), {
+      await doctorService.createSurgery(patientId, {
         type: normalizeSurgeryType(selected.type),
         start: selected.startIso,
         end: selected.endIso,
         surgeonName: selected.surgeon.trim() || null,
         urgency: normalizeUrgency(selected.urgency),
-        result: selected.result,
-        note: selected.note ?? "",
+        result: selected.result.trim() || null,
+        note: selected.note?.trim() || null,
       })
       await load()
-      setIsEdit(false)
     } catch (e) {
       alert(e instanceof Error ? e.message : "Lưu thất bại")
     } finally {
@@ -285,19 +264,14 @@ export default function PatientSurgery() {
 
   const handleCancel = () => {
     load()
-    setIsEdit(false)
   }
 
-  const canEditFields = selected && (selected.isDraft || isEdit)
+  const canEditFields = selected && selected.isDraft && mutationsAllowed
 
-  const [signingKind, setSigningKind] = useState<null | "sign" | "unsign">(null)
-
-  const canAdd = !isEdit && !loading && !saving && !signingKind
-  const canEdit = selected && !isEdit && !loading && !saving && !signingKind && !selected.isDraft
-  const canInherit = selected && !isEdit && !loading && !saving && !signingKind
-  const canSign = selected && !isEdit && !loading && !saving && !signingKind
-  const canUnsign = selected && !isEdit && !loading && !saving && !signingKind
-  const canSaveOrCancel = selected && (selected.isDraft || isEdit) && !loading && !signingKind
+  const canAdd = !selected?.isDraft && !loading && !saving && mutationsAllowed
+  const canInherit = !!selected && !loading && !saving && mutationsAllowed
+  const canCancelDraft = !!selected?.isDraft && !loading
+  const canSaveDraft = !!selected?.isDraft && !loading && mutationsAllowed
 
   const handleExportPdf = async () => {
     if (!patientId || !selected) return
@@ -411,8 +385,8 @@ export default function PatientSurgery() {
                   <TableRow
                     key={s.id}
                     onClick={() => {
+                      if (selected?.isDraft) return
                       setSelected({ ...s, isDraft: false })
-                      setIsEdit(false)
                     }}
                     className={`cursor-pointer border-t hover:bg-slate-50 ${
                       selected?.id === s.id ? "bg-cyan-50" : ""
@@ -446,15 +420,6 @@ export default function PatientSurgery() {
             <Button
               size="sm"
               className="btn-outline transition-transform duration-500 text-xl px-7 py-4"
-              onClick={() => setIsEdit(true)}
-              disabled={!canEdit}
-            >
-              <Pencil size={16} /> Edit
-            </Button>
-
-            <Button
-              size="sm"
-              className="btn-outline transition-transform duration-500 text-xl px-7 py-4"
               onClick={handleInherit}
               disabled={!canInherit}
             >
@@ -463,49 +428,9 @@ export default function PatientSurgery() {
 
             <Button
               size="sm"
-              className="!bg-[#16a34a] text-white hover:bg-green-700 border-0 transition-transform duration-500 text-xl px-7 py-4 gap-2"
-              onClick={async () => {
-                if (!canSign) return
-                setSigningKind("sign")
-                try {
-                  await handleSave()
-                } finally {
-                  setSigningKind(null)
-                }
-              }}
-              disabled={!canSign}
-              title="Sign (finalize) — Web demo"
-            >
-              {signingKind === "sign" ? <Loader2 className="h-4 w-4 animate-spin shrink-0" /> : null}
-              <PenLine className="h-5 w-5" />
-              Sign
-            </Button>
-
-            <Button
-              size="sm"
-              className="!bg-[#dc2626] text-white hover:bg-red-700 border-0 transition-transform duration-500 text-xl px-7 py-4 gap-2"
-              onClick={async () => {
-                if (!canUnsign) return
-                setSigningKind("unsign")
-                try {
-                  await handleSave()
-                } finally {
-                  setSigningKind(null)
-                }
-              }}
-              disabled={!canUnsign}
-              title="Void (revoke signature) — Web demo"
-            >
-              {signingKind === "unsign" ? <Loader2 className="h-4 w-4 animate-spin shrink-0" /> : null}
-              <PenOff className="h-5 w-5" />
-              Void Signature
-            </Button>
-
-            <Button
-              size="sm"
               className="btn-outline transition-transform duration-500 text-xl px-7 py-4"
               onClick={handleSave}
-              disabled={!canSaveOrCancel || saving}
+              disabled={!canSaveDraft || saving}
             >
               <Save className="h-4 w-4" /> Save
             </Button>
@@ -514,7 +439,7 @@ export default function PatientSurgery() {
               size="sm"
               className="btn-outline transition-transform duration-500 text-xl px-7 py-4"
               onClick={handleCancel}
-              disabled={!canSaveOrCancel || saving}
+              disabled={!canCancelDraft || saving}
             >
               <X className="h-4 w-4" /> Cancel
             </Button>

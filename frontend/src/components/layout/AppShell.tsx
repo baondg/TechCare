@@ -13,7 +13,7 @@
 import type React from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Activity, ChevronLeft, ChevronRight, LogOut, UserRound, Menu } from 'lucide-react'
+import { Activity, ChevronLeft, ChevronRight, LogOut, UserRound, Menu, Bell } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -38,6 +38,8 @@ interface AppShellProps {
   children: React.ReactNode
   navItems: NavItem[]
   portalLabel: string
+  /** Replaces the default header bell when set (e.g. patient notifications). */
+  headerEnd?: React.ReactNode
 }
 
 const SIDEBAR_COLLAPSED_KEY = 'techcare-sidebar-collapsed'
@@ -70,7 +72,7 @@ function useBreakpoint() {
   }
 }
 
-export function AppShell({ children, navItems, portalLabel }: AppShellProps) {
+export function AppShell({ children, navItems, portalLabel, headerEnd }: AppShellProps) {
   const { pathname } = useLocation()
   const { logout, user } = useAuth()
   const { isMobile, isCompact } = useBreakpoint()
@@ -201,8 +203,16 @@ export function AppShell({ children, navItems, portalLabel }: AppShellProps) {
           {/* Logout */}
           <div className="flex items-center gap-2">
 
-            {/* Notification button */}
-            <NotificationBell />
+            {headerEnd ?? (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="btn-outline transition-transform duration-500 text-xl px-7 py-4"
+                aria-label="Notifications"
+              >
+                <Bell className="h-5 w-5" />
+              </Button>
+            )}
 
             {/* Logout */}
             <Button

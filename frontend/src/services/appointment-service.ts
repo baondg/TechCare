@@ -1,4 +1,5 @@
 import { apiClient } from '@/api/client';
+import type { LabTestDetail } from '@/services/doctor-service';
 import type { ChatMessage, SymptomAnalysisResponse, SymptomInput } from '@/types/ai-types';
 
 export interface Appointment {
@@ -30,6 +31,9 @@ export interface DoctorOption {
   username: string;
   firstName?: string;
   lastName?: string;
+  /** Parsed from DOCTOR.department (MySQL SET) */
+  departments?: string[];
+  /** Convenience: first department, or legacy single label */
   department?: string;
   room?: string;
 }
@@ -48,10 +52,34 @@ export interface NurseOpenSlot {
   status: 'open' | 'booked' | 'cancelled';
 }
 
+/** Nurse check-in dialog: one APPOINTMENT row (booked or open slot). */
+export interface NurseCheckInSlot {
+  id: number;
+  slotTime: string;
+  timeDisplay: string;
+  dateDisplay: string;
+  doctorId: number;
+  doctorName: string;
+  department: string;
+  roomId: number | null;
+  roomName: string;
+  condition: string;
+}
+
+export interface NurseCheckInOptionsResponse {
+  success: boolean;
+  today: string;
+  patientBookings: NurseCheckInSlot[];
+  openSlots: NurseCheckInSlot[];
+}
+
 export interface ClinicRoomOption {
   id: number;
   name: string;
   capacity?: number | null;
+  /** From CLINIC_ROOM.department_id + DEPARTMENT.name */
+  departmentId?: number | null;
+  departmentName?: string | null;
 }
 
 export interface PatientDashboardSummary {
@@ -75,11 +103,15 @@ export interface PatientDashboardSummary {
   activePrescriptionsList: Array<{
     id: number;
     prescribedAt: string;
+    /** Prescribing doctor (from TREATMENT.doctor_id) */
+    doctorName?: string;
     medications: Array<{
       id: string;
       name: string;
       frequency: string;
       quantity: string;
+      /** Days (PRESCRIPTION_DETAIL.duration). */
+      duration?: string;
     }>;
   }>;
   upcomingAppointments: Array<{
@@ -114,6 +146,78 @@ export interface PatientAiRecommendation {
   modelProvider: string;
   treatmentId: number | null;
   feedback: string | null;
+}
+
+/** One clinical visit (TREATMENT) with nested orders — patient portal medical history. */
+export interface PatientMedicalVisit {
+  treatmentId: number;
+  visitAt: string;
+  department: string;
+  complaint: string;
+  doctorName: string;
+  roomName: string;
+  icd10: string;
+  interpretation: string;
+  vitals: {
+    recordId: number;
+    recordedAt: string;
+    heightCm: number;
+    weightKg: number;
+    bmi: number | null;
+    bloodPressureSys: number | null;
+    bloodPressureDia: number | null;
+    heartRate: number | null;
+    respiratoryRate: number | null;
+    temperature: number | null;
+    spo2: number | null;
+    symptomsNote: string;
+    status: string;
+  } | null;
+  prescriptions: Array<{
+    id: number;
+    prescribedAt: string;
+    signatureStatus: string;
+    medications: Array<{
+      id: string;
+      name: string;
+      quantity: string;
+      frequency: string;
+      unit: string;
+      duration?: string;
+    }>;
+  }>;
+  labTests: Array<{
+    id: number;
+    testType: string;
+    testAt: string;
+    resultSummary: string;
+    note: string;
+    fileUrl: string | null;
+    technicianName: string;
+  }>;
+  surgeries: Array<{
+    id: number;
+    surgeryType: string;
+    start: string;
+    end: string;
+    result: string;
+    surgeon: string;
+    note: string;
+    urgency: string;
+  }>;
+}
+
+/** One completed encounter (REGIMEN with end set); aggregates treatments in that regimen. */
+export type PatientMedicalRegimen = PatientMedicalVisit & {
+  regimenId: number;
+  visitEnd: string;
+};
+
+export interface PatientSymptomLog {
+  id: number;
+  time: string;
+  condition: string;
+  suggestion: string;
 }
 
 export const appointmentService = {
@@ -174,6 +278,34 @@ export const appointmentService = {
     return data;
   },
 
+  async getPatientMedicalVisits(): Promise<PatientMedicalVisit[]> {
+    const data = await apiClient.get<{ success: boolean; visits: PatientMedicalVisit[] }>(
+      '/api/appointments/medical-visits'
+    );
+    return data.visits ?? [];
+  },
+
+  async getPatientMedicalRegimens(): Promise<PatientMedicalRegimen[]> {
+    const data = await apiClient.get<{ success: boolean; regimens: PatientMedicalRegimen[] }>(
+      '/api/appointments/medical-regimens'
+    );
+    return data.regimens ?? [];
+  },
+
+  async getPatientSymptomLogs(): Promise<PatientSymptomLog[]> {
+    const data = await apiClient.get<{ success: boolean; logs: PatientSymptomLog[] }>(
+      '/api/appointments/symptom-logs'
+    );
+    return data.logs ?? [];
+  },
+
+  async getPatientLabTestDetails(testId: number): Promise<LabTestDetail[]> {
+    const data = await apiClient.get<{ success: boolean; details: LabTestDetail[] }>(
+      `/api/appointments/lab-tests/${testId}/details`
+    );
+    return data.details ?? [];
+  },
+
   async updateAppointment(id: number, updates: Partial<Appointment>): Promise<Appointment> {
     const data = await apiClient.put<{ success: boolean; appointment: Appointment }>(`/api/appointments/${id}`, updates);
     return data.appointment;
@@ -231,23 +363,42 @@ export const appointmentService = {
     return data.analysis;
   },
 
-  async getAiDoctorRecommendation(data: {
-    symptoms: string;
-    department?: string;
-    preferredDate?: string;
-    availableDoctors: DoctorOption[];
+  async getNurseCheckInOptions(patientIdParam: string): Promise<NurseCheckInOptionsResponse> {
+    return apiClient.get<NurseCheckInOptionsResponse>(
+      `/api/appointments/nurse/check-in-options?patientId=${encodeURIComponent(patientIdParam)}`
+    );
+  },
+
+  async postNurseCheckInAccept(body: { patientId: string | number; appointmentId: number }) {
+    return apiClient.post<{ success: boolean; appointment: NurseCheckInSlot; regimenId: number }>(
+      '/api/appointments/nurse/check-in-accept',
+      body
+    );
+  },
+
+  async postNurseCheckInAssign(body: { patientId: string | number; appointmentId: number; condition?: string }) {
+    return apiClient.post<{ success: boolean; appointment: NurseCheckInSlot; regimenId: number }>(
+      '/api/appointments/nurse/check-in-assign',
+      body
+    );
+  },
+
+  async postNurseCheckInReschedule(body: {
+    patientId: string | number;
+    fromAppointmentId: number;
+    toAppointmentId: number;
   }) {
-    return apiClient.post<{
-      success: boolean;
-      recommendations?: Array<{
-        doctorName: string;
-        department: string;
-        reason: string;
-        priority: number;
-      }>;
-      generalAdvice?: string;
-      raw?: string;
-    }>('/api/ai/recommend-doctor', data);
+    return apiClient.post<{ success: boolean; appointment: NurseCheckInSlot; regimenId: number }>(
+      '/api/appointments/nurse/check-in-reschedule',
+      body
+    );
+  },
+
+  async postNurseRegimenCheckout(body: { patientId: string | number; regimenId: number }) {
+    return apiClient.post<{ success: boolean; regimenId: number }>(
+      '/api/appointments/nurse/regimen/checkout',
+      body
+    );
   },
 };
 

@@ -6,6 +6,8 @@ export interface ExportMedicationRow {
   name: string
   quantity: string
   unit: string
+  /** Treatment days (PRESCRIPTION_DETAIL.duration). */
+  duration?: string
   usage: string
   note?: string
 }
@@ -125,6 +127,10 @@ export async function generatePrescriptionPdfBlob(opts: {
       const unitLabel = unitLabelsVi[m.unit] ?? m.unit
       const name = escapeHtml(m.name)
       const qty = escapeHtml(m.quantity || "—")
+      const dur =
+        m.duration != null && String(m.duration).trim() !== ""
+          ? escapeHtml(String(m.duration).trim())
+          : "—"
       const usage = escapeHtml(m.usage || "—")
       return `
       <tr>
@@ -135,6 +141,8 @@ export async function generatePrescriptionPdfBlob(opts: {
             <span style="font-weight:600">Số lượng:</span> ${qty}
             &nbsp;&nbsp;|&nbsp;&nbsp;
             <span style="font-weight:600">Đơn vị:</span> ${escapeHtml(unitLabel)}
+            &nbsp;&nbsp;|&nbsp;&nbsp;
+            <span style="font-weight:600">Số ngày dùng:</span> ${dur}
           </div>
         </td>
       </tr>
@@ -212,11 +220,8 @@ export async function generatePrescriptionPdfBlob(opts: {
         <div>${adviceLines}</div>
       </div>
       <div class="sig">
-        <div style="font-weight:600">Doctor</div>
-        ${opts.signatureDataUrl
-          ? `<div style="margin:10px 0 8px;margin-left:auto;max-width:200px"><img src="${opts.signatureDataUrl}" style="max-width:200px;max-height:72px;object-fit:contain" /></div>`
-          : `<div class="sig-box" aria-hidden="true"></div>`
-        }
+        <div style="font-weight:600">Bác sĩ</div>
+        <div class="sig-box" aria-hidden="true"></div>
         <div>${signatureDoctorLine}</div>
       </div>
     </div>

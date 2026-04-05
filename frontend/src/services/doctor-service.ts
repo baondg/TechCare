@@ -18,6 +18,19 @@ const handleUnauthorized = (status: number) => {
   }
 };
 
+async function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = String(reader.result || "")
+      const idx = result.indexOf(",")
+      resolve(idx >= 0 ? result.slice(idx + 1) : result)
+    }
+    reader.onerror = () => reject(new Error("Cannot read file"))
+    reader.readAsDataURL(file)
+  })
+}
+
 async function apiRequest<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     ...options,
@@ -83,7 +96,7 @@ export interface HealthInfo {
   pastIllnesses: string[];
   vaccinations: string[];
   substanceAbuse: string[];
-  status?: 'draft' | 'signed' | 'unsigned';
+  status?: 'draft' | 'confirmed';
   updatedBy: string | null;
   createdAt: string;
   updatedAt: string;
@@ -119,6 +132,8 @@ export interface Medication {
   id?: number;
   name: string;
   quantity: string;
+  /** Days to take the medication (PRESCRIPTION_DETAIL.duration). */
+  duration?: string;
   usage: string;
   unit: 'tablet' | 'capsule' | 'syrup' | 'injection' | 'drop' | 'cream' | 'ointment' | 'powder' | 'spray';
   note?: string;
@@ -132,7 +147,9 @@ export interface Prescription {
   doctorId: number;
   doctorName: string;
   department: string;
-  /** MEDICAL_PRESCRIPTION.status — controls edit / sign workflow */
+  /** MEDICAL_PRESCRIPTION.duration (days, whole order). */
+  duration?: number;
+  /** API compatibility: always "signed" after save (no MEDICAL_PRESCRIPTION.status column). */
   signatureStatus: PrescriptionSignatureStatus;
   medications: Medication[];
   createdAt: string;
@@ -142,6 +159,7 @@ export interface Prescription {
 export interface LabTest {
   id: number;
   patientId: number;
+  technicianId?: number | null;
   testType: string;
   testDate: string;
   technicianName: string | null;
@@ -150,6 +168,20 @@ export interface LabTest {
   note: string | null;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface TechnicianOption {
+  technicianId: number
+  technicianName: string
+}
+
+export interface LabTestDetail {
+  testId: number
+  no: number
+  itemIndex: string
+  result: string
+  numericValue: number | null
+  unit: string | null
 }
 
 /** Aligns with SURGERY + PROCEDURE_.note; type is SURGERY.type ENUM */
@@ -239,6 +271,20 @@ export const doctorService = {
     }>(`${API_BASE_URL}/api/doctor/patients/${patientId}`);
   },
 
+  async getActiveRegimen(patientId: number | string) {
+    return apiRequest<{
+      success: boolean;
+      active: { regimenId: number; startAt: string } | null;
+    }>(`${API_BASE_URL}/api/doctor/patients/${patientId}/regimen/active`);
+  },
+
+  async closeOpenVisitRegimen(patientId: number | string) {
+    return apiRequest<{ success: boolean; regimenId: number }>(
+      `${API_BASE_URL}/api/doctor/patients/${patientId}/regimen/close`,
+      { method: 'POST' }
+    );
+  },
+
   // ═══ Health Info ═══
 
   async getHealthInfo(patientId: number) {
@@ -284,16 +330,9 @@ export const doctorService = {
     );
   },
 
-  async signHealthInfo(patientId: number | string, id: number | string) {
-    return apiRequest<{ success: boolean; id: number; status: 'signed' }>(
-      `${API_BASE_URL}/api/doctor/patients/${patientId}/health-info/${id}/sign`,
-      { method: 'PATCH' }
-    );
-  },
-
-  async unsignHealthInfo(patientId: number | string, id: number | string) {
-    return apiRequest<{ success: boolean; id: number; status: 'unsigned' }>(
-      `${API_BASE_URL}/api/doctor/patients/${patientId}/health-info/${id}/unsign`,
+  async confirmHealthInfo(patientId: number | string, id: number | string) {
+    return apiRequest<{ success: boolean; id: number; status: 'confirmed' }>(
+      `${API_BASE_URL}/api/doctor/patients/${patientId}/health-info/${id}/confirm`,
       { method: 'PATCH' }
     );
   },
@@ -372,6 +411,8 @@ export const doctorService = {
 
   async createPrescription(patientId: number | string, data: {
     department?: string;
+    /** MEDICAL_PRESCRIPTION.duration (days); defaults on server if omitted. */
+    duration?: number;
     medications: Omit<Medication, 'id'>[];
   }) {
     return apiRequest<{
@@ -388,6 +429,7 @@ export const doctorService = {
     prescriptionId: number | string,
     data: {
       department?: string;
+      duration?: number;
       medications: Omit<Medication, 'id'>[];
     }
   ) {
@@ -400,26 +442,6 @@ export const doctorService = {
     });
   },
 
-  async signPrescription(patientId: number | string, prescriptionId: number | string) {
-    return apiRequest<{
-      success: boolean;
-      signatureStatus: PrescriptionSignatureStatus;
-      id: number;
-    }>(`${API_BASE_URL}/api/doctor/patients/${patientId}/prescriptions/${prescriptionId}/sign`, {
-      method: 'PATCH',
-    });
-  },
-
-  async unsignPrescription(patientId: number | string, prescriptionId: number | string) {
-    return apiRequest<{
-      success: boolean;
-      signatureStatus: PrescriptionSignatureStatus;
-      id: number;
-    }>(`${API_BASE_URL}/api/doctor/patients/${patientId}/prescriptions/${prescriptionId}/unsign`, {
-      method: 'PATCH',
-    });
-  },
-
   // ═══ Lab tests ═══
 
   async getLabTests(patientId: number | string) {
@@ -429,11 +451,42 @@ export const doctorService = {
     }>(`${API_BASE_URL}/api/doctor/patients/${patientId}/lab-tests`);
   },
 
+  async getTechnicians() {
+    return apiRequest<{
+      success: boolean;
+      technicians: TechnicianOption[];
+    }>(`${API_BASE_URL}/api/doctor/technicians`);
+  },
+
+  async getLabTestDetails(patientId: number | string, testId: number | string) {
+    return apiRequest<{
+      success: boolean
+      details: LabTestDetail[]
+    }>(`${API_BASE_URL}/api/doctor/patients/${patientId}/lab-tests/${testId}/details`)
+  },
+
+  async uploadLabAttachment(file: File) {
+    const dataBase64 = await fileToBase64(file)
+    return apiRequest<{
+      success: boolean
+      fileUrl: string
+      fileName: string
+    }>(`${API_BASE_URL}/api/doctor/lab-attachments`, {
+      method: "POST",
+      body: JSON.stringify({
+        fileName: file.name,
+        mimeType: file.type || "application/octet-stream",
+        dataBase64,
+      }),
+    })
+  },
+
   async createLabTest(
     patientId: number | string,
     data: {
       testType: string;
       testDate: string;
+      technicianId?: number | null;
       technicianName?: string;
       resultSummary?: string;
       fileUrl?: string;
@@ -452,6 +505,7 @@ export const doctorService = {
     data: Partial<{
       testType: string;
       testDate: string;
+      technicianId: number | null;
       technicianName: string | null;
       resultSummary: string | null;
       fileUrl: string | null;
@@ -525,7 +579,7 @@ export const doctorService = {
   },
 
   async createAppointment(data: {
-    patientId: number;
+    patientId: number | string;
     department: string;
     date: string;
     time: string;
@@ -537,6 +591,34 @@ export const doctorService = {
       success: boolean;
       appointment: DoctorAppointment;
     }>(`${API_BASE_URL}/api/doctor/appointments`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async createPatientTransfer(
+    patientId: number | string,
+    data:
+      | {
+          kind: 'clinic';
+          reason: string;
+          note?: string;
+          fromRoomId: number;
+          toRoomId: number;
+        }
+      | {
+          kind: 'hospital';
+          reason: string;
+          note?: string;
+          toHospitalName: string;
+          toHospitalId?: string;
+          transport?: string;
+        }
+  ) {
+    return apiRequest<{
+      success: boolean;
+      transfer: { orderId: number; treatmentId: number; kind: string };
+    }>(`${API_BASE_URL}/api/doctor/patients/${encodeURIComponent(String(patientId))}/transfers`, {
       method: 'POST',
       body: JSON.stringify(data),
     });

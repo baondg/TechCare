@@ -3,89 +3,59 @@ const sequelize = require('../common/database');
 
 /**
  * GET /api/notifications
- * Get all notifications for the current user
+ * Lists notifications that are already due (time <= NOW) for the logged-in user.
  */
-exports.getNotifications = async (req, res) => {
+exports.listNotifications = async (req, res) => {
   try {
     const userId = req.user.userId;
-    const { page = 1, limit = 20 } = req.query;
-    const offset = (page - 1) * limit;
-
     const rows = await sequelize.query(
-      `SELECT id, title, message, type, is_read AS isRead, related_id AS relatedId, created_at AS createdAt
+      `SELECT id, \`type\`, content, \`time\`, status
        FROM NOTIFICATION
-       WHERE user_id = :userId
-       ORDER BY created_at DESC
-       LIMIT :limit OFFSET :offset`,
-      { replacements: { userId, limit: Number(limit), offset: Number(offset) }, type: QueryTypes.SELECT }
-    );
-
-    const [countRow] = await sequelize.query(
-      `SELECT COUNT(*) AS total FROM NOTIFICATION WHERE user_id = :userId`,
+       WHERE user_id = :userId AND \`time\` <= NOW()
+       ORDER BY \`time\` DESC
+       LIMIT 100`,
       { replacements: { userId }, type: QueryTypes.SELECT }
     );
-
-    return res.json({
+    const [c] = await sequelize.query(
+      `SELECT COUNT(*) AS n FROM NOTIFICATION
+       WHERE user_id = :userId AND \`time\` <= NOW() AND status = 'unread'`,
+      { replacements: { userId }, type: QueryTypes.SELECT }
+    );
+    res.json({
       success: true,
-      notifications: rows,
-      total: countRow?.total || 0,
+      notifications: rows.map((r) => ({
+        id: r.id,
+        type: r.type,
+        content: r.content,
+        time: r.time,
+        status: r.status,
+      })),
+      unreadCount: Number(c?.n) || 0,
     });
   } catch (error) {
-    console.error('Get notifications error:', error);
-    return res.status(500).json({ success: false, message: 'Internal server error' });
+    console.error('List notifications error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
 
 /**
- * GET /api/notifications/unread-count
+ * PATCH /api/notifications/:id/read
  */
-exports.getUnreadCount = async (req, res) => {
+exports.markNotificationRead = async (req, res) => {
   try {
     const userId = req.user.userId;
-    const [row] = await sequelize.query(
-      `SELECT COUNT(*) AS count FROM NOTIFICATION WHERE user_id = :userId AND is_read = 0`,
-      { replacements: { userId }, type: QueryTypes.SELECT }
-    );
-    return res.json({ success: true, count: Number(row?.count || 0) });
-  } catch (error) {
-    console.error('Get unread count error:', error);
-    return res.status(500).json({ success: false, message: 'Internal server error' });
-  }
-};
-
-/**
- * PUT /api/notifications/:id/read
- */
-exports.markAsRead = async (req, res) => {
-  try {
-    const userId = req.user.userId;
-    const { id } = req.params;
-
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid id' });
+    }
     await sequelize.query(
-      `UPDATE NOTIFICATION SET is_read = 1 WHERE id = :id AND user_id = :userId`,
+      `UPDATE NOTIFICATION SET status = 'read'
+       WHERE id = :id AND user_id = :userId`,
       { replacements: { id, userId }, type: QueryTypes.UPDATE }
     );
-
-    return res.json({ success: true });
+    res.json({ success: true });
   } catch (error) {
-    console.error('Mark as read error:', error);
-    return res.status(500).json({ success: false, message: 'Internal server error' });
-  }
-};
-
-/**
- * PUT /api/notifications/read-all
- */
-exports.markAllAsRead = async (req, res) => {
-  try {
-    const userId = req.user.userId;
-    await sequelize.query(
-      `UPDATE NOTIFICATION SET is_read = 1 WHERE user_id = :userId AND is_read = 0`,
-      { replacements: { userId }, type: QueryTypes.UPDATE }
-    );
-    return res.json({ success: true });
-  } catch (error) {
-    console.error('Mark all as read error:', error);
-    return res.status(500).json({ success: false, message: 'Internal server error' });
+    console.error('Mark notification read error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };

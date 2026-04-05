@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { PatientLayout } from "@/components/patient-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Activity, Heart, AlertCircle, FileText, Save, History, X, Loader2, Stethoscope, Plus, Edit, Search, Copy, PenLine, PenOff, FileDown, Trash2 } from "lucide-react"
+import { Activity, Heart, AlertCircle, FileText, Save, History, X, Loader2, Stethoscope, Plus, Edit, Search, Copy, CheckCircle2, FileDown, Trash2 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { CollapsibleSection } from "@/components/collapsible-section"
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
@@ -21,6 +21,7 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Ar
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { generateHealthInfoTrackingPdfBlob } from "@/lib/export-health-info-tracking-pdf"
+import { useEmrSession } from "@/contexts/emr-session-context"
 
 type HealthInfoPageProps = {
   mode?: "doctor" | "nurse"
@@ -28,6 +29,8 @@ type HealthInfoPageProps = {
 
 export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps) {
   const { user } = useAuth()
+  const { mutationsAllowed } = useEmrSession()
+  const allowHealthWrites = mode === "nurse" || mutationsAllowed
   const params = useParams<{ patientId: string }>()
   // Strip "OP000..." prefix → numeric ID (e.g. "OP000000001" → 1)
   const patientId = Number(params.patientId?.replace(/^OP0*/, '') || '0')
@@ -48,7 +51,7 @@ export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps)
 
     symptoms: string
     updatedBy: string
-    status: "draft" | "signed" | "unsigned"
+    status: "draft" | "confirmed"
 
     // ✅ thêm
     bloodType?: string
@@ -111,9 +114,15 @@ export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps)
   }, [height, weight])
 
   const [healthHistory, setHealthHistory] = useState<HealthRecord[]>([])
+
+  const mapApiHealthStatus = (s: unknown): HealthRecord["status"] => {
+    const raw = String(s ?? "").toLowerCase()
+    if (raw === "confirmed" || raw === "signed") return "confirmed"
+    return "draft"
+  }
   
   const filteredHistory = healthHistory.filter(r => {
-    const status = r.status === "signed" ? "Signed" : r.status === "unsigned" ? "Voided" : "Draft"
+    const status = r.status === "confirmed" ? "Confirmed" : "Draft"
     return (
       (!filters.date || r.updatedAt.toLocaleDateString("vi-VN").includes(filters.date)) &&
       (!filters.height || r.height.toString().includes(filters.height)) &&
@@ -142,8 +151,7 @@ export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps)
   const [selectedRecords, setSelectedRecords] = useState<HealthRecord[]>([])
   const selectedStatus = selectedRecord?.status
   const canEditSelected = !!selectedRecord && selectedStatus === "draft" && !isEditing
-  const canSignSelected = !!selectedRecord && selectedStatus === "draft" && !isEditing
-  const canUnsignSelected = !!selectedRecord && selectedStatus === "signed" && !isEditing
+  const canConfirmSelected = !!selectedRecord && selectedStatus === "draft" && !isEditing
   const canDeleteSelected =
     mode === "nurse" &&
     !isEditing &&
@@ -236,6 +244,7 @@ export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps)
   }
 
   const handleDeleteSelectedRecords = async () => {
+    if (!allowHealthWrites) return
     if (!patientId || !canDeleteSelected) return
     if (!confirm(`Delete ${selectedRecords.length} selected draft record(s)?`)) return
     setSaving(true)
@@ -482,7 +491,7 @@ const loadHealthHistory = async () => {
 
           // ✅ FIX condition → symptoms
           symptoms: h.condition || "",
-          status: (h.status as "draft" | "signed" | "unsigned") || "draft",
+          status: mapApiHealthStatus(h.status),
 
           updatedBy: "Patient",
 
@@ -577,6 +586,7 @@ const loadHealthHistory = async () => {
   }
 
   const handleCopyRecord = () => {
+    if (!allowHealthWrites) return
     if (!selectedRecord) return
     loadRecordToForm(selectedRecord)
     setCurrentHealthInfoId(null)
@@ -586,6 +596,7 @@ const loadHealthHistory = async () => {
   }
 
   const handleSave = async () => {
+    if (!allowHealthWrites) return
     if (!patientId) return
     setSaving(true)
     setError(null)
@@ -753,16 +764,6 @@ const loadHealthHistory = async () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-
-        <div>
-          <h3 className="text-xl font-semibold flex items-center gap-2">
-            <History className="h-5 w-5" />
-            Health Information History
-          </h3>
-          <p className="text-sm text-muted-foreground">
-            Click on any row to load that record into the form below
-          </p>
-        </div>
 
         <Tabs defaultValue="records" className="w-full">
           <TabsList className="grid w-full max-w-md grid-cols-2">
@@ -1014,13 +1015,11 @@ const loadHealthHistory = async () => {
                       </TableCell>
                       <TableCell>
                         <span className={`px-2 py-1 text-xs rounded-full ${
-                          r.status === "signed"
+                          r.status === "confirmed"
                             ? "bg-green-100 text-green-800"
-                            : r.status === "unsigned"
-                              ? "bg-red-100 text-red-800"
-                              : "bg-yellow-100 text-yellow-800"
+                            : "bg-yellow-100 text-yellow-800"
                         }`}>
-                          {r.status === "signed" ? "Signed" : r.status === "unsigned" ? "Voided" : "Draft"}
+                          {r.status === "confirmed" ? "Confirmed" : "Draft"}
                         </span>
                       </TableCell>
                         <TableCell className="text-center">
@@ -1195,6 +1194,7 @@ const loadHealthHistory = async () => {
             <div className="flex gap-3">
               <Button
                 onClick={() => {
+                  if (!allowHealthWrites) return
                   if (healthHistory.length > 0) {
                     loadRecordToForm(healthHistory[0])
                     setCurrentHealthInfoId(null)
@@ -1204,7 +1204,7 @@ const loadHealthHistory = async () => {
                   setIsAdding(true)
                   setIsEditing(true)
                 }}
-                disabled={isEditing}
+                disabled={isEditing || !allowHealthWrites}
                 variant="outline"
                 className="btn-outline text-lg px-6 py-4 flex items-center gap-2"
               >
@@ -1213,11 +1213,12 @@ const loadHealthHistory = async () => {
               </Button>
               <Button
                 onClick={() => {
+                  if (!allowHealthWrites) return
                   if (!selectedRecord) return
                   setIsAdding(false)
                   setIsEditing(true)
                 }}
-                disabled={!canEditSelected}
+                disabled={!canEditSelected || !allowHealthWrites}
                 variant="outline"
                 className="btn-outline text-lg px-6 py-4 flex items-center gap-2"
               >
@@ -1226,7 +1227,7 @@ const loadHealthHistory = async () => {
               </Button>
               <Button
                 onClick={handleCopyRecord}
-                disabled={!selectedRecord}
+                disabled={!selectedRecord || !allowHealthWrites}
                 className="btn-outline text-lg px-6 py-4 flex items-center gap-2"
               >
                 <Copy className="h-4 w-4" />
@@ -1234,7 +1235,7 @@ const loadHealthHistory = async () => {
               </Button>
               <Button
                 onClick={handleSave}
-                disabled={!isEditing || saving}
+                disabled={!isEditing || saving || !allowHealthWrites}
                 className="btn-gradient text-lg px-6 py-4 flex items-center gap-2"
               >
                 <Save className="h-4 w-4" />
@@ -1242,41 +1243,23 @@ const loadHealthHistory = async () => {
               </Button>
               <Button
                 onClick={async () => {
+                  if (!allowHealthWrites) return
                   if (!selectedRecord) return
                   try {
-                    await doctorService.signHealthInfo(patientId, selectedRecord.id)
-                    setSuccess("Health record signed successfully.")
+                    await doctorService.confirmHealthInfo(patientId, selectedRecord.id)
+                    setSuccess("Health record confirmed successfully.")
                     setError(null)
                     setSelectedRecord(null)
                     await loadHealthHistory()
                   } catch (err: any) {
-                    setError(err?.message || "Failed to sign health record")
+                    setError(err?.message || "Failed to confirm health record")
                   }
                 }}
-                disabled={!canSignSelected}
+                disabled={!canConfirmSelected || !allowHealthWrites}
                 className="!bg-[#16a34a] hover:bg-green-700 text-white text-lg px-6 py-4"
               >
-                <PenLine className="h-4 w-4" />
-                Sign
-              </Button>
-              <Button
-                onClick={async () => {
-                  if (!selectedRecord) return
-                  try {
-                    await doctorService.unsignHealthInfo(patientId, selectedRecord.id)
-                    setSuccess("Health record voided successfully.")
-                    setError(null)
-                    setSelectedRecord(null)
-                    await loadHealthHistory()
-                  } catch (err: any) {
-                    setError(err?.message || "Failed to void health record")
-                  }
-                }}
-                disabled={!canUnsignSelected}
-                className="!bg-[#dc2626] hover:bg-red-700 text-white text-lg px-6 py-4"
-              >
-                <PenOff className="h-4 w-4" />
-                Void
+                <CheckCircle2 className="h-4 w-4" />
+                Confirm
               </Button>
               <Button
                 onClick={() => {
@@ -1324,13 +1307,13 @@ const loadHealthHistory = async () => {
                 <Input
                   value={bpSys}
                   onChange={(e) => setBpSys(e.target.value)}
-                  disabled={!isEditing}
+                  disabled={!isEditing || !allowHealthWrites}
                 />
 
                 <Input
                   value={bpDia}
                   onChange={(e) => setBpDia(e.target.value)}
-                  disabled={!isEditing}
+                  disabled={!isEditing || !allowHealthWrites}
                 />
               </div>
             </div>
@@ -1342,7 +1325,7 @@ const loadHealthHistory = async () => {
                 id="oxygen"
                 value={spo2}
                 onChange={(e) => setSpo2(e.target.value)}
-                disabled={!isEditing}
+                disabled={!isEditing || !allowHealthWrites}
               />
             </div>
 
@@ -1353,7 +1336,7 @@ const loadHealthHistory = async () => {
                 id="temperature"
                 value={temperature}
                 onChange={(e) => setTemperature(e.target.value)}
-                disabled={!isEditing}
+                disabled={!isEditing || !allowHealthWrites}
               />
             </div>
 
@@ -1364,7 +1347,7 @@ const loadHealthHistory = async () => {
                 id="height" 
                 value={height}
                 onChange={(e) => setHeight(e.target.value)}
-                disabled={!isEditing}
+                disabled={!isEditing || !allowHealthWrites}
                 type="number" />
             </div>
 
@@ -1375,7 +1358,7 @@ const loadHealthHistory = async () => {
                 id="respiratory"
                 value={respiratoryRate}
                 onChange={(e) => setRespiratoryRate(e.target.value)}
-                disabled={!isEditing}
+                disabled={!isEditing || !allowHealthWrites}
               />
             </div>
 
@@ -1384,7 +1367,7 @@ const loadHealthHistory = async () => {
               <Label htmlFor="weight">Weight (kg)</Label>
               <Input id="weight" 
                 value={weight}
-                disabled={!isEditing}
+                disabled={!isEditing || !allowHealthWrites}
                 onChange={(e) => setWeight(e.target.value)}
                 type="number" />
             </div>
@@ -1396,7 +1379,7 @@ const loadHealthHistory = async () => {
                 id="heart-rate"
                 value={heartRate}
                 onChange={(e) => setHeartRate(e.target.value)}
-                disabled={!isEditing}
+                disabled={!isEditing || !allowHealthWrites}
               />
             </div>
 
@@ -1409,7 +1392,7 @@ const loadHealthHistory = async () => {
             {/* Blood Type */}
             <div className="space-y-2 ">
               <Label>Blood Type</Label>
-              <Select value={bloodType} onValueChange={setBloodType} disabled={!isEditing}>
+              <Select value={bloodType} onValueChange={setBloodType} disabled={!isEditing || !allowHealthWrites}>
                 <SelectTrigger>
                 <div className="text-sm font-normal bg-background text-muted-foreground">
                     <SelectValue placeholder="Select blood type" />
@@ -1440,21 +1423,21 @@ const loadHealthHistory = async () => {
               label="Drug Allergies"
               values={drugAllergies}
               setValues={setDrugAllergies}
-              disabled={!isEditing}
+              disabled={!isEditing || !allowHealthWrites}
             />
 
             <InputList
               label="Food Allergies"
               values={foodAllergies}
               setValues={setFoodAllergies}
-              disabled={!isEditing}
+              disabled={!isEditing || !allowHealthWrites}
             />
 
             <InputList
               label="Other Allergies"
               values={otherAllergies}
               setValues={setOtherAllergies}
-              disabled={!isEditing}
+              disabled={!isEditing || !allowHealthWrites}
             />
 
           </div>
@@ -1473,7 +1456,7 @@ const loadHealthHistory = async () => {
             <Textarea
               value={symptoms}
               onChange={(e) => setSymptoms(e.target.value)}
-              disabled={!isEditing}
+              disabled={!isEditing || !allowHealthWrites}
               rows={4}
               placeholder="Describe any current symptoms you are experiencing..."
             />
@@ -1493,42 +1476,42 @@ const loadHealthHistory = async () => {
               label="Chronic Conditions"
               values={chronicConditions}
               setValues={setChronicConditions}
-              disabled={!isEditing}
+              disabled={!isEditing || !allowHealthWrites}
             />
 
             <InputList
               label="Past Surgeries"
               values={pastSurgeries}
               setValues={setPastSurgeries}
-              disabled={!isEditing}
+              disabled={!isEditing || !allowHealthWrites}
             />
 
             <InputList
               label="Family Medical History"
               values={familyHistory}
               setValues={setFamilyHistory}
-              disabled={!isEditing}
+              disabled={!isEditing || !allowHealthWrites}
             />
 
             <InputList
               label="Previous Illnesses"
               values={pastIllnesses}
               setValues={setPastIllnesses}
-              disabled={!isEditing}
+              disabled={!isEditing || !allowHealthWrites}
             />
 
             <InputList
               label="Vaccinations"
               values={vaccinations}
               setValues={setVaccinations}
-              disabled={!isEditing}
+              disabled={!isEditing || !allowHealthWrites}
             />
 
             <InputList
               label="Substance Abuse"
               values={substanceAbuse}
               setValues={setSubstanceAbuse}
-              disabled={!isEditing}
+              disabled={!isEditing || !allowHealthWrites}
             />
 
           </div>

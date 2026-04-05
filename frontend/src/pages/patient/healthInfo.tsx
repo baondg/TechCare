@@ -39,7 +39,7 @@ export default function HealthInfoPage() {
     spo2: number
     symptoms: string
     updatedBy: string
-    status: "draft" | "signed" | "unsigned"
+    status: "draft" | "confirmed"
   }
 
   // Loading states
@@ -86,9 +86,15 @@ export default function HealthInfoPage() {
   }, [height, weight])
 
   const [healthHistory, setHealthHistory] = useState<HealthRecord[]>([])
+
+  const mapApiHealthStatus = (s: unknown): HealthRecord["status"] => {
+    const raw = String(s ?? "").toLowerCase()
+    if (raw === "confirmed" || raw === "signed") return "confirmed"
+    return "draft"
+  }
   
   const filteredHistory = healthHistory.filter(r => {
-    const status = r.status === "signed" ? "Signed" : r.status === "unsigned" ? "Unsigned" : "Draft"
+    const status = r.status === "confirmed" ? "Confirmed" : "Draft"
     return (
       (!filters.date || r.updatedAt.toLocaleDateString("vi-VN").includes(filters.date)) &&
       (!filters.height || r.height.toString().includes(filters.height)) &&
@@ -122,8 +128,6 @@ export default function HealthInfoPage() {
   const [pageSize, setPageSize] = useState(10)
   const selectedStatus = selectedRecord?.status
   const canEditSelected = !!selectedRecord && selectedStatus === "draft" && !isEditing && !inlineEditingId
-  const canSignSelected = !!selectedRecord && selectedStatus === "draft" && !isEditing && !inlineEditingId
-  const canUnsignSelected = !!selectedRecord && selectedStatus === "signed" && !isEditing && !inlineEditingId
 
   const toArray = (value: unknown): string[] => {
     if (Array.isArray(value)) return value.filter((item): item is string => typeof item === "string")
@@ -328,7 +332,7 @@ export default function HealthInfoPage() {
             spo2: h.spo2 || 0,
             symptoms: h.currentSymptoms || "",
             updatedBy: h.updatedBy || "Patient",
-            status: (h.status as "draft" | "signed" | "unsigned") || "draft",
+            status: mapApiHealthStatus(h.status),
           }))
           // 🔥 SORT MỚI NHẤT LÊN ĐẦU
           .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
@@ -896,13 +900,11 @@ export default function HealthInfoPage() {
                       </TableCell>
                       <TableCell>
                         <span className={`px-2 py-1 text-xs rounded-full ${
-                          r.status === "signed"
+                          r.status === "confirmed"
                             ? "bg-green-100 text-green-800"
-                            : r.status === "unsigned"
-                              ? "bg-red-100 text-red-800"
-                              : "bg-yellow-100 text-yellow-800"
+                            : "bg-yellow-100 text-yellow-800"
                         }`}>
-                          {r.status === "signed" ? "Signed" : r.status === "unsigned" ? "Unsigned" : "Draft"}
+                          {r.status === "confirmed" ? "Confirmed" : "Draft"}
                         </span>
                       </TableCell>
                         <TableCell className="text-center">

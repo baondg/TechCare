@@ -31,7 +31,7 @@ export interface HealthInfo {
   pastIllnesses?: string | string[];
   vaccinations?: string | string[];
   substanceAbuse?: string | string[];
-  status?: 'draft' | 'signed' | 'unsigned';
+  status?: 'draft' | 'confirmed';
   
   // Metadata
   updatedBy?: string;
@@ -271,36 +271,19 @@ export const healthInfoService = {
     }
   },
 
-  async signHealthRecord(recordId: number): Promise<{ success: boolean; status?: 'signed'; error?: string }> {
+  async confirmHealthRecord(recordId: number): Promise<{ success: boolean; status?: 'confirmed'; error?: string }> {
     try {
       const user = localStorage.getItem('user');
       if (!user) return { success: false, error: 'User not authenticated' };
       const headers = getAuthHeader();
       if (!headers) return { success: false, error: 'Session expired. Please log in again.' };
       const userId = JSON.parse(user).id;
-      const response = await fetch(`${API_BASE_URL}/api/health-info/${userId}/${recordId}/sign`, { method: 'PATCH', headers });
+      const response = await fetch(`${API_BASE_URL}/api/health-info/${userId}/${recordId}/confirm`, { method: 'PATCH', headers });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) return { success: false, error: data.message || data.error || 'Failed to sign record' };
-      return { success: true, status: 'signed' };
+      if (!response.ok) return { success: false, error: data.message || data.error || 'Failed to confirm record' };
+      return { success: true, status: 'confirmed' };
     } catch (error) {
-      console.error('Sign health record error:', error);
-      return { success: false, error: 'Network error' };
-    }
-  },
-
-  async unsignHealthRecord(recordId: number): Promise<{ success: boolean; status?: 'unsigned'; error?: string }> {
-    try {
-      const user = localStorage.getItem('user');
-      if (!user) return { success: false, error: 'User not authenticated' };
-      const headers = getAuthHeader();
-      if (!headers) return { success: false, error: 'Session expired. Please log in again.' };
-      const userId = JSON.parse(user).id;
-      const response = await fetch(`${API_BASE_URL}/api/health-info/${userId}/${recordId}/unsign`, { method: 'PATCH', headers });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) return { success: false, error: data.message || data.error || 'Failed to unsign record' };
-      return { success: true, status: 'unsigned' };
-    } catch (error) {
-      console.error('Unsign health record error:', error);
+      console.error('Confirm health record error:', error);
       return { success: false, error: 'Network error' };
     }
   },

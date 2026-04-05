@@ -1,7 +1,137 @@
 const { QueryTypes } = require('sequelize');
 const sequelize = require('../common/database');
+const { selectPrescriptionRowsWithDurationFallback } = require('../common/prescriptionQueryCompat');
+const { scheduleMedicationRemindersForClosedRegimen } = require('../services/medicationReminderNotifications');
+const {
+  notifyDoctorPatientBooked,
+  notifyDoctorPatientCancelledAppointment,
+  notifyDoctorsAfterNurseReschedule,
+} = require('../services/appointmentNotifications');
 
 const normalizeDoctorInput = (value) => String(value || '').replace(/^Dr\.\s*/i, '').trim();
+
+function parseNursePatientId(raw) {
+  const s = String(raw ?? '').trim();
+  if (!s) return null;
+  const n = Number(s.replace(/^OP0*/i, ''));
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function assertNurseOrAdmin(req, res) {
+  const role = String(req.user?.role || '').toLowerCase();
+  if (!['nurse', 'admin'].includes(role)) {
+    res.status(403).json({ success: false, message: 'Forbidden' });
+    return false;
+  }
+  return true;
+}
+
+async function nursePatientExists(patientId) {
+  const [row] = await sequelize.query(
+    'SELECT patient_id AS id FROM PATIENT WHERE patient_id = :patientId LIMIT 1',
+    { replacements: { patientId }, type: QueryTypes.SELECT }
+  );
+  return !!row;
+}
+
+/** Set PATIENT.in_dept from the appointment room's DEPARTMENT (nurse check-in). */
+async function syncPatientInDeptFromAppointmentRoom(patientId, appointmentId, transaction) {
+  const qOpts = { replacements: { appointmentId }, type: QueryTypes.SELECT, ...(transaction ? { transaction } : {}) };
+  const [apptRoom] = await sequelize.query(
+    `SELECT cr.department_id AS departmentId
+     FROM APPOINTMENT a
+     JOIN CLINIC_ROOM cr ON cr.id = a.room_id
+     WHERE a.id = :appointmentId
+     LIMIT 1`,
+    qOpts
+  );
+  const deptId = apptRoom?.departmentId != null ? Number(apptRoom.departmentId) : null;
+  const updOpts = {
+    replacements: {
+      patientId,
+      deptId: Number.isFinite(deptId) ? deptId : null,
+    },
+    type: QueryTypes.UPDATE,
+    ...(transaction ? { transaction } : {}),
+  };
+  await sequelize.query(`UPDATE PATIENT SET in_dept = :deptId WHERE patient_id = :patientId`, updOpts);
+}
+
+function mapNurseCheckInRow(r) {
+  // Use MySQL wall-clock parts — same idea as getAppointments (DATE/TIME). Avoid JS Date / toISOString()
+  // which treat APPOINTMENT.time as UTC and shift display (e.g. VN +7: 14:00 → 21:00).
+  const wallDate = r.wallDate != null ? String(r.wallDate).slice(0, 10) : '';
+  const wallTimeRaw = r.wallTime != null ? String(r.wallTime).split('.')[0] : '';
+  const wallTime =
+    wallTimeRaw.length >= 8 ? wallTimeRaw.slice(0, 8) : wallTimeRaw.length === 5 ? `${wallTimeRaw}:00` : wallTimeRaw;
+  const timeDisplay = wallTime.length >= 5 ? wallTime.slice(0, 5) : '';
+  const slotTime =
+    wallDate && wallTime ? `${wallDate}T${wallTime}` : r.slotTime != null ? String(r.slotTime) : '';
+
+  return {
+    id: Number(r.id),
+    slotTime,
+    timeDisplay,
+    dateDisplay: wallDate,
+    doctorId: Number(r.doctorId),
+    doctorName: r.doctorName || '',
+    department: r.department || '',
+    roomId: r.roomId != null ? Number(r.roomId) : null,
+    roomName: r.roomName || '',
+    condition: r.conditionNote || '',
+  };
+}
+
+/** Disease for a new nurse visit regimen: last visit’s disease, else Z00.0 (created if missing). */
+async function getDefaultDiseaseIdForNurseRegimen(patientId, transaction) {
+  const sel = (sql, repl = {}) =>
+    sequelize.query(sql, {
+      replacements: repl,
+      type: QueryTypes.SELECT,
+      ...(transaction ? { transaction } : {}),
+    });
+
+  const latestRows = await sel(
+    `SELECT r.disease_id AS diseaseId
+     FROM TREATMENT t
+     JOIN REGIMEN r ON r.id = t.regimen_id
+     WHERE r.patient_id = :patientId
+     ORDER BY t.time DESC, t.id DESC
+     LIMIT 1`,
+    { patientId }
+  );
+  const latest = latestRows[0];
+  if (latest?.diseaseId != null) return Number(latest.diseaseId);
+
+  const zRows = await sel(`SELECT id FROM DISEASE WHERE icd_code = 'Z00.0' LIMIT 1`, {});
+  const z = zRows[0];
+  if (z?.id != null) return Number(z.id);
+
+  const insertOpts = { type: QueryTypes.INSERT, ...(transaction ? { transaction } : {}) };
+  const [insertId] = await sequelize.query(
+    `INSERT INTO DISEASE (icd_code, description, category, symptoms)
+     VALUES ('Z00.0', 'General examination', 'General', NULL)`,
+    insertOpts
+  );
+  return Number(insertId);
+}
+
+/** Nurse check-in: visit started, end filled on check-out. */
+async function insertNurseVisitRegimenOpenEnd(patientId, transaction) {
+  const diseaseId = await getDefaultDiseaseIdForNurseRegimen(patientId, transaction);
+  const insertOpts = {
+    replacements: { patientId, diseaseId },
+    type: QueryTypes.INSERT,
+    ...(transaction ? { transaction } : {}),
+  };
+  const [regimenId] = await sequelize.query(
+    `INSERT INTO REGIMEN (\`start\`, \`end\`, patient_id, disease_id)
+     VALUES (NOW(), NULL, :patientId, :diseaseId)`,
+    insertOpts
+  );
+  return Number(regimenId);
+}
+
 const MEDAI_CHAT_ENDPOINT = process.env.MEDAI_CHAT_ENDPOINT || 'http://localhost:3000/api/ai/chat';
 const MEDAI_SYMPTOM_ENDPOINT = process.env.MEDAI_SYMPTOM_ENDPOINT || 'http://localhost:8000/api/analyze_symptoms';
 
@@ -186,9 +316,12 @@ exports.getPortalPatients = async (req, res) => {
          u.first_name AS firstName,
          u.last_name AS lastName,
          u.sex AS gender,
-         u.dob AS dob
+         u.dob AS dob,
+         dep.name AS inDepartment
        FROM USER u
        JOIN ACCOUNT a ON a.user_id = u.id
+       LEFT JOIN PATIENT pt ON pt.user_id = u.id
+       LEFT JOIN DEPARTMENT dep ON dep.id = pt.in_dept
        WHERE a.type = 'PAT' AND (a.status = 1 OR a.status = '1' OR a.status = true)
        ORDER BY u.id DESC`,
       { type: QueryTypes.SELECT }
@@ -229,7 +362,8 @@ exports.getPortalPatients = async (req, res) => {
             }
           : null,
         latestVisit: latestDiagnosis?.visitTime || null,
-        doctor: latestDiagnosis?.doctorName || null
+        doctor: latestDiagnosis?.doctorName || null,
+        inDepartment: p.inDepartment != null ? String(p.inDepartment) : null
       };
     }));
 
@@ -511,23 +645,46 @@ async function getDoctorByInput(doctorInput) {
  * GET /api/appointments/doctors
  * Return all active doctors (for patient booking)
  */
+function parseDoctorDepartmentSet(value) {
+  if (value == null || value === '') return [];
+  return String(value)
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 exports.getDoctors = async (req, res) => {
   try {
-    const doctors = await sequelize.query(
+    const rows = await sequelize.query(
       `SELECT
          d.doctor_id AS id,
          a.username,
          u.first_name AS firstName,
          u.last_name AS lastName,
-         d.specifications AS department,
+         d.department AS departmentSet,
+         d.specifications AS specifications,
          cr.name AS room
        FROM DOCTOR d
        JOIN ACCOUNT a ON a.user_id = d.user_id
        JOIN USER u ON u.id = d.user_id
        LEFT JOIN CLINIC_ROOM cr ON cr.id = d.room_id
-       ORDER BY d.specifications ASC, u.first_name ASC`,
+       ORDER BY u.first_name ASC, u.last_name ASC, d.doctor_id ASC`,
       { type: QueryTypes.SELECT }
     );
+    const doctors = (rows || []).map((row) => {
+      const departments = parseDoctorDepartmentSet(row.departmentSet);
+      const spec = String(row.specifications || '').trim();
+      return {
+        id: row.id,
+        username: row.username,
+        firstName: row.firstName,
+        lastName: row.lastName,
+        departments,
+        /** First SET value, else legacy specifications text (for older clients) */
+        department: departments[0] || spec || undefined,
+        room: row.room,
+      };
+    });
     res.json({ success: true, doctors });
   } catch (error) {
     console.error('Get doctors error:', error);
@@ -542,9 +699,15 @@ exports.getDoctors = async (req, res) => {
 exports.getClinicRooms = async (_req, res) => {
   try {
     const rooms = await sequelize.query(
-      `SELECT id, name, capacity
-       FROM CLINIC_ROOM
-       ORDER BY name ASC, id ASC`,
+      `SELECT
+         cr.id,
+         cr.name,
+         cr.capacity,
+         cr.department_id AS departmentId,
+         dep.name AS departmentName
+       FROM CLINIC_ROOM cr
+       LEFT JOIN DEPARTMENT dep ON dep.id = cr.department_id
+       ORDER BY dep.name ASC, cr.name ASC, cr.id ASC`,
       { type: QueryTypes.SELECT }
     );
     return res.json({ success: true, rooms });
@@ -878,6 +1041,7 @@ exports.createAppointment = async (req, res) => {
       );
       id = newId;
     }
+    await notifyDoctorPatientBooked(sequelize, id);
     res.status(201).json({
       success: true,
       appointment: {
@@ -995,8 +1159,7 @@ exports.getPatientDashboardSummary = async (req, res) => {
          JOIN \`ORDER\` o ON o.id = rx.order_id
          JOIN TREATMENT t ON t.id = o.treatment_id
          JOIN REGIMEN r ON r.id = t.regimen_id
-         WHERE r.patient_id = :patientId
-           AND rx.status = 'Signed'`,
+         WHERE r.patient_id = :patientId`,
         { replacements: { patientId }, type: QueryTypes.SELECT }
       ),
       sequelize.query(
@@ -1008,10 +1171,40 @@ exports.getPatientDashboardSummary = async (req, res) => {
          WHERE r.patient_id = :patientId`,
         { replacements: { patientId }, type: QueryTypes.SELECT }
       ),
-      sequelize.query(
+      selectPrescriptionRowsWithDurationFallback(
+        sequelize,
         `SELECT
            rx.order_id,
            rx.time,
+           COALESCE(
+             NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''),
+             acc.username,
+             CONCAT('doctor#', doc.user_id)
+           ) AS doctorName,
+           pd.no,
+           m.name,
+           pd.\`usage\` AS frequency,
+           pd.quantity,
+           COALESCE(pd.duration, 7) AS lineDuration
+         FROM MEDICAL_PRESCRIPTION rx
+         JOIN \`ORDER\` o ON o.id = rx.order_id
+         JOIN TREATMENT t ON t.id = o.treatment_id
+         JOIN REGIMEN r ON r.id = t.regimen_id
+         LEFT JOIN DOCTOR doc ON doc.doctor_id = t.doctor_id
+         LEFT JOIN USER u ON u.id = doc.user_id
+         LEFT JOIN ACCOUNT acc ON acc.user_id = doc.user_id
+         LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id
+         LEFT JOIN MEDICINE m ON m.id = pd.medicine_id
+         WHERE r.patient_id = :patientId
+         ORDER BY rx.time DESC, pd.no ASC`,
+        `SELECT
+           rx.order_id,
+           rx.time,
+           COALESCE(
+             NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''),
+             acc.username,
+             CONCAT('doctor#', doc.user_id)
+           ) AS doctorName,
            pd.no,
            m.name,
            pd.\`usage\` AS frequency,
@@ -1020,12 +1213,14 @@ exports.getPatientDashboardSummary = async (req, res) => {
          JOIN \`ORDER\` o ON o.id = rx.order_id
          JOIN TREATMENT t ON t.id = o.treatment_id
          JOIN REGIMEN r ON r.id = t.regimen_id
+         LEFT JOIN DOCTOR doc ON doc.doctor_id = t.doctor_id
+         LEFT JOIN USER u ON u.id = doc.user_id
+         LEFT JOIN ACCOUNT acc ON acc.user_id = doc.user_id
          LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id
          LEFT JOIN MEDICINE m ON m.id = pd.medicine_id
          WHERE r.patient_id = :patientId
-           AND rx.status = 'Signed'
          ORDER BY rx.time DESC, pd.no ASC`,
-        { replacements: { patientId }, type: QueryTypes.SELECT }
+        { patientId }
       ),
       sequelize.query(
         `SELECT
@@ -1057,6 +1252,7 @@ exports.getPatientDashboardSummary = async (req, res) => {
         rxGroups.set(oid, {
           id: oid,
           prescribedAt: row.time,
+          doctorName: row.doctorName || '',
           medications: [],
         });
       }
@@ -1066,6 +1262,7 @@ exports.getPatientDashboardSummary = async (req, res) => {
           name: row.name,
           frequency: row.frequency || '',
           quantity: String(row.quantity ?? ''),
+          duration: String(row.lineDuration != null ? row.lineDuration : 7),
         });
       }
     }
@@ -1098,6 +1295,635 @@ exports.getPatientDashboardSummary = async (req, res) => {
   }
 };
 
+const VISIT_VITALS_WINDOW_MS = 72 * 60 * 60 * 1000;
+
+function pickClosestVital(treatmentTime, records) {
+  const t = new Date(treatmentTime).getTime();
+  if (Number.isNaN(t)) return null;
+  let best = null;
+  let bestDiff = Infinity;
+  for (const r of records) {
+    const rt = new Date(r.time).getTime();
+    if (Number.isNaN(rt)) continue;
+    const diff = Math.abs(rt - t);
+    if (diff < bestDiff && diff <= VISIT_VITALS_WINDOW_MS) {
+      bestDiff = diff;
+      best = r;
+    }
+  }
+  return best;
+}
+
+/** Vitals recorded during [regimenStart, regimenEnd] (encounter window). */
+function pickVitalInRegimenWindow(records, regimenStart, regimenEnd) {
+  const s = new Date(regimenStart).getTime();
+  const e = new Date(regimenEnd).getTime();
+  if (Number.isNaN(s) || Number.isNaN(e)) return null;
+  let best = null;
+  let bestDist = Infinity;
+  for (const r of records) {
+    const rt = new Date(r.time).getTime();
+    if (Number.isNaN(rt)) continue;
+    if (rt < s || rt > e) continue;
+    const dist = Math.abs(rt - e);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = r;
+    }
+  }
+  return best;
+}
+
+function mapMedicalRecordToVitals(r) {
+  if (!r) return null;
+  const [sys, dia] = r.blood_pressure ? String(r.blood_pressure).split('/') : ['', ''];
+  const h = parseFloat(r.height) || 0;
+  const w = parseFloat(r.weight) || 0;
+  return {
+    recordId: r.id,
+    recordedAt: r.time,
+    heightCm: h,
+    weightKg: w,
+    bmi: h > 0 ? +(w / (h / 100) ** 2).toFixed(1) : null,
+    bloodPressureSys: parseInt(sys, 10) || null,
+    bloodPressureDia: parseInt(dia, 10) || null,
+    heartRate: r.heart_rate ?? null,
+    respiratoryRate: r.respiratory_rate ?? null,
+    temperature: r.temperature ?? null,
+    spo2: r.spo2 ?? null,
+    symptomsNote: r.condition || '',
+    status: r.status || '',
+  };
+}
+
+/**
+ * GET /api/appointments/medical-visits
+ * Patient portal: one object per TREATMENT (visit) with diagnosis, vitals snapshot, Rx, labs, surgeries.
+ */
+exports.getPatientMedicalVisits = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const patientId = await getPatientIdByUserId(userId);
+    if (!patientId) {
+      return res.json({ success: true, visits: [] });
+    }
+
+    const [treatments, rxRows, labRows, surgeryRows, mrRows] = await Promise.all([
+      sequelize.query(
+        `SELECT
+           t.id AS treatmentId,
+           t.time AS visitAt,
+           t.type AS department,
+           t.\`condition\` AS complaint,
+           dis.icd_code AS icd10,
+           dis.description AS interpretation,
+           COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), acc.username, CONCAT('doctor#', d.user_id)) AS doctorName,
+           cr.name AS roomName
+         FROM TREATMENT t
+         JOIN REGIMEN r ON r.id = t.regimen_id
+         LEFT JOIN DISEASE dis ON dis.id = r.disease_id
+         LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id
+         LEFT JOIN USER u ON u.id = d.user_id
+         LEFT JOIN ACCOUNT acc ON acc.user_id = d.user_id
+         LEFT JOIN CLINIC_ROOM cr ON cr.id = t.room_id
+         WHERE r.patient_id = :patientId
+         ORDER BY t.time DESC`,
+        { replacements: { patientId }, type: QueryTypes.SELECT }
+      ),
+      selectPrescriptionRowsWithDurationFallback(
+        sequelize,
+        `SELECT
+           o.treatment_id AS treatmentId,
+           rx.order_id AS orderId,
+           rx.time AS prescribedAt,
+           pd.no AS medNo,
+           m.name,
+           pd.quantity,
+           pd.\`usage\` AS frequency,
+           pd.unit,
+           COALESCE(pd.duration, 7) AS lineDuration
+         FROM MEDICAL_PRESCRIPTION rx
+         JOIN \`ORDER\` o ON o.id = rx.order_id
+         JOIN TREATMENT t ON t.id = o.treatment_id
+         JOIN REGIMEN r ON r.id = t.regimen_id
+         LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id
+         LEFT JOIN MEDICINE m ON m.id = pd.medicine_id
+         WHERE r.patient_id = :patientId
+         ORDER BY rx.time DESC, pd.no ASC`,
+        `SELECT
+           o.treatment_id AS treatmentId,
+           rx.order_id AS orderId,
+           rx.time AS prescribedAt,
+           pd.no AS medNo,
+           m.name,
+           pd.quantity,
+           pd.\`usage\` AS frequency,
+           pd.unit
+         FROM MEDICAL_PRESCRIPTION rx
+         JOIN \`ORDER\` o ON o.id = rx.order_id
+         JOIN TREATMENT t ON t.id = o.treatment_id
+         JOIN REGIMEN r ON r.id = t.regimen_id
+         LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id
+         LEFT JOIN MEDICINE m ON m.id = pd.medicine_id
+         WHERE r.patient_id = :patientId
+         ORDER BY rx.time DESC, pd.no ASC`,
+        { patientId }
+      ),
+      sequelize.query(
+        `SELECT
+           o.treatment_id AS treatmentId,
+           tst.id AS testId,
+           tst.time AS testAt,
+           tst.type AS testType,
+           tst.result AS resultSummary,
+           tst.note,
+           tst.attachment_url AS fileUrl,
+           COALESCE(
+             NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''),
+             a.username
+           ) AS technicianName
+         FROM TEST tst
+         JOIN \`ORDER\` o ON o.id = tst.id
+         JOIN TREATMENT t ON t.id = o.treatment_id
+         JOIN REGIMEN r ON r.id = t.regimen_id
+         LEFT JOIN PROCEDURE_ p ON p.order_id = tst.id
+         LEFT JOIN TECHNICIAN te ON te.technician_id = COALESCE(tst.technician_id, p.technician_id)
+         LEFT JOIN USER u ON u.id = te.user_id
+         LEFT JOIN ACCOUNT a ON a.user_id = te.user_id
+         WHERE r.patient_id = :patientId
+         ORDER BY tst.time DESC`,
+        { replacements: { patientId }, type: QueryTypes.SELECT }
+      ),
+      sequelize.query(
+        `SELECT
+           o.treatment_id AS treatmentId,
+           s.id AS orderId,
+           s.type AS surgeryType,
+           s.start,
+           s.end,
+           s.result,
+           s.surgeon,
+           s.note,
+           s.urgency
+         FROM SURGERY s
+         JOIN PROCEDURE_ pr ON pr.order_id = s.id
+         JOIN \`ORDER\` o ON o.id = pr.order_id
+         JOIN TREATMENT t ON t.id = o.treatment_id
+         JOIN REGIMEN r ON r.id = t.regimen_id
+         WHERE r.patient_id = :patientId
+         ORDER BY s.start DESC`,
+        { replacements: { patientId }, type: QueryTypes.SELECT }
+      ),
+      sequelize.query(
+        `SELECT id, time, \`condition\`, weight, height, blood_pressure, heart_rate, temperature, spo2, respiratory_rate, status
+         FROM MEDICAL_RECORD
+         WHERE patient_id = :patientId
+         ORDER BY time DESC`,
+        { replacements: { patientId }, type: QueryTypes.SELECT }
+      ),
+    ]);
+
+    const rxByTreatment = new Map();
+    for (const row of rxRows) {
+      const tid = row.treatmentId;
+      if (tid == null) continue;
+      if (!rxByTreatment.has(tid)) rxByTreatment.set(tid, new Map());
+      const ordersMap = rxByTreatment.get(tid);
+      if (!ordersMap.has(row.orderId)) {
+        ordersMap.set(row.orderId, {
+          id: row.orderId,
+          prescribedAt: row.prescribedAt,
+          signatureStatus: 'signed',
+          medications: [],
+        });
+      }
+      if (row.name) {
+        ordersMap.get(row.orderId).medications.push({
+          id: `${row.orderId}-${row.medNo}`,
+          name: row.name,
+          quantity: String(row.quantity ?? ''),
+          frequency: row.frequency || '',
+          unit: row.unit || '',
+          duration: String(row.lineDuration != null ? row.lineDuration : 7),
+        });
+      }
+    }
+
+    const labByTreatment = new Map();
+    for (const row of labRows) {
+      const tid = row.treatmentId;
+      if (tid == null) continue;
+      if (!labByTreatment.has(tid)) labByTreatment.set(tid, []);
+      labByTreatment.get(tid).push({
+        id: row.testId,
+        testType: row.testType,
+        testAt: row.testAt,
+        resultSummary: row.resultSummary || '',
+        note: row.note || '',
+        fileUrl: row.fileUrl || null,
+        technicianName: row.technicianName || '',
+      });
+    }
+
+    const surgeryByTreatment = new Map();
+    for (const row of surgeryRows) {
+      const tid = row.treatmentId;
+      if (tid == null) continue;
+      if (!surgeryByTreatment.has(tid)) surgeryByTreatment.set(tid, []);
+      surgeryByTreatment.get(tid).push({
+        id: row.orderId,
+        surgeryType: row.surgeryType,
+        start: row.start,
+        end: row.end,
+        result: row.result || '',
+        surgeon: row.surgeon || '',
+        note: row.note || '',
+        urgency: row.urgency || '',
+      });
+    }
+
+    const visits = (treatments || []).map((t) => {
+      const tid = t.treatmentId;
+      const ordersMap = rxByTreatment.get(tid) || new Map();
+      const prescriptionsList = Array.from(ordersMap.values());
+      const vitalRow = pickClosestVital(t.visitAt, mrRows);
+      return {
+        treatmentId: tid,
+        visitAt: t.visitAt,
+        department: t.department || '',
+        complaint: t.complaint || '',
+        doctorName: t.doctorName || '',
+        roomName: t.roomName || '',
+        icd10: t.icd10 || '',
+        interpretation: t.interpretation || '',
+        vitals: mapMedicalRecordToVitals(vitalRow),
+        prescriptions: prescriptionsList,
+        labTests: labByTreatment.get(tid) || [],
+        surgeries: surgeryByTreatment.get(tid) || [],
+      };
+    });
+
+    res.json({ success: true, visits });
+  } catch (error) {
+    console.error('Get patient medical visits error:', error);
+    res.status(500).json({ message: 'Internal server error', error: error.message });
+  }
+};
+
+/**
+ * GET /api/appointments/medical-regimens
+ * Patient portal: one card per completed encounter (REGIMEN with end set), aggregating all TREATMENT rows in that regimen.
+ */
+exports.getPatientMedicalRegimens = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const patientId = await getPatientIdByUserId(userId);
+    if (!patientId) {
+      return res.json({ success: true, regimens: [] });
+    }
+
+    const regimenRows = await sequelize.query(
+      `SELECT r.id AS regimenId, r.start AS regimenStart, r.end AS regimenEnd,
+              d.icd_code AS icd10, d.description AS diseaseDescription
+       FROM REGIMEN r
+       LEFT JOIN DISEASE d ON d.id = r.disease_id
+       WHERE r.patient_id = :patientId AND r.end IS NOT NULL
+       ORDER BY r.start DESC, r.id DESC`,
+      { replacements: { patientId }, type: QueryTypes.SELECT }
+    );
+    if (!regimenRows.length) {
+      return res.json({ success: true, regimens: [] });
+    }
+
+    const regimenIds = regimenRows.map((x) => Number(x.regimenId)).filter((id) => Number.isFinite(id));
+    const idCsv = regimenIds.join(',');
+
+    const [treatments, rxRows, labRows, surgeryRows, mrRows] = await Promise.all([
+      sequelize.query(
+        `SELECT
+           t.id AS treatmentId,
+           t.regimen_id AS regimenId,
+           t.time AS visitAt,
+           t.type AS department,
+           t.\`condition\` AS complaint,
+           dis.icd_code AS icd10,
+           dis.description AS interpretation,
+           COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), acc.username, CONCAT('doctor#', d.user_id)) AS doctorName,
+           cr.name AS roomName
+         FROM TREATMENT t
+         JOIN REGIMEN r ON r.id = t.regimen_id
+         LEFT JOIN DISEASE dis ON dis.id = r.disease_id
+         LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id
+         LEFT JOIN USER u ON u.id = d.user_id
+         LEFT JOIN ACCOUNT acc ON acc.user_id = d.user_id
+         LEFT JOIN CLINIC_ROOM cr ON cr.id = t.room_id
+         WHERE r.patient_id = :patientId AND r.id IN (${idCsv})
+         ORDER BY t.time ASC`,
+        { replacements: { patientId }, type: QueryTypes.SELECT }
+      ),
+      selectPrescriptionRowsWithDurationFallback(
+        sequelize,
+        `SELECT
+           o.treatment_id AS treatmentId,
+           rx.order_id AS orderId,
+           rx.time AS prescribedAt,
+           pd.no AS medNo,
+           m.name,
+           pd.quantity,
+           pd.\`usage\` AS frequency,
+           pd.unit,
+           COALESCE(pd.duration, 7) AS lineDuration
+         FROM MEDICAL_PRESCRIPTION rx
+         JOIN \`ORDER\` o ON o.id = rx.order_id
+         JOIN TREATMENT t ON t.id = o.treatment_id
+         JOIN REGIMEN r ON r.id = t.regimen_id
+         LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id
+         LEFT JOIN MEDICINE m ON m.id = pd.medicine_id
+         WHERE r.patient_id = :patientId AND r.id IN (${idCsv})
+         ORDER BY rx.time DESC, pd.no ASC`,
+        `SELECT
+           o.treatment_id AS treatmentId,
+           rx.order_id AS orderId,
+           rx.time AS prescribedAt,
+           pd.no AS medNo,
+           m.name,
+           pd.quantity,
+           pd.\`usage\` AS frequency,
+           pd.unit
+         FROM MEDICAL_PRESCRIPTION rx
+         JOIN \`ORDER\` o ON o.id = rx.order_id
+         JOIN TREATMENT t ON t.id = o.treatment_id
+         JOIN REGIMEN r ON r.id = t.regimen_id
+         LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id
+         LEFT JOIN MEDICINE m ON m.id = pd.medicine_id
+         WHERE r.patient_id = :patientId AND r.id IN (${idCsv})
+         ORDER BY rx.time DESC, pd.no ASC`,
+        { patientId }
+      ),
+      sequelize.query(
+        `SELECT
+           o.treatment_id AS treatmentId,
+           tst.id AS testId,
+           tst.time AS testAt,
+           tst.type AS testType,
+           tst.result AS resultSummary,
+           tst.note,
+           tst.attachment_url AS fileUrl,
+           COALESCE(
+             NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''),
+             a.username
+           ) AS technicianName
+         FROM TEST tst
+         JOIN \`ORDER\` o ON o.id = tst.id
+         JOIN TREATMENT t ON t.id = o.treatment_id
+         JOIN REGIMEN r ON r.id = t.regimen_id
+         LEFT JOIN PROCEDURE_ p ON p.order_id = tst.id
+         LEFT JOIN TECHNICIAN te ON te.technician_id = COALESCE(tst.technician_id, p.technician_id)
+         LEFT JOIN USER u ON u.id = te.user_id
+         LEFT JOIN ACCOUNT a ON a.user_id = te.user_id
+         WHERE r.patient_id = :patientId AND r.id IN (${idCsv})
+         ORDER BY tst.time DESC`,
+        { replacements: { patientId }, type: QueryTypes.SELECT }
+      ),
+      sequelize.query(
+        `SELECT
+           o.treatment_id AS treatmentId,
+           s.id AS orderId,
+           s.type AS surgeryType,
+           s.start,
+           s.end,
+           s.result,
+           s.surgeon,
+           s.note,
+           s.urgency
+         FROM SURGERY s
+         JOIN PROCEDURE_ pr ON pr.order_id = s.id
+         JOIN \`ORDER\` o ON o.id = pr.order_id
+         JOIN TREATMENT t ON t.id = o.treatment_id
+         JOIN REGIMEN r ON r.id = t.regimen_id
+         WHERE r.patient_id = :patientId AND r.id IN (${idCsv})
+         ORDER BY s.start DESC`,
+        { replacements: { patientId }, type: QueryTypes.SELECT }
+      ),
+      sequelize.query(
+        `SELECT id, time, \`condition\`, weight, height, blood_pressure, heart_rate, temperature, spo2, respiratory_rate, status
+         FROM MEDICAL_RECORD
+         WHERE patient_id = :patientId
+         ORDER BY time DESC`,
+        { replacements: { patientId }, type: QueryTypes.SELECT }
+      ),
+    ]);
+
+    const rxByTreatment = new Map();
+    for (const row of rxRows) {
+      const tid = row.treatmentId;
+      if (tid == null) continue;
+      if (!rxByTreatment.has(tid)) rxByTreatment.set(tid, new Map());
+      const ordersMap = rxByTreatment.get(tid);
+      if (!ordersMap.has(row.orderId)) {
+        ordersMap.set(row.orderId, {
+          id: row.orderId,
+          prescribedAt: row.prescribedAt,
+          signatureStatus: 'signed',
+          medications: [],
+        });
+      }
+      if (row.name) {
+        ordersMap.get(row.orderId).medications.push({
+          id: `${row.orderId}-${row.medNo}`,
+          name: row.name,
+          quantity: String(row.quantity ?? ''),
+          frequency: row.frequency || '',
+          unit: row.unit || '',
+          duration: String(row.lineDuration != null ? row.lineDuration : 7),
+        });
+      }
+    }
+
+    const labByTreatment = new Map();
+    for (const row of labRows) {
+      const tid = row.treatmentId;
+      if (tid == null) continue;
+      if (!labByTreatment.has(tid)) labByTreatment.set(tid, []);
+      labByTreatment.get(tid).push({
+        id: row.testId,
+        testType: row.testType,
+        testAt: row.testAt,
+        resultSummary: row.resultSummary || '',
+        note: row.note || '',
+        fileUrl: row.fileUrl || null,
+        technicianName: row.technicianName || '',
+      });
+    }
+
+    const surgeryByTreatment = new Map();
+    for (const row of surgeryRows) {
+      const tid = row.treatmentId;
+      if (tid == null) continue;
+      if (!surgeryByTreatment.has(tid)) surgeryByTreatment.set(tid, []);
+      surgeryByTreatment.get(tid).push({
+        id: row.orderId,
+        surgeryType: row.surgeryType,
+        start: row.start,
+        end: row.end,
+        result: row.result || '',
+        surgeon: row.surgeon || '',
+        note: row.note || '',
+        urgency: row.urgency || '',
+      });
+    }
+
+    const treatmentsByRegimen = new Map();
+    for (const t of treatments || []) {
+      const rid = Number(t.regimenId);
+      if (!Number.isFinite(rid)) continue;
+      if (!treatmentsByRegimen.has(rid)) treatmentsByRegimen.set(rid, []);
+      treatmentsByRegimen.get(rid).push(t);
+    }
+
+    const regimens = (regimenRows || []).map((reg) => {
+      const rid = Number(reg.regimenId);
+      const tlist = treatmentsByRegimen.get(rid) || [];
+      const primary = tlist[0] || null;
+
+      const prescriptionsDedup = new Map();
+      for (const tr of tlist) {
+        const tid = tr.treatmentId;
+        const ordersMap = rxByTreatment.get(tid) || new Map();
+        for (const order of ordersMap.values()) {
+          if (!prescriptionsDedup.has(order.id)) prescriptionsDedup.set(order.id, order);
+        }
+      }
+      const prescriptionsList = Array.from(prescriptionsDedup.values());
+
+      const labDedup = new Map();
+      for (const tr of tlist) {
+        for (const lab of labByTreatment.get(tr.treatmentId) || []) {
+          labDedup.set(lab.id, lab);
+        }
+      }
+      const labTests = Array.from(labDedup.values());
+
+      const surgeryDedup = new Map();
+      for (const tr of tlist) {
+        for (const s of surgeryByTreatment.get(tr.treatmentId) || []) {
+          surgeryDedup.set(s.id, s);
+        }
+      }
+      const surgeries = Array.from(surgeryDedup.values());
+
+      const complaints = tlist.map((x) => x.complaint).filter((c) => c && String(c).trim());
+      const doctors = [...new Set(tlist.map((x) => x.doctorName).filter(Boolean))];
+
+      const vitalRow = pickVitalInRegimenWindow(mrRows, reg.regimenStart, reg.regimenEnd);
+
+      return {
+        regimenId: rid,
+        treatmentId: primary ? primary.treatmentId : 0,
+        visitAt: reg.regimenStart,
+        visitEnd: reg.regimenEnd,
+        department: primary?.department || tlist.find((x) => x.department)?.department || '',
+        complaint: complaints.length ? complaints.join('\n\n') : '',
+        doctorName: doctors.length ? doctors.join(', ') : primary?.doctorName || '',
+        roomName: primary?.roomName || '',
+        icd10: primary?.icd10 || reg.icd10 || '',
+        interpretation: primary?.interpretation || reg.diseaseDescription || '',
+        vitals: mapMedicalRecordToVitals(vitalRow),
+        prescriptions: prescriptionsList,
+        labTests,
+        surgeries,
+      };
+    });
+
+    res.json({ success: true, regimens });
+  } catch (error) {
+    console.error('Get patient medical regimens error:', error);
+    res.status(500).json({ message: 'Internal server error', error: error.message });
+  }
+};
+
+/**
+ * GET /api/appointments/symptom-logs
+ * Patient portal: saved symptom-checker analyses (SYMPTOM_LOG).
+ */
+exports.getPatientSymptomLogs = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const patientId = await getPatientIdByUserId(userId);
+    if (!patientId) {
+      return res.json({ success: true, logs: [] });
+    }
+    const rows = await sequelize.query(
+      `SELECT id, time, disease, suggestion FROM SYMPTOM_LOG WHERE patient_id = :patientId ORDER BY time DESC LIMIT 200`,
+      { replacements: { patientId }, type: QueryTypes.SELECT }
+    );
+    res.json({
+      success: true,
+      logs: rows.map((r) => ({
+        id: r.id,
+        time: r.time,
+        condition: r.disease || '',
+        suggestion: r.suggestion || '',
+      })),
+    });
+  } catch (error) {
+    console.error('Get patient symptom logs error:', error);
+    res.status(500).json({ message: 'Internal server error', error: error.message });
+  }
+};
+
+/**
+ * GET /api/appointments/lab-tests/:testId/details
+ * Patient portal: TEST_DETAIL rows for a test that belongs to the logged-in patient.
+ */
+exports.getPatientLabTestDetails = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const patientId = await getPatientIdByUserId(userId);
+    if (!patientId) {
+      return res.status(404).json({ success: false, message: 'Patient profile not found' });
+    }
+
+    const testId = Number(req.params.testId);
+    if (!Number.isFinite(testId) || testId <= 0) {
+      return res.status(400).json({ success: false, message: 'Invalid test id' });
+    }
+
+    const exists = await sequelize.query(
+      `SELECT tst.id
+       FROM TEST tst
+       JOIN \`ORDER\` o ON o.id = tst.id
+       JOIN TREATMENT t ON t.id = o.treatment_id
+       JOIN REGIMEN r ON r.id = t.regimen_id
+       WHERE tst.id = :id AND r.patient_id = :patientId
+       LIMIT 1`,
+      { replacements: { id: testId, patientId }, type: QueryTypes.SELECT }
+    );
+    if (!exists[0]) {
+      return res.status(404).json({ success: false, message: 'Lab test not found' });
+    }
+
+    const details = await sequelize.query(
+      `SELECT
+         test_id AS testId,
+         no,
+         \`index\` AS itemIndex,
+         result,
+         numeric_value AS numericValue,
+         unit
+       FROM TEST_DETAIL
+       WHERE test_id = :testId
+       ORDER BY no ASC`,
+      { replacements: { testId }, type: QueryTypes.SELECT }
+    );
+
+    res.json({ success: true, details });
+  } catch (error) {
+    console.error('Get patient lab test details error:', error);
+    res.status(500).json({ message: 'Internal server error', error: error.message });
+  }
+};
+
 exports.updateAppointment = async (req, res) => {
   try {
     const { id } = req.params;
@@ -1122,6 +1948,15 @@ exports.updateAppointment = async (req, res) => {
       Rejected: 'cancelled'
     };
     const nextStatus = req.body.status ? (statusMap[req.body.status] || String(req.body.status).toLowerCase()) : null;
+    if (nextStatus === 'cancelled') {
+      const [cur] = await sequelize.query(
+        'SELECT status FROM APPOINTMENT WHERE id = :id AND patient_id = :patientId LIMIT 1',
+        { replacements: { id, patientId }, type: QueryTypes.SELECT }
+      );
+      if (cur?.status && String(cur.status).toLowerCase() !== 'cancelled') {
+        await notifyDoctorPatientCancelledAppointment(sequelize, id);
+      }
+    }
     if (nextStatus) {
       await sequelize.query(
         'UPDATE APPOINTMENT SET status = :status WHERE id = :id',
@@ -1147,6 +1982,13 @@ exports.deleteAppointment = async (req, res) => {
     if (!own[0]) {
       return res.status(404).json({ message: 'Appointment not found or access denied' });
     }
+    const [curDel] = await sequelize.query(
+      'SELECT status FROM APPOINTMENT WHERE id = :id AND patient_id = :patientId LIMIT 1',
+      { replacements: { id, patientId }, type: QueryTypes.SELECT }
+    );
+    if (curDel?.status && String(curDel.status).toLowerCase() !== 'cancelled') {
+      await notifyDoctorPatientCancelledAppointment(sequelize, id);
+    }
     await sequelize.query(
       "UPDATE APPOINTMENT SET status = 'cancelled' WHERE id = :id",
       { replacements: { id }, type: QueryTypes.UPDATE }
@@ -1155,5 +1997,353 @@ exports.deleteAppointment = async (req, res) => {
   } catch (error) {
     console.error('Delete appointment error:', error);
     res.status(500).json({ message: 'Internal server error', error: error.message });
+  }
+};
+
+const NURSE_APPT_SELECT = `
+  SELECT
+    a.id,
+    a.time AS slotTime,
+    DATE_FORMAT(a.time, '%Y-%m-%d') AS wallDate,
+    TIME_FORMAT(a.time, '%H:%i:%s') AS wallTime,
+    a.\`condition\` AS conditionNote,
+    a.doctor_id AS doctorId,
+    a.room_id AS roomId,
+    COALESCE(NULLIF(TRIM(CONCAT(COALESCE(du.first_name,''), ' ', COALESCE(du.last_name,''))), ''), dacc.username) AS doctorName,
+    COALESCE(d.specifications, '') AS department,
+    COALESCE(cr.name, '') AS roomName
+  FROM APPOINTMENT a
+  JOIN DOCTOR d ON d.doctor_id = a.doctor_id
+  JOIN USER du ON du.id = d.user_id
+  JOIN ACCOUNT dacc ON dacc.user_id = d.user_id
+  LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id
+`;
+
+/**
+ * GET /api/appointments/nurse/check-in-options?patientId=OP00000001|1
+ * Today's scheduled bookings for patient + today's open (unassigned) slots.
+ */
+exports.getNurseCheckInOptions = async (req, res) => {
+  try {
+    if (!assertNurseOrAdmin(req, res)) return;
+    const patientId = parseNursePatientId(req.query.patientId);
+    if (!patientId) {
+      return res.status(400).json({ success: false, message: 'patientId is required' });
+    }
+    if (!(await nursePatientExists(patientId))) {
+      return res.status(404).json({ success: false, message: 'Patient not found' });
+    }
+
+    const bookedRows = await sequelize.query(
+      `${NURSE_APPT_SELECT}
+       WHERE a.patient_id = :patientId
+         AND a.status = 'scheduled'
+         AND DATE(a.time) = CURDATE()
+       ORDER BY a.time ASC, a.id ASC`,
+      { replacements: { patientId }, type: QueryTypes.SELECT }
+    );
+
+    const openRows = await sequelize.query(
+      `${NURSE_APPT_SELECT}
+       WHERE a.patient_id IS NULL
+         AND a.status = 'scheduled'
+         AND DATE(a.time) = CURDATE()
+       ORDER BY a.time ASC, a.id ASC`,
+      { replacements: {}, type: QueryTypes.SELECT }
+    );
+
+    const todayRow = await sequelize.query('SELECT CURDATE() AS d', { type: QueryTypes.SELECT });
+    const today = todayRow[0]?.d ? String(todayRow[0].d).slice(0, 10) : new Date().toISOString().slice(0, 10);
+
+    return res.json({
+      success: true,
+      today,
+      patientBookings: (bookedRows || []).map(mapNurseCheckInRow),
+      openSlots: (openRows || []).map(mapNurseCheckInRow),
+    });
+  } catch (error) {
+    console.error('Nurse check-in options error:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+  }
+};
+
+/**
+ * POST /api/appointments/nurse/check-in-accept
+ * Patient already has today's booking — nurse confirms check-in against that slot.
+ */
+exports.postNurseCheckInAccept = async (req, res) => {
+  try {
+    if (!assertNurseOrAdmin(req, res)) return;
+    const patientId = parseNursePatientId(req.body?.patientId);
+    const appointmentId = Number(req.body?.appointmentId);
+    if (!patientId || !Number.isFinite(appointmentId)) {
+      return res.status(400).json({ success: false, message: 'patientId and appointmentId are required' });
+    }
+    if (!(await nursePatientExists(patientId))) {
+      return res.status(404).json({ success: false, message: 'Patient not found' });
+    }
+
+    const [row] = await sequelize.query(
+      `${NURSE_APPT_SELECT}
+       WHERE a.id = :appointmentId
+         AND a.patient_id = :patientId
+         AND a.status = 'scheduled'
+         AND DATE(a.time) = CURDATE()
+       LIMIT 1`,
+      { replacements: { appointmentId, patientId }, type: QueryTypes.SELECT }
+    );
+
+    if (!row) {
+      return res.status(404).json({
+        success: false,
+        message: 'No matching appointment for this patient today',
+      });
+    }
+
+    const regimenId = await insertNurseVisitRegimenOpenEnd(patientId);
+    await syncPatientInDeptFromAppointmentRoom(patientId, appointmentId);
+
+    return res.json({
+      success: true,
+      appointment: mapNurseCheckInRow(row),
+      regimenId,
+    });
+  } catch (error) {
+    console.error('Nurse check-in accept error:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+  }
+};
+
+/**
+ * POST /api/appointments/nurse/check-in-assign
+ * Assign an open slot today to the patient (room/time come from the slot).
+ */
+exports.postNurseCheckInAssign = async (req, res) => {
+  try {
+    if (!assertNurseOrAdmin(req, res)) return;
+    const patientId = parseNursePatientId(req.body?.patientId);
+    const appointmentId = Number(req.body?.appointmentId);
+    const condition = String(req.body?.condition || 'Nurse walk-in check-in').trim() || 'Nurse walk-in check-in';
+    if (!patientId || !Number.isFinite(appointmentId)) {
+      return res.status(400).json({ success: false, message: 'patientId and appointmentId are required' });
+    }
+    if (!(await nursePatientExists(patientId))) {
+      return res.status(404).json({ success: false, message: 'Patient not found' });
+    }
+
+    const [slot] = await sequelize.query(
+      `SELECT id, patient_id AS patientId, status
+       FROM APPOINTMENT
+       WHERE id = :appointmentId
+         AND patient_id IS NULL
+         AND status = 'scheduled'
+         AND DATE(\`time\`) = CURDATE()
+       LIMIT 1`,
+      { replacements: { appointmentId }, type: QueryTypes.SELECT }
+    );
+
+    if (!slot) {
+      return res.status(400).json({
+        success: false,
+        message: 'Slot is not available or not an open slot today',
+      });
+    }
+
+    let regimenId;
+    await sequelize.transaction(async (transaction) => {
+      await sequelize.query(
+        `UPDATE APPOINTMENT
+         SET patient_id = :patientId, \`condition\` = :condition, status = 'scheduled'
+         WHERE id = :appointmentId AND patient_id IS NULL`,
+        { replacements: { patientId, condition, appointmentId }, type: QueryTypes.UPDATE, transaction }
+      );
+      const [check] = await sequelize.query(
+        `SELECT patient_id AS patientId FROM APPOINTMENT WHERE id = :appointmentId LIMIT 1`,
+        { replacements: { appointmentId }, type: QueryTypes.SELECT, transaction }
+      );
+      if (Number(check?.patientId) !== patientId) {
+        throw new Error('ASSIGN_CONFLICT');
+      }
+      regimenId = await insertNurseVisitRegimenOpenEnd(patientId, transaction);
+      await syncPatientInDeptFromAppointmentRoom(patientId, appointmentId, transaction);
+    });
+
+    const [updated] = await sequelize.query(
+      `${NURSE_APPT_SELECT} WHERE a.id = :appointmentId LIMIT 1`,
+      { replacements: { appointmentId }, type: QueryTypes.SELECT }
+    );
+
+    return res.json({
+      success: true,
+      appointment: updated ? mapNurseCheckInRow(updated) : { id: appointmentId },
+      regimenId,
+    });
+  } catch (error) {
+    if (error.message === 'ASSIGN_CONFLICT') {
+      return res.status(409).json({ success: false, message: 'Could not assign patient to this slot' });
+    }
+    console.error('Nurse check-in assign error:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+  }
+};
+
+/**
+ * POST /api/appointments/nurse/check-in-reschedule
+ * Move patient from today's booking to another open slot today; old slot becomes open again.
+ */
+exports.postNurseCheckInReschedule = async (req, res) => {
+  try {
+    if (!assertNurseOrAdmin(req, res)) return;
+    const patientId = parseNursePatientId(req.body?.patientId);
+    const fromAppointmentId = Number(req.body?.fromAppointmentId);
+    const toAppointmentId = Number(req.body?.toAppointmentId);
+    if (!patientId || !Number.isFinite(fromAppointmentId) || !Number.isFinite(toAppointmentId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'patientId, fromAppointmentId and toAppointmentId are required',
+      });
+    }
+    if (fromAppointmentId === toAppointmentId) {
+      return res.status(400).json({ success: false, message: 'Cannot reschedule to the same slot' });
+    }
+    if (!(await nursePatientExists(patientId))) {
+      return res.status(404).json({ success: false, message: 'Patient not found' });
+    }
+
+    let regimenId;
+    await sequelize.transaction(async (transaction) => {
+      const [fromRow] = await sequelize.query(
+        `SELECT id, patient_id AS patientId, \`condition\` AS cond, status
+         FROM APPOINTMENT
+         WHERE id = :fromAppointmentId
+           AND patient_id = :patientId
+           AND status = 'scheduled'
+           AND DATE(\`time\`) = CURDATE()
+         LIMIT 1`,
+        { replacements: { fromAppointmentId, patientId }, type: QueryTypes.SELECT, transaction }
+      );
+      if (!fromRow) {
+        throw new Error('SOURCE_APPT_NOT_FOUND');
+      }
+
+      const [toRow] = await sequelize.query(
+        `SELECT id, patient_id AS patientId, status
+         FROM APPOINTMENT
+         WHERE id = :toAppointmentId
+           AND patient_id IS NULL
+           AND status = 'scheduled'
+           AND DATE(\`time\`) = CURDATE()
+         LIMIT 1`,
+        { replacements: { toAppointmentId }, type: QueryTypes.SELECT, transaction }
+      );
+      if (!toRow) {
+        throw new Error('TARGET_SLOT_NOT_OPEN');
+      }
+
+      const carriedCondition = String(fromRow.cond || '').trim() || 'Rescheduled check-in';
+
+      await sequelize.query(
+        `UPDATE APPOINTMENT
+         SET patient_id = NULL, \`condition\` = 'Open slot'
+         WHERE id = :fromAppointmentId AND patient_id = :patientId`,
+        { replacements: { fromAppointmentId, patientId }, type: QueryTypes.UPDATE, transaction }
+      );
+
+      await sequelize.query(
+        `UPDATE APPOINTMENT
+         SET patient_id = :patientId, \`condition\` = :condition, status = 'scheduled'
+         WHERE id = :toAppointmentId AND patient_id IS NULL`,
+        {
+          replacements: { patientId, condition: carriedCondition, toAppointmentId },
+          type: QueryTypes.UPDATE,
+          transaction,
+        }
+      );
+
+      const [checkTo] = await sequelize.query(
+        `SELECT patient_id AS patientId FROM APPOINTMENT WHERE id = :toAppointmentId LIMIT 1`,
+        { replacements: { toAppointmentId }, type: QueryTypes.SELECT, transaction }
+      );
+      if (Number(checkTo?.patientId) !== patientId) {
+        throw new Error('RESCHEDULE_ASSIGN_FAILED');
+      }
+
+      regimenId = await insertNurseVisitRegimenOpenEnd(patientId, transaction);
+      await syncPatientInDeptFromAppointmentRoom(patientId, toAppointmentId, transaction);
+    });
+
+    const [updated] = await sequelize.query(
+      `${NURSE_APPT_SELECT} WHERE a.id = :toAppointmentId LIMIT 1`,
+      { replacements: { toAppointmentId }, type: QueryTypes.SELECT }
+    );
+
+    await notifyDoctorsAfterNurseReschedule(sequelize, {
+      fromAppointmentId,
+      toAppointmentId,
+      patientId,
+    });
+
+    return res.json({
+      success: true,
+      appointment: updated ? mapNurseCheckInRow(updated) : { id: toAppointmentId },
+      regimenId,
+    });
+  } catch (error) {
+    if (error.message === 'SOURCE_APPT_NOT_FOUND') {
+      return res.status(404).json({ success: false, message: 'Current appointment not found for this patient today' });
+    }
+    if (error.message === 'TARGET_SLOT_NOT_OPEN') {
+      return res.status(400).json({ success: false, message: 'Target slot is not an open slot today' });
+    }
+    if (error.message === 'RESCHEDULE_ASSIGN_FAILED') {
+      return res.status(409).json({ success: false, message: 'Reschedule could not be completed' });
+    }
+    console.error('Nurse check-in reschedule error:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+  }
+};
+
+/**
+ * POST /api/appointments/nurse/regimen/checkout
+ * Close the open visit (set REGIMEN.end = NOW()).
+ */
+exports.postNurseRegimenCheckout = async (req, res) => {
+  try {
+    if (!assertNurseOrAdmin(req, res)) return;
+    const patientId = parseNursePatientId(req.body?.patientId);
+    const regimenId = Number(req.body?.regimenId);
+    if (!patientId || !Number.isFinite(regimenId)) {
+      return res.status(400).json({ success: false, message: 'patientId and regimenId are required' });
+    }
+
+    const [active] = await sequelize.query(
+      `SELECT id FROM REGIMEN
+       WHERE id = :regimenId AND patient_id = :patientId AND \`end\` IS NULL
+       LIMIT 1`,
+      { replacements: { regimenId, patientId }, type: QueryTypes.SELECT }
+    );
+    if (!active) {
+      return res.status(404).json({
+        success: false,
+        message: 'No open visit regimen found for this patient',
+      });
+    }
+
+    await sequelize.query(
+      `UPDATE REGIMEN SET \`end\` = NOW()
+       WHERE id = :regimenId AND patient_id = :patientId AND \`end\` IS NULL`,
+      { replacements: { regimenId, patientId }, type: QueryTypes.UPDATE }
+    );
+
+    try {
+      await scheduleMedicationRemindersForClosedRegimen(sequelize, { regimenId, patientId });
+    } catch (schedErr) {
+      console.warn('[medication-reminder] schedule failed:', schedErr?.message || schedErr);
+    }
+
+    return res.json({ success: true, regimenId });
+  } catch (error) {
+    console.error('Nurse regimen checkout error:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };

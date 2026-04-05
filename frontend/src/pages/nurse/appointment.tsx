@@ -10,6 +10,21 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { appointmentService, type ClinicRoomOption, type DoctorOption, type NurseOpenSlot } from "@/services/appointment-service"
+import { PATIENT_IN_DEPARTMENT_OPTIONS } from "@/lib/patient-departments"
+
+function doctorDepartmentsList(d: DoctorOption): string[] {
+  if (d.departments?.length) {
+    return d.departments.map((x) => String(x).trim()).filter(Boolean)
+  }
+  const one = String(d.department || "").trim()
+  return one ? [one] : []
+}
+
+function doctorWorksInDepartment(d: DoctorOption, dept: string): boolean {
+  const norm = dept.trim().toLowerCase()
+  if (!norm) return true
+  return doctorDepartmentsList(d).some((x) => x.toLowerCase() === norm)
+}
 
 export default function NurseAppointmentsPage() {
   const [startDate, setStartDate] = useState("")
@@ -239,20 +254,31 @@ export default function NurseAppointmentsPage() {
     }
   }
 
-  const departmentOptions = useMemo(() => {
-    const map = new Map<string, string>()
-    doctorOptions.forEach((d) => {
-      const value = String(d.department || "").trim()
-      if (!value) return
-      map.set(value.toLowerCase(), value)
-    })
-    return Array.from(map.values()).sort((a, b) => a.localeCompare(b))
-  }, [doctorOptions])
-
   const doctorsForCreate = useMemo(() => {
     if (!createDepartment) return doctorOptions
-    return doctorOptions.filter((d) => String(d.department || "").trim().toLowerCase() === createDepartment.trim().toLowerCase())
+    return doctorOptions.filter((d) => doctorWorksInDepartment(d, createDepartment))
   }, [doctorOptions, createDepartment])
+
+  const departmentsForCreate = useMemo(() => {
+    if (selectedSlotId) return [...PATIENT_IN_DEPARTMENT_OPTIONS]
+    if (!selectedDoctorId) return [...PATIENT_IN_DEPARTMENT_OPTIONS]
+    const doc = doctorOptions.find((d) => String(d.id) === selectedDoctorId)
+    if (!doc) return [...PATIENT_IN_DEPARTMENT_OPTIONS]
+    return PATIENT_IN_DEPARTMENT_OPTIONS.filter((opt) => doctorWorksInDepartment(doc, opt))
+  }, [selectedDoctorId, doctorOptions, selectedSlotId])
+
+  /** After choosing a doctor, if they only work in one enum department, set it automatically */
+  useEffect(() => {
+    if (selectedSlotId) return
+    if (!selectedDoctorId) return
+    const doc = doctorOptions.find((d) => String(d.id) === selectedDoctorId)
+    if (!doc) return
+    const opts = PATIENT_IN_DEPARTMENT_OPTIONS.filter((opt) => doctorWorksInDepartment(doc, opt))
+    if (opts.length !== 1) return
+    if (!createDepartment || !doctorWorksInDepartment(doc, createDepartment)) {
+      setCreateDepartment(opts[0])
+    }
+  }, [selectedDoctorId, doctorOptions, selectedSlotId, createDepartment])
 
   useEffect(() => {
     if (selectedSlotId) return
@@ -279,172 +305,206 @@ export default function NurseAppointmentsPage() {
 
   return (
     <NurseLayout>
-      <div className="space-y-8">
+      <div className="space-y-6">
         <Card className="card-feature border-slate-200/60">
-          <CardContent className="p-6">
-            <h3 className="text-base font-semibold text-slate-800 mb-4">Search Slots</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
-              <div className="relative">
-                <label className="text-sm text-slate-600 mb-1 block">Start date</label>
-                <Calendar className="absolute left-3 top-[38px] w-5 h-5 text-slate-400" />
-                <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} onKeyDown={handleFilterEnter} className="pl-10 h-11 text-base" />
+          <CardContent className="p-4">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-6">
+              {/* Search — compact row */}
+              <div className="min-w-0 flex-1 space-y-2">
+                <h3 className="text-sm font-semibold text-slate-800">Search slots</h3>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 sm:items-end">
+                  <div>
+                    <label className="text-xs text-slate-600 mb-0.5 block">Start date</label>
+                    <div className="relative">
+                      <Calendar className="pointer-events-none absolute left-2.5 top-1/2 z-[1] h-4 w-4 -translate-y-1/2 text-slate-400" />
+                      <Input
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                        onKeyDown={handleFilterEnter}
+                        className="h-9 pl-9 text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-600 mb-0.5 block">End date</label>
+                    <div className="relative">
+                      <Calendar className="pointer-events-none absolute left-2.5 top-1/2 z-[1] h-4 w-4 -translate-y-1/2 text-slate-400" />
+                      <Input
+                        type="date"
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        onKeyDown={handleFilterEnter}
+                        className="h-9 pl-9 text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-600 mb-0.5 block">Department</label>
+                    <Select value={searchDepartment} onValueChange={setSearchDepartment}>
+                      <SelectTrigger className="h-9 text-sm" onKeyDown={handleDepartmentFilterEnter}>
+                        <SelectValue placeholder="All" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                        {PATIENT_IN_DEPARTMENT_OPTIONS.map((d) => (
+                          <SelectItem key={`search-${d}`} value={d}>
+                            {d}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <p className="text-[11px] leading-tight text-slate-500">
+                  Enter in date fields to reload slots from server. Department filters the list for the selected calendar day.
+                </p>
               </div>
 
-              <div className="relative">
-                <label className="text-sm text-slate-600 mb-1 block">End date</label>
-                <Calendar className="absolute left-3 top-[38px] w-5 h-5 text-slate-400" />
-                <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} onKeyDown={handleFilterEnter} className="pl-10 h-11 text-base" />
-              </div>
+              <div className="hidden lg:block w-px shrink-0 self-stretch bg-slate-200 min-h-[4.5rem]" aria-hidden />
 
-              <div>
-                <label className="text-sm text-slate-600 mb-1 block">Department</label>
-                <Select value={searchDepartment} onValueChange={setSearchDepartment}>
-                  <SelectTrigger className="h-11" onKeyDown={handleDepartmentFilterEnter}>
-                    <SelectValue placeholder="All departments" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All departments</SelectItem>
-                    {departmentOptions.map((department) => (
-                      <SelectItem key={`search-${department}`} value={department}>
-                        {department}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              {/* Create / reschedule — compact grid */}
+              <div className="min-w-0 flex-[1.4] space-y-2 lg:max-w-none">
+                <h3 className="text-sm font-semibold text-slate-800">
+                  {selectedSlotId ? "Reschedule slot" : "Create slots"}
+                </h3>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6 xl:items-end">
+                  <div className="col-span-2 sm:col-span-1 xl:col-span-1">
+                    <label className="text-xs text-slate-600 mb-0.5 block">Department</label>
+                    <Select
+                      value={createDepartment || undefined}
+                      onValueChange={(value) => {
+                        setCreateDepartment(value)
+                        if (selectedSlotId) return
+                        if (selectedDoctorId) {
+                          const doc = doctorOptions.find((x) => String(x.id) === selectedDoctorId)
+                          if (doc && !doctorWorksInDepartment(doc, value)) {
+                            setSelectedDoctorId("")
+                          }
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-9 text-sm">
+                        <SelectValue placeholder="Select" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {departmentsForCreate.map((d) => (
+                          <SelectItem key={`create-${d}`} value={d}>
+                            {d}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="col-span-2 sm:col-span-2 xl:col-span-1">
+                    <label className="text-xs text-slate-600 mb-0.5 block">Doctor</label>
+                    <Select
+                      value={selectedDoctorId}
+                      onValueChange={(id) => {
+                        setSelectedDoctorId(id)
+                        if (selectedSlotId || !id) return
+                        const doc = doctorOptions.find((x) => String(x.id) === id)
+                        if (doc && createDepartment && !doctorWorksInDepartment(doc, createDepartment)) {
+                          setCreateDepartment("")
+                        }
+                      }}
+                      disabled={!!selectedSlotId}
+                    >
+                      <SelectTrigger className="h-9 text-sm">
+                        <SelectValue placeholder="Select doctor" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {doctorsForCreate.map((d) => {
+                          const fullName = `${d.firstName || ""} ${d.lastName || ""}`.trim() || d.username
+                          return (
+                            <SelectItem key={d.id} value={String(d.id)}>
+                              {`Dr. ${fullName}`}
+                            </SelectItem>
+                          )
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-600 mb-0.5 block">Date</label>
+                    <Input type="date" value={slotDate} onChange={(e) => setSlotDate(e.target.value)} className="h-9 text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-600 mb-0.5 block">Room</label>
+                    <Select value={selectedRoomId || undefined} onValueChange={setSelectedRoomId}>
+                      <SelectTrigger className="h-9 text-sm">
+                        <SelectValue placeholder="Room" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {roomOptions.map((room) => (
+                          <SelectItem key={room.id} value={String(room.id)}>
+                            {room.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-600 mb-0.5 block">Start</label>
+                    <Input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="HH:mm"
+                      list="nurse-start-time-options"
+                      value={slotStartTime}
+                      onChange={(e) => setSlotStartTime(formatTimeMask(e.target.value))}
+                      onBlur={() => handleTimeFieldBlur("start")}
+                      className="h-9 text-sm"
+                    />
+                    <datalist id="nurse-start-time-options">
+                      {halfHourOptions.map((time) => (
+                        <option key={`start-${time}`} value={time} />
+                      ))}
+                    </datalist>
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-600 mb-0.5 block">End</label>
+                    <Input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="HH:mm"
+                      list="nurse-end-time-options"
+                      value={slotEndTime}
+                      onChange={(e) => setSlotEndTime(formatTimeMask(e.target.value))}
+                      onBlur={() => handleTimeFieldBlur("end")}
+                      className="h-9 text-sm"
+                    />
+                    <datalist id="nurse-end-time-options">
+                      {halfHourOptions.map((time) => (
+                        <option key={`end-${time}`} value={time} />
+                      ))}
+                    </datalist>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button className="btn-gradient h-9 px-4 text-sm" onClick={handleCreateOrUpdate} disabled={saving}>
+                    <Plus className="mr-1.5 h-4 w-4" />
+                    {selectedSlotId ? "Reschedule" : "Create"}
+                  </Button>
+                  <Button variant="outline" className="h-9 px-4 text-sm" onClick={resetForm} disabled={saving}>
+                    <RefreshCcw className="mr-1.5 h-4 w-4" />
+                    Clear
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-9 border-red-200 px-4 text-sm text-red-700 hover:bg-red-50"
+                    onClick={handleDelete}
+                    disabled={saving || !selectedSlotId}
+                  >
+                    <X className="mr-1.5 h-4 w-4" />
+                    Cancel slot
+                  </Button>
+                  <span className="text-[11px] text-slate-500 xl:ml-1">Times: HH:mm, minutes 00 or 30 only.</span>
+                </div>
+                {message ? <p className="text-sm text-slate-700">{message}</p> : null}
               </div>
             </div>
             <p className="mt-2 text-xs text-slate-500">Press Enter in date fields to apply filter.</p>
-          </CardContent>
-        </Card>
-
-        <Card className="card-feature border-slate-200/60">
-          <CardContent className="p-6">
-            <h3 className="text-base font-semibold text-slate-800 mb-4">{selectedSlotId ? "Reschedule Slot" : "Create Slots"}</h3>
-            <div className="grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
-              <div>
-                <label className="text-sm text-slate-600 mb-1 block">Department</label>
-                <Select
-                  value={createDepartment || undefined}
-                  onValueChange={(value) => {
-                    setCreateDepartment(value)
-                    if (!selectedSlotId) {
-                      setSelectedDoctorId("")
-                    }
-                  }}
-                >
-                  <SelectTrigger className="h-11">
-                    <SelectValue placeholder="Select department" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {departmentOptions.map((department) => (
-                      <SelectItem key={`create-${department}`} value={department}>
-                        {department}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <label className="text-sm text-slate-600 mb-1 block">Doctor</label>
-                <Select value={selectedDoctorId} onValueChange={setSelectedDoctorId} disabled={!!selectedSlotId}>
-                  <SelectTrigger className="h-11">
-                    <SelectValue placeholder="Select doctor" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {doctorsForCreate.map((d) => {
-                      const fullName = `${d.firstName || ""} ${d.lastName || ""}`.trim() || d.username
-                      return (
-                        <SelectItem key={d.id} value={String(d.id)}>
-                          {`Dr. ${fullName}`}
-                        </SelectItem>
-                      )
-                    })}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <label className="text-sm text-slate-600 mb-1 block">Date</label>
-                <Input type="date" value={slotDate} onChange={(e) => setSlotDate(e.target.value)} className="h-11" />
-              </div>
-
-              <div>
-                <label className="text-sm text-slate-600 mb-1 block">Room</label>
-                <Select value={selectedRoomId || undefined} onValueChange={setSelectedRoomId}>
-                  <SelectTrigger className="h-11">
-                    <SelectValue placeholder="Select room" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {roomOptions.map((room) => (
-                      <SelectItem key={room.id} value={String(room.id)}>
-                        {room.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <label className="text-sm text-slate-600 mb-1 block">Start time</label>
-                <Input
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="__:__"
-                  list="nurse-start-time-options"
-                  value={slotStartTime}
-                  onChange={(e) => setSlotStartTime(formatTimeMask(e.target.value))}
-                  onBlur={() => handleTimeFieldBlur("start")}
-                  className="h-11"
-                />
-                <datalist id="nurse-start-time-options">
-                  {halfHourOptions.map((time) => (
-                    <option key={`start-${time}`} value={time} />
-                  ))}
-                </datalist>
-              </div>
-
-              <div>
-                <label className="text-sm text-slate-600 mb-1 block">End time</label>
-                <Input
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="__:__"
-                  list="nurse-end-time-options"
-                  value={slotEndTime}
-                  onChange={(e) => setSlotEndTime(formatTimeMask(e.target.value))}
-                  onBlur={() => handleTimeFieldBlur("end")}
-                  className="h-11"
-                />
-                <datalist id="nurse-end-time-options">
-                  {halfHourOptions.map((time) => (
-                    <option key={`end-${time}`} value={time} />
-                  ))}
-                </datalist>
-              </div>
-            </div>
-            <p className="mt-2 text-xs text-slate-500">Time format: HH:mm, only 30-minute steps (00 or 30).</p>
-
-            <div className="mt-4 flex flex-wrap gap-3">
-              <Button className="btn-gradient h-11 px-6" onClick={handleCreateOrUpdate} disabled={saving}>
-                <Plus className="w-5 h-5 mr-2" />
-                {selectedSlotId ? "Reschedule Slot" : "Create Slot"}
-              </Button>
-              <Button variant="outline" className="h-11 px-6" onClick={resetForm} disabled={saving}>
-                <RefreshCcw className="w-5 h-5 mr-2" />
-                Clear
-              </Button>
-              <Button
-                variant="outline"
-                className="h-11 px-6 border-red-200 text-red-700 hover:bg-red-50"
-                onClick={handleDelete}
-                disabled={saving || !selectedSlotId}
-              >
-                <X className="w-5 h-5 mr-2" />
-                Cancel Slot
-              </Button>
-            </div>
-            {message ? <p className="mt-3 text-sm text-slate-700">{message}</p> : null}
           </CardContent>
         </Card>
 

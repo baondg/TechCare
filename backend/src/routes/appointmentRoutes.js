@@ -17,7 +17,18 @@ router.get('/open-slots', appointmentController.getOpenSlots);
 router.post('/open-slots', appointmentController.createOpenSlot);
 router.put('/open-slots/:id', appointmentController.updateOpenSlot);
 router.delete('/open-slots/:id', appointmentController.deleteOpenSlot);
+
+router.get('/nurse/check-in-options', appointmentController.getNurseCheckInOptions);
+router.post('/nurse/check-in-accept', appointmentController.postNurseCheckInAccept);
+router.post('/nurse/check-in-assign', appointmentController.postNurseCheckInAssign);
+router.post('/nurse/check-in-reschedule', appointmentController.postNurseCheckInReschedule);
+router.post('/nurse/regimen/checkout', appointmentController.postNurseRegimenCheckout);
+
 router.get('/dashboard-summary', appointmentController.getPatientDashboardSummary);
+router.get('/medical-visits', appointmentController.getPatientMedicalVisits);
+router.get('/medical-regimens', appointmentController.getPatientMedicalRegimens);
+router.get('/symptom-logs', appointmentController.getPatientSymptomLogs);
+router.get('/lab-tests/:testId/details', appointmentController.getPatientLabTestDetails);
 router.get('/feedback', appointmentController.getFeedbacks);
 router.get('/feedback/visible', appointmentController.getVisibleFeedbacks);
 router.post('/feedback', appointmentController.createFeedback);

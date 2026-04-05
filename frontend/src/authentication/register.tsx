@@ -181,7 +181,9 @@ export default function RegisterPage() {
 
             
             <div>
-              <Label>First Name *</Label>
+              <Label>
+                First Name <span className="text-red-500">*</span>
+              </Label>
               <Input 
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
@@ -190,7 +192,9 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <Label>Last Name *</Label>
+              <Label>
+                Last Name <span className="text-red-500">*</span>
+              </Label>
               <Input 
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
@@ -260,7 +264,9 @@ export default function RegisterPage() {
             </div>
 
             <div className="md:col-span-2">
-              <Label>Email *</Label>
+              <Label>
+                Email <span className="text-red-500">*</span>
+              </Label>
               <Input 
                 placeholder="user@example.com" 
                 type="email"
@@ -402,7 +408,9 @@ export default function RegisterPage() {
           <CardContent className="grid grid-cols-2 md:grid-cols-2 gap-4">
           <div className="col-span-1 md:col-span-3 flex flex-col gap-1 mt-2">
             <div>
-              <Label>Username *</Label>
+              <Label>
+                Username <span className="text-red-500">*</span>
+              </Label>
               <Input 
                 placeholder="Enter username" 
                 value={username}
@@ -412,7 +420,9 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <Label>Password *</Label>
+              <Label>
+                Password <span className="text-red-500">*</span>
+              </Label>
               <div className="relative">
                 <Input
                   type={showPassword ? "text" : "password"}
@@ -432,7 +442,9 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <Label>Re-enter password *</Label>
+              <Label>
+                Re-enter password <span className="text-red-500">*</span>
+              </Label>
               <div className="relative">
               <Input 
                     type={showPassword2 ? "text" : "password"}

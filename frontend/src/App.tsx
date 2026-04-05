@@ -59,6 +59,7 @@ function App() {
           <Route path="/patient/appointments/book-appointment" element={<BookAppointmentPage />} />
           <Route path="/patient/health-info" element={<HealthInfoPage />} />
           <Route path="/patient/records" element={<RecordsPage />} />
+          <Route path="/patient/history" element={<RecordsPage />} />
           <Route path="/patient/symptom-checker" element={<SymptomCheckerPage />} />
 
           {/* Protected Admin Routes */}

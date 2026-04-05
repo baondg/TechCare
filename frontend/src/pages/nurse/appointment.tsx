@@ -504,6 +504,7 @@ export default function NurseAppointmentsPage() {
                 {message ? <p className="text-sm text-slate-700">{message}</p> : null}
               </div>
             </div>
+            <p className="mt-2 text-xs text-slate-500">Press Enter in date fields to apply filter.</p>
           </CardContent>
         </Card>
 

@@ -54,6 +54,24 @@ export function TechnicianLayout2() {
     [visitLoading, visitActive]
   )
 
+  useEffect(() => {
+    const fetchPatient = async () => {
+      if (!patientId) return
+      try {
+        const res = await fetch(`http://localhost:3000/api/doctor/patients/${patientId}`, {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("authToken")}`
+          }
+        })
+        const data = await res.json()
+        if (data.success) setPatientData(data.patient)
+      } catch (err) {
+        console.error(err)
+      }
+    }
+    void fetchPatient()
+  }, [patientId])
+
   return (
     <EmrSessionProvider value={emrSessionValue}>
       <TechnicianLayout>

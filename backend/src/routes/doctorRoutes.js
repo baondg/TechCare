@@ -69,4 +69,8 @@ router.post('/appointments', doctorController.createAppointment);
 router.put('/appointments/:id/cancel', doctorController.cancelAppointment);
 router.put('/appointments/:id/confirm', doctorController.confirmAppointment);
 
+// ─── Signature ───
+router.get('/signature', doctorController.getSignature);
+router.put('/signature', doctorController.saveSignature);
+
 module.exports = router;

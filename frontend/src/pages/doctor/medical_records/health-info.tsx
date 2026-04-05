@@ -955,7 +955,8 @@ const loadHealthHistory = async () => {
                         <SelectContent>
                           <SelectItem value="All">All</SelectItem>
                           <SelectItem value="Draft">Draft</SelectItem>
-                          <SelectItem value="Confirmed">Confirmed</SelectItem>
+                          <SelectItem value="Signed">Signed</SelectItem>
+                          <SelectItem value="Voided">Voided</SelectItem>
                         </SelectContent>
                       </Select>
                     </TableHead>

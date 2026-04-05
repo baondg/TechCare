@@ -645,4 +645,114 @@ export const doctorService = {
   async getDashboardSummary() {
     return apiRequest<{ success: boolean } & DoctorDashboardSummary>(`${API_BASE_URL}/api/doctor/dashboard/summary`);
   },
+
+  // ═══════════════════════════════════════════════
+  //  AI MEDICINE SUGGESTIONS
+  // ═══════════════════════════════════════════════
+
+  async getAiMedicineSuggestions(data: {
+    diagnosis: string;
+    symptoms: string;
+    patientInfo?: string;
+  }) {
+    return apiRequest<{
+      success: boolean;
+      suggestions: Array<{
+        name: string;
+        quantity: string;
+        unit: string;
+        usage: string;
+        note: string;
+      }>;
+      raw: string;
+      provider: string;
+    }>(`${API_BASE_URL}/api/ai/suggest-medicine`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // ═══════════════════════════════════════════════
+  //  DOCTOR SIGNATURE
+  // ═══════════════════════════════════════════════
+
+  async getSignature() {
+    return apiRequest<{
+      success: boolean;
+      signature: string | null;
+    }>(`${API_BASE_URL}/api/doctor/signature`);
+  },
+
+  async saveSignature(signatureDataUrl: string) {
+    return apiRequest<{
+      success: boolean;
+    }>(`${API_BASE_URL}/api/doctor/signature`, {
+      method: 'PUT',
+      body: JSON.stringify({ signature: signatureDataUrl }),
+    });
+  },
+
+  // ═══════════════════════════════════════════════
+  //  COVER REQUESTS
+  // ═══════════════════════════════════════════════
+
+  async createCoverRequest(appointmentIds: number[], reason: string) {
+    return apiRequest<{
+      success: boolean;
+      coverRequests: Array<{ id: number; appointmentId: number }>;
+    }>(`${API_BASE_URL}/api/cover/request`, {
+      method: 'POST',
+      body: JSON.stringify({ appointmentIds, reason }),
+    });
+  },
+
+  async getCoverRequests() {
+    return apiRequest<{
+      success: boolean;
+      coverRequests: Array<{
+        id: number;
+        appointmentId: number;
+        status: string;
+        reason: string;
+        createdAt: string;
+        appointmentDate: string;
+        appointmentTime: string;
+        appointmentCondition: string;
+        originalDoctorName: string;
+        department: string;
+        patientName: string;
+        roomName: string;
+      }>;
+    }>(`${API_BASE_URL}/api/cover/requests`);
+  },
+
+  async getMyCoverRequests() {
+    return apiRequest<{
+      success: boolean;
+      coverRequests: Array<{
+        id: number;
+        appointmentId: number;
+        status: string;
+        reason: string;
+        createdAt: string;
+        appointmentDate: string;
+        appointmentTime: string;
+        coverDoctorName: string;
+      }>;
+    }>(`${API_BASE_URL}/api/cover/my-requests`);
+  },
+
+  async acceptCoverRequest(id: number) {
+    return apiRequest<{ success: boolean; message: string }>(
+      `${API_BASE_URL}/api/cover/${id}/accept`,
+      { method: 'PUT' }
+    );
+  },
+
+  async rejectCoverRequest(id: number) {
+    return apiRequest<{ success: boolean; message: string }>(
+      `${API_BASE_URL}/api/cover/${id}/reject`,
+      { method: 'PUT' }
+    );
+  },
 };

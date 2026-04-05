@@ -102,6 +102,8 @@ export async function generatePrescriptionPdfBlob(opts: {
   filename?: string
   /** Red diagonal watermark on PDF when voided */
   signatureStatus?: ExportPrescriptionSignatureStatus
+  /** Base64 data URL of the doctor's signature image */
+  signatureDataUrl?: string | null
 }): Promise<PrescriptionPdfResult> {
   const { patient, medications, prescriptionDate, doctorName } = opts
   const fullName = `${patient.firstName || ""} ${patient.lastName || ""}`.trim() || patient.username

@@ -769,7 +769,8 @@ export default function HealthInfoPage() {
                         <SelectContent>
                           <SelectItem value="All">All</SelectItem>
                           <SelectItem value="Draft">Draft</SelectItem>
-                          <SelectItem value="Confirmed">Confirmed</SelectItem>
+                          <SelectItem value="Signed">Signed</SelectItem>
+                          <SelectItem value="Unsigned">Unsigned</SelectItem>
                         </SelectContent>
                       </Select>
                     </TableHead>

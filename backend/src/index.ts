@@ -18,6 +18,8 @@ const adminRoutes = require('./routes/adminRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const sessionMiddleware = require('./middleware/sessionMiddleware');
 const sequelize = require('./common/database');
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { startMedicationReminderScheduler } = require('./services/medicationReminderNotifications');
 
 // Import models so they sync (order matters - define users table first)
 require('./models/Appointment');
@@ -112,7 +114,8 @@ app.use((err: Error, req: Request, res: Response, next: Function) => {
 async function startServer() {
   try {
     console.log('✅ Database connection ready');
-    
+    startMedicationReminderScheduler(sequelize);
+
     app.listen(PORT, () => {
       console.log(`🚀 Server is running on http://localhost:${PORT}`);
     });

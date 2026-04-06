@@ -31,6 +31,13 @@ import {
 } from "@/components/ui/select"
 import { doctorService, type PatientDetail } from "@/services/doctor-service"
 import { appointmentService, type ClinicRoomOption } from "@/services/appointment-service"
+import { buildHospitalTransferSlipHtmlDocument } from "@/lib/hospital-transfer-slip-html"
+import {
+  buildFollowUpReexamSlipHtmlDocument,
+  formatDdMmYyyy,
+  parseIsoDateForSlip,
+  splitInsuranceCardSix,
+} from "@/lib/follow-up-reexam-slip-html"
 import { Loader2, ArrowRightLeft, AlertCircle } from "lucide-react"
 
 const tabs = [
@@ -47,6 +54,18 @@ function routePatientNumericId(patientId: string | undefined): number | null {
   if (!patientId) return null
   const n = Number(String(patientId).replace(/^OP0*/i, ""))
   return Number.isFinite(n) && n > 0 ? n : null
+}
+
+function readSignedInDisplayName(): string {
+  try {
+    const raw = localStorage.getItem("user")
+    if (!raw) return ""
+    const u = JSON.parse(raw) as { firstName?: string; lastName?: string; username?: string; fullName?: string }
+    const n = `${u.firstName || ""} ${u.lastName || ""}`.trim()
+    return n || String(u.fullName || "").trim() || String(u.username || "").trim()
+  } catch {
+    return ""
+  }
 }
 
 export function DoctorLayout2() {
@@ -75,6 +94,13 @@ export function DoctorLayout2() {
   const [toHospitalName, setToHospitalName] = useState("")
   const [toHospitalId, setToHospitalId] = useState("")
   const [transport, setTransport] = useState("")
+  const [clinicalSummary, setClinicalSummary] = useState("")
+  const [keyFindings, setKeyFindings] = useState("")
+  const [keyTestsSummary, setKeyTestsSummary] = useState("")
+  const [treatmentsProvided, setTreatmentsProvided] = useState("")
+  const [conditionAtTransfer, setConditionAtTransfer] = useState("")
+  const [transferObjective, setTransferObjective] = useState("")
+  const [escortInfo, setEscortInfo] = useState("")
   const [clinicRooms, setClinicRooms] = useState<ClinicRoomOption[]>([])
   const [roomsLoading, setRoomsLoading] = useState(false)
   const [transferSubmitting, setTransferSubmitting] = useState(false)
@@ -224,9 +250,9 @@ export function DoctorLayout2() {
     }
   }
 
-  const toRoomDepartmentLabel = useMemo(() => {
-    if (!toRoomId) return null
-    const r = clinicRooms.find((x) => String(x.id) === toRoomId)
+  const departmentLabelForRoomId = useCallback((roomId: string | null) => {
+    if (!roomId) return null
+    const r = clinicRooms.find((x) => String(x.id) === roomId)
     if (!r) return null
     const n = r.departmentName?.trim()
     if (n) return n
@@ -234,7 +260,116 @@ export function DoctorLayout2() {
       return `Department #${r.departmentId}`
     }
     return "No department linked to this room"
-  }, [clinicRooms, toRoomId])
+  }, [clinicRooms])
+
+  const fromRoomDepartmentLabel = useMemo(
+    () => departmentLabelForRoomId(fromRoomId),
+    [departmentLabelForRoomId, fromRoomId]
+  )
+
+  const toRoomDepartmentLabel = useMemo(
+    () => departmentLabelForRoomId(toRoomId),
+    [departmentLabelForRoomId, toRoomId]
+  )
+
+  const followUpPreviewHtml = useMemo(() => {
+    if (!followOpen || !patientData) return ""
+    const patientName = `${patientData.firstName || ""} ${patientData.lastName || ""}`.trim() || "—"
+    const genderLabel =
+      patientData.gender === "M" ? "Nam" : patientData.gender === "F" ? "Nữ" : patientData.gender?.trim() || "—"
+    const dx = patientData.latestDiagnosis
+    const diagnosis = [dx?.icd10, dx?.interpretation].filter(Boolean).join(" — ") || "—"
+    const rev = followDate.trim() ? parseIsoDateForSlip(followDate) : null
+    const revisitDay = rev ? rev.day.padStart(2, "0") : "…"
+    const revisitMonth = rev ? rev.month.padStart(2, "0") : "…"
+    const revisitYear = rev ? rev.year : "…"
+    const now = new Date()
+    const footerDay = String(now.getDate())
+    const footerMonth = String(now.getMonth() + 1)
+    const footerYear = String(now.getFullYear())
+    const examDateDisplay = formatDdMmYyyy(
+      `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`
+    )
+    const placeholderDate = "..../..../........"
+    return buildFollowUpReexamSlipHtmlDocument({
+      patientName,
+      genderLabel,
+      dateOfBirthDisplay: placeholderDate,
+      address: "—",
+      insuranceCardSix: splitInsuranceCardSix(patientData.healthInsuranceId),
+      insuranceValidFromDisplay: placeholderDate,
+      insuranceValidToDisplay: placeholderDate,
+      examDateDisplay: examDateDisplay || placeholderDate,
+      admissionDateDisplay: placeholderDate,
+      dischargeDateDisplay: placeholderDate,
+      diagnosis,
+      comorbidities: followSymptoms.trim() || "—",
+      revisitDay,
+      revisitMonth,
+      revisitYear,
+      appointmentTimeLabel: followTime.trim() || undefined,
+      departmentLabel: followDepartment.trim() || undefined,
+      footerPlaceLine: "………………",
+      footerDay,
+      footerMonth,
+      footerYear,
+      doctorDisplayName: readSignedInDisplayName() || "—",
+    })
+  }, [followOpen, patientData, followDate, followTime, followDepartment, followSymptoms])
+
+  const hospitalTransferPreviewHtml = useMemo(() => {
+    if (!transferOpen || transferKind !== "hospital" || !patientData) return ""
+    const t = (s: string) => s.trim()
+    const patientName = `${patientData.firstName || ""} ${patientData.lastName || ""}`.trim() || "—"
+    const patientSex =
+      patientData.gender === "M" ? "Male" : patientData.gender === "F" ? "Female" : patientData.gender || "—"
+
+    const formPayload: Record<string, unknown> = {
+      portalVersion: 1,
+      toHospitalName: t(toHospitalName),
+      ...(t(toHospitalId) ? { toHospitalId: t(toHospitalId) } : {}),
+      ...(t(clinicalSummary) ? { clinicalSummary: t(clinicalSummary) } : {}),
+      ...(t(keyFindings) ? { keyFindings: t(keyFindings) } : {}),
+      ...(t(keyTestsSummary) ? { keyTestsSummary: t(keyTestsSummary) } : {}),
+      ...(t(treatmentsProvided) ? { treatmentsProvided: t(treatmentsProvided) } : {}),
+      ...(t(conditionAtTransfer) ? { conditionAtTransfer: t(conditionAtTransfer) } : {}),
+      ...(t(transferObjective) ? { transferObjective: t(transferObjective) } : {}),
+      ...(t(escortInfo) ? { escortInfo: t(escortInfo) } : {}),
+    }
+
+    return buildHospitalTransferSlipHtmlDocument({
+      patientName,
+      patientDob: "—",
+      patientSex,
+      insuranceId: patientData.healthInsuranceId || undefined,
+      destinationHospital: t(toHospitalName) || "—",
+      destinationRefId: t(toHospitalId) || undefined,
+      reason: t(transferReason),
+      note: t(transferNote) || undefined,
+      transport: t(transport) || undefined,
+      transferAt: new Date().toLocaleString("vi-VN", { dateStyle: "medium", timeStyle: "short" }),
+      doctorName: readSignedInDisplayName() || "—",
+      icd10: patientData.latestDiagnosis?.icd10,
+      diagnosis: patientData.latestDiagnosis?.interpretation,
+      formPayload,
+    })
+  }, [
+    transferOpen,
+    transferKind,
+    patientData,
+    transferReason,
+    transferNote,
+    toHospitalName,
+    toHospitalId,
+    transport,
+    clinicalSummary,
+    keyFindings,
+    keyTestsSummary,
+    treatmentsProvided,
+    conditionAtTransfer,
+    transferObjective,
+    escortInfo,
+  ])
 
   const submitTransfer = async () => {
     if (!patientId || !transferReason.trim()) {
@@ -271,6 +406,19 @@ export function DoctorLayout2() {
           toHospitalName: toHospitalName.trim(),
           toHospitalId: toHospitalId.trim() || undefined,
           transport: transport.trim() || undefined,
+          formPayload: {
+            portalVersion: 1,
+            recordedAt: new Date().toISOString(),
+            toHospitalName: toHospitalName.trim(),
+            toHospitalId: toHospitalId.trim() || undefined,
+            clinicalSummary: clinicalSummary.trim() || undefined,
+            keyFindings: keyFindings.trim() || undefined,
+            keyTestsSummary: keyTestsSummary.trim() || undefined,
+            treatmentsProvided: treatmentsProvided.trim() || undefined,
+            conditionAtTransfer: conditionAtTransfer.trim() || undefined,
+            transferObjective: transferObjective.trim() || undefined,
+            escortInfo: escortInfo.trim() || undefined,
+          },
         })
       }
       window.alert("Transfer recorded.")
@@ -280,6 +428,13 @@ export function DoctorLayout2() {
       setToHospitalName("")
       setToHospitalId("")
       setTransport("")
+      setClinicalSummary("")
+      setKeyFindings("")
+      setKeyTestsSummary("")
+      setTreatmentsProvided("")
+      setConditionAtTransfer("")
+      setTransferObjective("")
+      setEscortInfo("")
     } catch (e) {
       window.alert(e instanceof Error ? e.message : "Could not record transfer.")
     } finally {
@@ -298,7 +453,7 @@ export function DoctorLayout2() {
     setFinishSubmitting(true)
     try {
       await doctorService.closeOpenVisitRegimen(patientId)
-      window.alert("Visit closed. The patient history will show this encounter as one card.")
+      window.alert("Visit closed")
       await loadVisitState()
     } catch (e) {
       window.alert(e instanceof Error ? e.message : "Could not close visit.")
@@ -311,59 +466,75 @@ export function DoctorLayout2() {
     <EmrSessionProvider value={emrSessionValue}>
     <DoctorLayout>
       <Dialog open={followOpen} onOpenChange={setFollowOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[90vh] w-full max-w-[min(1120px,98vw)] flex-col gap-3 overflow-hidden p-6 sm:max-w-[min(1120px,98vw)]">
+          <DialogHeader className="shrink-0 space-y-1">
             <DialogTitle>Add follow-up appointment</DialogTitle>
+            <p className="hidden text-xs text-muted-foreground lg:block">
+              Print preview: PHIẾU HẸN KHÁM LẠI — updates as you type.
+            </p>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="grid gap-2">
-              <Label htmlFor="fu-date">
-                Date <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="fu-date"
-                type="date"
-                value={followDate}
-                onChange={(e) => setFollowDate(e.target.value)}
-                required
-              />
+          <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_min(380px,42vw)]">
+            <div className="max-h-[min(72vh,640px)] min-h-0 space-y-4 overflow-y-auto py-1 pr-1">
+              <div className="grid gap-2">
+                <Label htmlFor="fu-date">
+                  Date <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="fu-date"
+                  type="date"
+                  value={followDate}
+                  onChange={(e) => setFollowDate(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="fu-time">
+                  Time <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="fu-time"
+                  type="time"
+                  value={followTime}
+                  onChange={(e) => setFollowTime(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="fu-dept">
+                  Department <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="fu-dept"
+                  value={followDepartment}
+                  onChange={(e) => setFollowDepartment(e.target.value)}
+                  placeholder="e.g. Outpatient"
+                  required
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="fu-symptoms">Reason / symptoms (optional)</Label>
+                <Textarea
+                  id="fu-symptoms"
+                  value={followSymptoms}
+                  onChange={(e) => setFollowSymptoms(e.target.value)}
+                  rows={3}
+                  placeholder="Chief complaint or visit reason"
+                />
+              </div>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="fu-time">
-                Time <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="fu-time"
-                type="time"
-                value={followTime}
-                onChange={(e) => setFollowTime(e.target.value)}
-                required
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="fu-dept">
-                Department <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="fu-dept"
-                value={followDepartment}
-                onChange={(e) => setFollowDepartment(e.target.value)}
-                placeholder="e.g. Outpatient"
-                required
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="fu-symptoms">Reason / symptoms (optional)</Label>
-              <Textarea
-                id="fu-symptoms"
-                value={followSymptoms}
-                onChange={(e) => setFollowSymptoms(e.target.value)}
-                rows={3}
-                placeholder="Chief complaint or visit reason"
-              />
+            <div className="flex min-h-[260px] flex-col overflow-hidden rounded-lg border bg-muted/20 lg:min-h-0 lg:max-h-[min(72vh,640px)]">
+              <div className="shrink-0 border-b bg-background px-3 py-1.5 text-xs font-medium">Print preview</div>
+              <div className="min-h-0 flex-1 bg-white p-1">
+                <iframe
+                  title="Follow-up slip preview"
+                  className="h-full min-h-[280px] w-full border-0"
+                  srcDoc={followUpPreviewHtml}
+                  sandbox=""
+                />
+              </div>
             </div>
           </div>
-          <DialogFooter className="gap-2">
+          <DialogFooter className="shrink-0 gap-2 border-t border-border/60 pt-3">
             <Button type="button" variant="outline" onClick={() => setFollowOpen(false)}>
               Cancel
             </Button>
@@ -381,11 +552,35 @@ export function DoctorLayout2() {
       </Dialog>
 
       <Dialog open={transferOpen} onOpenChange={setTransferOpen}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent
+          className={
+            transferKind === "hospital"
+              ? "flex max-h-[90vh] w-full max-w-[min(1120px,98vw)] flex-col gap-3 overflow-hidden p-6 sm:max-w-[min(1120px,98vw)]"
+              : "flex max-h-[90vh] w-full max-w-lg flex-col gap-3 overflow-y-auto p-6 sm:max-w-lg"
+          }
+        >
+          <DialogHeader className="shrink-0 space-y-1">
             <DialogTitle>Transfer patient</DialogTitle>
+            {transferKind === "hospital" ? (
+              <p className="hidden text-xs text-muted-foreground lg:block">
+                Live print preview updates as you type.
+              </p>
+            ) : null}
           </DialogHeader>
-          <div className="space-y-4 py-2">
+          <div
+            className={
+              transferKind === "hospital"
+                ? "grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_min(380px,42vw)]"
+                : "min-h-0 flex-1"
+            }
+          >
+            <div
+              className={
+                transferKind === "hospital"
+                  ? "max-h-[min(72vh,640px)] min-h-0 space-y-4 overflow-y-auto py-1 pr-1"
+                  : "space-y-4 py-1"
+              }
+            >
             <div className="flex gap-2">
               <Button
                 type="button"
@@ -431,18 +626,26 @@ export function DoctorLayout2() {
                   {roomsLoading ? (
                     <p className="text-sm text-muted-foreground">Loading rooms…</p>
                   ) : (
-                    <Select value={fromRoomId} onValueChange={setFromRoomId}>
-                      <SelectTrigger aria-required="true">
-                        <SelectValue placeholder="Select room" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {clinicRooms.map((r) => (
-                          <SelectItem key={r.id} value={String(r.id)}>
-                            {r.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <>
+                      <Select value={fromRoomId} onValueChange={setFromRoomId}>
+                        <SelectTrigger aria-required="true">
+                          <SelectValue placeholder="Select room" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {clinicRooms.map((r) => (
+                            <SelectItem key={r.id} value={String(r.id)}>
+                              {r.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {fromRoomDepartmentLabel ? (
+                        <p className="text-sm text-slate-600 rounded-md border border-cyan-100 bg-cyan-50/60 px-3 py-2">
+                          <span className="text-slate-500">Department: </span>
+                          <span className="font-medium text-slate-800">{fromRoomDepartmentLabel}</span>
+                        </p>
+                      ) : null}
+                    </>
                   )}
                 </div>
                 <div className="grid gap-2">
@@ -500,10 +703,91 @@ export function DoctorLayout2() {
                     placeholder="e.g. ambulance"
                   />
                 </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="h-transfer-objective">Transfer objective (optional)</Label>
+                  <Input
+                    id="h-transfer-objective"
+                    value={transferObjective}
+                    onChange={(e) => setTransferObjective(e.target.value)}
+                    placeholder="e.g. Higher-level cardiology intervention"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="h-condition">Patient condition at transfer (optional)</Label>
+                  <Input
+                    id="h-condition"
+                    value={conditionAtTransfer}
+                    onChange={(e) => setConditionAtTransfer(e.target.value)}
+                    placeholder="e.g. Hemodynamically stable, conscious"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="h-summary">Clinical summary (optional)</Label>
+                  <Textarea
+                    id="h-summary"
+                    value={clinicalSummary}
+                    onChange={(e) => setClinicalSummary(e.target.value)}
+                    rows={2}
+                    placeholder="Overall clinical course and key context"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="h-findings">Key findings (optional)</Label>
+                  <Textarea
+                    id="h-findings"
+                    value={keyFindings}
+                    onChange={(e) => setKeyFindings(e.target.value)}
+                    rows={2}
+                    placeholder="Main signs/symptoms and important exam findings"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="h-tests">Key tests and results (optional)</Label>
+                  <Textarea
+                    id="h-tests"
+                    value={keyTestsSummary}
+                    onChange={(e) => setKeyTestsSummary(e.target.value)}
+                    rows={2}
+                    placeholder="Important labs/imaging and result summary"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="h-treatments">Treatments provided (optional)</Label>
+                  <Textarea
+                    id="h-treatments"
+                    value={treatmentsProvided}
+                    onChange={(e) => setTreatmentsProvided(e.target.value)}
+                    rows={2}
+                    placeholder="Therapies/interventions completed before transfer"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="h-escort">Escort / handover contact (optional)</Label>
+                  <Input
+                    id="h-escort"
+                    value={escortInfo}
+                    onChange={(e) => setEscortInfo(e.target.value)}
+                    placeholder="Name, role, phone"
+                  />
+                </div>
               </div>
             )}
+            </div>
+            {transferKind === "hospital" ? (
+              <div className="flex min-h-[260px] flex-col overflow-hidden rounded-lg border bg-muted/20 lg:min-h-0 lg:max-h-[min(72vh,640px)]">
+                <div className="shrink-0 border-b bg-background px-3 py-1.5 text-xs font-medium">Print preview</div>
+                <div className="min-h-0 flex-1 bg-white p-1">
+                  <iframe
+                    title="Hospital transfer slip preview"
+                    className="h-full min-h-[280px] w-full border-0"
+                    srcDoc={hospitalTransferPreviewHtml}
+                    sandbox=""
+                  />
+                </div>
+              </div>
+            ) : null}
           </div>
-          <DialogFooter className="gap-2">
+          <DialogFooter className="shrink-0 gap-2 border-t border-border/60 pt-3">
             <Button type="button" variant="outline" onClick={() => setTransferOpen(false)}>
               Cancel
             </Button>

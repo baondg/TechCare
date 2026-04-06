@@ -47,7 +47,6 @@ import {
 } from "@/services/doctor-service"
 import { generatePrescriptionPdfBlob } from "@/lib/export-prescription-pdf"
 import { usePauseableToast, type PauseableToastEntry } from "@/hooks/usePauseableToast"
-import { SignaturePad } from "@/components/SignaturePad"
 import {
   Dialog,
   DialogContent,
@@ -303,8 +302,8 @@ function MedicineNameCombobox({
 
 /** Per-day amount: quantity ÷ duration (for usage typeahead). */
 function formatDailyDoseFromQtyDuration(quantityStr: string, durationStr: string): string | null {
-  const qty = Number.parseFloat(String(quantityStr).trim().replace(",", "."))
-  const dur = Number.parseFloat(String(durationStr).trim().replace(",", "."))
+  const qty = Number.parseFloat(String(quantityStr ?? "").trim().replace(",", "."))
+  const dur = Number.parseFloat(String(durationStr ?? "").trim().replace(",", "."))
   if (!Number.isFinite(qty) || qty <= 0) return null
   if (!Number.isFinite(dur) || dur <= 0) return null
   const per = qty / dur
@@ -564,8 +563,8 @@ export default function PatientPrescription() {
         name: m.name.trim(),
         quantity: m.quantity.trim(),
         unit: m.unit,
-        duration: m.duration.trim() || "7",
-        usage: m.usage.trim(),
+        duration: String(m.duration ?? "").trim() || "7",
+        usage: String(m.usage ?? "").trim(),
         ...(m.note?.trim() ? { note: m.note.trim() } : {}),
       }))
     if (meds.length === 0 || !meds.some((m) => m.name)) {
@@ -618,15 +617,6 @@ export default function PatientPrescription() {
 
   // ── AI Suggest State ──
   const [aiSuggesting, setAiSuggesting] = useState(false)
-  const [showSignaturePad, setShowSignaturePad] = useState(false)
-  const [savedSignature, setSavedSignature] = useState<string | null>(null)
-
-  // Load saved signature on mount
-  useEffect(() => {
-    doctorService.getSignature()
-      .then(res => { if (res.success && res.signature) setSavedSignature(res.signature) })
-      .catch(() => { /* ignore */ })
-  }, [])
 
   const handleAiSuggest = async () => {
     if (!patientId || !selectedRx?.isDraft) return
@@ -648,13 +638,19 @@ export default function PatientPrescription() {
       })
 
       if (res.success && res.suggestions.length > 0) {
-        const newMeds: Medication[] = res.suggestions.map(s => ({
-          name: s.name || '',
-          quantity: String(s.quantity || ''),
-          unit: normalizeMedicationUnit(s.unit),
-          usage: s.usage || '',
-          note: s.note || '',
-        }))
+        const newMeds: Medication[] = res.suggestions.map((s) => {
+          const durRaw = s.duration != null ? String(s.duration).trim() : ''
+          const duration =
+            durRaw !== '' && Number.parseInt(durRaw, 10) >= 1 ? durRaw : '7'
+          return {
+            name: s.name || '',
+            quantity: String(s.quantity || ''),
+            unit: normalizeMedicationUnit(s.unit),
+            duration,
+            usage: s.usage || '',
+            note: s.note || '',
+          }
+        })
         setDraftMeds([...newMeds, emptyMed()])
         showSuccess(`AI suggested ${res.suggestions.length} medications (${res.provider})`)
       } else {
@@ -664,17 +660,6 @@ export default function PatientPrescription() {
       showError(err?.message || 'Failed to get AI suggestions')
     } finally {
       setAiSuggesting(false)
-    }
-  }
-
-  const handleSignatureConfirm = async (dataUrl: string) => {
-    setSavedSignature(dataUrl)
-    setShowSignaturePad(false)
-    try {
-      await doctorService.saveSignature(dataUrl)
-      showSuccess('Signature saved successfully')
-    } catch {
-      showError('Failed to save signature to server')
     }
   }
 
@@ -714,8 +699,8 @@ export default function PatientPrescription() {
           name: m.name,
           quantity: m.quantity,
           unit: m.unit,
-          duration: m.duration,
-          usage: m.usage,
+          duration: String(m.duration ?? "").trim() || "7",
+          usage: m.usage ?? "",
           note: m.note,
         })),
         prescriptionDate: rxDate,
@@ -1065,9 +1050,6 @@ export default function PatientPrescription() {
                     </div>
                     <div className="text-base font-semibold text-slate-900">{selectedRx.doctor}</div>
                   </div>
-                  {savedSignature && (
-                    <img src={savedSignature} alt="Doctor signature" className="h-12 object-contain opacity-80" />
-                  )}
                 </div>
               ) : null}
             </div>
@@ -1076,36 +1058,6 @@ export default function PatientPrescription() {
       </Card>
     </div>
     {pauseableToast}
-
-    {/* Signature Pad Dialog */}
-    <Dialog open={showSignaturePad} onOpenChange={setShowSignaturePad}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <PenLine className="h-5 w-5 text-cyan-600" />
-            Doctor Signature
-          </DialogTitle>
-        </DialogHeader>
-        <SignaturePad
-          onSave={handleSignatureConfirm}
-          onCancel={() => setShowSignaturePad(false)}
-          initialSignature={savedSignature}
-        />
-      </DialogContent>
-    </Dialog>
-
-    {/* Manage Signature floating button */}
-    <Button
-      type="button"
-      variant="outline"
-      size="sm"
-      className="fixed bottom-6 right-6 z-50 h-10 gap-2 rounded-full shadow-lg border-cyan-200 hover:border-cyan-400 bg-white/90 backdrop-blur-sm"
-      onClick={() => setShowSignaturePad(true)}
-      title="Manage your digital signature"
-    >
-      <PenLine className="h-4 w-4 text-cyan-600" />
-      <span className="text-xs font-medium text-slate-700">Signature</span>
-    </Button>
     </>
   )
 }

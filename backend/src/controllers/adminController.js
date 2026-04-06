@@ -29,6 +29,14 @@ function splitName(fullName) {
   };
 }
 
+function parseDepartmentIdsCsv(csv) {
+  if (csv == null || csv === '') return [];
+  return String(csv)
+    .split(',')
+    .map((s) => Number(String(s).trim()))
+    .filter((n) => Number.isInteger(n) && n > 0);
+}
+
 function mapAccountRow(r) {
   return {
     id: Number(r.id),
@@ -45,7 +53,95 @@ function mapAccountRow(r) {
     dob: r.dob || null,
     phone: r.phone || '',
     email: r.email || '',
+    doctorId: r.doctorId != null && r.doctorId !== '' ? Number(r.doctorId) : null,
+    doctorSpecifications: r.doctorSpecifications != null ? String(r.doctorSpecifications) : '',
+    doctorQualifications: r.doctorQualifications != null ? String(r.doctorQualifications) : '',
+    doctorDepartmentIds: parseDepartmentIdsCsv(r.doctorDepartmentIdsCsv),
   };
+}
+
+const ACCOUNT_SELECT_SQL = `
+       SELECT
+         a.id,
+         a.user_id AS userId,
+         a.username,
+         a.type,
+         a.status,
+         a.created_time AS createdTime,
+         a.created_by AS createdBy,
+         u.idcard AS nationalId,
+         COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username) AS name,
+         u.sex AS sex,
+         u.dob AS dob,
+         u.tel AS phone,
+         u.email AS email,
+         d.doctor_id AS doctorId,
+         d.specifications AS doctorSpecifications,
+         d.qualifications AS doctorQualifications,
+         (SELECT GROUP_CONCAT(dd.department_id ORDER BY dd.department_id)
+          FROM DOCTOR_DEPARTMENT dd
+          WHERE dd.doctor_id = d.doctor_id) AS doctorDepartmentIdsCsv
+       FROM ACCOUNT a
+       LEFT JOIN USER u ON u.id = a.user_id
+       LEFT JOIN DOCTOR d ON d.user_id = a.user_id`;
+
+function parseDoctorPayload(body, roleCode) {
+  if (roleCode !== 'DOC') {
+    return { specifications: '', qualifications: '', departmentIds: [] };
+  }
+  const specifications = String(body?.doctorSpecifications ?? body?.specifications ?? '').trim();
+  const qualifications = String(body?.doctorQualifications ?? body?.qualifications ?? '').trim();
+  const raw = body?.doctorDepartmentIds ?? body?.departmentIds;
+  const departmentIds = Array.isArray(raw)
+    ? raw.map((x) => Number(x)).filter((n) => Number.isInteger(n) && n > 0)
+    : [];
+  return { specifications, qualifications, departmentIds };
+}
+
+async function resolveValidDepartmentIds(sequelize, ids, transaction) {
+  const unique = [...new Set(ids.map(Number).filter((n) => Number.isInteger(n) && n > 0))];
+  if (!unique.length) return [];
+  const inList = unique.join(',');
+  const rows = await sequelize.query(`SELECT id FROM DEPARTMENT WHERE id IN (${inList})`, {
+    type: QueryTypes.SELECT,
+    transaction,
+  });
+  return rows.map((row) => Number(row.id));
+}
+
+async function syncDoctorProfile(sequelize, tx, userId, { specifications, qualifications, departmentIds }) {
+  const cleanDeptIds = await resolveValidDepartmentIds(sequelize, departmentIds, tx);
+  const [existing] = await sequelize.query(
+    'SELECT doctor_id AS doctorId FROM DOCTOR WHERE user_id = :userId LIMIT 1',
+    { replacements: { userId }, type: QueryTypes.SELECT, transaction: tx }
+  );
+  let doctorId;
+  const q = qualifications || null;
+  const s = specifications || null;
+  if (existing?.doctorId != null) {
+    doctorId = Number(existing.doctorId);
+    await sequelize.query(
+      'UPDATE DOCTOR SET qualifications = :q, specifications = :s WHERE doctor_id = :doctorId',
+      { replacements: { q, s, doctorId }, type: QueryTypes.UPDATE, transaction: tx }
+    );
+  } else {
+    const ins = await sequelize.query(
+      'INSERT INTO DOCTOR (user_id, qualifications, specifications, room_id) VALUES (:userId, :q, :s, NULL)',
+      { replacements: { userId, q, s }, type: QueryTypes.INSERT, transaction: tx }
+    );
+    doctorId = Number(ins[0]);
+  }
+  await sequelize.query('DELETE FROM DOCTOR_DEPARTMENT WHERE doctor_id = :doctorId', {
+    replacements: { doctorId },
+    type: QueryTypes.DELETE,
+    transaction: tx,
+  });
+  for (const depId of cleanDeptIds) {
+    await sequelize.query(
+      'INSERT INTO DOCTOR_DEPARTMENT (doctor_id, department_id) VALUES (:doctorId, :depId)',
+      { replacements: { doctorId, depId }, type: QueryTypes.INSERT, transaction: tx }
+    );
+  }
 }
 
 function normalizeAccountPayload(body) {
@@ -64,32 +160,36 @@ function normalizeAccountPayload(body) {
   if (!dob) return { error: 'Date of birth is required' };
   if (!phone) return { error: 'Phone number is required' };
 
+  const doctor = parseDoctorPayload(body, roleCode);
+
   return {
-    data: { username, roleCode, name, dob, phone, email, enabled, sexCode },
+    data: { username, roleCode, name, dob, phone, email, enabled, sexCode, doctor },
   };
 }
+
+exports.listDepartments = async (req, res) => {
+  try {
+    const rows = await sequelize.query(
+      'SELECT id, name FROM DEPARTMENT ORDER BY name ASC',
+      { type: QueryTypes.SELECT }
+    );
+    const departments = rows.map((r) => ({
+      id: Number(r.id),
+      name: String(r.name || ''),
+    }));
+    res.json({ success: true, departments });
+  } catch (error) {
+    console.error('List departments error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+  }
+};
 
 exports.getAccounts = async (req, res) => {
   try {
     // Demo mode: allow any authenticated role to view account list in admin UI.
 
     const rows = await sequelize.query(
-      `SELECT
-         a.id,
-         a.user_id AS userId,
-         a.username,
-         a.type,
-         a.status,
-         a.created_time AS createdTime,
-         a.created_by AS createdBy,
-         u.idcard AS nationalId,
-         COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username) AS name,
-         u.sex AS sex,
-         u.dob AS dob,
-         u.tel AS phone,
-         u.email AS email
-       FROM ACCOUNT a
-       LEFT JOIN USER u ON u.id = a.user_id
+      `${ACCOUNT_SELECT_SQL}
        ORDER BY a.created_time DESC, a.id DESC`,
       { type: QueryTypes.SELECT }
     );
@@ -179,7 +279,7 @@ exports.createAccount = async (req, res) => {
       return res.status(400).json({ success: false, message: normalized.error });
     }
 
-    const { username, roleCode, name, dob, phone, email, enabled, sexCode } = normalized.data;
+    const { username, roleCode, name, dob, phone, email, enabled, sexCode, doctor } = normalized.data;
     const { firstName, lastName } = splitName(name);
     const idcard = String(Date.now()).slice(-12).padStart(12, '0');
     const hashedPassword = await bcrypt.hash('123456', 12);
@@ -229,23 +329,12 @@ exports.createAccount = async (req, res) => {
       }
     );
 
+    if (roleCode === 'DOC') {
+      await syncDoctorProfile(sequelize, tx, userId, doctor);
+    }
+
     const [created] = await sequelize.query(
-      `SELECT
-         a.id,
-         a.user_id AS userId,
-         a.username,
-         a.type,
-         a.status,
-         a.created_time AS createdTime,
-         a.created_by AS createdBy,
-         u.idcard AS nationalId,
-         COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username) AS name,
-         u.sex AS sex,
-         u.dob AS dob,
-         u.tel AS phone,
-         u.email AS email
-       FROM ACCOUNT a
-       LEFT JOIN USER u ON u.id = a.user_id
+      `${ACCOUNT_SELECT_SQL}
        WHERE a.user_id = :userId
        LIMIT 1`,
       { replacements: { userId }, type: QueryTypes.SELECT, transaction: tx }
@@ -274,7 +363,7 @@ exports.updateAccount = async (req, res) => {
       await tx.rollback();
       return res.status(400).json({ success: false, message: normalized.error });
     }
-    const { username, roleCode, name, dob, phone, email, enabled, sexCode } = normalized.data;
+    const { username, roleCode, name, dob, phone, email, enabled, sexCode, doctor } = normalized.data;
     const { firstName, lastName } = splitName(name);
 
     const [existing] = await sequelize.query(
@@ -325,23 +414,12 @@ exports.updateAccount = async (req, res) => {
       }
     );
 
+    if (roleCode === 'DOC') {
+      await syncDoctorProfile(sequelize, tx, Number(existing.userId), doctor);
+    }
+
     const [updated] = await sequelize.query(
-      `SELECT
-         a.id,
-         a.user_id AS userId,
-         a.username,
-         a.type,
-         a.status,
-         a.created_time AS createdTime,
-         a.created_by AS createdBy,
-         u.idcard AS nationalId,
-         COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username) AS name,
-         u.sex AS sex,
-         u.dob AS dob,
-         u.tel AS phone,
-         u.email AS email
-       FROM ACCOUNT a
-       LEFT JOIN USER u ON u.id = a.user_id
+      `${ACCOUNT_SELECT_SQL}
        WHERE a.id = :id
        LIMIT 1`,
       { replacements: { id }, type: QueryTypes.SELECT, transaction: tx }

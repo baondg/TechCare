@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils"
 import { generatePrescriptionPdfBlob } from "@/lib/export-prescription-pdf"
 import { generateBloodTestPdfBlob } from "@/lib/export-blood-test-pdf"
 import { generateTreatmentFollowupPdfBlob } from "@/lib/export-treatment-followup-pdf"
+import { generateHospitalTransferPdfBlob } from "@/lib/export-hospital-transfer-pdf"
 import { generateSurgeryPdfBlob } from "@/lib/export-surgery-pdf"
 import { mergePdfBlobs } from "@/lib/merge-pdf-blobs"
 import { profileService, type PatientProfile } from "@/services/profile-service"
@@ -25,6 +26,7 @@ import type { PatientDetail } from "@/services/doctor-service"
 import {
   Activity,
   AlertCircle,
+  Building2,
   Calendar,
   Download,
   ExternalLink,
@@ -227,6 +229,8 @@ export default function PatientHistoryPage() {
   const [exportingLabPdf, setExportingLabPdf] = useState(false)
   /** Which visit card is currently building the merged PDF (null = idle). */
   const [exportingRegimenId, setExportingRegimenId] = useState<number | null>(null)
+  const [patientProfile, setPatientProfile] = useState<PatientProfile | null>(null)
+  const [exportingHospitalKey, setExportingHospitalKey] = useState<string | null>(null)
   const [selectedLabKey, setSelectedLabKey] = useState<string | null>(null)
 
   const releasePdfBlobUrl = useCallback((next: string | null) => {
@@ -255,13 +259,32 @@ export default function PatientHistoryPage() {
   useEffect(() => {
     let cancelled = false
     void (async () => {
+      try {
+        const userRaw = localStorage.getItem("user")
+        if (userRaw) {
+          const user = JSON.parse(userRaw) as { id: number }
+          const p = await profileService.getProfile(user.id)
+          if (!cancelled) setPatientProfile(p)
+        }
+      } catch {
+        if (!cancelled) setPatientProfile(null)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
       setVisitsLoading(true)
       setVisitsError(null)
       try {
         const data = await appointmentService.getPatientMedicalRegimens()
         if (!cancelled) setVisits(data)
       } catch (e) {
-        console.error("Load medical visits failed:", e)
+        console.error("Load historyvisits failed:", e)
         if (!cancelled) {
           setVisitsError("Could not load visit history. Please try again.")
           setVisits([])
@@ -460,6 +483,53 @@ export default function PatientHistoryPage() {
     }
   }, [selectedLabRow, visits, rxDashboard, releasePdfBlobUrl])
 
+  const handleHospitalTransferPdf = useCallback(
+    async (v: PatientMedicalRegimen, ht: PatientMedicalRegimen["hospitalTransfers"][number]) => {
+      const key = `${v.regimenId}-${ht.orderId}`
+      setExportingHospitalKey(key)
+      try {
+        let profile = patientProfile
+        if (!profile) {
+          const userRaw = localStorage.getItem("user")
+          if (!userRaw) throw new Error("Not signed in")
+          const user = JSON.parse(userRaw) as { id: number }
+          profile = await profileService.getProfile(user.id)
+        }
+        const name = patientDisplayName(profile)
+        const { blob, filename } = await generateHospitalTransferPdfBlob({
+          patientName: name,
+          patientDob: profile.dateOfBirth,
+          patientSex: profile.sex,
+          insuranceId: profile.insuranceId != null ? String(profile.insuranceId) : undefined,
+          insuranceExpiry: profile.insuranceExpiry,
+          destinationHospital: ht.toHospitalName,
+          destinationRefId: ht.toHospitalId,
+          reason: ht.reason,
+          note: ht.note,
+          transport: ht.transport,
+          transferAt: formatDateTime(ht.transferAt),
+          doctorName: v.doctorName,
+          facilityName: "TechCare",
+          icd10: v.icd10,
+          diagnosis: v.interpretation,
+          formPayload: ht.formPayload,
+          filename: `phieu-chuyen-vien-regimen-${v.regimenId}-order-${ht.orderId}.pdf`,
+        })
+        const url = URL.createObjectURL(blob)
+        setPdfPreviewFilename(filename)
+        setPdfPreviewTitle("Hospital transfer (PDF)")
+        releasePdfBlobUrl(url)
+        setPdfPreviewOpen(true)
+      } catch (e) {
+        console.error(e)
+        window.alert(e instanceof Error ? e.message : "Failed to generate PDF")
+      } finally {
+        setExportingHospitalKey(null)
+      }
+    },
+    [patientProfile, releasePdfBlobUrl]
+  )
+
   const handleExportVisitMergedPdf = useCallback(async (v: PatientMedicalRegimen) => {
     setExportingRegimenId(v.regimenId)
     try {
@@ -547,6 +617,37 @@ export default function PatientHistoryPage() {
         blobs.push(blob)
       }
 
+      let phProfile = patientProfile
+      if (!phProfile) {
+        const ur = localStorage.getItem("user")
+        if (ur) {
+          const u = JSON.parse(ur) as { id: number }
+          phProfile = await profileService.getProfile(u.id)
+        }
+      }
+      for (const ht of v.hospitalTransfers) {
+        const { blob } = await generateHospitalTransferPdfBlob({
+          patientName: name,
+          patientDob: phProfile?.dateOfBirth,
+          patientSex: phProfile?.sex,
+          insuranceId: phProfile?.insuranceId != null ? String(phProfile.insuranceId) : undefined,
+          insuranceExpiry: phProfile?.insuranceExpiry,
+          destinationHospital: ht.toHospitalName,
+          destinationRefId: ht.toHospitalId,
+          reason: ht.reason,
+          note: ht.note,
+          transport: ht.transport,
+          transferAt: formatDateTime(ht.transferAt),
+          doctorName: v.doctorName,
+          facilityName: "TechCare",
+          icd10: v.icd10,
+          diagnosis: v.interpretation,
+          formPayload: ht.formPayload,
+          filename: `phieu-chuyen-vien-regimen-${v.regimenId}-order-${ht.orderId}.pdf`,
+        })
+        blobs.push(blob)
+      }
+
       if (blobs.length === 0) {
         window.alert("This visit has no documents to export yet.")
         return
@@ -565,7 +666,7 @@ export default function PatientHistoryPage() {
     } finally {
       setExportingRegimenId(null)
     }
-  }, [releasePdfBlobUrl])
+  }, [releasePdfBlobUrl, patientProfile])
 
   return (
     <PatientLayout>
@@ -610,7 +711,7 @@ export default function PatientHistoryPage() {
 
         <Tabs defaultValue={tab || "visits"} className="space-y-4">
           <TabsList className="flex flex-wrap h-auto gap-1">
-            <TabsTrigger value="visits">Medical visits</TabsTrigger>
+            <TabsTrigger value="visits">History visits</TabsTrigger>
             <TabsTrigger value="prescriptions">Prescriptions</TabsTrigger>
             <TabsTrigger value="lab-results">Lab results</TabsTrigger>
             <TabsTrigger value="symptom-checker">Symptom checker</TabsTrigger>
@@ -637,6 +738,7 @@ export default function PatientHistoryPage() {
               visits.map((v) => {
                 const isThisExporting = exportingRegimenId === v.regimenId
                 const exportBusy = exportingRegimenId !== null
+                const hospitalTransfers = v.hospitalTransfers ?? []
                 return (
                 <Card key={v.regimenId} className="overflow-hidden border-border/80 shadow-sm">
                   <CardHeader className="bg-gradient-to-r from-sky-50/90 to-transparent dark:from-sky-950/30">
@@ -841,6 +943,68 @@ export default function PatientHistoryPage() {
                       </>
                     ) : null}
 
+                    {hospitalTransfers.length > 0 ? (
+                      <>
+                        <Separator />
+                        <section className="space-y-3">
+                          <h3 className="flex items-center gap-2 text-sm font-semibold">
+                            <Building2 className="h-4 w-4 text-rose-700" />
+                            Hospital transfer
+                          </h3>
+                          <ul className="space-y-3">
+                            {hospitalTransfers.map((ht) => {
+                              const hKey = `${v.regimenId}-${ht.orderId}`
+                              const busyH = exportingHospitalKey === hKey
+                              return (
+                                <li
+                                  key={ht.orderId}
+                                  className="rounded-lg border border-rose-100 bg-rose-50/40 dark:bg-rose-950/20 p-3 space-y-2"
+                                >
+                                  <div className="flex flex-wrap items-start justify-between gap-2">
+                                    <div className="min-w-0 space-y-1">
+                                      <p className="font-medium text-sm leading-tight">
+                                        To: {ht.toHospitalName}
+                                      </p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {formatDateTime(ht.transferAt)}
+                                        {ht.toHospitalId ? ` · Ref: ${ht.toHospitalId}` : ""}
+                                      </p>
+                                      {ht.transport ? (
+                                        <p className="text-xs text-muted-foreground">Transport: {ht.transport}</p>
+                                      ) : null}
+                                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                                        {ht.reason}
+                                      </p>
+                                      {ht.note ? (
+                                        <p className="text-xs text-muted-foreground italic whitespace-pre-wrap">
+                                          {ht.note}
+                                        </p>
+                                      ) : null}
+                                    </div>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      className="shrink-0 gap-1.5"
+                                      disabled={busyH || exportingHospitalKey !== null}
+                                      onClick={() => void handleHospitalTransferPdf(v, ht)}
+                                    >
+                                      {busyH ? (
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                      ) : (
+                                        <FileDown className="h-3.5 w-3.5" />
+                                      )}
+                                      PDF
+                                    </Button>
+                                  </div>
+                                </li>
+                              )
+                            })}
+                          </ul>
+                        </section>
+                      </>
+                    ) : null}
+
                     {v.surgeries.length > 0 ? (
                       <>
                         <Separator />
@@ -880,6 +1044,7 @@ export default function PatientHistoryPage() {
                     {v.prescriptions.length === 0 &&
                     v.labTests.length === 0 &&
                     v.surgeries.length === 0 &&
+                    hospitalTransfers.length === 0 &&
                     !v.vitals ? (
                       <p className="text-xs text-muted-foreground text-center py-2">
                         Aside from the diagnosis, no prescriptions, lab tests, or vitals are linked to this visit yet.
@@ -901,10 +1066,6 @@ export default function PatientHistoryPage() {
                       <Pill className="h-5 w-5" />
                       Active prescriptions
                     </CardTitle>
-                    <CardDescription>
-                      Only prescriptions your doctor has signed appear here. Draft orders are shown under each encounter on
-                      the Medical visits tab.
-                    </CardDescription>
                   </div>
                   <Button
                     type="button"

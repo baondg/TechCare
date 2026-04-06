@@ -1,7 +1,6 @@
 const { QueryTypes } = require('sequelize');
 const sequelize = require('../common/database');
 const { selectPrescriptionRowsWithDurationFallback } = require('../common/prescriptionQueryCompat');
-const { scheduleMedicationRemindersForClosedRegimen } = require('../services/medicationReminderNotifications');
 const {
   notifyDoctorPatientBooked,
   notifyDoctorPatientCancelledAppointment,
@@ -132,8 +131,13 @@ async function insertNurseVisitRegimenOpenEnd(patientId, transaction) {
   return Number(regimenId);
 }
 
-const MEDAI_CHAT_ENDPOINT = process.env.MEDAI_CHAT_ENDPOINT || 'http://localhost:3000/api/ai/chat';
-const MEDAI_SYMPTOM_ENDPOINT = process.env.MEDAI_SYMPTOM_ENDPOINT || 'http://localhost:8000/api/analyze_symptoms';
+/** Same-process AI routes (no separate Python service required by default). */
+const INTERNAL_API_BASE =
+  process.env.BACKEND_INTERNAL_URL || `http://127.0.0.1:${Number(process.env.PORT) || 3000}`;
+const MEDAI_CHAT_ENDPOINT =
+  process.env.MEDAI_CHAT_ENDPOINT || `${INTERNAL_API_BASE}/api/ai/chat`;
+const MEDAI_SYMPTOM_ENDPOINT =
+  process.env.MEDAI_SYMPTOM_ENDPOINT || `${INTERNAL_API_BASE}/api/ai/symptom-analysis`;
 
 async function getPatientIdByUserId(userId) {
   const rows = await sequelize.query(
@@ -500,6 +504,8 @@ exports.chatWithAiAndSave = async (req, res) => {
     if (!reply) {
       return res.status(502).json({ success: false, message: 'AI chatbot returned empty response' });
     }
+    const aiFallback = Boolean(aiData.fallback);
+    const aiHint = aiFallback ? String(aiData.hint || '').trim() : '';
 
     const now = new Date();
     const treatmentId = await getLatestTreatmentIdByPatientId(patientId);
@@ -541,6 +547,8 @@ exports.chatWithAiAndSave = async (req, res) => {
       message: reply,
       recommendationId: Number(recommendationId),
       model: { id: Number(model.id), name: model.name || '', provider: model.provider || '' },
+      aiFallback,
+      aiHint: aiHint || undefined,
     });
   } catch (error) {
     console.error('chatWithAiAndSave error:', error);
@@ -564,12 +572,31 @@ exports.analyzeSymptomsAndSave = async (req, res) => {
       return res.status(400).json({ success: false, message: 'No AI model configured in AI_MODEL table' });
     }
 
-    const aiResp = await fetch(MEDAI_SYMPTOM_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ symptoms }),
-    });
+    let aiResp;
+    try {
+      aiResp = await fetch(MEDAI_SYMPTOM_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symptoms }),
+      });
+    } catch (upstreamError) {
+      return res.status(502).json({
+        success: false,
+        message: `Cannot reach symptom analysis service (${MEDAI_SYMPTOM_ENDPOINT})`,
+        error: upstreamError?.message || 'Network error',
+      });
+    }
     const aiData = await aiResp.json().catch(() => ({}));
+    if (!aiResp.ok) {
+      return res.status(502).json({
+        success: false,
+        message:
+          aiData?.error ||
+          aiData?.message ||
+          `Symptom analysis service error (${aiResp.status})`,
+        hint: aiData?.hint,
+      });
+    }
     const conditions = Array.isArray(aiData.possible_conditions) ? aiData.possible_conditions : [];
     const recommendedAction = String(aiData.recommended_action || 'Please consult a healthcare professional.');
     const suggestedMedication = Array.isArray(aiData.suggested_medication_type)
@@ -643,7 +670,8 @@ async function getDoctorByInput(doctorInput) {
 
 /**
  * GET /api/appointments/doctors
- * Return all active doctors (for patient booking)
+ * Return all doctors for booking / nurse slot UI.
+ * Departments come from DOCTOR_DEPARTMENT → DEPARTMENT.name (schema no longer has DOCTOR.department).
  */
 function parseDoctorDepartmentSet(value) {
   if (value == null || value === '') return [];
@@ -661,30 +689,55 @@ exports.getDoctors = async (req, res) => {
          a.username,
          u.first_name AS firstName,
          u.last_name AS lastName,
-         d.department AS departmentSet,
          d.specifications AS specifications,
-         cr.name AS room
+         cr.name AS room,
+         dep.name AS deptName
        FROM DOCTOR d
        JOIN ACCOUNT a ON a.user_id = d.user_id
        JOIN USER u ON u.id = d.user_id
        LEFT JOIN CLINIC_ROOM cr ON cr.id = d.room_id
-       ORDER BY u.first_name ASC, u.last_name ASC, d.doctor_id ASC`,
+       LEFT JOIN DOCTOR_DEPARTMENT dd ON dd.doctor_id = d.doctor_id
+       LEFT JOIN DEPARTMENT dep ON dep.id = dd.department_id
+       ORDER BY u.first_name ASC, u.last_name ASC, d.doctor_id ASC, dep.name ASC`,
       { type: QueryTypes.SELECT }
     );
-    const doctors = (rows || []).map((row) => {
-      const departments = parseDoctorDepartmentSet(row.departmentSet);
-      const spec = String(row.specifications || '').trim();
+
+    const byId = new Map();
+    for (const row of rows || []) {
+      const id = Number(row.id);
+      if (!Number.isFinite(id)) continue;
+      if (!byId.has(id)) {
+        byId.set(id, {
+          id,
+          username: row.username,
+          firstName: row.firstName,
+          lastName: row.lastName,
+          specifications: row.specifications,
+          room: row.room,
+          deptNames: new Set(),
+        });
+      }
+      const dn = row.deptName != null ? String(row.deptName).trim() : '';
+      if (dn) byId.get(id).deptNames.add(dn);
+    }
+
+    const doctors = Array.from(byId.values()).map((m) => {
+      let departments = [...m.deptNames];
+      const spec = String(m.specifications || '').trim();
+      if (departments.length === 0 && spec) {
+        departments = parseDoctorDepartmentSet(spec.replace(/;/g, ','));
+      }
       return {
-        id: row.id,
-        username: row.username,
-        firstName: row.firstName,
-        lastName: row.lastName,
+        id: m.id,
+        username: m.username,
+        firstName: m.firstName,
+        lastName: m.lastName,
         departments,
-        /** First SET value, else legacy specifications text (for older clients) */
         department: departments[0] || spec || undefined,
-        room: row.room,
+        room: m.room,
       };
     });
+
     res.json({ success: true, doctors });
   } catch (error) {
     console.error('Get doctors error:', error);
@@ -1598,6 +1651,52 @@ exports.getPatientMedicalRegimens = async (req, res) => {
     const regimenIds = regimenRows.map((x) => Number(x.regimenId)).filter((id) => Number.isFinite(id));
     const idCsv = regimenIds.join(',');
 
+    const normalizeJsonColumn = (val) => {
+      if (val == null) return null;
+      if (typeof val === 'object' && !Buffer.isBuffer(val)) return val;
+      try {
+        return JSON.parse(String(val));
+      } catch {
+        return null;
+      }
+    };
+
+    const hospitalTransferRows = await sequelize.query(
+      `SELECT t.regimen_id AS regimenId,
+              tr.order_id AS orderId,
+              tr.reason,
+              tr.time AS transferAt,
+              tr.note,
+              ht.to_id AS toHospitalId,
+              ht.to_name AS toHospitalName,
+              ht.transport,
+              ht.form_payload AS formPayload
+       FROM TREATMENT t
+       JOIN \`ORDER\` o ON o.treatment_id = t.id
+       JOIN TRANSFERENCE tr ON tr.order_id = o.id
+       INNER JOIN HOSPITAL_TRANSFERENCE ht ON ht.transference_id = tr.order_id
+       WHERE t.regimen_id IN (${idCsv})
+       ORDER BY tr.time ASC`,
+      { type: QueryTypes.SELECT }
+    );
+
+    const hospitalTransfersByRegimen = new Map();
+    for (const row of hospitalTransferRows || []) {
+      const rid = Number(row.regimenId);
+      if (!Number.isFinite(rid)) continue;
+      if (!hospitalTransfersByRegimen.has(rid)) hospitalTransfersByRegimen.set(rid, []);
+      hospitalTransfersByRegimen.get(rid).push({
+        orderId: Number(row.orderId),
+        reason: row.reason || '',
+        note: row.note || '',
+        transferAt: row.transferAt,
+        toHospitalId: row.toHospitalId != null ? String(row.toHospitalId) : null,
+        toHospitalName: row.toHospitalName || '',
+        transport: row.transport || null,
+        formPayload: normalizeJsonColumn(row.formPayload),
+      });
+    }
+
     const [treatments, rxRows, labRows, surgeryRows, mrRows] = await Promise.all([
       sequelize.query(
         `SELECT
@@ -1832,6 +1931,7 @@ exports.getPatientMedicalRegimens = async (req, res) => {
         prescriptions: prescriptionsList,
         labTests,
         surgeries,
+        hospitalTransfers: hospitalTransfersByRegimen.get(rid) || [],
       };
     });
 
@@ -2305,7 +2405,10 @@ exports.postNurseCheckInReschedule = async (req, res) => {
 
 /**
  * POST /api/appointments/nurse/regimen/checkout
- * Close the open visit (set REGIMEN.end = NOW()).
+ * Close the open visit (set REGIMEN.end = NOW()) and schedule medication reminders if applicable.
+ * The nurse EMR UI no longer exposes checkout — visits are ended by the doctor via
+ * POST /api/doctor/patients/:patientId/regimen/close (same REGIMEN.end + reminder logic).
+ * This route remains for admin/tools or legacy clients.
  */
 exports.postNurseRegimenCheckout = async (req, res) => {
   try {
@@ -2334,12 +2437,6 @@ exports.postNurseRegimenCheckout = async (req, res) => {
        WHERE id = :regimenId AND patient_id = :patientId AND \`end\` IS NULL`,
       { replacements: { regimenId, patientId }, type: QueryTypes.UPDATE }
     );
-
-    try {
-      await scheduleMedicationRemindersForClosedRegimen(sequelize, { regimenId, patientId });
-    } catch (schedErr) {
-      console.warn('[medication-reminder] schedule failed:', schedErr?.message || schedErr);
-    }
 
     return res.json({ success: true, regimenId });
   } catch (error) {

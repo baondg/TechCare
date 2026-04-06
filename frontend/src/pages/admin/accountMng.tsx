@@ -4,13 +4,19 @@ import { useState, useEffect, useMemo, useLayoutEffect } from "react"
 import { createPortal } from "react-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { UserPlus, Trash2, Save, X, Edit3, CheckCircle, ArrowUp, ArrowDown, ArrowUpDown, Search, Calendar } from "lucide-react"
 import { AdminLayout } from "@/components/admin-layout"
 import { Checkbox } from "@/components/ui/checkbox"
-import { adminAccountService, type AdminAccountRow } from "@/services/admin-account-service"
+import {
+  adminAccountService,
+  type AdminAccountRow,
+  type AdminDepartmentOption,
+  type SaveAdminAccountPayload,
+} from "@/services/admin-account-service"
 import { cn } from "@/lib/utils"
 import { usePauseableToast, type PauseableToastEntry } from "@/hooks/usePauseableToast"
 
@@ -37,6 +43,10 @@ interface Patient {
   enabled: boolean
   createdTime: string
   createdBy: string
+  /** Bác sĩ — DOCTOR.specifications / qualifications / DOCTOR_DEPARTMENT */
+  doctorSpecifications: string
+  doctorQualifications: string
+  doctorDepartmentIds: number[]
 }
 
 const EMPTY_PATIENT_DRAFT: Patient = {
@@ -54,6 +64,9 @@ const EMPTY_PATIENT_DRAFT: Patient = {
   enabled: true,
   createdTime: "",
   createdBy: "System",
+  doctorSpecifications: "",
+  doctorQualifications: "",
+  doctorDepartmentIds: [],
 }
 
 type FormMode = "view" | "add" | "edit"
@@ -77,6 +90,9 @@ function mapAccountToPatientRow(a: AdminAccountRow): Patient {
     enabled: !!a.status,
     createdTime: a.createdTime ? String(a.createdTime).replace("T", " ").slice(0, 19) : "",
     createdBy: createdByDisplay,
+    doctorSpecifications: a.doctorSpecifications ?? "",
+    doctorQualifications: a.doctorQualifications ?? "",
+    doctorDepartmentIds: Array.isArray(a.doctorDepartmentIds) ? [...a.doctorDepartmentIds] : [],
   }
 }
 
@@ -87,6 +103,7 @@ export default function UserManagement() {
   const [formMode, setFormMode] = useState<FormMode>("view")
   const [draftPatient, setDraftPatient] = useState<Patient | null>(null)
   const [savingAccount, setSavingAccount] = useState(false)
+  const [departments, setDepartments] = useState<AdminDepartmentOption[]>([])
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)  // 
 
@@ -123,6 +140,22 @@ export default function UserManagement() {
       cancelled = true
     }
   }, [showError])
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await adminAccountService.getDepartments()
+        if (cancelled) return
+        setDepartments(res.departments || [])
+      } catch (e) {
+        console.error("Load departments failed:", e)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     if (formMode === "view") {
@@ -428,6 +461,16 @@ export default function UserManagement() {
     setDraftPatient((prev) => (prev ? { ...prev, [key]: value } : prev))
   }
 
+  const toggleDoctorDepartment = (depId: number) => {
+    setDraftPatient((prev) => {
+      if (!prev) return prev
+      const set = new Set(prev.doctorDepartmentIds)
+      if (set.has(depId)) set.delete(depId)
+      else set.add(depId)
+      return { ...prev, doctorDepartmentIds: [...set].sort((a, b) => a - b) }
+    })
+  }
+
   const startAdd = () => {
     if (!canAdd) return
     setFormMode("add")
@@ -459,7 +502,7 @@ export default function UserManagement() {
     if (!draftPatient || !canSaveOrClearOrCancel) return
     setSavingAccount(true)
     try {
-      const payload = {
+      const payload: SaveAdminAccountPayload = {
         username: draftPatient.username.trim(),
         roleCode: (draftPatient.roleCode || "PAT") as "ADM" | "PAT" | "DOC" | "NUR" | "TEC",
         name: draftPatient.name.trim(),
@@ -468,6 +511,11 @@ export default function UserManagement() {
         phone: draftPatient.phone.trim(),
         email: draftPatient.email.trim(),
         enabled: !!draftPatient.enabled,
+      }
+      if (draftPatient.roleCode === "DOC") {
+        payload.doctorSpecifications = draftPatient.doctorSpecifications
+        payload.doctorQualifications = draftPatient.doctorQualifications
+        payload.doctorDepartmentIds = [...draftPatient.doctorDepartmentIds]
       }
 
       const result =
@@ -808,8 +856,20 @@ export default function UserManagement() {
                         value={activePatient.roleCode || "PAT"}
                         onValueChange={(v) => {
                           const selected = ROLE_FILTER_OPTIONS.find((x) => x.value === v)
-                          updateDraftField("roleCode", v)
-                          updateDraftField("role", selected?.label || v)
+                          setDraftPatient((prev) => {
+                            if (!prev) return prev
+                            const next: Patient = {
+                              ...prev,
+                              roleCode: v,
+                              role: selected?.label || v,
+                            }
+                            if (v !== "DOC") {
+                              next.doctorSpecifications = ""
+                              next.doctorQualifications = ""
+                              next.doctorDepartmentIds = []
+                            }
+                            return next
+                          })
                         }}
                       >
                         <SelectTrigger className="bg-gray-50">
@@ -899,6 +959,61 @@ export default function UserManagement() {
                     />
                   </div>
                 </div>
+
+                {activePatient.roleCode === "DOC" && (
+                  <div className="space-y-4 rounded-lg border border-slate-200 bg-slate-50/80 p-4">
+                    <div className="text-sm font-semibold text-slate-800">Doctor profile</div>
+                    <p className="text-xs text-muted-foreground">
+                      Mapped to <code className="text-[11px]">DOCTOR.specifications</code>,{" "}
+                      <code className="text-[11px]">DOCTOR.qualifications</code>, and{" "}
+                      <code className="text-[11px]">DOCTOR_DEPARTMENT</code>.
+                    </p>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Specifications</label>
+                      <Textarea
+                        value={activePatient.doctorSpecifications}
+                        disabled={!canEditFields}
+                        className="bg-gray-50 min-h-[72px]"
+                        placeholder="e.g. Cardiology, interventional procedures"
+                        onChange={(e) => updateDraftField("doctorSpecifications", e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Qualifications</label>
+                      <Textarea
+                        value={activePatient.doctorQualifications}
+                        disabled={!canEditFields}
+                        className="bg-gray-50 min-h-[72px]"
+                        placeholder="e.g. MD, board certifications"
+                        onChange={(e) => updateDraftField("doctorQualifications", e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <div className="block text-sm font-medium text-gray-700 mb-2">Departments</div>
+                      {departments.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">No departments loaded.</p>
+                      ) : (
+                        <div className="max-h-40 overflow-y-auto rounded-md border bg-white p-2 space-y-2">
+                          {departments.map((d) => (
+                            <div
+                              key={d.id}
+                              className={canEditFields ? "" : "pointer-events-none opacity-70"}
+                            >
+                              <Checkbox
+                                label={d.name}
+                                compact
+                                checked={activePatient.doctorDepartmentIds.includes(d.id)}
+                                onChange={() => {
+                                  if (canEditFields) toggleDoctorDepartment(d.id)
+                                }}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Trß║íng th├íi t├ái khoß║ún */}
                 <div className="rounded-lg border-2 border-cyan-200 bg-gradient-to-br from-cyan-50 via-sky-50 to-indigo-50 p-4 space-y-3 shadow-sm">

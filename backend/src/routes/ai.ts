@@ -55,7 +55,8 @@ Important guidelines:
 - For serious medical concerns, always recommend consulting a doctor
 - Keep responses concise but informative
 - Use simple, easy-to-understand language
-- Never diagnose conditions — provide general information only`;
+- Never diagnose conditions — provide general information only
+- Reply in the same language the patient uses (e.g. Vietnamese or English).`;
 
 // ============================================================
 // Medicine suggestion system prompt
@@ -77,6 +78,23 @@ Each item must have exactly these fields:
 
 Suggest 3-6 medications including both causal treatment and symptomatic relief.
 Always include standard dosages and common warnings.`;
+
+const SYMPTOM_ANALYSIS_PROMPT = `You are a cautious clinical triage assistant for TechCare.
+Given structured patient symptoms (name, severity, duration), respond ONLY with a single valid JSON object — no markdown fences, no extra text.
+
+Schema:
+{
+  "possible_conditions": [
+    { "disease": "short condition name", "probability": "low" | "medium" | "high", "reason": "one sentence" }
+  ],
+  "recommended_action": "what the patient should do next (self-care vs see a doctor)",
+  "suggested_medication_type": ["broad categories only, e.g. pain reliever — not brand names"]
+}
+
+Rules:
+- 1 to 4 items in possible_conditions.
+- Never claim a definitive diagnosis; use cautious language.
+- If red-flag symptoms (e.g. chest pain, stroke signs), urge emergency care.`;
 
 // ============================================================
 // Helper: call Groq API
@@ -246,6 +264,62 @@ router.post('/chat', async (req: Request, res: Response) => {
 });
 
 /**
+ * POST /api/ai/symptom-analysis
+ * Used by appointmentController (patient symptom checker). No auth — only call from same backend.
+ * Body: { symptoms: Array<{ name, severity, duration }> }
+ */
+router.post('/symptom-analysis', async (req: Request, res: Response) => {
+  try {
+    const symptoms = req.body?.symptoms;
+    if (!Array.isArray(symptoms) || symptoms.length === 0) {
+      return res.status(400).json({ error: 'symptoms array is required' });
+    }
+
+    const userContent = `Patient-reported symptoms (JSON):\n${JSON.stringify(symptoms, null, 2)}\n\nReturn only the JSON object as specified.`;
+    const reply = await callAI([{ role: 'user', content: userContent }], SYMPTOM_ANALYSIS_PROMPT);
+
+    let parsed: Record<string, unknown> = {};
+    try {
+      const jsonMatch = reply.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        parsed = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
+      }
+    } catch (parseErr) {
+      console.error('[AI] symptom-analysis JSON parse failed:', parseErr);
+      return res.status(502).json({
+        error: 'AI returned invalid JSON for symptom analysis',
+        raw: reply.slice(0, 500),
+      });
+    }
+
+    const possible_conditions = Array.isArray(parsed.possible_conditions) ? parsed.possible_conditions : [];
+    const recommended_action =
+      typeof parsed.recommended_action === 'string'
+        ? parsed.recommended_action
+        : 'Please consult a healthcare professional.';
+    const suggested_medication_type = Array.isArray(parsed.suggested_medication_type)
+      ? parsed.suggested_medication_type
+      : [];
+
+    return res.json({
+      possible_conditions,
+      recommended_action,
+      suggested_medication_type,
+      provider: getActiveProvider(),
+    });
+  } catch (error: any) {
+    console.error('[AI] symptom-analysis error:', error?.message);
+    return res.status(503).json({
+      error: error?.message || 'Symptom analysis failed',
+      hint:
+        getActiveProvider() === 'groq'
+          ? 'Check GROQ_API_KEY and quota.'
+          : 'Start Ollama (or your local OpenAI-compatible server) or set GROQ_API_KEY in backend/.env',
+    });
+  }
+});
+
+/**
  * POST /api/ai/suggest-medicine
  * Used by doctors to get AI-powered medication suggestions.
  *
@@ -380,6 +454,19 @@ Respond with a JSON object:
 function getFallbackResponse(query: string): string {
   const q = query.toLowerCase();
 
+  if (
+    q.includes('chóng mặt') ||
+    q.includes('chong mat') ||
+    q.includes('dizziness') ||
+    q.includes('vertigo') ||
+    q.includes('deadlift')
+  ) {
+    return (
+      'Dizziness during heavy lifting can be from breath-holding, dehydration, low blood sugar, or blood-pressure changes. ' +
+      'Stop the set, sit down, hydrate, and rest. If you have severe headache, vision changes, weakness, chest pain, fainting, or symptoms persist, seek urgent medical care. ' +
+      'For personalized advice, please speak with a clinician or book a visit in TechCare.'
+    );
+  }
   if (q.includes('medication') || q.includes('medicine') || q.includes('drug') || q.includes('pill')) {
     return "I can help with medication information — dosages, schedules, side effects, and refill reminders. What would you like to know?";
   }

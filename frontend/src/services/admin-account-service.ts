@@ -35,6 +35,10 @@ export interface AdminAccountRow {
   dob: string | null
   phone: string
   email: string
+  doctorId?: number | null
+  doctorSpecifications?: string
+  doctorQualifications?: string
+  doctorDepartmentIds?: number[]
 }
 
 export interface SaveAdminAccountPayload {
@@ -46,6 +50,15 @@ export interface SaveAdminAccountPayload {
   phone: string
   email: string
   enabled: boolean
+  /** Chỉ dùng khi roleCode === "DOC" — map tới DOCTOR / DOCTOR_DEPARTMENT */
+  doctorSpecifications?: string
+  doctorQualifications?: string
+  doctorDepartmentIds?: number[]
+}
+
+export interface AdminDepartmentOption {
+  id: number
+  name: string
 }
 
 export interface AdminDashboardSummary {
@@ -85,6 +98,12 @@ export const adminAccountService = {
   async getAccounts() {
     return apiRequest<{ success: boolean; accounts: AdminAccountRow[] }>(
       `${API_BASE_URL}/api/admin/accounts`
+    )
+  },
+
+  async getDepartments() {
+    return apiRequest<{ success: boolean; departments: AdminDepartmentOption[] }>(
+      `${API_BASE_URL}/api/admin/departments`
     )
   },
 

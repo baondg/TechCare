@@ -161,7 +161,10 @@ export function NurseLayout2() {
                 <p>
                   Visit in progress · started {new Date(visitSession.startedAt).toLocaleString("vi-VN")}
                 </p>
-                <p className="text-slate-400">The doctor ends this visit with &quot;Finish examination&quot;.</p>
+                <p className="text-slate-400">
+                  The doctor ends this visit with &quot;Finish examination&quot; (that also starts patient medication
+                  reminders when a prescription exists).
+                </p>
               </div>
             )}
           </div>

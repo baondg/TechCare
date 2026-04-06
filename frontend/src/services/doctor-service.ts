@@ -613,6 +613,8 @@ export const doctorService = {
           toHospitalName: string;
           toHospitalId?: string;
           transport?: string;
+          /** Lưu vào HOSPITAL_TRANSFERENCE.form_payload (JSON) */
+          formPayload?: Record<string, unknown>;
         }
   ) {
     return apiRequest<{
@@ -663,6 +665,8 @@ export const doctorService = {
         unit: string;
         usage: string;
         note: string;
+        /** Treatment days per line; defaults to 7 in UI if omitted */
+        duration?: string | number;
       }>;
       raw: string;
       provider: string;

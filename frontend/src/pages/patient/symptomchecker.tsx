@@ -10,6 +10,7 @@ import { PatientLayout } from "@/components/patient-layout"
 import { AlertCircle, X, Clock, Stethoscope, AlertTriangle, CheckCircle } from "lucide-react"
 import { appointmentService } from "@/services/appointment-service"
 import type { SymptomInput, SymptomAnalysisResult } from "@/types/ai-types"
+import { getReadableApiError } from "@/lib/utils"
 
 interface SelectedSymptom {
   name: string
@@ -152,15 +153,19 @@ export default function SymptomChecker() {
       // Call backend AI endpoint (persist into AI_RECOMMENDATION)
       const response = await appointmentService.analyzeSymptomsPersisted(symptomsForAnalysis)
 
+      setResults(response.results ?? [])
+      setDisclaimer(response.disclaimer ?? "")
+
       if (response.error) {
         setAnalysisError(response.error)
+      } else if ((response.results?.length ?? 0) === 0) {
+        setAnalysisError(
+          "AI không trả về gợi ý triệu chứng. Kiểm tra GROQ_API_KEY / Ollama trong backend hoặc thử lại."
+        )
       }
-
-      setResults(response.results)
-      setDisclaimer(response.disclaimer)
     } catch (error) {
       console.error('Error analyzing symptoms:', error)
-      setAnalysisError('Failed to analyze symptoms. Please try again.')
+      setAnalysisError(getReadableApiError(error))
     } finally {
       setIsAnalyzing(false)
     }

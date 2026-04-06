@@ -31,7 +31,7 @@ export interface DoctorOption {
   username: string;
   firstName?: string;
   lastName?: string;
-  /** Parsed from DOCTOR.department (MySQL SET) */
+  /** From DOCTOR_DEPARTMENT → DEPARTMENT.name (fallback: specifications) */
   departments?: string[];
   /** Convenience: first department, or legacy single label */
   department?: string;
@@ -211,6 +211,17 @@ export interface PatientMedicalVisit {
 export type PatientMedicalRegimen = PatientMedicalVisit & {
   regimenId: number;
   visitEnd: string;
+  /** Chuyển viện ngoài — HOSPITAL_TRANSFERENCE trong cùng regimen */
+  hospitalTransfers: Array<{
+    orderId: number;
+    reason: string;
+    note: string;
+    transferAt: string;
+    toHospitalId: string | null;
+    toHospitalName: string;
+    transport: string | null;
+    formPayload: Record<string, unknown> | null;
+  }>;
 };
 
 export interface PatientSymptomLog {
@@ -289,7 +300,10 @@ export const appointmentService = {
     const data = await apiClient.get<{ success: boolean; regimens: PatientMedicalRegimen[] }>(
       '/api/appointments/medical-regimens'
     );
-    return data.regimens ?? [];
+    return (data.regimens ?? []).map((r) => ({
+      ...r,
+      hospitalTransfers: Array.isArray(r.hospitalTransfers) ? r.hospitalTransfers : [],
+    }));
   },
 
   async getPatientSymptomLogs(): Promise<PatientSymptomLog[]> {
@@ -344,23 +358,44 @@ export const appointmentService = {
     await apiClient.patch<{ success: boolean }>(`/api/appointments/ai-recommendations/${id}/feedback`, { feedback });
   },
 
-  async sendPatientChatMessage(messages: ChatMessage[], userMessage: string): Promise<{ message: string; recommendationId: number | null }> {
-    const data = await apiClient.post<{ success: boolean; message: string; recommendationId?: number }>(
-      '/api/appointments/ai/chat',
-      { messages, userMessage }
-    );
+  async sendPatientChatMessage(
+    messages: ChatMessage[],
+    userMessage: string
+  ): Promise<{
+    message: string;
+    recommendationId: number | null;
+    aiFallback?: boolean;
+    aiHint?: string;
+  }> {
+    const data = await apiClient.post<{
+      success: boolean;
+      message: string;
+      recommendationId?: number;
+      aiFallback?: boolean;
+      aiHint?: string;
+    }>('/api/appointments/ai/chat', { messages, userMessage });
     return {
       message: data.message || '',
       recommendationId: Number.isFinite(Number(data.recommendationId)) ? Number(data.recommendationId) : null,
+      aiFallback: Boolean(data.aiFallback),
+      aiHint: data.aiHint,
     };
   },
 
   async analyzeSymptomsPersisted(symptoms: SymptomInput[]): Promise<SymptomAnalysisResponse> {
-    const data = await apiClient.post<{ success: boolean; analysis: SymptomAnalysisResponse }>(
+    const data = await apiClient.post<{ success: boolean; analysis?: SymptomAnalysisResponse; message?: string }>(
       '/api/appointments/ai/symptom-analysis',
       { symptoms }
     );
-    return data.analysis;
+    const analysis = data.analysis;
+    if (!analysis) {
+      return {
+        results: [],
+        disclaimer: '',
+        error: data.message || 'Phân tích không thành công.',
+      };
+    }
+    return analysis;
   },
 
   async getNurseCheckInOptions(patientIdParam: string): Promise<NurseCheckInOptionsResponse> {
@@ -394,6 +429,7 @@ export const appointmentService = {
     );
   },
 
+  /** Optional: nurse EMR ends visits via doctor “Finish examination”; kept for API/admin use. */
   async postNurseRegimenCheckout(body: { patientId: string | number; regimenId: number }) {
     return apiClient.post<{ success: boolean; regimenId: number }>(
       '/api/appointments/nurse/regimen/checkout',

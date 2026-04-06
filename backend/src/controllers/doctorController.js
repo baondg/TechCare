@@ -7,7 +7,6 @@ const {
   updateMedicalPrescriptionCompat,
   selectMedicalPrescriptionMetaCompat,
 } = require('../common/prescriptionQueryCompat');
-const { scheduleMedicationRemindersForClosedRegimen } = require('../services/medicationReminderNotifications');
 const {
   notifyPatientDoctorCover,
   notifyDepartmentDoctorsInboundClinicTransfer,
@@ -538,6 +537,7 @@ exports.getActiveRegimenForPatient = async (req, res) => {
 /**
  * POST /api/doctor/patients/:patientId/regimen/close
  * Doctor ends the encounter: set REGIMEN.end = NOW() on the latest open visit.
+ * Nhắc uống thuốc do scheduler BE (7:00, 12:00, 18:00) dựa trên đơn còn trong duration.
  */
 exports.closeOpenRegimenForPatient = async (req, res) => {
   try {
@@ -567,11 +567,6 @@ exports.closeOpenRegimenForPatient = async (req, res) => {
        WHERE id = :regimenId AND patient_id = :pid AND \`end\` IS NULL`,
       { replacements: { regimenId, pid }, type: QueryTypes.UPDATE }
     );
-    try {
-      await scheduleMedicationRemindersForClosedRegimen(sequelize, { regimenId, patientId: pid });
-    } catch (schedErr) {
-      console.warn('[medication-reminder] schedule failed:', schedErr?.message || schedErr);
-    }
     return res.json({ success: true, regimenId });
   } catch (error) {
     console.error('Close open regimen error:', error);
@@ -1325,6 +1320,7 @@ exports.createPrescription = async (req, res) => {
       updatedAt: createdAt
     };
     await transaction.commit();
+
     res.status(201).json({ success: true, prescription });
   } catch (error) {
     await transaction.rollback();
@@ -1451,6 +1447,7 @@ exports.updatePrescription = async (req, res) => {
     };
 
     await transaction.commit();
+
     res.json({ success: true, prescription });
   } catch (error) {
     await transaction.rollback();
@@ -2285,6 +2282,7 @@ exports.createPatientTransfer = async (req, res) => {
       toHospitalId,
       toHospitalName,
       transport,
+      formPayload,
     } = req.body || {};
 
     const k = String(kind || '').toLowerCase();
@@ -2360,15 +2358,26 @@ exports.createPatientTransfer = async (req, res) => {
         await transaction.rollback();
         return res.status(400).json({ success: false, message: 'toHospitalName is required for hospital transfer' });
       }
+      let formPayloadJson = null;
+      if (formPayload != null && typeof formPayload === 'object') {
+        try {
+          formPayloadJson = JSON.stringify(formPayload);
+        } catch {
+          formPayloadJson = null;
+        }
+      } else if (typeof formPayload === 'string' && String(formPayload).trim() !== '') {
+        formPayloadJson = String(formPayload).trim();
+      }
       await sequelize.query(
-        `INSERT INTO HOSPITAL_TRANSFERENCE (transference_id, to_id, to_name, transport)
-         VALUES (:orderId, :toId, :toName, :transport)`,
+        `INSERT INTO HOSPITAL_TRANSFERENCE (transference_id, to_id, to_name, transport, form_payload)
+         VALUES (:orderId, :toId, :toName, :transport, :formPayload)`,
         {
           replacements: {
             orderId,
             toId: toHospitalId != null && String(toHospitalId).trim() !== '' ? String(toHospitalId).trim() : null,
             toName: name,
             transport: transport != null && String(transport).trim() !== '' ? String(transport).trim() : null,
+            formPayload: formPayloadJson,
           },
           type: QueryTypes.INSERT,
           transaction,

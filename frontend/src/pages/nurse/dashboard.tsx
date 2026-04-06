@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { format, addDays } from "date-fns"
+import { format } from "date-fns"
 import { Link } from "react-router-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { NurseLayout } from "@/components/nurse-layout"
@@ -16,25 +16,19 @@ function badgeClass(status: NurseOpenSlot["status"]) {
 
 export default function NurseDashboard() {
   const [todaySlots, setTodaySlots] = useState<NurseOpenSlot[]>([])
-  const [weekSlots, setWeekSlots] = useState<NurseOpenSlot[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
 
   const today = useMemo(() => new Date(), [])
   const todayKey = useMemo(() => format(today, "yyyy-MM-dd"), [today])
-  const weekEndKey = useMemo(() => format(addDays(today, 6), "yyyy-MM-dd"), [today])
 
   useEffect(() => {
     const load = async () => {
       setLoading(true)
       setError("")
       try {
-        const [todayData, weekData] = await Promise.all([
-          appointmentService.getOpenSlots({ startDate: todayKey, endDate: todayKey }),
-          appointmentService.getOpenSlots({ startDate: todayKey, endDate: weekEndKey }),
-        ])
+        const todayData = await appointmentService.getOpenSlots({ startDate: todayKey, endDate: todayKey })
         setTodaySlots(todayData || [])
-        setWeekSlots(weekData || [])
       } catch (e: any) {
         setError(e?.message || "Failed to load dashboard data")
       } finally {
@@ -42,7 +36,7 @@ export default function NurseDashboard() {
       }
     }
     void load()
-  }, [todayKey, weekEndKey])
+  }, [todayKey])
 
   const stats = useMemo(() => {
     const totalToday = todaySlots.length
@@ -73,26 +67,6 @@ export default function NurseDashboard() {
       .filter((s) => s.status === "booked" && s.time >= nowKey)
       .sort((a, b) => a.time.localeCompare(b.time))[0]
   }, [todaySlots])
-
-  const departmentLoad = useMemo(() => {
-    const map = new Map<string, { total: number; booked: number }>()
-    for (const slot of weekSlots) {
-      const dept = String(slot.department || "General").trim() || "General"
-      const current = map.get(dept) || { total: 0, booked: 0 }
-      current.total += 1
-      if (slot.status === "booked") current.booked += 1
-      map.set(dept, current)
-    }
-    return Array.from(map.entries())
-      .map(([department, values]) => ({
-        department,
-        total: values.total,
-        booked: values.booked,
-        ratio: values.total > 0 ? Math.round((values.booked / values.total) * 100) : 0,
-      }))
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 5)
-  }, [weekSlots])
 
   return (
     <NurseLayout>
@@ -156,8 +130,8 @@ export default function NurseDashboard() {
           </Card>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-3">
-          <Card className="card-feature lg:col-span-2">
+        <div className="grid gap-6">
+          <Card className="card-feature">
             <CardHeader className="pb-3">
               <CardTitle>Today Schedule ({format(today, "dd/MM/yyyy")})</CardTitle>
             </CardHeader>
@@ -189,33 +163,6 @@ export default function NurseDashboard() {
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${badgeClass(slot.status)}`}>
                         {slot.status === "open" ? "Open" : slot.status === "booked" ? "Booked" : "Cancelled"}
                       </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="card-feature">
-            <CardHeader className="pb-3">
-              <CardTitle>Department Load (7 days)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <p className="text-sm text-slate-500">Loading data...</p>
-              ) : departmentLoad.length === 0 ? (
-                <p className="text-sm text-slate-500">No slot data in this week.</p>
-              ) : (
-                <div className="space-y-3">
-                  {departmentLoad.map((d) => (
-                    <div key={d.department}>
-                      <div className="flex items-center justify-between text-sm mb-1">
-                        <span className="font-medium text-slate-800 truncate mr-2">{d.department}</span>
-                        <span className="text-slate-500">{d.booked}/{d.total}</span>
-                      </div>
-                      <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
-                        <div className="h-full bg-cyan-500" style={{ width: `${d.ratio}%` }} />
-                      </div>
                     </div>
                   ))}
                 </div>

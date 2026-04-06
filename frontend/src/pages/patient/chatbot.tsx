@@ -43,6 +43,7 @@ import { Bot, Send, ThumbsUp, ThumbsDown } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { appointmentService } from "@/services/appointment-service"
 import type { ChatMessage as AIMessage } from "@/types/ai-types"
+import { getReadableApiError } from "@/lib/utils"
 
 /**
  * Message type definition for chat messages
@@ -60,29 +61,6 @@ type Message = {
   isLoading?: boolean
   recommendationId?: number | null
   feedback?: "accepted" | "rejected"
-}
-
-function getReadableErrorMessage(error: unknown): string {
-  if (!(error instanceof Error)) {
-    return "Something went wrong. Please try again."
-  }
-
-  const raw = String(error.message || "").trim()
-  if (!raw) return "Something went wrong. Please try again."
-
-  try {
-    const parsed = JSON.parse(raw) as { message?: string; error?: string }
-    if (parsed?.message) return parsed.message
-    if (parsed?.error) return parsed.error
-  } catch {
-    // Non-JSON message, continue below.
-  }
-
-  if (raw.toLowerCase() === "failed to fetch") {
-    return "Cannot connect to backend service. Please check server status."
-  }
-
-  return raw
 }
 
 /**
@@ -194,6 +172,14 @@ export default function ChatbotPage() {
       // Call AI service
       const response = await appointmentService.sendPatientChatMessage(conversationHistory, currentInput)
 
+      let assistantText = response.message
+      if (response.aiFallback) {
+        const hint = response.aiHint?.trim()
+        assistantText += `\n\n—\nLưu ý: mô hình AI chính có thể đang không khả dụng; đây là câu trả lời dự phòng.${
+          hint ? ` (${hint})` : ""
+        }`
+      }
+
       // Remove loading message and add actual response
       setMessages(prev => {
         const filtered = prev.filter(msg => msg.id !== loadingMessageId)
@@ -202,7 +188,7 @@ export default function ChatbotPage() {
           {
             id: `msg-${Date.now()}-assistant`,
             role: "assistant",
-            content: response.message,
+            content: assistantText,
             timestamp: new Date(),
             recommendationId: response.recommendationId,
           }
@@ -210,7 +196,7 @@ export default function ChatbotPage() {
       })
     } catch (error) {
       console.error('Chat error:', error)
-      const errorText = getReadableErrorMessage(error)
+      const errorText = getReadableApiError(error)
       
       // Remove loading message and add error message
       setMessages(prev => {

@@ -1,13 +1,13 @@
 import html2canvas from "html2canvas"
 import { jsPDF } from "jspdf"
 import {
-  buildTreatmentFollowupSlipHtmlDocument,
-  type TreatmentFollowupSlipInputs,
-} from "./treatment-followup-slip-html"
+  buildHospitalTransferSlipHtmlDocument,
+  type HospitalTransferSlipInputs,
+} from "./hospital-transfer-slip-html"
 
-export type TreatmentFollowupPdfResult = { blob: Blob; filename: string }
+export type HospitalTransferPdfResult = { blob: Blob; filename: string }
 
-export type TreatmentFollowupPdfInputs = TreatmentFollowupSlipInputs & {
+export type HospitalTransferPdfInputs = HospitalTransferSlipInputs & {
   filename?: string
 }
 
@@ -57,9 +57,13 @@ function canvasToPdfDocument(canvas: HTMLCanvasElement): jsPDF {
   return pdf
 }
 
-export async function generateTreatmentFollowupPdfBlob(opts: TreatmentFollowupPdfInputs): Promise<TreatmentFollowupPdfResult> {
+/**
+ * Phiếu thông tin chuyển cơ sở (bản tóm tắt điện tử — hiển thị / in cho bệnh nhân).
+ * Không thay thế mẫu giấy BHYT đầy đủ; dùng dữ liệu EMR + form_payload.
+ */
+export async function generateHospitalTransferPdfBlob(opts: HospitalTransferPdfInputs): Promise<HospitalTransferPdfResult> {
   const { filename: _fn, ...slip } = opts
-  const html = buildTreatmentFollowupSlipHtmlDocument(slip)
+  const html = buildHospitalTransferSlipHtmlDocument(slip)
 
   const iframe = document.createElement("iframe")
   Object.assign(iframe.style, {
@@ -67,7 +71,7 @@ export async function generateTreatmentFollowupPdfBlob(opts: TreatmentFollowupPd
     left: "-10000px",
     top: "0",
     width: "210mm",
-    height: "1400px",
+    height: "1600px",
     border: "none",
     visibility: "hidden",
   })
@@ -95,8 +99,7 @@ export async function generateTreatmentFollowupPdfBlob(opts: TreatmentFollowupPd
     })
     const pdf = canvasToPdfDocument(canvas)
     const blob = pdf.output("blob")
-
-    const filename = opts.filename || `phieu-theo-doi-dieu-tri-${slugFilenamePart(opts.patientName)}.pdf`
+    const filename = opts.filename || `phieu-chuyen-vien-${slugFilenamePart(opts.patientName)}.pdf`
     return { blob, filename }
   } finally {
     document.body.removeChild(iframe)

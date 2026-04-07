@@ -1,4 +1,5 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+import type { PatientMedicalRegimen } from './appointment-service';
 
 // ─── Helpers ───
 
@@ -283,6 +284,78 @@ export const doctorService = {
       `${API_BASE_URL}/api/doctor/patients/${patientId}/regimen/close`,
       { method: 'POST' }
     );
+  },
+
+  async getActiveRegimenDocuments(patientId: number | string) {
+    return apiRequest<{
+      success: boolean;
+      regimen: null | {
+        regimenId: number;
+        regimenStart: string;
+        treatments: Array<{
+          treatmentId: number;
+          visitAt: string;
+          department: string;
+          complaint: string;
+          icd10: string;
+          interpretation: string;
+          doctorName: string;
+          roomName: string;
+        }>;
+        prescriptions: Array<{
+          id: number;
+          prescribedAt: string;
+          signatureStatus: string;
+          medications: Array<{
+            id: string;
+            name: string;
+            quantity: string;
+            frequency: string;
+            unit: string;
+            duration?: string;
+          }>;
+        }>;
+        labTests: Array<{
+          id: number;
+          testAt: string;
+          testType: string;
+          resultSummary: string;
+          note: string;
+          fileUrl: string | null;
+          technicianName: string;
+        }>;
+        surgeries: Array<{
+          id: number;
+          surgeryType: string;
+          start: string;
+          end: string;
+          result: string;
+          surgeon: string;
+          note: string;
+          urgency: string;
+        }>;
+        hospitalTransfers: Array<{
+          orderId: number;
+          reason: string;
+          note: string;
+          transferAt: string;
+          toHospitalId: string | null;
+          toHospitalName: string;
+          transport: string | null;
+          formPayload: Record<string, unknown> | null;
+        }>;
+      };
+    }>(`${API_BASE_URL}/api/doctor/patients/${patientId}/regimen/active/documents`);
+  },
+
+  async getPatientMedicalRegimens(patientId: number | string): Promise<PatientMedicalRegimen[]> {
+    const data = await apiRequest<{ success: boolean; regimens: PatientMedicalRegimen[] }>(
+      `${API_BASE_URL}/api/doctor/patients/${patientId}/medical-regimens`
+    );
+    return (data.regimens ?? []).map((r) => ({
+      ...r,
+      hospitalTransfers: Array.isArray(r.hospitalTransfers) ? r.hospitalTransfers : [],
+    }));
   },
 
   // ═══ Health Info ═══

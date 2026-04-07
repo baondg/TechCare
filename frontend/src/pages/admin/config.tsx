@@ -9,7 +9,17 @@ import { Label } from "@/components/ui/label"
 import { AdminLayout } from "@/components/admin-layout"
 import { Save, Settings, Loader2, CheckCircle2, AlertCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { useAuth } from "@/contexts/AuthContext"
+
+type FeatureFlag = {
+  id: number
+  name: string
+  status: number | boolean | string
+  featureGroup: string | null
+  systemId: number
+}
+
+const isFeatureEnabled = (status: FeatureFlag["status"]) =>
+  status === true || status === 1 || status === "1" || String(status).toLowerCase() === "true"
 
 export default function SystemConfig() {
   const [config, setConfig] = useState({
@@ -26,12 +36,37 @@ export default function SystemConfig() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+  const [featuresLoading, setFeaturesLoading] = useState(false)
+  const [features, setFeatures] = useState<FeatureFlag[]>([])
+  const [featureSavingId, setFeatureSavingId] = useState<number | null>(null)
+  const [featureStats, setFeatureStats] = useState({ total: 0, enabled: 0, disabled: 0 })
+
+  const token = localStorage.getItem('authToken')
+
+  const loadFeatures = async () => {
+    setFeaturesLoading(true)
+    try {
+      const response = await fetch('http://localhost:3000/api/system-config/features', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (!response.ok) throw new Error("Failed to load features")
+      const data = await response.json()
+      if (data.success) {
+        setFeatures(data.features || [])
+        setFeatureStats(data.stats || { total: 0, enabled: 0, disabled: 0 })
+      }
+    } catch (error) {
+      console.error("Error loading features:", error)
+      setMessage({ type: "error", text: "Could not load feature flags." })
+    } finally {
+      setFeaturesLoading(false)
+    }
+  }
 
   // Load configuration from API
   useEffect(() => {
     const loadConfig = async () => {
       try {
-        const token = localStorage.getItem('authToken');
         const response = await fetch('http://localhost:3000/api/system-config', {
           headers: {
             'Authorization': `Bearer ${token}`
@@ -56,6 +91,7 @@ export default function SystemConfig() {
     };
 
     loadConfig();
+    void loadFeatures();
   }, []);
 
   const handleChange = (field: string, value: string) => {
@@ -93,6 +129,41 @@ export default function SystemConfig() {
       setMessage({ type: 'error', text: 'Network error. Please try again.' });
     } finally {
       setSaving(false);
+    }
+  }
+
+  const handleToggleFeature = async (feature: FeatureFlag) => {
+    setFeatureSavingId(feature.id)
+    setMessage(null)
+    const nextStatus = isFeatureEnabled(feature.status) ? 0 : 1
+    try {
+      const response = await fetch(`http://localhost:3000/api/system-config/features/${feature.id}/status`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: nextStatus }),
+      })
+      const data = await response.json()
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Failed to update feature status")
+      }
+      setFeatures((prev) =>
+        prev.map((f) =>
+          f.id === feature.id ? { ...f, status: nextStatus } : f
+        )
+      )
+      setFeatureStats((prev) => {
+        const enabled = nextStatus === 1 ? prev.enabled + 1 : prev.enabled - 1
+        return { total: prev.total, enabled, disabled: prev.total - enabled }
+      })
+      setMessage({ type: "success", text: `Feature "${feature.name}" is now ${nextStatus === 1 ? "enabled" : "disabled"}.` })
+      setTimeout(() => setMessage(null), 2500)
+    } catch (error) {
+      setMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to update feature" })
+    } finally {
+      setFeatureSavingId(null)
     }
   }
 
@@ -299,6 +370,68 @@ export default function SystemConfig() {
             <p className="text-sm text-muted-foreground">
               Current active sessions will be affected by these changes. New login sessions will use the updated timeout.
             </p>
+          </CardContent>
+        </Card>
+
+        {/* Feature Flags */}
+        <Card className="card-feature-group">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Settings className="h-5 w-5" />
+              Feature Flags
+            </CardTitle>
+            <CardDescription>Enable/disable modules by feature switch</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 gap-2 rounded-lg border bg-muted/20 p-3 text-sm md:grid-cols-3">
+              <div><span className="font-medium">Total:</span> {featureStats.total}</div>
+              <div><span className="font-medium text-emerald-700">Enabled:</span> {featureStats.enabled}</div>
+              <div><span className="font-medium text-slate-600">Disabled:</span> {featureStats.disabled}</div>
+            </div>
+
+            {featuresLoading ? (
+              <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading feature flags...
+              </div>
+            ) : features.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No rows found in table FEATURE. Please insert seed data first.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {features.map((f) => {
+                  const enabled = isFeatureEnabled(f.status)
+                  const busy = featureSavingId === f.id
+                  return (
+                    <div key={f.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
+                      <div className="min-w-0">
+                        <p className="font-medium">{f.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Group: {f.featureGroup || "General"} · System ID: {f.systemId}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs font-semibold ${enabled ? "text-emerald-700" : "text-slate-500"}`}>
+                          {enabled ? "Enabled" : "Disabled"}
+                        </span>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={enabled ? "outline" : "default"}
+                          className={enabled ? "" : "btn-gradient"}
+                          disabled={busy}
+                          onClick={() => void handleToggleFeature(f)}
+                        >
+                          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                          {enabled ? "Disable" : "Enable"}
+                        </Button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

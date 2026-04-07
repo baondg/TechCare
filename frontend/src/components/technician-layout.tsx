@@ -1,11 +1,12 @@
 ﻿import type React from 'react'
 import { AppShell } from '@/components/layout/AppShell'
 import type { NavItem } from '@/components/layout/AppShell'
-import { Activity, Users, FileText } from 'lucide-react'
+import { Activity, Users, CalendarClock, FileText } from 'lucide-react'
 
 const navigation: NavItem[] = [
   { name: 'Dashboard', href: '/technician/dashboard', icon: Activity },
   { name: 'Patients',  href: '/technician/patients',  icon: Users },
+  { name: 'Work shifts', href: '/technician/work-shifts', icon: CalendarClock },
   { name: 'Feedback',  href: '/technician/feedback',  icon: FileText },
 ]
 

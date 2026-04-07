@@ -276,7 +276,7 @@ export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps)
       const { blob, filename } = await generateHealthInfoTrackingPdfBlob({
         patientName: `${p.firstName || ""} ${p.lastName || ""}`.trim() || p.username || "",
         age: p.age == null ? "" : String(p.age),
-        gender: p.gender === "M" ? "Nam" : p.gender === "F" ? "Nữ" : "",
+        gender: p.gender === "M" ? "Male" : p.gender === "F" ? "Female" : "",
         diagnosis,
         rows: rows.map((r) => ({
           updatedAt: r.updatedAt,
@@ -744,7 +744,7 @@ const loadHealthHistory = async () => {
         <Dialog open={pdfPreviewOpen} onOpenChange={(open) => (!open ? closePdfPreview() : setPdfPreviewOpen(open))}>
           <DialogContent className="flex max-h-[90vh] w-[min(920px,96vw)] max-w-none flex-col gap-3 p-4 sm:p-6">
             <DialogHeader>
-              <DialogTitle>Xem trước phiếu theo dõi (PDF)</DialogTitle>
+              <DialogTitle>Health Tracking Slip Preview (PDF)</DialogTitle>
             </DialogHeader>
             {pdfPreviewUrl ? (
               <iframe

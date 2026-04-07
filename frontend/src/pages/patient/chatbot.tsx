@@ -175,7 +175,7 @@ export default function ChatbotPage() {
       let assistantText = response.message
       if (response.aiFallback) {
         const hint = response.aiHint?.trim()
-        assistantText += `\n\n—\nLưu ý: mô hình AI chính có thể đang không khả dụng; đây là câu trả lời dự phòng.${
+        assistantText += `\n\n—\nNote: the primary AI model may be temporarily unavailable; this is a fallback response.${
           hint ? ` (${hint})` : ""
         }`
       }

@@ -160,7 +160,7 @@ export default function SymptomChecker() {
         setAnalysisError(response.error)
       } else if ((response.results?.length ?? 0) === 0) {
         setAnalysisError(
-          "AI không trả về gợi ý triệu chứng. Kiểm tra GROQ_API_KEY / Ollama trong backend hoặc thử lại."
+          "AI did not return symptom suggestions. Check GROQ_API_KEY / Ollama backend configuration, then try again."
         )
       }
     } catch (error) {

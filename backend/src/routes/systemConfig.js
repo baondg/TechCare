@@ -3,6 +3,8 @@ const SystemConfigController = require('../controllers/systemConfigController');
 
 router.get('/', SystemConfigController.getConfig);
 router.put('/', SystemConfigController.updateConfig);
+router.get('/features', SystemConfigController.getFeatures);
+router.put('/features/:id/status', SystemConfigController.updateFeatureStatus);
 
 module.exports = router;
 

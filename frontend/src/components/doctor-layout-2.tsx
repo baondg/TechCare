@@ -9,6 +9,7 @@ import PatientPrescription from "@/pages/doctor/medical_records/prescription"
 import PatientDiagnosis from "@/pages/doctor/medical_records/diagnosis"
 import PatientSurgery from "@/pages/doctor/medical_records/surgery"
 import PatientLab from "@/pages/doctor/medical_records/lab"
+import DoctorPatientHistoryPage from "@/pages/doctor/medical_records/history"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { EmrSessionProvider } from "@/contexts/emr-session-context"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -38,7 +39,12 @@ import {
   parseIsoDateForSlip,
   splitInsuranceCardSix,
 } from "@/lib/follow-up-reexam-slip-html"
-import { Loader2, ArrowRightLeft, AlertCircle } from "lucide-react"
+import { generateFollowUpReexamPdfBlob } from "@/lib/export-follow-up-reexam-pdf"
+import { generatePrescriptionPdfBlob } from "@/lib/export-prescription-pdf"
+import { generateSurgeryPdfBlob } from "@/lib/export-surgery-pdf"
+import { generateBloodTestPdfBlob } from "@/lib/export-blood-test-pdf"
+import { generateHospitalTransferPdfBlob } from "@/lib/export-hospital-transfer-pdf"
+import { Loader2, ArrowRightLeft, AlertCircle, FileDown, Printer } from "lucide-react"
 
 const tabs = [
   { label: "Dashboard", value: "dashboard" },
@@ -68,6 +74,13 @@ function readSignedInDisplayName(): string {
   }
 }
 
+function formatDateTime(value: string | null | undefined, locale = "vi-VN") {
+  if (!value) return "—"
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return String(value)
+  return d.toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" })
+}
+
 export function DoctorLayout2() {
   const navigate = useNavigate()
   const { tab = "dashboard", patientId } = useParams()
@@ -78,12 +91,10 @@ export function DoctorLayout2() {
   const [loading, setLoading] = useState(true)
   const [patientData, setPatientData] = useState<PatientDetail | null>(null)
 
-  const [followOpen, setFollowOpen] = useState(false)
   const [followDate, setFollowDate] = useState("")
   const [followTime, setFollowTime] = useState("09:00")
   const [followDepartment, setFollowDepartment] = useState("")
   const [followSymptoms, setFollowSymptoms] = useState("")
-  const [followSubmitting, setFollowSubmitting] = useState(false)
 
   const [transferOpen, setTransferOpen] = useState(false)
   const [transferKind, setTransferKind] = useState<"clinic" | "hospital">("clinic")
@@ -108,7 +119,52 @@ export function DoctorLayout2() {
   const [visitLoading, setVisitLoading] = useState(true)
   const [visitActive, setVisitActive] = useState(false)
 
+  const [finishWizardOpen, setFinishWizardOpen] = useState(false)
+  const [finishWizardStep, setFinishWizardStep] = useState<1 | 2>(1)
+  const [finishWizardChoice, setFinishWizardChoice] = useState<"none" | "followup" | "hospital-transfer">("none")
+  const [finishWizardSaving, setFinishWizardSaving] = useState(false)
+  const [finishWizardSaved, setFinishWizardSaved] = useState<null | { type: "followup" | "hospital-transfer"; summary: string }>(null)
+  const [finishWizardDocsLoading, setFinishWizardDocsLoading] = useState(false)
+  const [finishWizardDocsError, setFinishWizardDocsError] = useState<string | null>(null)
+  const [finishWizardDocs, setFinishWizardDocs] = useState<Awaited<ReturnType<typeof doctorService.getActiveRegimenDocuments>>["regimen"]>(null)
+
+  const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false)
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null)
+  const [pdfPreviewTitle, setPdfPreviewTitle] = useState<string>("PDF preview")
+  const [pdfPreviewFilename, setPdfPreviewFilename] = useState<string>("document.pdf")
+  const [pdfGeneratingKey, setPdfGeneratingKey] = useState<string | null>(null)
+
   const numericRouteId = useMemo(() => routePatientNumericId(patientId), [patientId])
+
+  const openPdfPreview = useCallback((blob: Blob, filename: string, title: string) => {
+    const url = URL.createObjectURL(blob)
+    setPdfPreviewFilename(filename || "document.pdf")
+    setPdfPreviewTitle(title || "PDF preview")
+    if (pdfPreviewUrl) URL.revokeObjectURL(pdfPreviewUrl)
+    setPdfPreviewUrl(url)
+    setPdfPreviewOpen(true)
+  }, [pdfPreviewUrl])
+
+  const closePdfPreview = useCallback(() => {
+    setPdfPreviewOpen(false)
+    if (pdfPreviewUrl) URL.revokeObjectURL(pdfPreviewUrl)
+    setPdfPreviewUrl(null)
+  }, [pdfPreviewUrl])
+
+  const savePdfFromPreview = useCallback(() => {
+    if (!pdfPreviewUrl) return
+    const a = document.createElement("a")
+    a.href = pdfPreviewUrl
+    a.download = pdfPreviewFilename || "document.pdf"
+    a.rel = "noopener"
+    a.click()
+  }, [pdfPreviewUrl, pdfPreviewFilename])
+
+  useEffect(() => {
+    return () => {
+      if (pdfPreviewUrl) URL.revokeObjectURL(pdfPreviewUrl)
+    }
+  }, [pdfPreviewUrl])
 
   const loadVisitState = useCallback(async () => {
     if (!patientId) {
@@ -196,6 +252,29 @@ export function DoctorLayout2() {
     }
   }, [transferOpen])
 
+  useEffect(() => {
+    if (!finishWizardOpen || finishWizardStep !== 2 || !patientId) return
+    let cancelled = false
+    void (async () => {
+      setFinishWizardDocsLoading(true)
+      setFinishWizardDocsError(null)
+      try {
+        const r = await doctorService.getActiveRegimenDocuments(patientId)
+        if (!cancelled) setFinishWizardDocs(r.regimen)
+      } catch (e) {
+        if (!cancelled) {
+          setFinishWizardDocs(null)
+          setFinishWizardDocsError(e instanceof Error ? e.message : "Could not load regimen documents.")
+        }
+      } finally {
+        if (!cancelled) setFinishWizardDocsLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [finishWizardOpen, finishWizardStep, patientId])
+
   const renderHeader = () => {
     if (loading) return "Loading patient..."
     if (!patientData) return "Patient not found"
@@ -216,38 +295,6 @@ export function DoctorLayout2() {
         <p className="text-sm text-slate-500">Department: {dept || "—"}</p>
       </div>
     )
-  }
-
-  const openFollowUp = () => {
-    const t = new Date()
-    t.setDate(t.getDate() + 7)
-    setFollowDate(t.toISOString().slice(0, 10))
-    setFollowOpen(true)
-  }
-
-  const submitFollowUp = async () => {
-    if (!numericRouteId || !followDate || !followTime.trim() || !followDepartment.trim()) {
-      window.alert("Please fill date, time, and department.")
-      return
-    }
-    setFollowSubmitting(true)
-    try {
-      await doctorService.createAppointment({
-        patientId: numericRouteId,
-        department: followDepartment.trim(),
-        date: followDate,
-        time: followTime.length <= 5 ? `${followTime}:00` : followTime,
-        symptoms: followSymptoms.trim() || undefined,
-        notes: followSymptoms.trim() || undefined,
-      })
-      window.alert("Follow-up appointment scheduled.")
-      setFollowOpen(false)
-      setFollowSymptoms("")
-    } catch (e) {
-      window.alert(e instanceof Error ? e.message : "Could not create appointment.")
-    } finally {
-      setFollowSubmitting(false)
-    }
   }
 
   const departmentLabelForRoomId = useCallback((roomId: string | null) => {
@@ -273,10 +320,10 @@ export function DoctorLayout2() {
   )
 
   const followUpPreviewHtml = useMemo(() => {
-    if (!followOpen || !patientData) return ""
+    if (!finishWizardOpen || finishWizardChoice !== "followup" || !patientData) return ""
     const patientName = `${patientData.firstName || ""} ${patientData.lastName || ""}`.trim() || "—"
     const genderLabel =
-      patientData.gender === "M" ? "Nam" : patientData.gender === "F" ? "Nữ" : patientData.gender?.trim() || "—"
+      patientData.gender === "M" ? "Male" : patientData.gender === "F" ? "Female" : patientData.gender?.trim() || "—"
     const dx = patientData.latestDiagnosis
     const diagnosis = [dx?.icd10, dx?.interpretation].filter(Boolean).join(" — ") || "—"
     const rev = followDate.trim() ? parseIsoDateForSlip(followDate) : null
@@ -315,10 +362,13 @@ export function DoctorLayout2() {
       footerYear,
       doctorDisplayName: readSignedInDisplayName() || "—",
     })
-  }, [followOpen, patientData, followDate, followTime, followDepartment, followSymptoms])
+  }, [finishWizardOpen, finishWizardChoice, patientData, followDate, followTime, followDepartment, followSymptoms])
 
   const hospitalTransferPreviewHtml = useMemo(() => {
-    if (!transferOpen || transferKind !== "hospital" || !patientData) return ""
+    const shouldPreview =
+      (transferOpen && transferKind === "hospital") ||
+      (finishWizardOpen && finishWizardChoice === "hospital-transfer")
+    if (!shouldPreview || !patientData) return ""
     const t = (s: string) => s.trim()
     const patientName = `${patientData.firstName || ""} ${patientData.lastName || ""}`.trim() || "—"
     const patientSex =
@@ -356,6 +406,8 @@ export function DoctorLayout2() {
   }, [
     transferOpen,
     transferKind,
+    finishWizardOpen,
+    finishWizardChoice,
     patientData,
     transferReason,
     transferNote,
@@ -444,16 +496,94 @@ export function DoctorLayout2() {
 
   const submitFinishExamination = async () => {
     if (!patientId) return
-    if (
-      !window.confirm(
-        "Finish examination and close this visit? Vitals and orders stay linked to this encounter."
-      )
-    )
+    setFinishWizardStep(1)
+    setFinishWizardChoice("none")
+    setFinishWizardSaved(null)
+    const t = new Date()
+    t.setDate(t.getDate() + 7)
+    setFollowDate(t.toISOString().slice(0, 10))
+    setFollowTime("09:00")
+    setFollowSymptoms("")
+    setFinishWizardOpen(true)
+  }
+
+  const saveFinishWizardChoiceAndContinue = async () => {
+    if (!patientId) return
+    if (finishWizardChoice === "none") {
+      setFinishWizardSaved(null)
+      setFinishWizardStep(2)
       return
+    }
+
+    setFinishWizardSaving(true)
+    try {
+      if (finishWizardChoice === "followup") {
+        if (!numericRouteId || !followDate || !followTime.trim() || !followDepartment.trim()) {
+          window.alert("Please fill date, time, and department.")
+          return
+        }
+        await doctorService.createAppointment({
+          patientId: numericRouteId,
+          department: followDepartment.trim(),
+          date: followDate,
+          time: followTime.length <= 5 ? `${followTime}:00` : followTime,
+          symptoms: followSymptoms.trim() || undefined,
+          notes: followSymptoms.trim() || undefined,
+        })
+        setFinishWizardSaved({
+          type: "followup",
+          summary: `Follow-up scheduled: ${followDate} ${followTime} — ${followDepartment.trim()}`,
+        })
+      } else {
+        if (!transferReason.trim()) {
+          window.alert("Reason is required.")
+          return
+        }
+        if (!toHospitalName.trim()) {
+          window.alert("Destination hospital name is required.")
+          return
+        }
+        await doctorService.createPatientTransfer(patientId, {
+          kind: "hospital",
+          reason: transferReason.trim(),
+          note: transferNote.trim() || undefined,
+          toHospitalName: toHospitalName.trim(),
+          toHospitalId: toHospitalId.trim() || undefined,
+          transport: transport.trim() || undefined,
+          formPayload: {
+            portalVersion: 1,
+            recordedAt: new Date().toISOString(),
+            toHospitalName: toHospitalName.trim(),
+            toHospitalId: toHospitalId.trim() || undefined,
+            clinicalSummary: clinicalSummary.trim() || undefined,
+            keyFindings: keyFindings.trim() || undefined,
+            keyTestsSummary: keyTestsSummary.trim() || undefined,
+            treatmentsProvided: treatmentsProvided.trim() || undefined,
+            conditionAtTransfer: conditionAtTransfer.trim() || undefined,
+            transferObjective: transferObjective.trim() || undefined,
+            escortInfo: escortInfo.trim() || undefined,
+          },
+        })
+        setFinishWizardSaved({
+          type: "hospital-transfer",
+          summary: `Hospital transfer recorded: ${toHospitalName.trim()}`,
+        })
+      }
+      setFinishWizardStep(2)
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : "Could not save.")
+    } finally {
+      setFinishWizardSaving(false)
+    }
+  }
+
+  const confirmFinishAndCloseVisit = async () => {
+    if (!patientId) return
     setFinishSubmitting(true)
     try {
       await doctorService.closeOpenVisitRegimen(patientId)
       window.alert("Visit closed")
+      setFinishWizardOpen(false)
       await loadVisitState()
     } catch (e) {
       window.alert(e instanceof Error ? e.message : "Could not close visit.")
@@ -462,91 +592,561 @@ export function DoctorLayout2() {
     }
   }
 
+  const buildFollowUpReexamSlipInputs = useCallback(() => {
+    if (!patientData) return null
+    const patientName = `${patientData.firstName || ""} ${patientData.lastName || ""}`.trim() || "—"
+    const genderLabel =
+      patientData.gender === "M" ? "Male" : patientData.gender === "F" ? "Female" : patientData.gender?.trim() || "—"
+    const dx = patientData.latestDiagnosis
+    const diagnosis = [dx?.icd10, dx?.interpretation].filter(Boolean).join(" — ") || "—"
+    const rev = followDate.trim() ? parseIsoDateForSlip(followDate) : null
+    const revisitDay = rev ? rev.day.padStart(2, "0") : "…"
+    const revisitMonth = rev ? rev.month.padStart(2, "0") : "…"
+    const revisitYear = rev ? rev.year : "…"
+    const now = new Date()
+    const footerDay = String(now.getDate())
+    const footerMonth = String(now.getMonth() + 1)
+    const footerYear = String(now.getFullYear())
+    const examDateDisplay = formatDdMmYyyy(
+      `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`
+    )
+    const placeholderDate = "..../..../........"
+    return {
+      patientName,
+      genderLabel,
+      dateOfBirthDisplay: placeholderDate,
+      address: "—",
+      insuranceCardSix: splitInsuranceCardSix(patientData.healthInsuranceId),
+      insuranceValidFromDisplay: placeholderDate,
+      insuranceValidToDisplay: placeholderDate,
+      examDateDisplay: examDateDisplay || placeholderDate,
+      admissionDateDisplay: placeholderDate,
+      dischargeDateDisplay: placeholderDate,
+      diagnosis,
+      comorbidities: followSymptoms.trim() || "—",
+      revisitDay,
+      revisitMonth,
+      revisitYear,
+      appointmentTimeLabel: followTime.trim() || undefined,
+      departmentLabel: followDepartment.trim() || undefined,
+      footerPlaceLine: "………………",
+      footerDay,
+      footerMonth,
+      footerYear,
+      doctorDisplayName: readSignedInDisplayName() || "—",
+    }
+  }, [patientData, followDate, followTime, followDepartment, followSymptoms])
+
   return (
     <EmrSessionProvider value={emrSessionValue}>
     <DoctorLayout>
-      <Dialog open={followOpen} onOpenChange={setFollowOpen}>
-        <DialogContent className="flex max-h-[90vh] w-full max-w-[min(1120px,98vw)] flex-col gap-3 overflow-hidden p-6 sm:max-w-[min(1120px,98vw)]">
-          <DialogHeader className="shrink-0 space-y-1">
-            <DialogTitle>Add follow-up appointment</DialogTitle>
-            <p className="hidden text-xs text-muted-foreground lg:block">
-              Print preview: PHIẾU HẸN KHÁM LẠI — updates as you type.
-            </p>
+      <Dialog open={pdfPreviewOpen} onOpenChange={(open) => { if (!open) closePdfPreview() }}>
+        <DialogContent className="flex max-h-[90vh] w-[min(920px,96vw)] max-w-none flex-col gap-3 p-4 sm:p-6">
+          <DialogHeader>
+            <DialogTitle>{pdfPreviewTitle}</DialogTitle>
           </DialogHeader>
-          <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_min(380px,42vw)]">
-            <div className="max-h-[min(72vh,640px)] min-h-0 space-y-4 overflow-y-auto py-1 pr-1">
-              <div className="grid gap-2">
-                <Label htmlFor="fu-date">
-                  Date <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="fu-date"
-                  type="date"
-                  value={followDate}
-                  onChange={(e) => setFollowDate(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="fu-time">
-                  Time <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="fu-time"
-                  type="time"
-                  value={followTime}
-                  onChange={(e) => setFollowTime(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="fu-dept">
-                  Department <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="fu-dept"
-                  value={followDepartment}
-                  onChange={(e) => setFollowDepartment(e.target.value)}
-                  placeholder="e.g. Outpatient"
-                  required
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="fu-symptoms">Reason / symptoms (optional)</Label>
-                <Textarea
-                  id="fu-symptoms"
-                  value={followSymptoms}
-                  onChange={(e) => setFollowSymptoms(e.target.value)}
-                  rows={3}
-                  placeholder="Chief complaint or visit reason"
-                />
-              </div>
-            </div>
-            <div className="flex min-h-[260px] flex-col overflow-hidden rounded-lg border bg-muted/20 lg:min-h-0 lg:max-h-[min(72vh,640px)]">
-              <div className="shrink-0 border-b bg-background px-3 py-1.5 text-xs font-medium">Print preview</div>
-              <div className="min-h-0 flex-1 bg-white p-1">
-                <iframe
-                  title="Follow-up slip preview"
-                  className="h-full min-h-[280px] w-full border-0"
-                  srcDoc={followUpPreviewHtml}
-                  sandbox=""
-                />
-              </div>
-            </div>
-          </div>
-          <DialogFooter className="shrink-0 gap-2 border-t border-border/60 pt-3">
-            <Button type="button" variant="outline" onClick={() => setFollowOpen(false)}>
+          {pdfPreviewUrl ? (
+            <iframe
+              title="PDF preview"
+              src={pdfPreviewUrl}
+              className="min-h-[min(520px,60vh)] w-full flex-1 rounded-md border bg-muted/30"
+            />
+          ) : null}
+          <DialogFooter className="gap-2 sm:justify-end">
+            <Button type="button" variant="outline" onClick={closePdfPreview}>
               Cancel
             </Button>
+            <Button type="button" onClick={savePdfFromPreview} disabled={!pdfPreviewUrl}>
+              <FileDown className="mr-2 h-4 w-4" />
+              Save / Download
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={finishWizardOpen} onOpenChange={setFinishWizardOpen}>
+        <DialogContent className="flex max-h-[90vh] w-full max-w-[min(1120px,98vw)] flex-col gap-3 overflow-hidden p-6">
+          <DialogHeader className="shrink-0 space-y-1">
+            <DialogTitle>Finish examination ({finishWizardStep}/2)</DialogTitle>
+            <p className="text-xs text-muted-foreground">
+              Step 1: optionally add follow-up or hospital transfer. Step 2: review and finish.
+            </p>
+          </DialogHeader>
+
+          {finishWizardStep === 1 ? (
+            <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_min(380px,42vw)]">
+              <div className="max-h-[min(72vh,640px)] min-h-0 space-y-4 overflow-y-auto py-1 pr-1">
+                <div className="space-y-2">
+                  <Label>Choose an optional action</Label>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={finishWizardChoice === "none" ? "default" : "outline"}
+                      className={finishWizardChoice === "none" ? "btn-gradient" : ""}
+                      onClick={() => setFinishWizardChoice("none")}
+                    >
+                      No additional document
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={finishWizardChoice === "followup" ? "default" : "outline"}
+                      className={finishWizardChoice === "followup" ? "btn-gradient" : ""}
+                      onClick={() => setFinishWizardChoice("followup")}
+                    >
+                      Add follow-up appointment
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={finishWizardChoice === "hospital-transfer" ? "default" : "outline"}
+                      className={finishWizardChoice === "hospital-transfer" ? "btn-gradient" : ""}
+                      onClick={() => setFinishWizardChoice("hospital-transfer")}
+                    >
+                      Transfer to other hospital
+                    </Button>
+                  </div>
+                </div>
+
+                {finishWizardChoice === "followup" ? (
+                  <div className="space-y-3">
+                    <div className="grid gap-2">
+                      <Label htmlFor="fu-date">
+                        Date <span className="text-red-500">*</span>
+                      </Label>
+                      <Input id="fu-date" type="date" value={followDate} onChange={(e) => setFollowDate(e.target.value)} />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="fu-time">
+                        Time <span className="text-red-500">*</span>
+                      </Label>
+                      <Input id="fu-time" type="time" value={followTime} onChange={(e) => setFollowTime(e.target.value)} />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="fu-dept">
+                        Department <span className="text-red-500">*</span>
+                      </Label>
+                      <Input id="fu-dept" value={followDepartment} onChange={(e) => setFollowDepartment(e.target.value)} placeholder="e.g. Outpatient" />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="fu-symptoms">Reason / symptoms (optional)</Label>
+                      <Textarea id="fu-symptoms" value={followSymptoms} onChange={(e) => setFollowSymptoms(e.target.value)} rows={3} placeholder="Chief complaint or visit reason" />
+                    </div>
+                  </div>
+                ) : null}
+
+                {finishWizardChoice === "hospital-transfer" ? (
+                  <div className="space-y-3">
+                    <div className="grid gap-2">
+                      <Label htmlFor="tr-reason">
+                        Reason <span className="text-red-500">*</span>
+                      </Label>
+                      <Textarea id="tr-reason" value={transferReason} onChange={(e) => setTransferReason(e.target.value)} rows={2} />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="tr-note">Clinical note (optional)</Label>
+                      <Textarea id="tr-note" value={transferNote} onChange={(e) => setTransferNote(e.target.value)} rows={2} />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="h-name">
+                        Hospital name <span className="text-red-500">*</span>
+                      </Label>
+                      <Input id="h-name" value={toHospitalName} onChange={(e) => setToHospitalName(e.target.value)} placeholder="Receiving facility" />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="h-id">Hospital / referral ID (optional)</Label>
+                      <Input id="h-id" value={toHospitalId} onChange={(e) => setToHospitalId(e.target.value)} />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="h-transport">Transport (optional)</Label>
+                      <Input id="h-transport" value={transport} onChange={(e) => setTransport(e.target.value)} placeholder="e.g. ambulance" />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="h-transfer-objective">Transfer objective (optional)</Label>
+                      <Input id="h-transfer-objective" value={transferObjective} onChange={(e) => setTransferObjective(e.target.value)} />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="h-condition">Patient condition at transfer (optional)</Label>
+                      <Input id="h-condition" value={conditionAtTransfer} onChange={(e) => setConditionAtTransfer(e.target.value)} />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="h-summary">Clinical summary (optional)</Label>
+                      <Textarea id="h-summary" value={clinicalSummary} onChange={(e) => setClinicalSummary(e.target.value)} rows={2} />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="h-findings">Key findings (optional)</Label>
+                      <Textarea id="h-findings" value={keyFindings} onChange={(e) => setKeyFindings(e.target.value)} rows={2} />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="h-tests">Key tests and results (optional)</Label>
+                      <Textarea id="h-tests" value={keyTestsSummary} onChange={(e) => setKeyTestsSummary(e.target.value)} rows={2} />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="h-treatments">Treatments provided (optional)</Label>
+                      <Textarea id="h-treatments" value={treatmentsProvided} onChange={(e) => setTreatmentsProvided(e.target.value)} rows={2} />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="h-escort">Escort / handover contact (optional)</Label>
+                      <Input id="h-escort" value={escortInfo} onChange={(e) => setEscortInfo(e.target.value)} />
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="flex min-h-[260px] flex-col overflow-hidden rounded-lg border bg-muted/20 lg:min-h-0 lg:max-h-[min(72vh,640px)]">
+                <div className="shrink-0 border-b bg-background px-3 py-1.5 text-xs font-medium">Print preview</div>
+                <div className="min-h-0 flex-1 bg-white p-1">
+                  {finishWizardChoice === "followup" ? (
+                    <iframe title="Follow-up slip preview" className="h-full min-h-[280px] w-full border-0" srcDoc={followUpPreviewHtml} sandbox="" />
+                  ) : finishWizardChoice === "hospital-transfer" ? (
+                    <iframe title="Hospital transfer slip preview" className="h-full min-h-[280px] w-full border-0" srcDoc={hospitalTransferPreviewHtml} sandbox="" />
+                  ) : (
+                    <p className="p-4 text-sm text-muted-foreground">Choose an action to preview the print slip.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="min-h-0 flex-1 overflow-y-auto space-y-3">
+              <p className="text-sm text-slate-700">Review papers in this regimen before closing.</p>
+              {finishWizardDocsError ? (
+                <p className="text-sm text-destructive">{finishWizardDocsError}</p>
+              ) : finishWizardDocsLoading ? (
+                <p className="text-sm text-muted-foreground">Loading regimen documents…</p>
+              ) : finishWizardDocs ? (
+                <div className="rounded-md border bg-white">
+                  <div className="border-b bg-slate-50 px-3 py-2 text-sm font-medium">Regimen documents</div>
+                  <div className="grid gap-2 p-3 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-700">Prescriptions</span>
+                      <span className="font-medium">{finishWizardDocs.prescriptions?.length || 0}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-700">Lab tests</span>
+                      <span className="font-medium">{finishWizardDocs.labTests?.length || 0}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-700">Surgeries</span>
+                      <span className="font-medium">{finishWizardDocs.surgeries?.length || 0}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-700">Hospital transfers</span>
+                      <span className="font-medium">{finishWizardDocs.hospitalTransfers?.length || 0}</span>
+                    </div>
+                  </div>
+                  <div className="border-t p-3 space-y-3">
+                    {finishWizardDocs.prescriptions?.length ? (
+                      <div className="space-y-1">
+                        <div className="text-xs font-semibold text-slate-600">Prescriptions</div>
+                        {finishWizardDocs.prescriptions.slice(0, 6).map((rx) => {
+                          const key = `rx-${rx.id}`
+                          return (
+                            <div key={rx.id} className="flex items-center justify-between gap-2 rounded-md border bg-slate-50 px-3 py-2">
+                              <div className="min-w-0">
+                                <div className="text-slate-800 font-medium truncate">Prescription #{rx.id}</div>
+                                <div className="text-xs text-slate-600">{formatDateTime(rx.prescribedAt)}</div>
+                              </div>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                disabled={!patientData || pdfGeneratingKey === key}
+                                onClick={async () => {
+                                  if (!patientData) return
+                                  setPdfGeneratingKey(key)
+                                  try {
+                                    const { blob, filename } = await generatePrescriptionPdfBlob({
+                                      patient: patientData,
+                                      medications: (rx.medications || []).map((m) => ({
+                                        name: m.name,
+                                        quantity: m.quantity || "—",
+                                        unit: m.unit || "tablet",
+                                        duration: m.duration,
+                                        usage: m.frequency || "—",
+                                        note: "",
+                                      })),
+                                      prescriptionDate: formatDateTime(rx.prescribedAt),
+                                      doctorName: readSignedInDisplayName() || "—",
+                                      signatureStatus: "signed",
+                                      filename: `prescription-${rx.id}.pdf`,
+                                    })
+                                    openPdfPreview(blob, filename, `Prescription #${rx.id} (PDF)`)
+                                  } catch (e) {
+                                    window.alert(e instanceof Error ? e.message : "Failed to generate PDF")
+                                  } finally {
+                                    setPdfGeneratingKey(null)
+                                  }
+                                }}
+                              >
+                                {pdfGeneratingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                                Preview PDF
+                              </Button>
+                            </div>
+                          )
+                        })}
+                        {finishWizardDocs.prescriptions.length > 6 ? (
+                          <div className="text-xs text-muted-foreground">…and {finishWizardDocs.prescriptions.length - 6} more</div>
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    {finishWizardDocs.surgeries?.length ? (
+                      <div className="space-y-1">
+                        <div className="text-xs font-semibold text-slate-600">Surgeries</div>
+                        {finishWizardDocs.surgeries.slice(0, 6).map((s) => {
+                          const key = `surgery-${s.id}`
+                          const patientLabel = patientData ? `${patientData.firstName || ""} ${patientData.lastName || ""}`.trim() || patientData.username : "—"
+                          const latestDiagnosisText = patientData?.latestDiagnosis
+                            ? `${patientData.latestDiagnosis.icd10 || "—"} — ${patientData.latestDiagnosis.interpretation || "—"}`
+                            : "—"
+                          return (
+                            <div key={s.id} className="flex items-center justify-between gap-2 rounded-md border bg-slate-50 px-3 py-2">
+                              <div className="min-w-0">
+                                <div className="text-slate-800 font-medium truncate">{s.surgeryType || "Surgery"}</div>
+                                <div className="text-xs text-slate-600">{formatDateTime(s.start)}</div>
+                              </div>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                disabled={!patientData || pdfGeneratingKey === key}
+                                onClick={async () => {
+                                  if (!patientData) return
+                                  setPdfGeneratingKey(key)
+                                  try {
+                                    const { blob, filename } = await generateSurgeryPdfBlob({
+                                      patientLabel,
+                                      patientAge: patientData.age,
+                                      patientGender: patientData.gender,
+                                      healthInsuranceId: patientData.healthInsuranceId ?? null,
+                                      latestDiagnosisText,
+                                      surgeon: s.surgeon || "—",
+                                      type: s.surgeryType || "—",
+                                      urgency: s.urgency || "—",
+                                      start: s.start,
+                                      end: s.end,
+                                      result: s.result || "—",
+                                      note: s.note || "",
+                                      filename: `surgery-${s.id}.pdf`,
+                                    })
+                                    openPdfPreview(blob, filename, `Surgery #${s.id} (PDF)`)
+                                  } catch (e) {
+                                    window.alert(e instanceof Error ? e.message : "Failed to generate PDF")
+                                  } finally {
+                                    setPdfGeneratingKey(null)
+                                  }
+                                }}
+                              >
+                                {pdfGeneratingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                                Preview PDF
+                              </Button>
+                            </div>
+                          )
+                        })}
+                        {finishWizardDocs.surgeries.length > 6 ? (
+                          <div className="text-xs text-muted-foreground">…and {finishWizardDocs.surgeries.length - 6} more</div>
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    {finishWizardDocs.labTests?.length ? (
+                      <div className="space-y-1">
+                        <div className="text-xs font-semibold text-slate-600">Lab tests</div>
+                        {finishWizardDocs.labTests.slice(0, 6).map((t) => {
+                          const key = `lab-${t.id}`
+                          const patientName = patientData ? `${patientData.firstName || ""} ${patientData.lastName || ""}`.trim() || patientData.username : "—"
+                          const ageStr = patientData?.age != null ? String(patientData.age) : "—"
+                          const dxLine = patientData?.latestDiagnosis
+                            ? `${patientData.latestDiagnosis.icd10 || "—"} — ${patientData.latestDiagnosis.interpretation || "—"}`
+                            : "—"
+                          return (
+                            <div key={t.id} className="flex items-center justify-between gap-2 rounded-md border bg-slate-50 px-3 py-2">
+                              <div className="min-w-0">
+                                <div className="text-slate-800 font-medium truncate">{t.testType || "Test"}</div>
+                                <div className="text-xs text-slate-600">{formatDateTime(t.testAt)}</div>
+                              </div>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                disabled={!patientData || pdfGeneratingKey === key}
+                                onClick={async () => {
+                                  if (!patientData) return
+                                  setPdfGeneratingKey(key)
+                                  try {
+                                    const details = await appointmentService.getPatientLabTestDetails(t.id)
+                                    const { blob, filename } = await generateBloodTestPdfBlob({
+                                      patientName,
+                                      age: ageStr,
+                                      gender: patientData.gender,
+                                      department: finishWizardDocs?.treatments?.[0]?.department || "Laboratory",
+                                      diagnosis: dxLine,
+                                      testDateLabel: formatDateTime(t.testAt),
+                                      details,
+                                      filename: `lab-${t.id}.pdf`,
+                                    })
+                                    openPdfPreview(blob, filename, `Lab #${t.id} (PDF)`)
+                                  } catch (e) {
+                                    window.alert(e instanceof Error ? e.message : "Failed to generate PDF")
+                                  } finally {
+                                    setPdfGeneratingKey(null)
+                                  }
+                                }}
+                              >
+                                {pdfGeneratingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                                Preview PDF
+                              </Button>
+                            </div>
+                          )
+                        })}
+                        {finishWizardDocs.labTests.length > 6 ? (
+                          <div className="text-xs text-muted-foreground">…and {finishWizardDocs.labTests.length - 6} more</div>
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    {finishWizardDocs.hospitalTransfers?.length ? (
+                      <div className="space-y-1">
+                        <div className="text-xs font-semibold text-slate-600">Hospital transfers</div>
+                        {finishWizardDocs.hospitalTransfers.slice(0, 6).map((ht) => {
+                          const key = `ht-${ht.orderId}`
+                          const patientName = patientData ? `${patientData.firstName || ""} ${patientData.lastName || ""}`.trim() || patientData.username : "—"
+                          const patientSex =
+                            patientData?.gender === "M" ? "M" : patientData?.gender === "F" ? "F" : patientData?.gender || undefined
+                          return (
+                            <div key={ht.orderId} className="flex items-center justify-between gap-2 rounded-md border bg-slate-50 px-3 py-2">
+                              <div className="min-w-0">
+                                <div className="text-slate-800 font-medium truncate">{ht.toHospitalName || "—"}</div>
+                                <div className="text-xs text-slate-600">{formatDateTime(ht.transferAt)}</div>
+                              </div>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                disabled={!patientData || pdfGeneratingKey === key}
+                                onClick={async () => {
+                                  if (!patientData) return
+                                  setPdfGeneratingKey(key)
+                                  try {
+                                    const { blob, filename } = await generateHospitalTransferPdfBlob({
+                                      patientName,
+                                      patientDob: "—",
+                                      patientSex,
+                                      insuranceId: patientData.healthInsuranceId || undefined,
+                                      insuranceExpiry: "—",
+                                      destinationHospital: ht.toHospitalName,
+                                      destinationRefId: ht.toHospitalId,
+                                      reason: ht.reason,
+                                      note: ht.note,
+                                      transport: ht.transport,
+                                      transferAt: formatDateTime(ht.transferAt),
+                                      doctorName: readSignedInDisplayName() || "—",
+                                      facilityName: "TechCare",
+                                      icd10: patientData.latestDiagnosis?.icd10,
+                                      diagnosis: patientData.latestDiagnosis?.interpretation,
+                                      formPayload: ht.formPayload,
+                                      filename: `hospital-transfer-${ht.orderId}.pdf`,
+                                    })
+                                    openPdfPreview(blob, filename, `Hospital transfer #${ht.orderId} (PDF)`)
+                                  } catch (e) {
+                                    window.alert(e instanceof Error ? e.message : "Failed to generate PDF")
+                                  } finally {
+                                    setPdfGeneratingKey(null)
+                                  }
+                                }}
+                              >
+                                {pdfGeneratingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                                Preview PDF
+                              </Button>
+                            </div>
+                          )
+                        })}
+                        {finishWizardDocs.hospitalTransfers.length > 6 ? (
+                          <div className="text-xs text-muted-foreground">…and {finishWizardDocs.hospitalTransfers.length - 6} more</div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-md border bg-slate-50 px-3 py-2 text-sm text-slate-600">No active regimen documents found.</div>
+              )}
+              {finishWizardSaved ? (
+                <div className="rounded-md border bg-slate-50 px-3 py-2 text-sm">
+                  <span className="font-medium">Added:</span> {finishWizardSaved.summary}
+                </div>
+              ) : (
+                <div className="rounded-md border bg-slate-50 px-3 py-2 text-sm text-slate-600">No additional document added.</div>
+              )}
+              {finishWizardSaved?.type === "followup" ? (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-white px-3 py-2">
+                  <div className="text-sm font-medium text-slate-800">Follow-up appointment slip</div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={pdfGeneratingKey === "followup-slip"}
+                    onClick={async () => {
+                      const slip = buildFollowUpReexamSlipInputs()
+                      if (!slip) return
+                      setPdfGeneratingKey("followup-slip")
+                      try {
+                        const { blob, filename } = await generateFollowUpReexamPdfBlob({
+                          ...slip,
+                          filename: `follow-up-${followDate || "date"}.pdf`,
+                        })
+                        openPdfPreview(blob, filename, "Follow-up appointment slip (PDF)")
+                      } catch (e) {
+                        window.alert(e instanceof Error ? e.message : "Failed to generate PDF")
+                      } finally {
+                        setPdfGeneratingKey(null)
+                      }
+                    }}
+                  >
+                    {pdfGeneratingKey === "followup-slip" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    Preview PDF
+                  </Button>
+                </div>
+              ) : null}
+              {finishWizardSaved?.type === "followup" ? (
+                <div className="rounded-lg border overflow-hidden">
+                  <div className="border-b bg-background px-3 py-1.5 text-xs font-medium">Follow-up slip preview</div>
+                  <iframe title="Follow-up slip preview (review)" className="h-[420px] w-full border-0" srcDoc={followUpPreviewHtml} sandbox="" />
+                </div>
+              ) : null}
+              {finishWizardSaved?.type === "hospital-transfer" ? (
+                <div className="rounded-lg border overflow-hidden">
+                  <div className="border-b bg-background px-3 py-1.5 text-xs font-medium">Hospital transfer slip preview</div>
+                  <iframe title="Hospital transfer slip preview (review)" className="h-[420px] w-full border-0" srcDoc={hospitalTransferPreviewHtml} sandbox="" />
+                </div>
+              ) : null}
+            </div>
+          )}
+
+          <DialogFooter className="shrink-0 gap-2 border-t border-border/60 pt-3">
             <Button
               type="button"
-              className="btn-gradient"
-              disabled={followSubmitting}
-              onClick={() => void submitFollowUp()}
+              variant="outline"
+              onClick={() => {
+                if (finishWizardStep === 2) setFinishWizardStep(1)
+                else setFinishWizardOpen(false)
+              }}
+              disabled={finishWizardSaving || finishSubmitting}
             >
-              {followSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              Schedule
+              {finishWizardStep === 2 ? "Back" : "Cancel"}
             </Button>
+            {finishWizardStep === 1 ? (
+              <Button type="button" className="btn-gradient" disabled={finishWizardSaving} onClick={() => void saveFinishWizardChoiceAndContinue()}>
+                {finishWizardSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                Continue
+              </Button>
+            ) : (
+              <Button type="button" className="btn-gradient gap-1" disabled={finishSubmitting} onClick={() => void confirmFinishAndCloseVisit()}>
+                {finishSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                Finish examination
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -554,53 +1154,22 @@ export function DoctorLayout2() {
       <Dialog open={transferOpen} onOpenChange={setTransferOpen}>
         <DialogContent
           className={
-            transferKind === "hospital"
-              ? "flex max-h-[90vh] w-full max-w-[min(1120px,98vw)] flex-col gap-3 overflow-hidden p-6 sm:max-w-[min(1120px,98vw)]"
-              : "flex max-h-[90vh] w-full max-w-lg flex-col gap-3 overflow-y-auto p-6 sm:max-w-lg"
+            "flex max-h-[90vh] w-full max-w-lg flex-col gap-3 overflow-y-auto p-6 sm:max-w-lg"
           }
         >
           <DialogHeader className="shrink-0 space-y-1">
-            <DialogTitle>Transfer patient</DialogTitle>
-            {transferKind === "hospital" ? (
-              <p className="hidden text-xs text-muted-foreground lg:block">
-                Live print preview updates as you type.
-              </p>
-            ) : null}
+            <DialogTitle>Transfer clinic</DialogTitle>
           </DialogHeader>
           <div
             className={
-              transferKind === "hospital"
-                ? "grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_min(380px,42vw)]"
-                : "min-h-0 flex-1"
+              "min-h-0 flex-1"
             }
           >
             <div
               className={
-                transferKind === "hospital"
-                  ? "max-h-[min(72vh,640px)] min-h-0 space-y-4 overflow-y-auto py-1 pr-1"
-                  : "space-y-4 py-1"
+                "space-y-4 py-1"
               }
             >
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant={transferKind === "clinic" ? "default" : "outline"}
-                className={transferKind === "clinic" ? "btn-gradient" : ""}
-                onClick={() => setTransferKind("clinic")}
-              >
-                Clinic / room
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={transferKind === "hospital" ? "default" : "outline"}
-                className={transferKind === "hospital" ? "btn-gradient" : ""}
-                onClick={() => setTransferKind("hospital")}
-              >
-                External hospital
-              </Button>
-            </div>
             <div className="grid gap-2">
               <Label htmlFor="tr-reason">
                 Reason <span className="text-red-500">*</span>
@@ -617,7 +1186,6 @@ export function DoctorLayout2() {
               <Label htmlFor="tr-note">Clinical note (optional)</Label>
               <Textarea id="tr-note" value={transferNote} onChange={(e) => setTransferNote(e.target.value)} rows={2} />
             </div>
-            {transferKind === "clinic" ? (
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="grid gap-2">
                   <Label>
@@ -676,116 +1244,7 @@ export function DoctorLayout2() {
                   )}
                 </div>
               </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="grid gap-2">
-                  <Label htmlFor="h-name">
-                    Hospital name <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="h-name"
-                    value={toHospitalName}
-                    onChange={(e) => setToHospitalName(e.target.value)}
-                    placeholder="Receiving facility"
-                    required
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="h-id">Hospital / referral ID (optional)</Label>
-                  <Input id="h-id" value={toHospitalId} onChange={(e) => setToHospitalId(e.target.value)} />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="h-transport">Transport (optional)</Label>
-                  <Input
-                    id="h-transport"
-                    value={transport}
-                    onChange={(e) => setTransport(e.target.value)}
-                    placeholder="e.g. ambulance"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="h-transfer-objective">Transfer objective (optional)</Label>
-                  <Input
-                    id="h-transfer-objective"
-                    value={transferObjective}
-                    onChange={(e) => setTransferObjective(e.target.value)}
-                    placeholder="e.g. Higher-level cardiology intervention"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="h-condition">Patient condition at transfer (optional)</Label>
-                  <Input
-                    id="h-condition"
-                    value={conditionAtTransfer}
-                    onChange={(e) => setConditionAtTransfer(e.target.value)}
-                    placeholder="e.g. Hemodynamically stable, conscious"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="h-summary">Clinical summary (optional)</Label>
-                  <Textarea
-                    id="h-summary"
-                    value={clinicalSummary}
-                    onChange={(e) => setClinicalSummary(e.target.value)}
-                    rows={2}
-                    placeholder="Overall clinical course and key context"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="h-findings">Key findings (optional)</Label>
-                  <Textarea
-                    id="h-findings"
-                    value={keyFindings}
-                    onChange={(e) => setKeyFindings(e.target.value)}
-                    rows={2}
-                    placeholder="Main signs/symptoms and important exam findings"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="h-tests">Key tests and results (optional)</Label>
-                  <Textarea
-                    id="h-tests"
-                    value={keyTestsSummary}
-                    onChange={(e) => setKeyTestsSummary(e.target.value)}
-                    rows={2}
-                    placeholder="Important labs/imaging and result summary"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="h-treatments">Treatments provided (optional)</Label>
-                  <Textarea
-                    id="h-treatments"
-                    value={treatmentsProvided}
-                    onChange={(e) => setTreatmentsProvided(e.target.value)}
-                    rows={2}
-                    placeholder="Therapies/interventions completed before transfer"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="h-escort">Escort / handover contact (optional)</Label>
-                  <Input
-                    id="h-escort"
-                    value={escortInfo}
-                    onChange={(e) => setEscortInfo(e.target.value)}
-                    placeholder="Name, role, phone"
-                  />
-                </div>
-              </div>
-            )}
             </div>
-            {transferKind === "hospital" ? (
-              <div className="flex min-h-[260px] flex-col overflow-hidden rounded-lg border bg-muted/20 lg:min-h-0 lg:max-h-[min(72vh,640px)]">
-                <div className="shrink-0 border-b bg-background px-3 py-1.5 text-xs font-medium">Print preview</div>
-                <div className="min-h-0 flex-1 bg-white p-1">
-                  <iframe
-                    title="Hospital transfer slip preview"
-                    className="h-full min-h-[280px] w-full border-0"
-                    srcDoc={hospitalTransferPreviewHtml}
-                    sandbox=""
-                  />
-                </div>
-              </div>
-            ) : null}
           </div>
           <DialogFooter className="shrink-0 gap-2 border-t border-border/60 pt-3">
             <Button type="button" variant="outline" onClick={() => setTransferOpen(false)}>
@@ -825,22 +1284,15 @@ export function DoctorLayout2() {
               size="sm"
               variant="outline"
               className="btn-outline transition-transform duration-500 text-base px-5 py-3 gap-1"
-              onClick={() => setTransferOpen(true)}
+              onClick={() => {
+                setTransferKind("clinic")
+                setTransferOpen(true)
+              }}
               disabled={!emrSessionValue.mutationsAllowed}
               title={!emrSessionValue.mutationsAllowed ? "Available after nurse check-in" : undefined}
             >
               <ArrowRightLeft className="h-4 w-4" />
-              Transfer
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              className="btn-gradient transition-transform duration-500 text-base px-5 py-3"
-              onClick={openFollowUp}
-              disabled={!patientId || loading || !patientData || !emrSessionValue.mutationsAllowed}
-              title={!emrSessionValue.mutationsAllowed ? "Available after nurse check-in" : undefined}
-            >
-              + Add Follow-up Appointment
+              Transfer clinic
             </Button>
             <Button
               type="button"
@@ -886,6 +1338,7 @@ export function DoctorLayout2() {
           {tab === "diagnosis" && <PatientDiagnosis />}
           {tab === "surgery" && <PatientSurgery />}
           {tab === "lab" && <PatientLab />}
+          {tab === "history" && <DoctorPatientHistoryPage />}
         </div>
       </div>
     </DoctorLayout>

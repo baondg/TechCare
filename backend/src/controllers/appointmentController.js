@@ -823,7 +823,17 @@ exports.getOpenSlots = async (req, res) => {
          a.patient_id AS patientId,
          d.doctor_id AS doctorId,
          COALESCE(NULLIF(TRIM(CONCAT(COALESCE(du.first_name,''), ' ', COALESCE(du.last_name,''))), ''), dacc.username) AS doctorName,
-         COALESCE(d.specifications, '') AS department,
+         COALESCE(
+           NULLIF(TRIM(dep_room.name), ''),
+           (SELECT NULLIF(TRIM(d2.name), '')
+            FROM DOCTOR_DEPARTMENT dd
+            INNER JOIN DEPARTMENT d2 ON d2.id = dd.department_id
+            WHERE dd.doctor_id = d.doctor_id
+            ORDER BY dd.department_id ASC
+            LIMIT 1),
+           NULLIF(TRIM(d.specifications), ''),
+           ''
+         ) AS department,
          a.room_id AS roomId,
          COALESCE(cr.name, '') AS roomName,
          COALESCE(NULLIF(TRIM(CONCAT(COALESCE(pu.first_name,''), ' ', COALESCE(pu.last_name,''))), ''), pacc.username, '') AS patientName
@@ -835,6 +845,7 @@ exports.getOpenSlots = async (req, res) => {
        LEFT JOIN USER pu ON pu.id = p.user_id
        LEFT JOIN ACCOUNT pacc ON pacc.user_id = p.user_id
        LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id
+       LEFT JOIN DEPARTMENT dep_room ON dep_room.id = cr.department_id
        WHERE (:hasStart = 0 OR DATE(a.time) >= :startDate)
          AND (:hasEnd = 0 OR DATE(a.time) <= :endDate)
          AND (:isPatientView = 0 OR (a.status <> 'cancelled' AND a.patient_id IS NULL))

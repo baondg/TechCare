@@ -708,13 +708,13 @@ export default function PatientLab() {
       <Dialog open={pdfPreviewOpen} onOpenChange={(open) => (!open ? closePdfPreview() : setPdfPreviewOpen(open))}>
         <DialogContent className="max-w-6xl w-[96vw]">
           <DialogHeader>
-            <DialogTitle>Xem trước phiếu xét nghiệm (PDF)</DialogTitle>
+            <DialogTitle>Lab Test Slip Preview (PDF)</DialogTitle>
           </DialogHeader>
           <div className="h-[70vh] border rounded-md overflow-hidden bg-white">
             {pdfPreviewUrl ? (
               <iframe title="Blood test PDF preview" src={pdfPreviewUrl} className="w-full h-full" />
             ) : (
-              <div className="w-full h-full grid place-items-center text-sm text-slate-500">Không có dữ liệu xem trước</div>
+              <div className="w-full h-full grid place-items-center text-sm text-slate-500">No preview data available</div>
             )}
           </div>
           <div className="flex justify-end gap-2">

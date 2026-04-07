@@ -23,7 +23,7 @@ export function getReadableApiError(error: unknown): string {
   }
 
   if (raw.toLowerCase() === "failed to fetch") {
-    return "Không kết nối được tới máy chủ. Hãy kiểm tra backend đang chạy và biến VITE_API_BASE_URL.";
+    return "Cannot connect to the server. Please check that backend is running and VITE_API_BASE_URL is configured.";
   }
 
   return raw;

@@ -108,7 +108,7 @@ export default function PatientDiagnosis() {
       setViewDxBeforeEdit(null)
     } catch (e) {
       console.error(e)
-      alert(e instanceof Error ? e.message : "Không tải được chẩn đoán")
+      alert(e instanceof Error ? e.message : "Could not load diagnoses")
     } finally {
       setLoading(false)
     }
@@ -177,11 +177,11 @@ export default function PatientDiagnosis() {
     if (!mutationsAllowed) return
     if (!patientId || !selectedDx || !selectedDx.isDraft) return
     if (!selectedDx.complaint.trim() || !selectedDx.icd10.trim()) {
-      alert("Vui lòng nhập triệu chứng và mã ICD-10")
+      alert("Please enter symptoms and ICD-10 code")
       return
     }
     if (selectedDx.id !== "new") {
-      alert("Chỉ có thể lưu chẩn đoán mới. Chọn Add hoặc Inherit để tạo mới.")
+      alert("Only new diagnoses can be saved. Click Add or Inherit to create a new item.")
       return
     }
     setSaving(true)
@@ -196,7 +196,7 @@ export default function PatientDiagnosis() {
       await doctorService.createDiagnosis(patientId, payload)
       await load()
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Lưu thất bại")
+      alert(e instanceof Error ? e.message : "Save failed")
     } finally {
       setSaving(false)
     }
@@ -281,7 +281,7 @@ export default function PatientDiagnosis() {
       >
         <DialogContent className="flex max-h-[90vh] w-[min(920px,96vw)] max-w-none flex-col gap-3 p-4 sm:p-6">
           <DialogHeader>
-            <DialogTitle>Phiếu theo dõi điều trị (PDF preview)</DialogTitle>
+            <DialogTitle>Treatment Follow-up Slip (PDF preview)</DialogTitle>
           </DialogHeader>
           {pdfPreviewUrl ? (
             <iframe
@@ -315,7 +315,7 @@ export default function PatientDiagnosis() {
           </div>
 
           {loading ? (
-            <p className="text-sm text-slate-500">Đang tải…</p>
+            <p className="text-sm text-slate-500">Loading…</p>
           ) : (
             <div className="overflow-x-auto border rounded-lg">
               <Table className="min-w-0 w-full text-sm">
@@ -406,7 +406,7 @@ export default function PatientDiagnosis() {
                 className="btn-outline transition-transform duration-500 text-xl px-7 py-4"
                 onClick={() => void handleExportPdf()}
                 disabled={!canExportPdf}
-                title="Export phiếu theo dõi điều trị"
+                title="Export treatment follow-up slip"
               >
                 {exportingPdf ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FileDown className="h-4 w-4 mr-2" />}
                 Export
@@ -498,7 +498,7 @@ function DiagnosisCodeField({
             className="w-full rounded-lg border px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-400"
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            placeholder="Chọn hoặc nhập mã ICD-10"
+            placeholder="Select or enter ICD-10 code"
           />
           <datalist id={listId}>
             {options.map((d) => (

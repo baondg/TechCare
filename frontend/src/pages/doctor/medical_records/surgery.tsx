@@ -179,7 +179,7 @@ export default function PatientSurgery() {
       }
     } catch (e) {
       console.error(e)
-      alert(e instanceof Error ? e.message : "Không tải được phẫu thuật")
+      alert(e instanceof Error ? e.message : "Could not load surgeries")
     } finally {
       setLoading(false)
     }
@@ -229,18 +229,18 @@ export default function PatientSurgery() {
     if (!mutationsAllowed) return
     if (!patientId || !selected) return
     if (!selected.startIso || !selected.endIso) {
-      alert("Chọn thời gian bắt đầu và kết thúc")
+      alert("Please select start and end time")
       return
     }
     const startD = new Date(selected.startIso)
     const endD = new Date(selected.endIso)
     if (Number.isNaN(startD.getTime()) || Number.isNaN(endD.getTime()) || endD <= startD) {
-      alert("Thời gian kết thúc phải sau thời gian bắt đầu")
+      alert("End time must be after start time")
       return
     }
 
     if (!selected.isDraft) {
-      alert("Chỉ có thể lưu ca phẫu thuật mới. Chọn Add hoặc Inherit để tạo mới.")
+      alert("Only new surgeries can be saved. Click Add or Inherit to create a new item.")
       return
     }
     setSaving(true)
@@ -256,7 +256,7 @@ export default function PatientSurgery() {
       })
       await load()
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Lưu thất bại")
+      alert(e instanceof Error ? e.message : "Save failed")
     } finally {
       setSaving(false)
     }
@@ -366,7 +366,7 @@ export default function PatientSurgery() {
           </div>
 
           {loading ? (
-            <p className="text-sm text-slate-500">Đang tải…</p>
+            <p className="text-sm text-slate-500">Loading…</p>
           ) : (
             <Table className="w-full text-sm overflow-x-auto">
               <TableHeader

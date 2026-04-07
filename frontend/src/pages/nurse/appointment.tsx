@@ -1,15 +1,17 @@
 "use client"
 
-import { useEffect, useMemo, useState, type KeyboardEvent } from "react"
-import { Calendar, Plus, RefreshCcw, X, Clock, UserRound, Stethoscope, ChevronLeft, ChevronRight } from "lucide-react"
-import { isSameDay, format } from "date-fns"
+import { useEffect, useMemo, useState } from "react"
+import { Plus, RefreshCcw, X, Clock, UserRound, Stethoscope, ChevronLeft, ChevronRight, CalendarRange } from "lucide-react"
+import { isSameDay, format, startOfMonth, endOfMonth } from "date-fns"
 import { Link } from "react-router-dom"
 import { NurseLayout } from "@/components/nurse-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { appointmentService, type ClinicRoomOption, type DoctorOption, type NurseOpenSlot } from "@/services/appointment-service"
+import { getMyWorkShifts } from "@/services/work-shift-service"
 import { PATIENT_IN_DEPARTMENT_OPTIONS } from "@/lib/patient-departments"
 
 function doctorDepartmentsList(d: DoctorOption): string[] {
@@ -26,15 +28,75 @@ function doctorWorksInDepartment(d: DoctorOption, dept: string): boolean {
   return doctorDepartmentsList(d).some((x) => x.toLowerCase() === norm)
 }
 
+function newRowId() {
+  return globalThis.crypto?.randomUUID?.() ?? `row-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+}
+
+type SlotDraftRow = {
+  id: string
+  department: string
+  doctorId: string
+  roomId: string
+  date: string
+  start: string
+  end: string
+}
+
+function newDraftRow(dateYmd: string): SlotDraftRow {
+  return {
+    id: newRowId(),
+    department: "",
+    doctorId: "",
+    roomId: "",
+    date: dateYmd,
+    start: "",
+    end: "",
+  }
+}
+
+function matchDepartmentOption(dbName: string): string {
+  const raw = String(dbName || "").trim()
+  if (!raw) return PATIENT_IN_DEPARTMENT_OPTIONS[0] ?? ""
+  const low = raw.toLowerCase()
+  const exact = PATIENT_IN_DEPARTMENT_OPTIONS.find((o) => o.toLowerCase() === low)
+  if (exact) return exact
+  const inc = PATIENT_IN_DEPARTMENT_OPTIONS.find(
+    (o) => low.includes(o.toLowerCase()) || o.toLowerCase().includes(low)
+  )
+  return inc ?? PATIENT_IN_DEPARTMENT_OPTIONS[0] ?? "Outpatient"
+}
+
+function extractTimeHm(isoLike: string): string {
+  const m = /\d{4}-\d{2}-\d{2}[ T](\d{2}):(\d{2})/.exec(String(isoLike || ""))
+  if (!m) return ""
+  return `${m[1]}:${m[2]}`
+}
+
+function extractDateYmd(isoLike: string): string {
+  const m = /^(\d{4}-\d{2}-\d{2})/.exec(String(isoLike || "").trim())
+  return m ? m[1] : ""
+}
+
+function normalizeSlotTimeDisplay(t: string): string {
+  const s = String(t || "").trim()
+  const m = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(s)
+  if (!m) return s
+  const h = Number(m[1])
+  const mi = Number(m[2])
+  if (!Number.isFinite(h) || !Number.isFinite(mi)) return s
+  return `${String(h).padStart(2, "0")}:${String(mi).padStart(2, "0")}`
+}
+
 export default function NurseAppointmentsPage() {
-  const [startDate, setStartDate] = useState("")
-  const [endDate, setEndDate] = useState("")
-  const [searchDepartment, setSearchDepartment] = useState<string>("all")
+  const [listDepartmentFilter, setListDepartmentFilter] = useState<string>("all")
+  const [listTimeFilter, setListTimeFilter] = useState<string>("all")
+
   const [doctorOptions, setDoctorOptions] = useState<DoctorOption[]>([])
   const [roomOptions, setRoomOptions] = useState<ClinicRoomOption[]>([])
   const [slots, setSlots] = useState<NurseOpenSlot[]>([])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [shiftFillLoading, setShiftFillLoading] = useState(false)
   const [message, setMessage] = useState<string>("")
 
   const [createDepartment, setCreateDepartment] = useState<string>("")
@@ -44,6 +106,8 @@ export default function NurseAppointmentsPage() {
   const [slotEndTime, setSlotEndTime] = useState("")
   const [selectedRoomId, setSelectedRoomId] = useState<string>("")
   const [selectedSlotId, setSelectedSlotId] = useState<number | null>(null)
+
+  const [draftRows, setDraftRows] = useState<SlotDraftRow[]>(() => [newDraftRow(format(new Date(), "yyyy-MM-dd"))])
 
   const [viewDate, setViewDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState(new Date())
@@ -102,12 +166,14 @@ export default function NurseAppointmentsPage() {
   const load = async () => {
     setLoading(true)
     try {
+      const monthStart = format(startOfMonth(viewDate), "yyyy-MM-dd")
+      const monthEnd = format(endOfMonth(viewDate), "yyyy-MM-dd")
       const [doctors, rooms, openSlots] = await Promise.all([
         appointmentService.getDoctors(),
         appointmentService.getClinicRooms(),
         appointmentService.getOpenSlots({
-          startDate: startDate || undefined,
-          endDate: endDate || undefined,
+          startDate: monthStart,
+          endDate: monthEnd,
         }),
       ])
       setDoctorOptions(doctors || [])
@@ -122,7 +188,13 @@ export default function NurseAppointmentsPage() {
 
   useEffect(() => {
     void load()
-  }, [])
+  }, [viewDate])
+
+  useEffect(() => {
+    if (selectedSlotId) return
+    const ymd = format(selectedDate, "yyyy-MM-dd")
+    setDraftRows((rows) => (rows.length ? rows.map((r) => ({ ...r, date: ymd })) : [newDraftRow(ymd)]))
+  }, [selectedDate, selectedSlotId])
 
   const resetForm = () => {
     setSelectedSlotId(null)
@@ -132,9 +204,11 @@ export default function NurseAppointmentsPage() {
     setSlotDate("")
     setSlotStartTime("")
     setSlotEndTime("")
+    setDraftRows([newDraftRow(format(selectedDate, "yyyy-MM-dd"))])
   }
 
   const handleCreateOrUpdate = async () => {
+    if (!selectedSlotId) return
     const normalizedStart = normalizeHalfHourTime(slotStartTime)
     const normalizedEnd = slotEndTime ? normalizeHalfHourTime(slotEndTime) : null
 
@@ -146,53 +220,106 @@ export default function NurseAppointmentsPage() {
       setMessage("Invalid time. Use HH:mm with 30-minute steps (e.g. 09:00, 09:30).")
       return
     }
-    if (!selectedSlotId && !selectedDoctorId) {
-      setMessage("Please select doctor.")
-      return
-    }
     setSaving(true)
     setMessage("")
     try {
-      if (selectedSlotId) {
-        await appointmentService.updateOpenSlot(selectedSlotId, {
-          date: slotDate,
-          time: normalizedStart,
-          roomId: selectedRoomId ? Number(selectedRoomId) : undefined,
-        })
-        setMessage("Slot rescheduled successfully.")
-      } else {
-        const toMinutes = (t: string) => {
-          const [h, m] = t.split(":").map(Number)
-          return h * 60 + m
-        }
-        const toHHMM = (min: number) => `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`
-        const startMin = toMinutes(normalizedStart)
-        const endMin = normalizedEnd ? toMinutes(normalizedEnd) : startMin + 30
-        if (endMin <= startMin) {
-          setMessage("End time must be greater than start time.")
-          setSaving(false)
-          return
-        }
-        const createJobs: Promise<any>[] = []
-        for (let m = startMin; m < endMin; m += 30) {
-          createJobs.push(
-            appointmentService.createOpenSlot({
-              doctorId: Number(selectedDoctorId),
-                          roomId: selectedRoomId ? Number(selectedRoomId) : undefined,
-              date: slotDate,
-              time: toHHMM(m),
-            })
-          )
-        }
-        await Promise.all(createJobs)
-        setMessage(`Created ${createJobs.length} slot(s) successfully.`)
-      }
+      await appointmentService.updateOpenSlot(selectedSlotId, {
+        date: slotDate,
+        time: normalizedStart,
+        roomId: selectedRoomId ? Number(selectedRoomId) : undefined,
+      })
+      setMessage("Slot rescheduled successfully.")
       resetForm()
       await load()
     } catch (e: any) {
       setMessage(e?.message || "Operation failed")
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleCreateAllDrafts = async () => {
+    setSaving(true)
+    setMessage("")
+    let created = 0
+    try {
+      const toMinutes = (t: string) => {
+        const [h, m] = t.split(":").map(Number)
+        return h * 60 + m
+      }
+      const toHHMM = (min: number) => `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`
+
+      for (const row of draftRows) {
+        const ns = normalizeHalfHourTime(row.start)
+        const ne = row.end ? normalizeHalfHourTime(row.end) : null
+        if (!row.date || !ns) {
+          setMessage("Each row needs date and valid start time (HH:mm, :00 or :30).")
+          setSaving(false)
+          return
+        }
+        if (row.end && !ne) {
+          setMessage("Invalid end time on one of the rows.")
+          setSaving(false)
+          return
+        }
+        if (!row.doctorId) {
+          setMessage("Select a doctor on every row.")
+          setSaving(false)
+          return
+        }
+        const startMin = toMinutes(ns)
+        const endMin = ne ? toMinutes(ne) : startMin + 30
+        if (endMin <= startMin) {
+          setMessage("Each row: end time must be after start time.")
+          setSaving(false)
+          return
+        }
+        for (let m = startMin; m < endMin; m += 30) {
+          await appointmentService.createOpenSlot({
+            doctorId: Number(row.doctorId),
+            roomId: row.roomId ? Number(row.roomId) : undefined,
+            date: row.date,
+            time: toHHMM(m),
+          })
+          created += 1
+        }
+      }
+      setMessage(`Created ${created} slot(s) from ${draftRows.length} row(s).`)
+      setDraftRows([newDraftRow(format(selectedDate, "yyyy-MM-dd"))])
+      await load()
+    } catch (e: any) {
+      setMessage(e?.message || "Bulk create failed")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleFillFromWorkShift = async () => {
+    const ymd = format(selectedDate, "yyyy-MM-dd")
+    setShiftFillLoading(true)
+    setMessage("")
+    try {
+      const res = await getMyWorkShifts({ startDate: ymd, endDate: ymd })
+      const dayShifts = (res.shifts || []).filter((s) => extractDateYmd(s.startTime) === ymd)
+      if (!dayShifts.length) {
+        setMessage("No work shifts on this date for your account.")
+        return
+      }
+      const rows: SlotDraftRow[] = dayShifts.map((s) => ({
+        id: newRowId(),
+        department: matchDepartmentOption(s.departmentName),
+        doctorId: String(s.doctorId),
+        roomId: String(s.roomId),
+        date: ymd,
+        start: extractTimeHm(s.startTime),
+        end: extractTimeHm(s.endTime),
+      }))
+      setDraftRows(rows)
+      setMessage(`Filled ${rows.length} row(s) from work shifts. Adjust if needed, then Create all.`)
+    } catch (e: any) {
+      setMessage(e?.message || "Failed to load work shifts")
+    } finally {
+      setShiftFillLoading(false)
     }
   }
 
@@ -240,20 +367,6 @@ export default function NurseAppointmentsPage() {
     }
   }
 
-  const handleFilterEnter = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      e.preventDefault()
-      void load()
-    }
-  }
-
-  const handleDepartmentFilterEnter = (e: KeyboardEvent<HTMLButtonElement>) => {
-    if (e.key === "Enter") {
-      e.preventDefault()
-      void load()
-    }
-  }
-
   const doctorsForCreate = useMemo(() => {
     if (!createDepartment) return doctorOptions
     return doctorOptions.filter((d) => doctorWorksInDepartment(d, createDepartment))
@@ -267,7 +380,6 @@ export default function NurseAppointmentsPage() {
     return PATIENT_IN_DEPARTMENT_OPTIONS.filter((opt) => doctorWorksInDepartment(doc, opt))
   }, [selectedDoctorId, doctorOptions, selectedSlotId])
 
-  /** After choosing a doctor, if they only work in one enum department, set it automatically */
   useEffect(() => {
     if (selectedSlotId) return
     if (!selectedDoctorId) return
@@ -292,82 +404,45 @@ export default function NurseAppointmentsPage() {
     }
   }, [selectedDoctorId, selectedSlotId, selectedRoomId, doctorOptions, roomOptions])
 
+  const updateDraftRow = (id: string, patch: Partial<SlotDraftRow>) => {
+    setDraftRows((rows) => rows.map((r) => (r.id === id ? { ...r, ...patch } : r)))
+  }
+
+  const doctorsForDraftRow = (department: string) => {
+    if (!department) return doctorOptions
+    return doctorOptions.filter((d) => doctorWorksInDepartment(d, department))
+  }
+
   const visibleSlots = useMemo(
     () =>
       slots.filter((s) => {
         const inSelectedDate = isSameDay(new Date(`${s.date}T00:00:00`), selectedDate)
         if (!inSelectedDate) return false
-        if (searchDepartment === "all") return true
-        return String(s.department || "").trim().toLowerCase() === searchDepartment.trim().toLowerCase()
+        if (listDepartmentFilter !== "all") {
+          if (String(s.department || "").trim().toLowerCase() !== listDepartmentFilter.trim().toLowerCase()) {
+            return false
+          }
+        }
+        if (listTimeFilter !== "all") {
+          const slotT = normalizeHalfHourTime(normalizeSlotTimeDisplay(String(s.time || "")))
+          if (!slotT || slotT !== listTimeFilter) return false
+        }
+        return true
       }),
-    [slots, selectedDate, searchDepartment]
+    [slots, selectedDate, listDepartmentFilter, listTimeFilter]
   )
 
   return (
     <NurseLayout>
       <div className="space-y-6">
         <Card className="card-feature border-slate-200/60">
-          <CardContent className="p-4">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-6">
-              {/* Search — compact row */}
-              <div className="min-w-0 flex-1 space-y-2">
-                <h3 className="text-sm font-semibold text-slate-800">Search slots</h3>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 sm:items-end">
-                  <div>
-                    <label className="text-xs text-slate-600 mb-0.5 block">Start date</label>
-                    <div className="relative">
-                      <Calendar className="pointer-events-none absolute left-2.5 top-1/2 z-[1] h-4 w-4 -translate-y-1/2 text-slate-400" />
-                      <Input
-                        type="date"
-                        value={startDate}
-                        onChange={(e) => setStartDate(e.target.value)}
-                        onKeyDown={handleFilterEnter}
-                        className="h-9 pl-9 text-sm"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-xs text-slate-600 mb-0.5 block">End date</label>
-                    <div className="relative">
-                      <Calendar className="pointer-events-none absolute left-2.5 top-1/2 z-[1] h-4 w-4 -translate-y-1/2 text-slate-400" />
-                      <Input
-                        type="date"
-                        value={endDate}
-                        onChange={(e) => setEndDate(e.target.value)}
-                        onKeyDown={handleFilterEnter}
-                        className="h-9 pl-9 text-sm"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-xs text-slate-600 mb-0.5 block">Department</label>
-                    <Select value={searchDepartment} onValueChange={setSearchDepartment}>
-                      <SelectTrigger className="h-9 text-sm" onKeyDown={handleDepartmentFilterEnter}>
-                        <SelectValue placeholder="All" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All</SelectItem>
-                        {PATIENT_IN_DEPARTMENT_OPTIONS.map((d) => (
-                          <SelectItem key={`search-${d}`} value={d}>
-                            {d}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <p className="text-[11px] leading-tight text-slate-500">
-                  Enter in date fields to reload slots from server. Department filters the list for the selected calendar day.
-                </p>
-              </div>
+          <CardContent className="p-4 space-y-4">
+            <h3 className="text-sm font-semibold text-slate-800">
+              {selectedSlotId ? "Reschedule slot" : "Create slots"}
+            </h3>
 
-              <div className="hidden lg:block w-px shrink-0 self-stretch bg-slate-200 min-h-[4.5rem]" aria-hidden />
-
-              {/* Create / reschedule — compact grid */}
-              <div className="min-w-0 flex-[1.4] space-y-2 lg:max-w-none">
-                <h3 className="text-sm font-semibold text-slate-800">
-                  {selectedSlotId ? "Reschedule slot" : "Create slots"}
-                </h3>
+            {selectedSlotId ? (
+              <>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6 xl:items-end">
                   <div className="col-span-2 sm:col-span-1 xl:col-span-1">
                     <label className="text-xs text-slate-600 mb-0.5 block">Department</label>
@@ -398,18 +473,7 @@ export default function NurseAppointmentsPage() {
                   </div>
                   <div className="col-span-2 sm:col-span-2 xl:col-span-1">
                     <label className="text-xs text-slate-600 mb-0.5 block">Doctor</label>
-                    <Select
-                      value={selectedDoctorId}
-                      onValueChange={(id) => {
-                        setSelectedDoctorId(id)
-                        if (selectedSlotId || !id) return
-                        const doc = doctorOptions.find((x) => String(x.id) === id)
-                        if (doc && createDepartment && !doctorWorksInDepartment(doc, createDepartment)) {
-                          setCreateDepartment("")
-                        }
-                      }}
-                      disabled={!!selectedSlotId}
-                    >
+                    <Select value={selectedDoctorId} onValueChange={setSelectedDoctorId} disabled>
                       <SelectTrigger className="h-9 text-sm">
                         <SelectValue placeholder="Select doctor" />
                       </SelectTrigger>
@@ -483,8 +547,7 @@ export default function NurseAppointmentsPage() {
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Button className="btn-gradient h-9 px-4 text-sm" onClick={handleCreateOrUpdate} disabled={saving}>
-                    <Plus className="mr-1.5 h-4 w-4" />
-                    {selectedSlotId ? "Reschedule" : "Create"}
+                    Reschedule
                   </Button>
                   <Button variant="outline" className="h-9 px-4 text-sm" onClick={resetForm} disabled={saving}>
                     <RefreshCcw className="mr-1.5 h-4 w-4" />
@@ -501,10 +564,179 @@ export default function NurseAppointmentsPage() {
                   </Button>
                   <span className="text-[11px] text-slate-500 xl:ml-1">Times: HH:mm, minutes 00 or 30 only.</span>
                 </div>
-                {message ? <p className="text-sm text-slate-700">{message}</p> : null}
-              </div>
-            </div>
-            <p className="mt-2 text-xs text-slate-500">Press Enter in date fields to apply filter.</p>
+              </>
+            ) : (
+              <>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="h-9 gap-2 text-sm"
+                    disabled={shiftFillLoading || saving}
+                    onClick={() => void handleFillFromWorkShift()}
+                  >
+                    <CalendarRange className="h-4 w-4" />
+                    {shiftFillLoading ? "Loading shifts…" : "Create slots from work shift"}
+                  </Button>
+                  <p className="text-[11px] text-slate-500">
+                    Uses your <span className="font-medium">WORK_SHIFT</span> for the day selected on the calendar. Each shift becomes one
+                    row; edit then <span className="font-medium">Create all</span>.
+                  </p>
+                </div>
+
+                <div className="space-y-3 rounded-lg border border-slate-200/80 bg-slate-50/40 p-3">
+                  <Label className="text-xs font-semibold text-slate-700">Slot rows</Label>
+                  {draftRows.map((row) => (
+                    <div
+                      key={row.id}
+                      className="grid grid-cols-1 gap-2 rounded-md border border-slate-200 bg-white p-2 sm:grid-cols-2 lg:grid-cols-12 lg:items-end"
+                    >
+                      <div className="lg:col-span-2">
+                        <span className="mb-0.5 block text-[10px] font-medium text-slate-500">Department</span>
+                        <Select
+                          value={row.department || undefined}
+                          onValueChange={(v) => {
+                            updateDraftRow(row.id, { department: v, doctorId: "" })
+                          }}
+                        >
+                          <SelectTrigger className="h-9 text-sm">
+                            <SelectValue placeholder="Department" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {PATIENT_IN_DEPARTMENT_OPTIONS.map((d) => (
+                              <SelectItem key={`${row.id}-d-${d}`} value={d}>
+                                {d}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="lg:col-span-3">
+                        <span className="mb-0.5 block text-[10px] font-medium text-slate-500">Doctor</span>
+                        <Select
+                          value={row.doctorId || undefined}
+                          onValueChange={(id) => updateDraftRow(row.id, { doctorId: id })}
+                        >
+                          <SelectTrigger className="h-9 text-sm">
+                            <SelectValue placeholder="Doctor" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {doctorsForDraftRow(row.department).map((d) => {
+                              const fullName = `${d.firstName || ""} ${d.lastName || ""}`.trim() || d.username
+                              return (
+                                <SelectItem key={`${row.id}-doc-${d.id}`} value={String(d.id)}>
+                                  Dr. {fullName}
+                                </SelectItem>
+                              )
+                            })}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="lg:col-span-2">
+                        <span className="mb-0.5 block text-[10px] font-medium text-slate-500">Date</span>
+                        <Input
+                          type="date"
+                          className="h-9 text-sm"
+                          value={row.date}
+                          onChange={(e) => updateDraftRow(row.id, { date: e.target.value })}
+                        />
+                      </div>
+                      <div className="lg:col-span-2">
+                        <span className="mb-0.5 block text-[10px] font-medium text-slate-500">Room</span>
+                        <Select
+                          value={row.roomId || undefined}
+                          onValueChange={(v) => updateDraftRow(row.id, { roomId: v })}
+                        >
+                          <SelectTrigger className="h-9 text-sm">
+                            <SelectValue placeholder="Room" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {roomOptions.map((room) => (
+                              <SelectItem key={`${row.id}-r-${room.id}`} value={String(room.id)}>
+                                {room.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="lg:col-span-1">
+                        <span className="mb-0.5 block text-[10px] font-medium text-slate-500">Start</span>
+                        <Input
+                          className="h-9 text-sm"
+                          placeholder="HH:mm"
+                          value={row.start}
+                          onChange={(e) => updateDraftRow(row.id, { start: formatTimeMask(e.target.value) })}
+                          onBlur={() => {
+                            const n = normalizeHalfHourTime(row.start)
+                            if (n) updateDraftRow(row.id, { start: n })
+                          }}
+                          list={`draft-start-${row.id}`}
+                        />
+                        <datalist id={`draft-start-${row.id}`}>
+                          {halfHourOptions.map((t) => (
+                            <option key={t} value={t} />
+                          ))}
+                        </datalist>
+                      </div>
+                      <div className="lg:col-span-1">
+                        <span className="mb-0.5 block text-[10px] font-medium text-slate-500">End</span>
+                        <Input
+                          className="h-9 text-sm"
+                          placeholder="HH:mm"
+                          value={row.end}
+                          onChange={(e) => updateDraftRow(row.id, { end: formatTimeMask(e.target.value) })}
+                          onBlur={() => {
+                            const n = normalizeHalfHourTime(row.end)
+                            if (n) updateDraftRow(row.id, { end: n })
+                          }}
+                          list={`draft-end-${row.id}`}
+                        />
+                        <datalist id={`draft-end-${row.id}`}>
+                          {halfHourOptions.map((t) => (
+                            <option key={t} value={t} />
+                          ))}
+                        </datalist>
+                      </div>
+                      <div className="flex items-end justify-end lg:col-span-1">
+                        <button
+                          type="button"
+                          className="rounded-md p-2 text-red-600 transition hover:bg-red-100 disabled:opacity-40"
+                          disabled={draftRows.length <= 1}
+                          onClick={() => setDraftRows((rows) => rows.filter((r) => r.id !== row.id))}
+                          aria-label="Remove row"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-1 gap-2"
+                    onClick={() => setDraftRows((r) => [...r, newDraftRow(format(selectedDate, "yyyy-MM-dd"))])}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add row
+                  </Button>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button className="btn-gradient h-9 px-4 text-sm" onClick={() => void handleCreateAllDrafts()} disabled={saving}>
+                    <Plus className="mr-1.5 h-4 w-4" />
+                    Create all
+                  </Button>
+                  <Button variant="outline" className="h-9 px-4 text-sm" onClick={resetForm} disabled={saving}>
+                    <RefreshCcw className="mr-1.5 h-4 w-4" />
+                    Clear
+                  </Button>
+                  <span className="text-[11px] text-slate-500">Each row expands to 30-minute open slots from Start to End.</span>
+                </div>
+              </>
+            )}
+
+            {message ? <p className="text-sm text-slate-700">{message}</p> : null}
           </CardContent>
         </Card>
 
@@ -540,7 +772,6 @@ export default function NurseAppointmentsPage() {
                           if (!dayObj.isCurrentMonth) {
                             setViewDate(new Date(dayObj.date.getFullYear(), dayObj.date.getMonth(), 1))
                           }
-                          setSlotDate(format(dayObj.date, "yyyy-MM-dd"))
                         }}
                         className={`aspect-square flex items-center justify-center rounded-lg text-sm font-semibold transition-all duration-300 ${
                           !dayObj.isCurrentMonth
@@ -561,8 +792,42 @@ export default function NurseAppointmentsPage() {
 
           <Card className="card-feature lg:col-span-3 p-0">
             <CardContent className="p-0">
-              <div className="p-4 border-b">
-                <h3 className="text-xl font-bold text-slate-900">Slots on {format(selectedDate, "MMMM d, yyyy")}</h3>
+              <div className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-end sm:justify-between">
+                <h3 className="text-xl font-bold text-slate-900 shrink-0">Slots on {format(selectedDate, "MMMM d, yyyy")}</h3>
+                <div className="flex flex-wrap items-end gap-2 sm:justify-end">
+                  <div className="min-w-[140px]">
+                    <label className="mb-0.5 block text-xs text-slate-600">Department</label>
+                    <Select value={listDepartmentFilter} onValueChange={setListDepartmentFilter}>
+                      <SelectTrigger className="h-9 text-sm">
+                        <SelectValue placeholder="All" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                        {PATIENT_IN_DEPARTMENT_OPTIONS.map((d) => (
+                          <SelectItem key={`list-dept-${d}`} value={d}>
+                            {d}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="min-w-[120px]">
+                    <label className="mb-0.5 block text-xs text-slate-600">Time</label>
+                    <Select value={listTimeFilter} onValueChange={setListTimeFilter}>
+                      <SelectTrigger className="h-9 text-sm">
+                        <SelectValue placeholder="All" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                        {halfHourOptions.map((t) => (
+                          <SelectItem key={`list-time-${t}`} value={t}>
+                            {t}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse">
@@ -630,4 +895,3 @@ export default function NurseAppointmentsPage() {
     </NurseLayout>
   )
 }
-

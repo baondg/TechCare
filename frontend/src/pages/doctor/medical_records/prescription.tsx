@@ -263,7 +263,7 @@ function MedicineNameCombobox({
       >
         <ScrollArea className="h-[200px]">
           {loading ? (
-            <div className="p-3 text-sm text-slate-500">Đang tải…</div>
+            <div className="p-3 text-sm text-slate-500">Loading…</div>
           ) : items.length === 0 ? (
             <div className="p-3 text-sm text-slate-500">No result!</div>
           ) : (
@@ -808,7 +808,7 @@ export default function PatientPrescription() {
           </div>
 
           {loading ? (
-            <p className="text-sm text-slate-500">Đang tải…</p>
+            <p className="text-sm text-slate-500">Loading…</p>
           ) : (
             <div className="overflow-hidden border rounded-lg">
               <Table className="w-full table-fixed text-xs">

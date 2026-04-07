@@ -322,12 +322,12 @@ exports.getPortalPatients = async (req, res) => {
          u.sex AS gender,
          u.dob AS dob,
          dep.name AS inDepartment
-       FROM USER u
-       JOIN ACCOUNT a ON a.user_id = u.id
-       LEFT JOIN PATIENT pt ON pt.user_id = u.id
+       FROM PATIENT pt
+       LEFT JOIN USER u ON u.id = pt.user_id
+       LEFT JOIN ACCOUNT a ON a.user_id = u.id
        LEFT JOIN DEPARTMENT dep ON dep.id = pt.in_dept
-       WHERE a.type = 'PAT' AND (a.status = 1 OR a.status = '1' OR a.status = true)
-       ORDER BY u.id DESC`,
+       WHERE (a.type = 'PAT' OR a.user_id IS NULL)
+       ORDER BY pt.patient_id DESC`,
       { type: QueryTypes.SELECT }
     );
 

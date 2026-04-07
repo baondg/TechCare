@@ -296,10 +296,7 @@ exports.getPatients = async (req, res) => {
           model: Account,
           required: true,
           where: {
-            type: 'PAT',
-            status: {
-              [Op.in]: [1, '1', true, 'Active', 'active']
-            }
+            type: 'PAT'
           },
           attributes: ['username']
         }

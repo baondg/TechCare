@@ -29,8 +29,8 @@ type Patient = {
   doctor: string
   /** PATIENT.in_department */
   department: string | null
-  recoverDays: number
-  recoverPercent: number
+  recoverDays: number | null
+  recoverPercent: number | null
 }
 
 type ColumnKey = keyof Patient | "no"
@@ -128,6 +128,13 @@ export default function DoctorPatients() {
               filters.department === "All" ||
               (p.department != null && p.department === filters.department)
 
+            const matchSex = filters.sex === "All" || p.sex === filters.sex
+
+            const matchLatestVisit =
+              !filters.latestVisit ||
+              (!!p.latestVisit &&
+                p.latestVisit === format(filters.latestVisit, "dd/MM/yyyy", { locale: vi }))
+
             return (
             p.id.toLowerCase().includes(filters.patientId.toLowerCase()) &&
             p.name.toLowerCase().includes(filters.name.toLowerCase()) &&
@@ -137,6 +144,8 @@ export default function DoctorPatients() {
             String(p.doctor ?? "")
               .toLowerCase()
               .includes(String(filters.doctor ?? "").toLowerCase()) &&
+            matchSex &&
+            matchLatestVisit &&
             matchAge &&
             matchRecoverDays &&
             matchRecoverPercent &&
@@ -494,7 +503,7 @@ export default function DoctorPatients() {
                         )}
 
                         {visibleColumns.includes("latestVisit") && (
-                          <TableCell className="text-center">{patient.latestVisit}</TableCell>
+                          <TableCell className="text-center">{patient.latestVisit || "—"}</TableCell>
                         )}
 
                         {visibleColumns.includes("diagnosis") && (
@@ -522,13 +531,13 @@ export default function DoctorPatients() {
 
                         {visibleColumns.includes("recoverDays") && (
                           <TableCell className="text-center">
-                            {patient.recoverDays} days
+                            {patient.recoverDays != null ? `${patient.recoverDays} days` : "—"}
                           </TableCell>
                         )}
 
                         {visibleColumns.includes("recoverPercent") && (
                           <TableCell className="text-center">
-                            {patient.recoverPercent}%
+                            {patient.recoverPercent != null ? `${patient.recoverPercent}%` : "—"}
                           </TableCell>
                         )}
                       </TableRow>

@@ -16,6 +16,7 @@ const healthInfoRoutes = require('./routes/healthInfoRoutes');
 const doctorRoutes = require('./routes/doctorRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
+const workShiftRoutes = require('./routes/workShiftRoutes');
 const sessionMiddleware = require('./middleware/sessionMiddleware');
 const sequelize = require('./common/database');
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -72,6 +73,7 @@ app.use('/api/health-info', healthInfoRoutes);
 app.use('/api/doctor', doctorRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/work-shifts', workShiftRoutes);
 
 
 

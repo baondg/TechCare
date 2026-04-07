@@ -30,6 +30,8 @@ router.get('/dashboard/summary', doctorController.getDashboardSummary);
 router.get('/patients', doctorController.getPatients);
 router.get('/patients/:patientId', doctorController.getPatient);
 router.get('/patients/:patientId/regimen/active', doctorController.getActiveRegimenForPatient);
+router.get('/patients/:patientId/regimen/active/documents', doctorController.getActiveRegimenDocumentsForPatient);
+router.get('/patients/:patientId/medical-regimens', doctorController.getPatientMedicalRegimensForDoctor);
 router.post('/patients/:patientId/regimen/close', doctorController.closeOpenRegimenForPatient);
 
 // ─── Health Info ───

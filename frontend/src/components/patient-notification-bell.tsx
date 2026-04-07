@@ -74,7 +74,7 @@ export function PatientNotificationBell() {
           variant="ghost"
           size="icon"
           className="relative btn-outline transition-transform duration-500 text-xl px-7 py-4"
-          aria-label="Thông báo"
+          aria-label="Notifications"
         >
           <Bell className="h-5 w-5" />
           {unreadCount > 0 && (
@@ -86,14 +86,14 @@ export function PatientNotificationBell() {
       </PopoverTrigger>
       <PopoverContent align="end" className="w-[min(100vw-2rem,22rem)] p-0">
         <div className="border-b px-3 py-2 text-sm font-semibold text-foreground">
-          Thông báo
+          Notifications
           {loading && (
-            <span className="ml-2 text-xs font-normal text-muted-foreground">Đang tải…</span>
+            <span className="ml-2 text-xs font-normal text-muted-foreground">Loading…</span>
           )}
         </div>
         <ScrollArea className="h-[min(60vh,320px)]">
           {items.length === 0 ? (
-            <p className="p-4 text-sm text-muted-foreground">Chưa có thông báo.</p>
+            <p className="p-4 text-sm text-muted-foreground">No notifications yet.</p>
           ) : (
             <ul className="divide-y">
               {items.map((n) => (

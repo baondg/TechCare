@@ -24,18 +24,21 @@ import DoctorPatients from "./pages/doctor/patients"
 import { DoctorLayout2 } from "@/components/doctor-layout-2"
 import Doctor_EMRManagement from "./pages/doctor/medical_records/dashboard"
 import DoctorAppointment from "./pages/doctor/appointment"
+import DoctorWorkShifts from "./pages/doctor/work-shifts"
 import DoctorFeedback from "./pages/doctor/feedback"
 import NurseDashboard from './pages/nurse/dashboard'
 import NursePatients from "./pages/nurse/patients"
 import { NurseLayout2 } from "@/components/nurse-layout-2"
 import Nurse_EMRManagement from "./pages/nurse/medical_records/dashboard"
 import NurseAppointment from "./pages/nurse/appointment"
+import NurseWorkShifts from "./pages/nurse/work-shifts"
 import NurseFeedback from "./pages/nurse/feedback"
 import NursePatientProfilePage from "./pages/nurse/patient-profile"
 import TechnicianDashboard from './pages/technician/dashboard'
 import TechnicianPatients from './pages/technician/patients'
 import { TechnicianLayout2 } from "@/components/technician-layout-2"
 import Technician_EMRManagement from "./pages/technician/medical_records/lab"
+import TechnicianWorkShifts from "./pages/technician/work-shifts"
 import TechnicianFeedback from "./pages/technician/feedback"
 
 function App() {
@@ -75,6 +78,7 @@ function App() {
             <Route index element={<Doctor_EMRManagement />} />
           </Route>
           <Route path="/doctor/appointments" element={<DoctorAppointment />} />
+          <Route path="/doctor/work-shifts" element={<DoctorWorkShifts />} />
           <Route path="/doctor/patients/:patientId/profile" element={<NursePatientProfilePage />} />
           <Route path="/doctor/feedback" element={<DoctorFeedback />} />
 
@@ -85,6 +89,7 @@ function App() {
             <Route index element={<Nurse_EMRManagement />} />
           </Route>
           <Route path="/nurse/appointments" element={<NurseAppointment />} />
+          <Route path="/nurse/work-shifts" element={<NurseWorkShifts />} />
           <Route path="/nurse/patients/:patientId/profile" element={<NursePatientProfilePage />} />
           <Route path="/nurse/feedback" element={<NurseFeedback />} />
 
@@ -94,6 +99,7 @@ function App() {
           <Route path="/technician/medical_records/:patientId/:tab" element={<TechnicianLayout2 />}>
             <Route index element={<Technician_EMRManagement />} />
           </Route>
+          <Route path="/technician/work-shifts" element={<TechnicianWorkShifts />} />
           <Route path="/technician/feedback" element={<TechnicianFeedback />} />
         </Routes>
 

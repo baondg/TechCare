@@ -12,7 +12,7 @@ const router = Router();
 // ============================================================
 
 const getGroqConfig = () => ({
-  apiKey: process.env.GROQ_API_KEY || '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',
+  apiKey: process.env.GROQ_API_KEY || '',
   model: process.env.GROQ_MODEL || 'llama-3.1-8b-instant',
   baseUrl: 'https://api.groq.com/openai/v1',
 });

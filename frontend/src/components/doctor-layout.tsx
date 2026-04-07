@@ -2,12 +2,13 @@ import type React from 'react'
 import { AppShell } from '@/components/layout/AppShell'
 import type { NavItem } from '@/components/layout/AppShell'
 import { PatientNotificationBell } from '@/components/patient-notification-bell'
-import { Activity, Users, Calendar, FileText } from 'lucide-react'
+import { Activity, Users, Calendar, CalendarClock, FileText } from 'lucide-react'
 
 const navigation: NavItem[] = [
   { name: 'Dashboard',    href: '/doctor/dashboard',    icon: Activity },
   { name: 'Patients',     href: '/doctor/patients',     icon: Users },
   { name: 'Appointments', href: '/doctor/appointments', icon: Calendar },
+  { name: 'Work shifts',  href: '/doctor/work-shifts',  icon: CalendarClock },
   { name: 'Feedback',     href: '/doctor/feedback',     icon: FileText },
 ]
 

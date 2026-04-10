@@ -24,9 +24,10 @@ export interface User {
   type?: string
 }
 
-interface RegisterData {
+export interface RegisterData {
   username: string
-  email: string
+  /** Optional; USER.email is nullable in DB */
+  email?: string
   password: string
   firstName: string
   lastName: string

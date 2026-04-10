@@ -2,11 +2,18 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { Plus, RefreshCcw, X, Clock, UserRound, Stethoscope, ChevronLeft, ChevronRight, CalendarRange } from "lucide-react"
-import { isSameDay, format, startOfMonth, endOfMonth } from "date-fns"
+import { isSameDay, format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO } from "date-fns"
 import { Link } from "react-router-dom"
 import { NurseLayout } from "@/components/nurse-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -87,9 +94,38 @@ function normalizeSlotTimeDisplay(t: string): string {
   return `${String(h).padStart(2, "0")}:${String(mi).padStart(2, "0")}`
 }
 
+function addThirtyMinutes(hhmm: string): string {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || "").trim())
+  if (!m) return ""
+  const h = Number(m[1])
+  const mi = Number(m[2])
+  if (!Number.isFinite(h) || !Number.isFinite(mi)) return ""
+  const total = h * 60 + mi + 30
+  const outH = Math.floor((total % (24 * 60)) / 60)
+  const outM = total % 60
+  return `${String(outH).padStart(2, "0")}:${String(outM).padStart(2, "0")}`
+}
+
+function extractErrorMessage(err: unknown): string {
+  const fallback = "Operation failed"
+  if (!err) return fallback
+  if (err instanceof Error) {
+    const raw = String(err.message || "").trim()
+    if (!raw) return fallback
+    try {
+      const parsed = JSON.parse(raw) as { message?: string }
+      if (parsed?.message) return String(parsed.message)
+    } catch {
+      // keep raw
+    }
+    return raw
+  }
+  return fallback
+}
+
 export default function NurseAppointmentsPage() {
   const [listDepartmentFilter, setListDepartmentFilter] = useState<string>("all")
-  const [listTimeFilter, setListTimeFilter] = useState<string>("all")
+  const [listDoctorFilter, setListDoctorFilter] = useState<string>("all")
 
   const [doctorOptions, setDoctorOptions] = useState<DoctorOption[]>([])
   const [roomOptions, setRoomOptions] = useState<ClinicRoomOption[]>([])
@@ -97,6 +133,10 @@ export default function NurseAppointmentsPage() {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [shiftFillLoading, setShiftFillLoading] = useState(false)
+  const [shiftRangeOpen, setShiftRangeOpen] = useState(false)
+  const [shiftRangeStart, setShiftRangeStart] = useState("")
+  const [shiftRangeEnd, setShiftRangeEnd] = useState("")
+  const [pickedSlotStatus, setPickedSlotStatus] = useState<NurseOpenSlot["status"] | null>(null)
   const [message, setMessage] = useState<string>("")
 
   const [createDepartment, setCreateDepartment] = useState<string>("")
@@ -106,6 +146,7 @@ export default function NurseAppointmentsPage() {
   const [slotEndTime, setSlotEndTime] = useState("")
   const [selectedRoomId, setSelectedRoomId] = useState<string>("")
   const [selectedSlotId, setSelectedSlotId] = useState<number | null>(null)
+  const [selectedSlotIds, setSelectedSlotIds] = useState<number[]>([])
 
   const [draftRows, setDraftRows] = useState<SlotDraftRow[]>(() => [newDraftRow(format(new Date(), "yyyy-MM-dd"))])
 
@@ -198,6 +239,7 @@ export default function NurseAppointmentsPage() {
 
   const resetForm = () => {
     setSelectedSlotId(null)
+    setPickedSlotStatus(null)
     setCreateDepartment("")
     setSelectedDoctorId("")
     setSelectedRoomId("")
@@ -205,34 +247,78 @@ export default function NurseAppointmentsPage() {
     setSlotStartTime("")
     setSlotEndTime("")
     setDraftRows([newDraftRow(format(selectedDate, "yyyy-MM-dd"))])
+    setSelectedSlotIds([])
   }
 
   const handleCreateOrUpdate = async () => {
-    if (!selectedSlotId) return
+    const targetIds = selectedSlotIds.length
+      ? [...selectedSlotIds]
+      : selectedSlotId
+        ? [selectedSlotId]
+        : []
+    if (!targetIds.length) return
+
+    const isBulk = targetIds.length > 1
     const normalizedStart = normalizeHalfHourTime(slotStartTime)
     const normalizedEnd = slotEndTime ? normalizeHalfHourTime(slotEndTime) : null
 
-    if (!slotDate || !normalizedStart) {
-      setMessage("Please select date and time.")
+    if (!isBulk) {
+      if (!slotDate || !normalizedStart) {
+        setMessage("Please select date and time.")
+        return
+      }
+      if (slotEndTime && !normalizedEnd) {
+        setMessage("Invalid time. Use HH:mm with 30-minute steps (e.g. 09:00, 09:30).")
+        return
+      }
+    } else if (!selectedDoctorId) {
+      setMessage("Bulk edit requires selecting a replacement doctor.")
       return
     }
-    if (slotEndTime && !normalizedEnd) {
-      setMessage("Invalid time. Use HH:mm with 30-minute steps (e.g. 09:00, 09:30).")
-      return
-    }
+
     setSaving(true)
     setMessage("")
     try {
-      await appointmentService.updateOpenSlot(selectedSlotId, {
-        date: slotDate,
-        time: normalizedStart,
-        roomId: selectedRoomId ? Number(selectedRoomId) : undefined,
-      })
-      setMessage("Slot rescheduled successfully.")
+      if (isBulk) {
+        const selected = slots.filter((s) => targetIds.includes(s.id))
+        const failures: string[] = []
+        let updated = 0
+        for (const s of selected) {
+          const slotTime = normalizeSlotTimeDisplay(String(s.time || ""))
+          try {
+            await appointmentService.updateOpenSlot(s.id, {
+              date: s.date,
+              time: slotTime,
+              roomId: s.roomId != null ? Number(s.roomId) : undefined,
+              doctorId: Number(selectedDoctorId),
+            })
+            updated += 1
+          } catch (e) {
+            failures.push(`- ${s.date} ${slotTime}-${addThirtyMinutes(slotTime)}: ${extractErrorMessage(e)}`)
+          }
+        }
+        if (!failures.length) {
+          setMessage(`Updated ${updated} slot(s) successfully.`)
+        } else {
+          setMessage(
+            `Updated ${updated}/${selected.length} slot(s).\nFailed slots:\n${failures.join("\n")}`
+          )
+        }
+      } else {
+        for (const id of targetIds) {
+          await appointmentService.updateOpenSlot(id, {
+            date: slotDate,
+            time: normalizedStart,
+            roomId: selectedRoomId ? Number(selectedRoomId) : undefined,
+            doctorId: selectedDoctorId ? Number(selectedDoctorId) : undefined,
+          })
+        }
+        setMessage(`Slot${targetIds.length > 1 ? "s" : ""} rescheduled successfully.`)
+      }
       resetForm()
       await load()
     } catch (e: any) {
-      setMessage(e?.message || "Operation failed")
+      setMessage(extractErrorMessage(e))
     } finally {
       setSaving(false)
     }
@@ -294,28 +380,56 @@ export default function NurseAppointmentsPage() {
     }
   }
 
-  const handleFillFromWorkShift = async () => {
+  const openShiftRangeDialog = () => {
     const ymd = format(selectedDate, "yyyy-MM-dd")
+    setShiftRangeStart(ymd)
+    setShiftRangeEnd(ymd)
+    setShiftRangeOpen(true)
+  }
+
+  const applyShiftRangeFromWorkShifts = async () => {
+    if (!shiftRangeStart || !shiftRangeEnd) {
+      setMessage("Please select start and end dates.")
+      return
+    }
+    if (shiftRangeEnd < shiftRangeStart) {
+      setMessage("End date must be on or after the start date.")
+      return
+    }
     setShiftFillLoading(true)
     setMessage("")
     try {
-      const res = await getMyWorkShifts({ startDate: ymd, endDate: ymd })
-      const dayShifts = (res.shifts || []).filter((s) => extractDateYmd(s.startTime) === ymd)
-      if (!dayShifts.length) {
-        setMessage("No work shifts on this date for your account.")
-        return
+      const res = await getMyWorkShifts({ startDate: shiftRangeStart, endDate: shiftRangeEnd })
+      const allShifts = res.shifts || []
+      const days = eachDayOfInterval({
+        start: parseISO(shiftRangeStart),
+        end: parseISO(shiftRangeEnd),
+      })
+      const rows: SlotDraftRow[] = []
+      for (const d of days) {
+        const ymd = format(d, "yyyy-MM-dd")
+        const dayShifts = allShifts.filter((s) => extractDateYmd(s.startTime) === ymd)
+        for (const s of dayShifts) {
+          rows.push({
+            id: newRowId(),
+            department: matchDepartmentOption(s.departmentName),
+            doctorId: String(s.doctorId),
+            roomId: String(s.roomId),
+            date: ymd,
+            start: extractTimeHm(s.startTime),
+            end: extractTimeHm(s.endTime),
+          })
+        }
       }
-      const rows: SlotDraftRow[] = dayShifts.map((s) => ({
-        id: newRowId(),
-        department: matchDepartmentOption(s.departmentName),
-        doctorId: String(s.doctorId),
-        roomId: String(s.roomId),
-        date: ymd,
-        start: extractTimeHm(s.startTime),
-        end: extractTimeHm(s.endTime),
-      }))
-      setDraftRows(rows)
-      setMessage(`Filled ${rows.length} row(s) from work shifts. Adjust if needed, then Create all.`)
+      if (!rows.length) {
+        setMessage("No work shifts in this date range for your account.")
+      } else {
+        setDraftRows(rows)
+        setMessage(
+          `Filled ${rows.length} row(s) from work shifts (${shiftRangeStart} → ${shiftRangeEnd}). Review then Create all.`
+        )
+      }
+      setShiftRangeOpen(false)
     } catch (e: any) {
       setMessage(e?.message || "Failed to load work shifts")
     } finally {
@@ -354,6 +468,8 @@ export default function NurseAppointmentsPage() {
 
   const pickSlot = (s: NurseOpenSlot) => {
     setSelectedSlotId(s.id)
+    setSelectedSlotIds([s.id])
+    setPickedSlotStatus(s.status)
     setCreateDepartment(String(s.department || ""))
     setSelectedDoctorId(String(s.doctorId))
     setSelectedRoomId(s.roomId != null ? String(s.roomId) : "")
@@ -423,14 +539,64 @@ export default function NurseAppointmentsPage() {
             return false
           }
         }
-        if (listTimeFilter !== "all") {
-          const slotT = normalizeHalfHourTime(normalizeSlotTimeDisplay(String(s.time || "")))
-          if (!slotT || slotT !== listTimeFilter) return false
+        if (listDoctorFilter !== "all") {
+          if (String(s.doctorName || "").trim() !== listDoctorFilter) {
+            return false
+          }
         }
         return true
       }),
-    [slots, selectedDate, listDepartmentFilter, listTimeFilter]
+    [slots, selectedDate, listDepartmentFilter, listDoctorFilter]
   )
+
+  const selectedSlotsSummary = useMemo(() => {
+    const selected = slots
+      .filter((s) => selectedSlotIds.includes(s.id))
+      .map((s) => {
+        const start = normalizeSlotTimeDisplay(String(s.time || ""))
+        return {
+          id: s.id,
+          date: s.date,
+          start,
+          end: addThirtyMinutes(start),
+          doctorName: s.doctorName,
+          department: s.department,
+          status: s.status,
+        }
+      })
+      .sort((a, b) => `${a.date} ${a.start}`.localeCompare(`${b.date} ${b.start}`))
+    return selected
+  }, [slots, selectedSlotIds])
+
+  const dayDoctorOptions = useMemo(() => {
+    const names = slots
+      .filter((s) => isSameDay(new Date(`${s.date}T00:00:00`), selectedDate))
+      .map((s) => String(s.doctorName || "").trim())
+      .filter(Boolean)
+    return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b))
+  }, [slots, selectedDate])
+
+  useEffect(() => {
+    if (selectedSlotId || selectedSlotIds.length === 0) return
+    const first = slots.find((s) => s.id === selectedSlotIds[0])
+    if (!first) return
+    setSelectedSlotId(first.id)
+    setPickedSlotStatus(first.status)
+    setCreateDepartment(String(first.department || ""))
+    setSelectedDoctorId(String(first.doctorId))
+    setSelectedRoomId(first.roomId != null ? String(first.roomId) : "")
+    setSlotDate(String(first.date || ""))
+    setSlotStartTime(String(first.time || ""))
+    setSlotEndTime("")
+  }, [selectedSlotId, selectedSlotIds, slots])
+
+  useEffect(() => {
+    if (selectedSlotIds.length > 0) return
+    setSelectedSlotId(null)
+    setPickedSlotStatus(null)
+  }, [selectedSlotIds.length])
+
+  const isEditingSlots = Boolean(selectedSlotId)
 
   return (
     <NurseLayout>
@@ -438,7 +604,7 @@ export default function NurseAppointmentsPage() {
         <Card className="card-feature border-slate-200/60">
           <CardContent className="p-4 space-y-4">
             <h3 className="text-sm font-semibold text-slate-800">
-              {selectedSlotId ? "Reschedule slot" : "Create slots"}
+              {selectedSlotIds.length || selectedSlotId ? "Edit slots" : "Create slots"}
             </h3>
 
             {selectedSlotId ? (
@@ -447,6 +613,7 @@ export default function NurseAppointmentsPage() {
                   <div className="col-span-2 sm:col-span-1 xl:col-span-1">
                     <label className="text-xs text-slate-600 mb-0.5 block">Department</label>
                     <Select
+                      disabled={isEditingSlots}
                       value={createDepartment || undefined}
                       onValueChange={(value) => {
                         setCreateDepartment(value)
@@ -473,7 +640,7 @@ export default function NurseAppointmentsPage() {
                   </div>
                   <div className="col-span-2 sm:col-span-2 xl:col-span-1">
                     <label className="text-xs text-slate-600 mb-0.5 block">Doctor</label>
-                    <Select value={selectedDoctorId} onValueChange={setSelectedDoctorId} disabled>
+                    <Select value={selectedDoctorId} onValueChange={setSelectedDoctorId}>
                       <SelectTrigger className="h-9 text-sm">
                         <SelectValue placeholder="Select doctor" />
                       </SelectTrigger>
@@ -491,11 +658,17 @@ export default function NurseAppointmentsPage() {
                   </div>
                   <div>
                     <label className="text-xs text-slate-600 mb-0.5 block">Date</label>
-                    <Input type="date" value={slotDate} onChange={(e) => setSlotDate(e.target.value)} className="h-9 text-sm" />
+                    <Input
+                      type="date"
+                      value={slotDate}
+                      onChange={(e) => setSlotDate(e.target.value)}
+                      className="h-9 text-sm"
+                      disabled={isEditingSlots}
+                    />
                   </div>
                   <div>
                     <label className="text-xs text-slate-600 mb-0.5 block">Room</label>
-                    <Select value={selectedRoomId || undefined} onValueChange={setSelectedRoomId}>
+                    <Select disabled={isEditingSlots} value={selectedRoomId || undefined} onValueChange={setSelectedRoomId}>
                       <SelectTrigger className="h-9 text-sm">
                         <SelectValue placeholder="Room" />
                       </SelectTrigger>
@@ -519,6 +692,7 @@ export default function NurseAppointmentsPage() {
                       onChange={(e) => setSlotStartTime(formatTimeMask(e.target.value))}
                       onBlur={() => handleTimeFieldBlur("start")}
                       className="h-9 text-sm"
+                      disabled={isEditingSlots}
                     />
                     <datalist id="nurse-start-time-options">
                       {halfHourOptions.map((time) => (
@@ -537,6 +711,7 @@ export default function NurseAppointmentsPage() {
                       onChange={(e) => setSlotEndTime(formatTimeMask(e.target.value))}
                       onBlur={() => handleTimeFieldBlur("end")}
                       className="h-9 text-sm"
+                      disabled={isEditingSlots}
                     />
                     <datalist id="nurse-end-time-options">
                       {halfHourOptions.map((time) => (
@@ -545,9 +720,14 @@ export default function NurseAppointmentsPage() {
                     </datalist>
                   </div>
                 </div>
+                {pickedSlotStatus === "booked" ? (
+                  <p className="text-xs text-amber-800 rounded-md border border-amber-200 bg-amber-50/80 px-3 py-2">
+                    Booked slot: changing the doctor notifies the patient. To move date or time, use another open slot or cancel and recreate.
+                  </p>
+                ) : null}
                 <div className="flex flex-wrap items-center gap-2">
                   <Button className="btn-gradient h-9 px-4 text-sm" onClick={handleCreateOrUpdate} disabled={saving}>
-                    Reschedule
+                    {selectedSlotIds.length > 1 ? `Edit selected (${selectedSlotIds.length})` : pickedSlotStatus === "booked" ? "Save changes" : "Reschedule"}
                   </Button>
                   <Button variant="outline" className="h-9 px-4 text-sm" onClick={resetForm} disabled={saving}>
                     <RefreshCcw className="mr-1.5 h-4 w-4" />
@@ -557,13 +737,29 @@ export default function NurseAppointmentsPage() {
                     variant="outline"
                     className="h-9 border-red-200 px-4 text-sm text-red-700 hover:bg-red-50"
                     onClick={handleDelete}
-                    disabled={saving || !selectedSlotId}
+                    disabled={saving || !selectedSlotId || pickedSlotStatus === "booked"}
                   >
                     <X className="mr-1.5 h-4 w-4" />
                     Cancel slot
                   </Button>
-                  <span className="text-[11px] text-slate-500 xl:ml-1">Times: HH:mm, minutes 00 or 30 only.</span>
+                  <span className="text-[11px] text-slate-500 xl:ml-1">
+                    Edit mode: only doctor can be changed (doctors in this department). Times stay fixed.
+                  </span>
                 </div>
+                {selectedSlotsSummary.length > 1 ? (
+                  <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
+                    <div className="text-xs font-semibold text-slate-700 mb-1">
+                      Selected slots ({selectedSlotsSummary.length})
+                    </div>
+                    <div className="max-h-28 overflow-auto space-y-1 text-xs text-slate-700">
+                      {selectedSlotsSummary.map((s) => (
+                        <div key={`sel-${s.id}`} className="rounded border bg-white px-2 py-1">
+                          {s.date} | {s.start}-{s.end} | {s.department || "—"} | {s.doctorName || "—"} | {s.status}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </>
             ) : (
               <>
@@ -573,14 +769,14 @@ export default function NurseAppointmentsPage() {
                     variant="secondary"
                     className="h-9 gap-2 text-sm"
                     disabled={shiftFillLoading || saving}
-                    onClick={() => void handleFillFromWorkShift()}
+                    onClick={() => openShiftRangeDialog()}
                   >
                     <CalendarRange className="h-4 w-4" />
-                    {shiftFillLoading ? "Loading shifts…" : "Create slots from work shift"}
+                    Create slots from work shift
                   </Button>
                   <p className="text-[11px] text-slate-500">
-                    Uses your <span className="font-medium">WORK_SHIFT</span> for the day selected on the calendar. Each shift becomes one
-                    row; edit then <span className="font-medium">Create all</span>.
+                    Choose a date range; each shift in your <span className="font-medium">WORK_SHIFT</span> becomes one row per day. Review
+                    then <span className="font-medium">Create all</span>.
                   </p>
                 </div>
 
@@ -736,7 +932,7 @@ export default function NurseAppointmentsPage() {
               </>
             )}
 
-            {message ? <p className="text-sm text-slate-700">{message}</p> : null}
+            {message ? <p className="text-sm text-slate-700 whitespace-pre-line">{message}</p> : null}
           </CardContent>
         </Card>
 
@@ -811,17 +1007,17 @@ export default function NurseAppointmentsPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="min-w-[120px]">
-                    <label className="mb-0.5 block text-xs text-slate-600">Time</label>
-                    <Select value={listTimeFilter} onValueChange={setListTimeFilter}>
+                  <div className="min-w-[180px]">
+                    <label className="mb-0.5 block text-xs text-slate-600">Doctor</label>
+                    <Select value={listDoctorFilter} onValueChange={setListDoctorFilter}>
                       <SelectTrigger className="h-9 text-sm">
                         <SelectValue placeholder="All" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All</SelectItem>
-                        {halfHourOptions.map((t) => (
-                          <SelectItem key={`list-time-${t}`} value={t}>
-                            {t}
+                        {dayDoctorOptions.map((name) => (
+                          <SelectItem key={`list-doc-${name}`} value={name}>
+                            {name}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -833,6 +1029,20 @@ export default function NurseAppointmentsPage() {
                 <table className="w-full border-collapse">
                   <thead>
                     <tr className="bg-cyan-50">
+                      <th className="text-left p-3 text-sm font-semibold text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={visibleSlots.length > 0 && visibleSlots.every((s) => selectedSlotIds.includes(s.id))}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedSlotIds(Array.from(new Set([...selectedSlotIds, ...visibleSlots.map((s) => s.id)])))
+                            } else {
+                              const vis = new Set(visibleSlots.map((s) => s.id))
+                              setSelectedSlotIds((ids) => ids.filter((id) => !vis.has(id)))
+                            }
+                          }}
+                        />
+                      </th>
                       <th className="text-left p-3 text-sm font-semibold text-slate-700">Time</th>
                       <th className="text-left p-3 text-sm font-semibold text-slate-700">Doctor</th>
                       <th className="text-left p-3 text-sm font-semibold text-slate-700">Department</th>
@@ -843,16 +1053,28 @@ export default function NurseAppointmentsPage() {
                   </thead>
                   <tbody>
                     {loading ? (
-                      <tr><td colSpan={6} className="p-8 text-center text-slate-500">Loading slots...</td></tr>
+                      <tr><td colSpan={7} className="p-8 text-center text-slate-500">Loading slots...</td></tr>
                     ) : visibleSlots.length === 0 ? (
-                      <tr><td colSpan={6} className="p-8 text-center text-slate-500">No slots on this day</td></tr>
+                      <tr><td colSpan={7} className="p-8 text-center text-slate-500">No slots on this day</td></tr>
                     ) : (
                       visibleSlots.map((slot) => (
                         <tr
                           key={slot.id}
-                          onClick={() => slot.status !== "booked" && pickSlot(slot)}
-                          className={`border-t ${selectedSlotId === slot.id ? "bg-cyan-50" : ""} ${slot.status !== "booked" ? "cursor-pointer hover:bg-slate-50" : ""}`}
+                          onClick={() => pickSlot(slot)}
+                          className={`border-t cursor-pointer hover:bg-slate-50 ${selectedSlotId === slot.id ? "bg-cyan-50" : selectedSlotIds.includes(slot.id) ? "bg-cyan-50/40" : ""}`}
                         >
+                          <td className="p-3 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={selectedSlotIds.includes(slot.id)}
+                              onClick={(e) => e.stopPropagation()}
+                              onChange={(e) => {
+                                setSelectedSlotIds((ids) =>
+                                  e.target.checked ? Array.from(new Set([...ids, slot.id])) : ids.filter((id) => id !== slot.id)
+                                )
+                              }}
+                            />
+                          </td>
                           <td className="p-3 text-sm">
                             <div className="flex items-center gap-2"><Clock className="w-4 h-4 text-slate-400" />{slot.time}</div>
                           </td>
@@ -862,10 +1084,10 @@ export default function NurseAppointmentsPage() {
                           <td className="p-3 text-sm">{slot.department || "-"}</td>
                           <td className="p-3 text-sm">{slot.roomName || "-"}</td>
                           <td className="p-3 text-sm">
-                            {slot.patientId ? (
-                              <Link to={`/nurse/patients/${slot.patientId}/profile`} className="inline-flex items-center gap-2 text-cyan-700 hover:underline">
+                            {slot.patientUserId != null ? (
+                              <Link to={`/nurse/patients/${slot.patientUserId}/profile`} className="inline-flex items-center gap-2 text-cyan-700 hover:underline">
                                 <UserRound className="w-4 h-4 text-slate-400" />
-                                {slot.patientName || `Patient #${slot.patientId}`}
+                                {slot.patientName || `Patient #${slot.patientUserId}`}
                               </Link>
                             ) : slot.patientName ? (
                               <span className="inline-flex items-center gap-2"><UserRound className="w-4 h-4 text-slate-400" />{slot.patientName}</span>
@@ -892,6 +1114,40 @@ export default function NurseAppointmentsPage() {
           </Card>
         </div>
       </div>
+
+      <Dialog open={shiftRangeOpen} onOpenChange={setShiftRangeOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Work shift date range</DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              Load all shifts you are assigned to between these dates into slot rows (one row per shift block per day).
+            </p>
+          </DialogHeader>
+          <div className="grid gap-3 py-2">
+            <div className="grid gap-1.5">
+              <label className="text-xs font-medium text-slate-600">Start date</label>
+              <Input type="date" value={shiftRangeStart} onChange={(e) => setShiftRangeStart(e.target.value)} className="h-9" />
+            </div>
+            <div className="grid gap-1.5">
+              <label className="text-xs font-medium text-slate-600">End date</label>
+              <Input type="date" value={shiftRangeEnd} onChange={(e) => setShiftRangeEnd(e.target.value)} className="h-9" />
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={() => setShiftRangeOpen(false)} disabled={shiftFillLoading}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="btn-gradient"
+              disabled={shiftFillLoading}
+              onClick={() => void applyShiftRangeFromWorkShifts()}
+            >
+              {shiftFillLoading ? "Loading…" : "Load rows"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </NurseLayout>
   )
 }

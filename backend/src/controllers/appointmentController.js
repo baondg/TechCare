@@ -5,6 +5,9 @@ const {
   notifyDoctorPatientBooked,
   notifyDoctorPatientCancelledAppointment,
   notifyDoctorsAfterNurseReschedule,
+  notifyPatientAppointmentDoctorReassigned,
+  notifyDoctorsAfterPatientReschedule,
+  notifyDoctorReceivedCoverAppointment,
 } = require('../services/appointmentNotifications');
 
 const normalizeDoctorInput = (value) => String(value || '').replace(/^Dr\.\s*/i, '').trim();
@@ -16,6 +19,29 @@ function parseNursePatientId(raw) {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+/** EMR / nurse URLs use OP… or a number that may be USER.id or PATIENT.patient_id — return canonical patient_id PK. */
+async function resolveNursePatientPkFromNumeric(n) {
+  if (!Number.isFinite(n) || n <= 0) return null;
+  const [row] = await sequelize.query(
+    'SELECT patient_id AS id FROM PATIENT WHERE patient_id = :n OR user_id = :n LIMIT 1',
+    { replacements: { n }, type: QueryTypes.SELECT }
+  );
+  return row?.id != null ? Number(row.id) : null;
+}
+
+/** Match doctor EMR: clinical diagnosis rows only (not Rx/lab/surgery/transfer treatments). */
+const SQL_STANDALONE_DIAGNOSIS_ONLY = `
+  AND NOT EXISTS (
+    SELECT 1 FROM \`ORDER\` o
+    WHERE o.treatment_id = t.id
+      AND (
+        EXISTS (SELECT 1 FROM SURGERY s WHERE s.id = o.id)
+        OR EXISTS (SELECT 1 FROM TEST tst WHERE tst.id = o.id)
+        OR EXISTS (SELECT 1 FROM MEDICAL_PRESCRIPTION rx WHERE rx.order_id = o.id)
+        OR EXISTS (SELECT 1 FROM TRANSFERENCE tf WHERE tf.order_id = o.id)
+      )
+  )`;
+
 function assertNurseOrAdmin(req, res) {
   const role = String(req.user?.role || '').toLowerCase();
   if (!['nurse', 'admin'].includes(role)) {
@@ -23,14 +49,6 @@ function assertNurseOrAdmin(req, res) {
     return false;
   }
   return true;
-}
-
-async function nursePatientExists(patientId) {
-  const [row] = await sequelize.query(
-    'SELECT patient_id AS id FROM PATIENT WHERE patient_id = :patientId LIMIT 1',
-    { replacements: { patientId }, type: QueryTypes.SELECT }
-  );
-  return !!row;
 }
 
 /** Set PATIENT.in_dept from the appointment room's DEPARTMENT (nurse check-in). */
@@ -145,6 +163,20 @@ async function getPatientIdByUserId(userId) {
     { replacements: { userId }, type: QueryTypes.SELECT }
   );
   return rows[0]?.patient_id || null;
+}
+
+async function doctorsShareDepartment(doctorIdA, doctorIdB, transaction) {
+  if (!doctorIdA || !doctorIdB || Number(doctorIdA) === Number(doctorIdB)) return true;
+  const qo = { replacements: { a: doctorIdA, b: doctorIdB }, type: QueryTypes.SELECT, ...(transaction ? { transaction } : {}) };
+  const [row] = await sequelize.query(
+    `SELECT 1 AS ok
+     FROM DOCTOR_DEPARTMENT dd1
+     INNER JOIN DOCTOR_DEPARTMENT dd2 ON dd1.department_id = dd2.department_id
+     WHERE dd1.doctor_id = :a AND dd2.doctor_id = :b
+     LIMIT 1`,
+    qo
+  );
+  return !!row;
 }
 
 async function getActiveAiModel() {
@@ -332,23 +364,30 @@ exports.getPortalPatients = async (req, res) => {
     );
 
     const patients = await Promise.all((rows || []).map(async (p) => {
-      const [latestDiagnosis] = await sequelize.query(
-        `SELECT
-           dis.icd_code AS icd10,
-           dis.description AS interpretation,
-           t.time AS visitTime,
-           COALESCE(NULLIF(TRIM(CONCAT(COALESCE(du.first_name, ''), ' ', COALESCE(du.last_name, ''))), ''), da.username, CONCAT('doctor#', d.user_id)) AS doctorName
-         FROM TREATMENT t
-         JOIN REGIMEN r ON r.id = t.regimen_id
-         LEFT JOIN DISEASE dis ON dis.id = r.disease_id
-         LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id
-         LEFT JOIN USER du ON du.id = d.user_id
-         LEFT JOIN ACCOUNT da ON da.user_id = d.user_id
-         WHERE r.patient_id = :patientId
-         ORDER BY t.time DESC
-         LIMIT 1`,
-        { replacements: { patientId: Number(p.id) }, type: QueryTypes.SELECT }
-      );
+      const uid = Number(p.id);
+      const patientPk = await resolveNursePatientPkFromNumeric(uid);
+      let latestDiagnosis = null;
+      if (patientPk) {
+        const drows = await sequelize.query(
+          `SELECT
+             dis.icd_code AS icd10,
+             dis.description AS interpretation,
+             t.time AS visitTime,
+             COALESCE(NULLIF(TRIM(CONCAT(COALESCE(du.first_name, ''), ' ', COALESCE(du.last_name, ''))), ''), da.username, CONCAT('doctor#', d.user_id)) AS doctorName
+           FROM TREATMENT t
+           JOIN REGIMEN r ON r.id = t.regimen_id
+           LEFT JOIN DISEASE dis ON dis.id = COALESCE(t.disease_id, r.disease_id)
+           LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id
+           LEFT JOIN USER du ON du.id = d.user_id
+           LEFT JOIN ACCOUNT da ON da.user_id = d.user_id
+           WHERE r.patient_id = :patientPk
+           ${SQL_STANDALONE_DIAGNOSIS_ONLY}
+           ORDER BY t.time DESC
+           LIMIT 1`,
+          { replacements: { patientPk }, type: QueryTypes.SELECT }
+        );
+        latestDiagnosis = drows[0] || null;
+      }
 
       const age = calculateDisplayAge(p.dob);
 
@@ -821,6 +860,7 @@ exports.getOpenSlots = async (req, res) => {
          TIME(a.time) AS time,
          a.status AS dbStatus,
          a.patient_id AS patientId,
+         p.user_id AS patientUserId,
          d.doctor_id AS doctorId,
          COALESCE(NULLIF(TRIM(CONCAT(COALESCE(du.first_name,''), ' ', COALESCE(du.last_name,''))), ''), dacc.username) AS doctorName,
          COALESCE(
@@ -872,6 +912,7 @@ exports.getOpenSlots = async (req, res) => {
       roomId: r.roomId != null ? Number(r.roomId) : null,
       roomName: r.roomName || '',
       patientId: r.patientId != null ? Number(r.patientId) : null,
+      patientUserId: r.patientUserId != null ? Number(r.patientUserId) : null,
       patientName: r.patientName || '',
       status: r.dbStatus === 'cancelled' ? 'cancelled' : r.patientId ? 'booked' : 'open',
     }));
@@ -948,7 +989,8 @@ exports.createOpenSlot = async (req, res) => {
 
 /**
  * PUT /api/appointments/open-slots/:id
- * Nurse reschedules open slot.
+ * Nurse updates slot time/room; may reassign doctor (including booked slots — same department only).
+ * Body: date, time (optional if unchanged — use current slot), roomId (optional), doctorId (optional).
  */
 exports.updateOpenSlot = async (req, res) => {
   try {
@@ -956,30 +998,151 @@ exports.updateOpenSlot = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Forbidden' });
     }
     const id = Number(req.params.id);
-    const date = String(req.body?.date || '').trim();
-    const time = String(req.body?.time || '').trim().slice(0, 5);
+    const dateIn = String(req.body?.date || '').trim();
+    const timeIn = String(req.body?.time || '').trim().slice(0, 5);
     const roomIdRaw = req.body?.roomId;
     const hasRoomId = roomIdRaw !== undefined && roomIdRaw !== null && String(roomIdRaw).trim() !== '';
     const parsedRoomId = Number(roomIdRaw);
     const roomId = hasRoomId && Number.isFinite(parsedRoomId) ? parsedRoomId : null;
-    if (!Number.isFinite(id) || !date || !time) {
-      return res.status(400).json({ success: false, message: 'id, date and time are required' });
+    const doctorIdIn = req.body?.doctorId != null ? Number(req.body.doctorId) : null;
+    if (!Number.isFinite(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid id' });
     }
     const [slot] = await sequelize.query(
-      `SELECT id, patient_id AS patientId, doctor_id AS doctorId, room_id AS roomId
+      `SELECT
+         id,
+         patient_id AS patientId,
+         doctor_id AS doctorId,
+         room_id AS roomId,
+         time AS slotTime,
+         status
        FROM APPOINTMENT WHERE id = :id LIMIT 1`,
       { replacements: { id }, type: QueryTypes.SELECT }
     );
     if (!slot) return res.status(404).json({ success: false, message: 'Slot not found' });
-    if (slot.patientId) return res.status(400).json({ success: false, message: 'Booked slot cannot be rescheduled here' });
+    if (String(slot.status || '').toLowerCase() === 'cancelled') {
+      return res.status(400).json({ success: false, message: 'Slot is cancelled' });
+    }
+
+    const wall = String(slot.slotTime || '');
+    const m = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})/.exec(wall.replace('T', ' '));
+    const existingDate = m ? m[1] : '';
+    const existingTime = m ? `${m[2]}:${m[3]}` : '';
+    const date = dateIn || existingDate;
+    const time = timeIn || existingTime;
+    if (!date || !time) {
+      return res.status(400).json({ success: false, message: 'date and time are required (or slot has invalid time)' });
+    }
+
+    let nextDoctorId = Number(slot.doctorId);
+    if (Number.isFinite(doctorIdIn) && doctorIdIn > 0) {
+      nextDoctorId = doctorIdIn;
+    }
+
+    let nextRoomId = slot.roomId != null ? Number(slot.roomId) : null;
+    if (roomId !== null) nextRoomId = roomId;
+    const [newDr] = await sequelize.query(
+      'SELECT room_id AS roomId FROM DOCTOR WHERE doctor_id = :did LIMIT 1',
+      { replacements: { did: nextDoctorId }, type: QueryTypes.SELECT }
+    );
+    if (nextDoctorId !== Number(slot.doctorId) && newDr?.roomId != null) {
+      nextRoomId = Number(newDr.roomId);
+    }
+
     const dateTime = `${date} ${time}:00`;
+    const oldDoctorId = Number(slot.doctorId);
+    const hadPatient = slot.patientId != null;
+
+    if (hadPatient && nextDoctorId !== oldDoctorId) {
+      const okDept = await doctorsShareDepartment(oldDoctorId, nextDoctorId, null);
+      if (!okDept) {
+        return res.status(400).json({
+          success: false,
+          message: 'Covering doctor must share a department with the current doctor',
+        });
+      }
+    }
+
+    const [conflict] = await sequelize.query(
+      `SELECT id FROM APPOINTMENT
+       WHERE doctor_id = :doctorId
+         AND time = :dt
+         AND status = 'scheduled'
+         AND id <> :id
+       LIMIT 1`,
+      { replacements: { doctorId: nextDoctorId, dt: dateTime, id }, type: QueryTypes.SELECT }
+    );
+    if (conflict?.id) {
+      return res.status(409).json({ success: false, message: 'That doctor already has a slot at this time' });
+    }
+
+    let oldDoctorLabel = '';
+    if (nextDoctorId !== oldDoctorId) {
+      const [od] = await sequelize.query(
+        `SELECT COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''),' ',COALESCE(u.last_name,''))), ''), a.username) AS name
+         FROM DOCTOR d
+         JOIN USER u ON u.id = d.user_id
+         JOIN ACCOUNT a ON a.user_id = d.user_id
+         WHERE d.doctor_id = :did LIMIT 1`,
+        { replacements: { did: oldDoctorId }, type: QueryTypes.SELECT }
+      );
+      oldDoctorLabel = od?.name ? `Dr. ${String(od.name).trim()}` : `Doctor #${oldDoctorId}`;
+    }
+
     await sequelize.query(
       `UPDATE APPOINTMENT
        SET time = :time,
-           room_id = CASE WHEN :roomId IS NULL THEN room_id ELSE :roomId END
+           doctor_id = :doctorId,
+           room_id = :roomId
        WHERE id = :id`,
-      { replacements: { id, time: dateTime, roomId }, type: QueryTypes.UPDATE }
+      {
+        replacements: {
+          id,
+          time: dateTime,
+          doctorId: nextDoctorId,
+          roomId: nextRoomId,
+        },
+        type: QueryTypes.UPDATE,
+      }
     );
+
+    if (hadPatient && nextDoctorId !== oldDoctorId) {
+      const [nd] = await sequelize.query(
+        `SELECT COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''),' ',COALESCE(u.last_name,''))), ''), a.username) AS name
+         FROM DOCTOR d
+         JOIN USER u ON u.id = d.user_id
+         JOIN ACCOUNT a ON a.user_id = d.user_id
+         WHERE d.doctor_id = :did LIMIT 1`,
+        { replacements: { did: nextDoctorId }, type: QueryTypes.SELECT }
+      );
+      const newDoctorLabel = nd?.name ? `Dr. ${String(nd.name).trim()}` : `Doctor #${nextDoctorId}`;
+      const [depRow] = await sequelize.query(
+        `SELECT COALESCE(NULLIF(TRIM(dep.name), ''), '') AS depName
+         FROM APPOINTMENT a
+         JOIN CLINIC_ROOM cr ON cr.id = a.room_id
+         LEFT JOIN DEPARTMENT dep ON dep.id = cr.department_id
+         WHERE a.id = :id LIMIT 1`,
+        { replacements: { id }, type: QueryTypes.SELECT }
+      );
+      const dateVi = date.split('-').reverse().join('/');
+      const timeVi = time;
+      await notifyPatientAppointmentDoctorReassigned(sequelize, {
+        patientId: Number(slot.patientId),
+        dateVi,
+        timeVi,
+        department: depRow?.depName || '',
+        oldDoctorName: oldDoctorLabel,
+        newDoctorName: newDoctorLabel,
+      });
+    }
+
+    if (nextDoctorId !== oldDoctorId) {
+      await notifyDoctorReceivedCoverAppointment(sequelize, {
+        appointmentId: id,
+        previousDoctorLabel: oldDoctorLabel,
+      });
+    }
+
     return res.json({ success: true, id, date, time });
   } catch (error) {
     console.error('Update open slot error:', error);
@@ -1016,28 +1179,67 @@ exports.deleteOpenSlot = async (req, res) => {
 };
 
 exports.createAppointment = async (req, res) => {
+  const {
+    doctor,
+    department,
+    date,
+    time,
+    room,
+    symptoms,
+    notes,
+    rescheduleFromAppointmentId,
+    rescheduleFromId,
+  } = req.body;
+  const userId = req.user.userId;
+
+  if (!doctor || !department || !date || !time) {
+    return res.status(400).json({ message: 'Missing required fields' });
+  }
+
+  let patientId;
+  let doctorRow;
+  let dateTime;
+  let roomId;
+  let id;
+
+  const rescheduleFrom = Number(rescheduleFromAppointmentId ?? rescheduleFromId);
+  const useReschedule = Number.isFinite(rescheduleFrom) && rescheduleFrom > 0;
+  const t = useReschedule ? await sequelize.transaction() : null;
+  const qopt = (o) => (t ? { ...o, transaction: t } : o);
+
   try {
-    const { doctor, department, date, time, room, symptoms, notes } = req.body;
-    const userId = req.user.userId;
-    
-    if (!doctor || !department || !date || !time) {
-      return res.status(400).json({ message: 'Missing required fields' });
-    }
-    const patientId = await getPatientIdByUserId(userId);
+    patientId = await getPatientIdByUserId(userId);
     if (!patientId) {
+      if (t) await t.rollback();
       return res.status(400).json({ message: 'Patient profile not found' });
     }
-    const doctorRow = await getDoctorByInput(doctor);
+
+    if (useReschedule) {
+      const [fc] = await sequelize.query(
+        `SELECT id, patient_id AS patientId FROM APPOINTMENT
+         WHERE id = :fid AND patient_id = :patientId AND status = 'scheduled' LIMIT 1`,
+        qopt({ replacements: { fid: rescheduleFrom, patientId }, type: QueryTypes.SELECT })
+      );
+      if (!fc) {
+        await t.rollback();
+        return res.status(400).json({
+          message: 'Original appointment not found or cannot be rescheduled',
+        });
+      }
+    }
+
+    doctorRow = await getDoctorByInput(doctor);
     if (!doctorRow) {
+      if (t) await t.rollback();
       return res.status(400).json({ message: 'Doctor not found' });
     }
-    const dateTime = `${date} ${String(time).slice(0, 8)}`;
-    let roomId = null;
+    dateTime = `${date} ${String(time).slice(0, 8)}`;
+    roomId = null;
     const normalizedRoomName = String(room || '').trim().replace(/^room\s+/i, '');
     if (normalizedRoomName) {
       const r = await sequelize.query(
         'SELECT id FROM CLINIC_ROOM WHERE name = :name LIMIT 1',
-        { replacements: { name: normalizedRoomName }, type: QueryTypes.SELECT }
+        qopt({ replacements: { name: normalizedRoomName }, type: QueryTypes.SELECT })
       );
       roomId = r[0]?.id || null;
     }
@@ -1045,66 +1247,85 @@ exports.createAppointment = async (req, res) => {
       roomId = doctorRow.room_id || null;
     }
     if (!roomId) {
-      // APPOINTMENT.room_id is NOT NULL in schema; fallback to any available room
-      const fallback = await sequelize.query(
-        'SELECT id FROM CLINIC_ROOM LIMIT 1',
-        { type: QueryTypes.SELECT }
-      );
+      const fallback = await sequelize.query('SELECT id FROM CLINIC_ROOM LIMIT 1', qopt({ type: QueryTypes.SELECT }));
       roomId = fallback[0]?.id || null;
     }
     if (!roomId) {
+      if (t) await t.rollback();
       return res.status(400).json({ message: 'No clinic room available to schedule appointment' });
     }
     const exists = await sequelize.query(
       `SELECT id FROM APPOINTMENT
        WHERE doctor_id = :doctorId AND room_id = :roomId AND time = :dt AND status = 'scheduled'
        LIMIT 1`,
-      {
+      qopt({
         replacements: { doctorId: doctorRow.doctor_id, roomId, dt: dateTime },
-        type: QueryTypes.SELECT
-      }
+        type: QueryTypes.SELECT,
+      })
     );
     const existingSlot = exists[0] || null;
-    let id;
     if (existingSlot?.id) {
       const [slotRow] = await sequelize.query(
         'SELECT id, patient_id AS patientId FROM APPOINTMENT WHERE id = :id LIMIT 1',
-        { replacements: { id: existingSlot.id }, type: QueryTypes.SELECT }
+        qopt({ replacements: { id: existingSlot.id }, type: QueryTypes.SELECT })
       );
       if (slotRow?.patientId) {
+        if (t) await t.rollback();
         return res.status(409).json({ message: 'This time slot is already booked. Please choose another time.' });
       }
       await sequelize.query(
         `UPDATE APPOINTMENT
          SET patient_id = :patientId, \`condition\` = :condition, status = 'scheduled'
          WHERE id = :id`,
-        {
+        qopt({
           replacements: {
             id: existingSlot.id,
             patientId,
             condition: symptoms || notes || 'General consultation',
           },
           type: QueryTypes.UPDATE,
-        }
+        })
       );
       id = existingSlot.id;
     } else {
       const [newId] = await sequelize.query(
         `INSERT INTO APPOINTMENT (time, status, \`condition\`, patient_id, doctor_id, room_id, regimen_id)
          VALUES (:time, 'scheduled', :condition, :patientId, :doctorId, :roomId, NULL)`,
-        {
+        qopt({
           replacements: {
             time: dateTime,
             condition: symptoms || notes || 'General consultation',
             patientId,
             doctorId: doctorRow.doctor_id,
-            roomId
+            roomId,
           },
-          type: QueryTypes.INSERT
-        }
+          type: QueryTypes.INSERT,
+        })
       );
       id = newId;
     }
+
+    if (useReschedule) {
+      if (Number(id) === rescheduleFrom) {
+        await t.rollback();
+        return res.status(400).json({ message: 'Choose a different time slot to reschedule' });
+      }
+      await sequelize.query(
+        `UPDATE APPOINTMENT SET patient_id = NULL, \`condition\` = 'Open slot'
+         WHERE id = :fid AND patient_id = :patientId`,
+        qopt({
+          replacements: { fid: rescheduleFrom, patientId },
+          type: QueryTypes.UPDATE,
+        })
+      );
+      await t.commit();
+      await notifyDoctorsAfterPatientReschedule(sequelize, {
+        fromAppointmentId: rescheduleFrom,
+        toAppointmentId: id,
+        patientId,
+      });
+    }
+
     await notifyDoctorPatientBooked(sequelize, id);
     res.status(201).json({
       success: true,
@@ -1117,10 +1338,11 @@ exports.createAppointment = async (req, res) => {
         room: room || '',
         symptoms: symptoms || '',
         notes: notes || '',
-        status: 'Upcoming'
-      }
+        status: 'Upcoming',
+      },
     });
   } catch (error) {
+    if (t) await t.rollback();
     console.error('Create appointment error:', error);
     res.status(500).json({ message: 'Internal server error', error: error.message });
   }
@@ -1139,7 +1361,7 @@ exports.getAppointments = async (req, res) => {
          TIME(a.time) AS time,
          a.status,
          a.\`condition\` AS symptoms,
-         d.specifications AS department,
+         COALESCE(NULLIF(TRIM(dep.name), ''), NULLIF(TRIM(d.specifications), ''), '') AS department,
          cr.name AS room,
          COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), acc.username) AS doctor
        FROM APPOINTMENT a
@@ -1147,6 +1369,7 @@ exports.getAppointments = async (req, res) => {
        JOIN ACCOUNT acc ON acc.user_id = d.user_id
        JOIN USER u ON u.id = d.user_id
        LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id
+       LEFT JOIN DEPARTMENT dep ON dep.id = cr.department_id
        WHERE a.patient_id = :patientId
        ORDER BY a.time DESC`,
       { replacements: { patientId }, type: QueryTypes.SELECT }
@@ -1192,7 +1415,7 @@ exports.getPatientDashboardSummary = async (req, res) => {
            a.id,
            DATE(a.time) AS date,
            TIME(a.time) AS time,
-           d.specifications AS department,
+           COALESCE(NULLIF(TRIM(dep.name), ''), NULLIF(TRIM(d.specifications), ''), '') AS department,
            cr.name AS room,
            COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), acc.username) AS doctor
          FROM APPOINTMENT a
@@ -1200,6 +1423,7 @@ exports.getPatientDashboardSummary = async (req, res) => {
          JOIN USER u ON u.id = d.user_id
          JOIN ACCOUNT acc ON acc.user_id = d.user_id
          LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id
+         LEFT JOIN DEPARTMENT dep ON dep.id = cr.department_id
          WHERE a.patient_id = :patientId
            AND a.status = 'scheduled'
            AND a.time >= NOW()
@@ -1292,7 +1516,7 @@ exports.getPatientDashboardSummary = async (req, res) => {
            DATE(a.time) AS date,
            TIME(a.time) AS time,
            a.status,
-           d.specifications AS department,
+           COALESCE(NULLIF(TRIM(dep.name), ''), NULLIF(TRIM(d.specifications), ''), '') AS department,
            cr.name AS room,
            COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), acc.username) AS doctor
          FROM APPOINTMENT a
@@ -1300,6 +1524,7 @@ exports.getPatientDashboardSummary = async (req, res) => {
          JOIN USER u ON u.id = d.user_id
          JOIN ACCOUNT acc ON acc.user_id = d.user_id
          LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id
+         LEFT JOIN DEPARTMENT dep ON dep.id = cr.department_id
          WHERE a.patient_id = :patientId
            AND a.time >= NOW()
          ORDER BY a.time ASC
@@ -1418,6 +1643,16 @@ function mapMedicalRecordToVitals(r) {
     symptomsNote: r.condition || '',
     status: r.status || '',
   };
+}
+
+function normalizeJsonColumn(val) {
+  if (val == null) return null;
+  if (typeof val === 'object' && !Buffer.isBuffer(val)) return val;
+  try {
+    return JSON.parse(String(val));
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -1662,16 +1897,6 @@ exports.getPatientMedicalRegimens = async (req, res) => {
     const regimenIds = regimenRows.map((x) => Number(x.regimenId)).filter((id) => Number.isFinite(id));
     const idCsv = regimenIds.join(',');
 
-    const normalizeJsonColumn = (val) => {
-      if (val == null) return null;
-      if (typeof val === 'object' && !Buffer.isBuffer(val)) return val;
-      try {
-        return JSON.parse(String(val));
-      } catch {
-        return null;
-      }
-    };
-
     const hospitalTransferRows = await sequelize.query(
       `SELECT t.regimen_id AS regimenId,
               tr.order_id AS orderId,
@@ -1705,6 +1930,55 @@ exports.getPatientMedicalRegimens = async (req, res) => {
         toHospitalName: row.toHospitalName || '',
         transport: row.transport || null,
         formPayload: normalizeJsonColumn(row.formPayload),
+      });
+    }
+
+    const trackingSlipRows = await sequelize.query(
+      `SELECT
+         t.regimen_id AS regimenId,
+         o.id AS orderId,
+         t.time AS createdAt,
+         COALESCE(
+           NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''),
+           acc.username,
+           NULL
+         ) AS createdByDoctor,
+         p.note AS payload
+       FROM TREATMENT t
+       JOIN \`ORDER\` o ON o.treatment_id = t.id
+       JOIN PROCEDURE_ p ON p.order_id = o.id
+       LEFT JOIN DOCTOR d ON d.doctor_id = p.doctor_id
+       LEFT JOIN \`USER\` u ON u.id = d.user_id
+       LEFT JOIN ACCOUNT acc ON acc.user_id = d.user_id
+       WHERE t.regimen_id IN (${idCsv})
+         AND p.type = 'HEALTH_TRACKING_SLIP'
+       ORDER BY t.time ASC, o.id ASC`,
+      { type: QueryTypes.SELECT }
+    );
+
+    const trackingSlipsByRegimen = new Map();
+    for (const row of trackingSlipRows || []) {
+      const rid = Number(row.regimenId);
+      if (!Number.isFinite(rid)) continue;
+      if (!trackingSlipsByRegimen.has(rid)) trackingSlipsByRegimen.set(rid, []);
+      const payload = normalizeJsonColumn(row.payload);
+      const rows = Array.isArray(payload?.rows) ? payload.rows : [];
+      trackingSlipsByRegimen.get(rid).push({
+        orderId: Number(row.orderId),
+        createdAt: row.createdAt,
+        createdByDoctor: row.createdByDoctor || null,
+        rows: rows.map((r) => ({
+          id: Number(r?.id) || 0,
+          updatedAt: r?.updatedAt || r?.time || row.createdAt,
+          bloodPressure: r?.bloodPressure || '',
+          pulse: Number(r?.pulse) || 0,
+          temperature: Number(r?.temperature) || 0,
+          weight: Number(r?.weight) || 0,
+          respiratoryRate: Number(r?.respiratoryRate) || 0,
+          spo2: Number(r?.spo2) || 0,
+          symptoms: r?.symptoms || '',
+        })),
+        formPayload: payload,
       });
     }
 
@@ -1943,6 +2217,7 @@ exports.getPatientMedicalRegimens = async (req, res) => {
         labTests,
         surgeries,
         hospitalTransfers: hospitalTransfersByRegimen.get(rid) || [],
+        healthTrackingSlips: trackingSlipsByRegimen.get(rid) || [],
       };
     });
 
@@ -2137,11 +2412,12 @@ const NURSE_APPT_SELECT = `
 exports.getNurseCheckInOptions = async (req, res) => {
   try {
     if (!assertNurseOrAdmin(req, res)) return;
-    const patientId = parseNursePatientId(req.query.patientId);
-    if (!patientId) {
+    const n = parseNursePatientId(req.query.patientId);
+    if (!n) {
       return res.status(400).json({ success: false, message: 'patientId is required' });
     }
-    if (!(await nursePatientExists(patientId))) {
+    const patientId = await resolveNursePatientPkFromNumeric(n);
+    if (!patientId) {
       return res.status(404).json({ success: false, message: 'Patient not found' });
     }
 
@@ -2185,12 +2461,13 @@ exports.getNurseCheckInOptions = async (req, res) => {
 exports.postNurseCheckInAccept = async (req, res) => {
   try {
     if (!assertNurseOrAdmin(req, res)) return;
-    const patientId = parseNursePatientId(req.body?.patientId);
+    const nAccept = parseNursePatientId(req.body?.patientId);
     const appointmentId = Number(req.body?.appointmentId);
-    if (!patientId || !Number.isFinite(appointmentId)) {
+    if (!nAccept || !Number.isFinite(appointmentId)) {
       return res.status(400).json({ success: false, message: 'patientId and appointmentId are required' });
     }
-    if (!(await nursePatientExists(patientId))) {
+    const patientId = await resolveNursePatientPkFromNumeric(nAccept);
+    if (!patientId) {
       return res.status(404).json({ success: false, message: 'Patient not found' });
     }
 
@@ -2232,13 +2509,14 @@ exports.postNurseCheckInAccept = async (req, res) => {
 exports.postNurseCheckInAssign = async (req, res) => {
   try {
     if (!assertNurseOrAdmin(req, res)) return;
-    const patientId = parseNursePatientId(req.body?.patientId);
+    const nAssign = parseNursePatientId(req.body?.patientId);
     const appointmentId = Number(req.body?.appointmentId);
     const condition = String(req.body?.condition || 'Nurse walk-in check-in').trim() || 'Nurse walk-in check-in';
-    if (!patientId || !Number.isFinite(appointmentId)) {
+    if (!nAssign || !Number.isFinite(appointmentId)) {
       return res.status(400).json({ success: false, message: 'patientId and appointmentId are required' });
     }
-    if (!(await nursePatientExists(patientId))) {
+    const patientId = await resolveNursePatientPkFromNumeric(nAssign);
+    if (!patientId) {
       return res.status(404).json({ success: false, message: 'Patient not found' });
     }
 
@@ -2305,10 +2583,10 @@ exports.postNurseCheckInAssign = async (req, res) => {
 exports.postNurseCheckInReschedule = async (req, res) => {
   try {
     if (!assertNurseOrAdmin(req, res)) return;
-    const patientId = parseNursePatientId(req.body?.patientId);
+    const nRe = parseNursePatientId(req.body?.patientId);
     const fromAppointmentId = Number(req.body?.fromAppointmentId);
     const toAppointmentId = Number(req.body?.toAppointmentId);
-    if (!patientId || !Number.isFinite(fromAppointmentId) || !Number.isFinite(toAppointmentId)) {
+    if (!nRe || !Number.isFinite(fromAppointmentId) || !Number.isFinite(toAppointmentId)) {
       return res.status(400).json({
         success: false,
         message: 'patientId, fromAppointmentId and toAppointmentId are required',
@@ -2317,7 +2595,8 @@ exports.postNurseCheckInReschedule = async (req, res) => {
     if (fromAppointmentId === toAppointmentId) {
       return res.status(400).json({ success: false, message: 'Cannot reschedule to the same slot' });
     }
-    if (!(await nursePatientExists(patientId))) {
+    const patientId = await resolveNursePatientPkFromNumeric(nRe);
+    if (!patientId) {
       return res.status(404).json({ success: false, message: 'Patient not found' });
     }
 
@@ -2424,10 +2703,14 @@ exports.postNurseCheckInReschedule = async (req, res) => {
 exports.postNurseRegimenCheckout = async (req, res) => {
   try {
     if (!assertNurseOrAdmin(req, res)) return;
-    const patientId = parseNursePatientId(req.body?.patientId);
+    const nCo = parseNursePatientId(req.body?.patientId);
     const regimenId = Number(req.body?.regimenId);
-    if (!patientId || !Number.isFinite(regimenId)) {
+    if (!nCo || !Number.isFinite(regimenId)) {
       return res.status(400).json({ success: false, message: 'patientId and regimenId are required' });
+    }
+    const patientId = await resolveNursePatientPkFromNumeric(nCo);
+    if (!patientId) {
+      return res.status(404).json({ success: false, message: 'Patient not found' });
     }
 
     const [active] = await sequelize.query(

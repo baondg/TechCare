@@ -66,10 +66,13 @@ export interface Patient {
 
 export interface PatientDetail extends Patient {
   latestDiagnosis: { icd10: string; interpretation: string; department: string } | null;
+  dateOfBirth?: string | null;
   /** From PATIENT.in_department (enum in DB) */
   inDepartment?: string | null;
   /** HEALTH_INSURANCE.id */
   healthInsuranceId?: string | null;
+  /** HEALTH_INSURANCE.expired_date */
+  healthInsuranceExpiredDate?: string | null;
   bloodType: string | null;
   bmi: number | null;
 }
@@ -176,6 +179,11 @@ export interface TechnicianOption {
   technicianName: string
 }
 
+export interface DepartmentOption {
+  id: number
+  name: string
+}
+
 export interface LabTestDetail {
   testId: number
   no: number
@@ -207,6 +215,8 @@ export interface DoctorAppointment {
   id: number;
   userId: number;
   doctor: string;
+  /** Current assignee (same as logged-in doctor on this list) */
+  assignedDoctorId?: number;
   department: string;
   date: string;
   time: string;
@@ -279,6 +289,13 @@ export const doctorService = {
     }>(`${API_BASE_URL}/api/doctor/patients/${patientId}/regimen/active`);
   },
 
+  async getDepartments() {
+    return apiRequest<{
+      success: boolean
+      departments: DepartmentOption[]
+    }>(`${API_BASE_URL}/api/doctor/departments`)
+  },
+
   async closeOpenVisitRegimen(patientId: number | string) {
     return apiRequest<{ success: boolean; regimenId: number }>(
       `${API_BASE_URL}/api/doctor/patients/${patientId}/regimen/close`,
@@ -344,6 +361,23 @@ export const doctorService = {
           transport: string | null;
           formPayload: Record<string, unknown> | null;
         }>;
+        healthTrackingSlips: Array<{
+          orderId: number;
+          createdAt: string;
+          createdByDoctor: string | null;
+          rows: Array<{
+            id: number;
+            updatedAt: string;
+            bloodPressure: string;
+            pulse: number;
+            temperature: number;
+            weight: number;
+            respiratoryRate: number;
+            spo2: number;
+            symptoms: string;
+          }>;
+          formPayload: Record<string, unknown> | null;
+        }>;
       };
     }>(`${API_BASE_URL}/api/doctor/patients/${patientId}/regimen/active/documents`);
   },
@@ -355,6 +389,7 @@ export const doctorService = {
     return (data.regimens ?? []).map((r) => ({
       ...r,
       hospitalTransfers: Array.isArray(r.hospitalTransfers) ? r.hospitalTransfers : [],
+      healthTrackingSlips: Array.isArray((r as any).healthTrackingSlips) ? (r as any).healthTrackingSlips : [],
     }));
   },
 
@@ -699,12 +734,44 @@ export const doctorService = {
     });
   },
 
+  async addHealthTrackingSlipToMedicalRecord(
+    patientId: number | string,
+    data: {
+      recordIds: number[];
+      note?: string;
+      ms?: string;
+      admissionNo?: string;
+    }
+  ) {
+    return apiRequest<{
+      success: boolean;
+      slip: {
+        orderId: number;
+        regimenId: number;
+        rowsCount: number;
+      };
+    }>(`${API_BASE_URL}/api/doctor/patients/${encodeURIComponent(String(patientId))}/health-tracking-slips`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
   async cancelAppointment(id: number) {
     return apiRequest<{
       success: boolean;
       appointment: DoctorAppointment;
     }>(`${API_BASE_URL}/api/doctor/appointments/${id}/cancel`, {
       method: 'PUT',
+    });
+  },
+
+  async coverAppointment(appointmentId: number, coverDoctorId: number) {
+    return apiRequest<{
+      success: boolean;
+      appointment: { id: number; doctorId: number; roomId: number };
+    }>(`${API_BASE_URL}/api/doctor/appointments/${appointmentId}/cover`, {
+      method: 'PUT',
+      body: JSON.stringify({ coverDoctorId }),
     });
   },
 

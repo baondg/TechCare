@@ -1,6 +1,7 @@
 const { Op, QueryTypes } = require('sequelize');
 const sequelize = require('../common/database');
 const {
+  isUnknownColumnError,
   selectPrescriptionRowsWithDurationFallback,
   insertMedicalPrescriptionCompat,
   insertPrescriptionDetailCompat,
@@ -10,6 +11,8 @@ const {
 const {
   notifyPatientDoctorCover,
   notifyDepartmentDoctorsInboundClinicTransfer,
+  notifyPatientAppointmentDoctorReassigned,
+  notifyDoctorReceivedCoverAppointment,
 } = require('../services/appointmentNotifications');
 const fs = require('fs');
 const path = require('path');
@@ -78,6 +81,128 @@ const normalizeMedicalRecordStatus = (value) => {
   return 'draft';
 };
 
+function parseOptionalIntHealth(v) {
+  if (v === undefined || v === null || v === '') return null;
+  const n = parseInt(String(v), 10);
+  return Number.isFinite(n) ? n : null;
+}
+
+function parseOptionalFloatHealth(v) {
+  if (v === undefined || v === null || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Map client health-info body → MEDICAL_RECORD columns (create). */
+function coerceMedicalRecordCreatePayload(body) {
+  const b = body && typeof body === 'object' ? body : {};
+  const condition =
+    String(b.condition ?? b.currentSymptoms ?? b.symptoms ?? '').trim() || 'No symptoms recorded';
+  const time = b.time ? new Date(b.time) : new Date();
+  if (Number.isNaN(time.getTime())) {
+    const err = new Error('Invalid time');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const height = Number(b.height);
+  const weight = Number(b.weight);
+  if (!Number.isFinite(height) || height < 0.1) {
+    const err = new Error('Height is required and must be a positive number');
+    err.statusCode = 400;
+    throw err;
+  }
+  if (!Number.isFinite(weight) || weight < 0.1) {
+    const err = new Error('Weight is required and must be a positive number');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const sys = b.bloodPressureSys ?? b.blood_pressure_sys;
+  const dia = b.bloodPressureDia ?? b.blood_pressure_dia;
+  let blood_pressure =
+    b.blood_pressure != null && String(b.blood_pressure).trim() !== '' ? String(b.blood_pressure) : null;
+  if (!blood_pressure && sys != null && sys !== '' && dia != null && dia !== '') {
+    blood_pressure = `${sys}/${dia}`;
+  }
+
+  return {
+    time,
+    condition,
+    height,
+    weight,
+    blood_pressure,
+    heart_rate: parseOptionalIntHealth(b.heartRate ?? b.heart_rate),
+    respiratory_rate: parseOptionalIntHealth(b.respiratoryRate ?? b.respiratory_rate),
+    temperature: parseOptionalFloatHealth(b.temperature),
+    spo2: parseOptionalFloatHealth(b.spo2),
+    status: normalizeMedicalRecordStatus(b.status),
+  };
+}
+
+/** Partial map for MEDICAL_RECORD update (draft only). */
+function coerceMedicalRecordUpdatePayload(body) {
+  const b = body && typeof body === 'object' ? body : {};
+  const out = {};
+  if (b.condition != null || b.currentSymptoms != null || b.symptoms != null) {
+    const c = String(b.condition ?? b.currentSymptoms ?? b.symptoms ?? '').trim();
+    if (c) out.condition = c;
+  }
+  if (b.time != null && b.time !== '') {
+    const t = new Date(b.time);
+    if (!Number.isNaN(t.getTime())) out.time = t;
+  }
+  if (b.height != null && b.height !== '') {
+    const h = Number(b.height);
+    if (Number.isFinite(h) && h >= 0.1) out.height = h;
+  }
+  if (b.weight != null && b.weight !== '') {
+    const w = Number(b.weight);
+    if (Number.isFinite(w) && w >= 0.1) out.weight = w;
+  }
+  const sys = b.bloodPressureSys ?? b.blood_pressure_sys;
+  const dia = b.bloodPressureDia ?? b.blood_pressure_dia;
+  if (b.blood_pressure != null && String(b.blood_pressure).trim() !== '') {
+    out.blood_pressure = String(b.blood_pressure);
+  } else if (sys != null && sys !== '' && dia != null && dia !== '') {
+    out.blood_pressure = `${sys}/${dia}`;
+  }
+  const hr = parseOptionalIntHealth(b.heartRate ?? b.heart_rate);
+  if (hr != null) out.heart_rate = hr;
+  const rr = parseOptionalIntHealth(b.respiratoryRate ?? b.respiratory_rate);
+  if (rr != null) out.respiratory_rate = rr;
+  const temp = parseOptionalFloatHealth(b.temperature);
+  if (temp != null) out.temperature = temp;
+  const sp = parseOptionalFloatHealth(b.spo2);
+  if (sp != null) out.spo2 = sp;
+  if (b.status != null) out.status = normalizeMedicalRecordStatus(b.status);
+  return out;
+}
+
+function normalizeJsonColumn(val) {
+  if (val == null) return null;
+  if (typeof val === 'object' && !Buffer.isBuffer(val)) return val;
+  try {
+    return JSON.parse(String(val));
+  } catch {
+    return null;
+  }
+}
+
+function mapMedicalRecordRowToTrackingRow(row) {
+  return {
+    id: Number(row.id),
+    updatedAt: row.time,
+    bloodPressure: row.blood_pressure || '',
+    pulse: Number(row.heart_rate) || 0,
+    temperature: Number(row.temperature) || 0,
+    weight: Number(row.weight) || 0,
+    respiratoryRate: Number(row.respiratory_rate) || 0,
+    spo2: Number(row.spo2) || 0,
+    symptoms: row.condition || '',
+  };
+}
+
 async function getDoctorIdByUserId(userId, transaction) {
   const row = await sequelize.query(
     'SELECT doctor_id FROM DOCTOR WHERE user_id = :userId LIMIT 1',
@@ -86,7 +211,26 @@ async function getDoctorIdByUserId(userId, transaction) {
   return row[0]?.doctor_id || null;
 }
 
-/** Prefer logged-in user's DOCTOR row; else latest treating doctor for patient (user may lack DOCTOR row). */
+/** Scheduled / past appointments — lets technicians attach lab orders before any TREATMENT row exists. */
+async function getDoctorIdFromPatientAppointments(patientPk, transaction) {
+  const qOpts = { type: QueryTypes.SELECT, ...(transaction ? { transaction } : {}) };
+  const [sched] = await sequelize.query(
+    `SELECT doctor_id AS doctorId FROM APPOINTMENT
+     WHERE patient_id = :patientPk AND status = 'scheduled'
+     ORDER BY \`time\` DESC LIMIT 1`,
+    { ...qOpts, replacements: { patientPk } }
+  );
+  if (sched?.doctorId != null) return Number(sched.doctorId);
+  const [any] = await sequelize.query(
+    `SELECT doctor_id AS doctorId FROM APPOINTMENT
+     WHERE patient_id = :patientPk
+     ORDER BY \`time\` DESC LIMIT 1`,
+    { ...qOpts, replacements: { patientPk } }
+  );
+  return any?.doctorId != null ? Number(any.doctorId) : null;
+}
+
+/** Prefer logged-in user's DOCTOR row; else latest treating doctor; else doctor on patient's appointment. */
 async function getDoctorIdForUserOrLatestForPatient(userId, patientId, transaction) {
   let doctorId = await getDoctorIdByUserId(userId, transaction);
   if (doctorId) return doctorId;
@@ -99,11 +243,12 @@ async function getDoctorIdForUserOrLatestForPatient(userId, patientId, transacti
      LIMIT 1`,
     { replacements: { patientId }, type: QueryTypes.SELECT, transaction }
   );
-  return latestDoctor[0]?.doctor_id || null;
+  if (latestDoctor[0]?.doctor_id) return latestDoctor[0].doctor_id;
+  return getDoctorIdFromPatientAppointments(patientId, transaction);
 }
 
 const MSG_NO_DOCTOR_OR_PRIOR_TREATMENT =
-  'Doctor profile not found and patient has no prior treatment to attach this record to. Link this account to a DOCTOR row or create a visit first.';
+  'No doctor could be resolved for this lab order: the patient needs a scheduled appointment or a prior visit (treatment), or the action must be done by a user linked to a doctor profile.';
 
 function normalizeMedicalPrescriptionDuration(value) {
   const n = Math.floor(Number(value));
@@ -115,6 +260,56 @@ function normalizePrescriptionLineDuration(value) {
   const n = Math.floor(Number(value));
   if (!Number.isFinite(n) || n < 1) return 7;
   return n;
+}
+
+/** MySQL INSERT raw query: first tuple element may be a number or ResultSetHeader. */
+function mysqlInsertId(v) {
+  if (v == null) return null;
+  if (typeof v === 'number' && Number.isFinite(v)) return v;
+  if (typeof v === 'object' && v.insertId != null) return Number(v.insertId);
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+const PRESCRIPTION_DETAIL_UNITS = new Set([
+  'tablet',
+  'capsule',
+  'syrup',
+  'injection',
+  'drop',
+  'cream',
+  'ointment',
+  'powder',
+  'spray',
+]);
+
+function normalizePrescriptionDetailUnit(raw) {
+  const s = String(raw || '')
+    .trim()
+    .toLowerCase();
+  if (PRESCRIPTION_DETAIL_UNITS.has(s)) return s;
+  if (s.includes('cap')) return 'capsule';
+  if (s.includes('tab') || s === 'viên') return 'tablet';
+  if (s.includes('syrup') || s.includes('siro')) return 'syrup';
+  if (s.includes('inj') || s.includes('inject') || s.includes('tiêm')) return 'injection';
+  if (s.includes('drop') || s.includes('nhỏ')) return 'drop';
+  if (s.includes('cream') || s.includes('kem')) return 'cream';
+  if (s.includes('oint') || s.includes('mỡ')) return 'ointment';
+  if (s.includes('powder') || s.includes('bột')) return 'powder';
+  if (s.includes('spray') || s.includes('xịt')) return 'spray';
+  return 'tablet';
+}
+
+function clampPrescriptionUsage(raw) {
+  const t = String(raw || '').trim() || 'Take as directed';
+  return t.length > 100 ? t.slice(0, 100) : t;
+}
+
+function clampPrescriptionNote(raw) {
+  if (raw == null || raw === '') return null;
+  const t = String(raw).trim();
+  if (!t) return null;
+  return t.length > 150 ? t.slice(0, 150) : t;
 }
 
 /** TREATMENT rows tied to ORDER + (SURGERY|TEST|Rx|TRANSFERENCE) are not clinical diagnoses. */
@@ -145,7 +340,7 @@ async function ensureDisease(icd10, interpretation, transaction) {
   );
   if (found[0]?.id) return found[0].id;
 
-  const [result] = await sequelize.query(
+  const [ins] = await sequelize.query(
     `INSERT INTO DISEASE (icd_code, description, category, symptoms)
      VALUES (:icd, :description, 'General', NULL)`,
     {
@@ -154,7 +349,9 @@ async function ensureDisease(icd10, interpretation, transaction) {
       transaction
     }
   );
-  return result;
+  const id = mysqlInsertId(ins);
+  if (id == null) throw new Error('Failed to insert DISEASE row');
+  return id;
 }
 
 async function ensureRegimen(patientId, diseaseId, transaction) {
@@ -166,12 +363,14 @@ async function ensureRegimen(patientId, diseaseId, transaction) {
   );
   if (found[0]?.id) return found[0].id;
 
-  const [result] = await sequelize.query(
+  const [ins] = await sequelize.query(
     `INSERT INTO REGIMEN (start, end, patient_id, disease_id)
      VALUES (NOW(), DATE_ADD(NOW(), INTERVAL 1 DAY), :patientId, :diseaseId)`,
     { replacements: { patientId, diseaseId }, type: QueryTypes.INSERT, transaction }
   );
-  return result;
+  const id = mysqlInsertId(ins);
+  if (id == null) throw new Error('Failed to insert REGIMEN row');
+  return id;
 }
 
 /** Nurse check-in leaves REGIMEN.end NULL until checkout — attach EMR orders to that encounter. */
@@ -191,24 +390,56 @@ async function createTreatmentForPatient({ patientId, doctorId, complaint, depar
   if (!regimenId) {
     regimenId = await ensureRegimen(patientId, diseaseId, transaction);
   }
-  const [treatmentId] = await sequelize.query(
-    `INSERT INTO TREATMENT (time, \`condition\`, type, regimen_id, doctor_id, room_id)
-     VALUES (NOW(), :complaint, :type, :regimenId, :doctorId, NULL)`,
-    {
-      replacements: {
-        complaint: complaint || 'General follow-up',
-        type: department || 'General',
-        regimenId,
-        doctorId
-      },
-      type: QueryTypes.INSERT,
-      transaction
-    }
-  );
-  return treatmentId;
+  const repl = {
+    complaint: complaint || 'General follow-up',
+    type: department || 'General',
+    regimenId,
+    doctorId,
+    diseaseId: diseaseId != null ? diseaseId : null,
+  };
+  try {
+    const [ins] = await sequelize.query(
+      `INSERT INTO TREATMENT (time, \`condition\`, type, regimen_id, doctor_id, room_id, disease_id)
+       VALUES (NOW(), :complaint, :type, :regimenId, :doctorId, NULL, :diseaseId)`,
+      { replacements: repl, type: QueryTypes.INSERT, transaction }
+    );
+    const tid = mysqlInsertId(ins);
+    if (tid == null) throw new Error('Failed to insert TREATMENT row');
+    return tid;
+  } catch (e) {
+    if (!isUnknownColumnError(e)) throw e;
+    const [ins] = await sequelize.query(
+      `INSERT INTO TREATMENT (time, \`condition\`, type, regimen_id, doctor_id, room_id)
+       VALUES (NOW(), :complaint, :type, :regimenId, :doctorId, NULL)`,
+      {
+        replacements: {
+          complaint: repl.complaint,
+          type: repl.type,
+          regimenId: repl.regimenId,
+          doctorId: repl.doctorId,
+        },
+        type: QueryTypes.INSERT,
+        transaction,
+      }
+    );
+    const tid = mysqlInsertId(ins);
+    if (tid == null) throw new Error('Failed to insert TREATMENT row');
+    return tid;
+  }
 }
 
-async function getLatestDiagnosisByPatientId(patientId) {
+/**
+ * Latest standalone diagnosis for a patient. `userOrPatientPk` may be USER.id or PATIENT.patient_id.
+ */
+async function getLatestDiagnosisByPatientId(userOrPatientPk) {
+  const n = Number(userOrPatientPk);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  const [mapRow] = await sequelize.query(
+    'SELECT patient_id AS pk FROM PATIENT WHERE user_id = :n OR patient_id = :n LIMIT 1',
+    { replacements: { n }, type: QueryTypes.SELECT }
+  );
+  const patientPk = mapRow?.pk != null ? Number(mapRow.pk) : null;
+  if (!patientPk) return null;
   const rows = await sequelize.query(
     `SELECT
        t.time AS visitTime,
@@ -219,15 +450,15 @@ async function getLatestDiagnosisByPatientId(patientId) {
        COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username, CONCAT('doctor#', d.user_id)) AS doctorName
      FROM TREATMENT t
      JOIN REGIMEN r ON r.id = t.regimen_id
-     LEFT JOIN DISEASE dis ON dis.id = r.disease_id
+     LEFT JOIN DISEASE dis ON dis.id = COALESCE(t.disease_id, r.disease_id)
      LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id
      LEFT JOIN USER u ON u.id = d.user_id
      LEFT JOIN ACCOUNT a ON a.user_id = d.user_id
-     WHERE r.patient_id = :patientId
+     WHERE r.patient_id = :patientPk
      ${SQL_AND_TREATMENT_IS_STANDALONE_DIAGNOSIS}
      ORDER BY t.time DESC
      LIMIT 1`,
-    { replacements: { patientId }, type: QueryTypes.SELECT }
+    { replacements: { patientPk }, type: QueryTypes.SELECT }
   );
   return rows[0] || null;
 }
@@ -329,17 +560,13 @@ exports.getPatients = async (req, res) => {
 
       const latestDiagnosis = await getLatestDiagnosisByPatientId(p.id);
 
-      // // Get latest appointment
-      // const latestAppointment = await Appointment.findOne({
-      //   where: { userId: p.id },
-      //   order: [['date', 'DESC'], ['time', 'DESC']]
-      // });
-
-      // Get latest health info
-      const healthInfo = await HealthInfo.findOne({
-        where: { patient_id: p.id },
-        order: [['time', 'DESC']]
-      });
+      const medicalRecordPatientId = await resolveCanonicalPatientIdFromEmrParam(String(p.id));
+      const healthInfo = medicalRecordPatientId
+        ? await HealthInfo.findOne({
+            where: { patient_id: medicalRecordPatientId },
+            order: [['time', 'DESC']],
+          })
+        : null;
 
       const doctorFullName = latestDiagnosis?.doctorName || null;
 
@@ -407,11 +634,13 @@ exports.getPatient = async (req, res) => {
 
     const latestDiagnosis = await getLatestDiagnosisByPatientId(p.id);
 
-    // Lấy health info mới nhất
-    const healthInfo = await HealthInfo.findOne({
-      where: { patient_id: p.id },
-      order: [['time', 'DESC']]
-    });
+    const medicalRecordPatientId = await resolveCanonicalPatientIdFromEmrParam(String(p.id));
+    const healthInfo = medicalRecordPatientId
+      ? await HealthInfo.findOne({
+          where: { patient_id: medicalRecordPatientId },
+          order: [['time', 'DESC']],
+        })
+      : null;
 
     let bmi = null;
       if (healthInfo) {
@@ -437,6 +666,7 @@ exports.getPatient = async (req, res) => {
 
     // HEALTH_INSURANCE.id based on PATIENT.patient_id (PATIENT.user_id = USER.id)
     let healthInsuranceId = null;
+    let healthInsuranceExpiredDate = null;
     try {
       const patRow = await Patient.findOne({
         where: { user_id: p.id },
@@ -445,14 +675,16 @@ exports.getPatient = async (req, res) => {
       const pid = patRow?.patient_id;
       if (pid) {
         const hiRows = await sequelize.query(
-          'SELECT id FROM HEALTH_INSURANCE WHERE patient_id = :pid LIMIT 1',
+          'SELECT id, expired_date FROM HEALTH_INSURANCE WHERE patient_id = :pid LIMIT 1',
           { replacements: { pid }, type: QueryTypes.SELECT }
         );
         healthInsuranceId = hiRows[0]?.id ?? null;
+        healthInsuranceExpiredDate = hiRows[0]?.expired_date ?? null;
       }
     } catch (e) {
       // Don't block patient fetch if insurance lookup fails
       healthInsuranceId = null;
+      healthInsuranceExpiredDate = null;
     }
 
     res.json({
@@ -463,6 +695,7 @@ exports.getPatient = async (req, res) => {
         firstName: p.first_name,
         lastName: p.last_name,
         gender: p.sex,
+        dateOfBirth: p.dob || null,
         age: calculateAge(p.dob),
         latestDiagnosis: latestDiagnosis ? {
           icd10: latestDiagnosis.icd10 || '',
@@ -475,6 +708,7 @@ exports.getPatient = async (req, res) => {
         inDeptId: deptRow?.inDeptId != null ? Number(deptRow.inDeptId) : null,
         bmi: bmi,
         healthInsuranceId: healthInsuranceId || null,
+        healthInsuranceExpiredDate: healthInsuranceExpiredDate || null,
         bloodType: healthInfo?.bloodType ?? null
       }
     });
@@ -496,6 +730,18 @@ async function resolveCanonicalPatientIdFromEmrParam(patientIdParam) {
   );
   if (rows[0]?.patient_id != null) return Number(rows[0].patient_id);
   return n;
+}
+
+/** PATIENT.patient_id PK from OP… / numeric route (no fallback to raw n if no row). */
+async function resolvePatientPkFromOpRoute(patientIdParam, transaction) {
+  const n = Number(String(patientIdParam || '').replace(/^OP0*/i, ''));
+  if (!Number.isFinite(n) || n <= 0) return null;
+  const qOpts = { replacements: { n }, type: QueryTypes.SELECT, ...(transaction ? { transaction } : {}) };
+  const [row] = await sequelize.query(
+    'SELECT patient_id AS id FROM PATIENT WHERE patient_id = :n OR user_id = :n LIMIT 1',
+    qOpts
+  );
+  return row?.id != null ? Number(row.id) : null;
 }
 
 /**
@@ -572,6 +818,131 @@ exports.closeOpenRegimenForPatient = async (req, res) => {
 };
 
 /**
+ * POST /api/doctor/patients/:patientId/health-tracking-slips
+ * Persist a "health tracking slip" document into current open regimen.
+ */
+exports.createHealthTrackingSlipForPatient = async (req, res) => {
+  const transaction = await sequelize.transaction();
+  try {
+    if (!['doctor', 'admin'].includes(req.user.role)) {
+      await transaction.rollback();
+      return res.status(403).json({ success: false, message: 'Only a doctor can add this document' });
+    }
+
+    const patientPk = await resolvePatientPkFromRouteParam(req.params.patientId, transaction);
+    if (!patientPk) {
+      await transaction.rollback();
+      return res.status(404).json({ success: false, message: 'Patient not found' });
+    }
+
+    const [open] = await sequelize.query(
+      `SELECT id AS regimenId
+       FROM REGIMEN
+       WHERE patient_id = :pid AND \`end\` IS NULL
+       ORDER BY \`start\` DESC, id DESC
+       LIMIT 1`,
+      { replacements: { pid: patientPk }, type: QueryTypes.SELECT, transaction }
+    );
+    if (!open) {
+      await transaction.rollback();
+      return res.status(400).json({ success: false, message: 'No active regimen found for this patient' });
+    }
+
+    const rawIds = Array.isArray(req.body?.recordIds) ? req.body.recordIds : [];
+    const recordIds = [...new Set(rawIds.map((x) => Number(x)).filter((n) => Number.isFinite(n) && n > 0))];
+    if (!recordIds.length) {
+      await transaction.rollback();
+      return res.status(400).json({ success: false, message: 'recordIds is required' });
+    }
+
+    const mrRows = await sequelize.query(
+      `SELECT id, time, \`condition\`, blood_pressure, heart_rate, temperature, weight, respiratory_rate, spo2
+       FROM MEDICAL_RECORD
+       WHERE patient_id = :patientId AND id IN (:recordIds)
+       ORDER BY time ASC`,
+      {
+        replacements: { patientId: patientPk, recordIds },
+        type: QueryTypes.SELECT,
+        transaction,
+      }
+    );
+    if (!mrRows.length) {
+      await transaction.rollback();
+      return res.status(400).json({ success: false, message: 'No matching health records found' });
+    }
+
+    const doctorId = await getDoctorIdForUserOrLatestForPatient(req.user.userId, patientPk, transaction);
+    if (!doctorId) {
+      await transaction.rollback();
+      return res.status(400).json({ success: false, message: MSG_NO_DOCTOR_OR_PRIOR_TREATMENT });
+    }
+
+    const diseaseId = await ensureDisease('Z00.0', 'General examination', transaction);
+    const treatmentId = await createTreatmentForPatient({
+      patientId: patientPk,
+      doctorId,
+      complaint: 'Health tracking slip',
+      department: 'Health info',
+      diseaseId,
+      transaction,
+    });
+
+    const [orderIns] = await sequelize.query(
+      'INSERT INTO `ORDER` (status, treatment_id) VALUES (:status, :treatmentId)',
+      {
+        replacements: { status: 'active', treatmentId },
+        type: QueryTypes.INSERT,
+        transaction,
+      }
+    );
+    const orderId = mysqlInsertId(orderIns);
+    if (orderId == null) {
+      await transaction.rollback();
+      return res.status(500).json({ success: false, message: 'Failed to create order for health tracking slip' });
+    }
+
+    const payload = {
+      version: 1,
+      createdAt: new Date().toISOString(),
+      ms: req.body?.ms != null ? String(req.body.ms).trim() : '',
+      admissionNo: req.body?.admissionNo != null ? String(req.body.admissionNo).trim() : '',
+      note: req.body?.note != null ? String(req.body.note).trim() : '',
+      recordIds: mrRows.map((r) => Number(r.id)),
+      rows: mrRows.map(mapMedicalRecordRowToTrackingRow),
+    };
+
+    await sequelize.query(
+      `INSERT INTO PROCEDURE_ (order_id, note, technician_id, doctor_id, room_id, type)
+       VALUES (:orderId, :note, NULL, :doctorId, NULL, :type)`,
+      {
+        replacements: {
+          orderId,
+          note: JSON.stringify(payload),
+          doctorId,
+          type: 'HEALTH_TRACKING_SLIP',
+        },
+        type: QueryTypes.INSERT,
+        transaction,
+      }
+    );
+
+    await transaction.commit();
+    return res.status(201).json({
+      success: true,
+      slip: {
+        orderId: Number(orderId),
+        regimenId: Number(open.regimenId),
+        rowsCount: mrRows.length,
+      },
+    });
+  } catch (error) {
+    await transaction.rollback();
+    console.error('createHealthTrackingSlipForPatient error:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+  }
+};
+
+/**
  * GET /api/doctor/patients/:patientId/regimen/active/documents
  * Doctor view: aggregate papers/orders in the currently open REGIMEN.
  * Used by Finish examination step 2/2 review.
@@ -600,30 +971,20 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
     }
     const regimenId = Number(open.regimenId);
 
-    const normalizeJsonColumn = (val) => {
-      if (val == null) return null;
-      if (typeof val === 'object' && !Buffer.isBuffer(val)) return val;
-      try {
-        return JSON.parse(String(val));
-      } catch {
-        return null;
-      }
-    };
-
-    const [treatments, rxRows, labRows, surgeryRows, hospitalTransferRows] = await Promise.all([
+    const [treatments, rxRows, labRows, surgeryRows, hospitalTransferRows, trackingSlipRows] = await Promise.all([
       sequelize.query(
         `SELECT
            t.id AS treatmentId,
            t.time AS visitAt,
            t.type AS department,
-           t.\`condition\` AS complaint,
-           dis.icd_code AS icd10,
-           dis.description AS interpretation,
-           COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), acc.username, CONCAT('doctor#', d.user_id)) AS doctorName,
+         t.\`condition\` AS complaint,
+         dis.icd_code AS icd10,
+         dis.description AS interpretation,
+         COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), acc.username, CONCAT('doctor#', d.user_id)) AS doctorName,
            cr.name AS roomName
          FROM TREATMENT t
          JOIN REGIMEN r ON r.id = t.regimen_id
-         LEFT JOIN DISEASE dis ON dis.id = r.disease_id
+         LEFT JOIN DISEASE dis ON dis.id = COALESCE(t.disease_id, r.disease_id)
          LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id
          LEFT JOIN \`USER\` u ON u.id = d.user_id
          LEFT JOIN ACCOUNT acc ON acc.user_id = d.user_id
@@ -735,6 +1096,27 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
          ORDER BY tr.time ASC`,
         { replacements: { regimenId }, type: QueryTypes.SELECT }
       ),
+      sequelize.query(
+        `SELECT
+           o.id AS orderId,
+           t.time AS createdAt,
+           COALESCE(
+             NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''),
+             acc.username,
+             NULL
+           ) AS createdByDoctor,
+           p.note AS payload
+         FROM TREATMENT t
+         JOIN \`ORDER\` o ON o.treatment_id = t.id
+         JOIN PROCEDURE_ p ON p.order_id = o.id
+         LEFT JOIN DOCTOR d ON d.doctor_id = p.doctor_id
+         LEFT JOIN \`USER\` u ON u.id = d.user_id
+         LEFT JOIN ACCOUNT acc ON acc.user_id = d.user_id
+         WHERE t.regimen_id = :regimenId
+           AND p.type = 'HEALTH_TRACKING_SLIP'
+         ORDER BY t.time ASC, o.id ASC`,
+        { replacements: { regimenId }, type: QueryTypes.SELECT }
+      ),
     ]);
 
     const rxByOrder = new Map();
@@ -770,6 +1152,28 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
       formPayload: normalizeJsonColumn(row.formPayload),
     }));
 
+    const healthTrackingSlips = (trackingSlipRows || []).map((row) => {
+      const payload = normalizeJsonColumn(row.payload);
+      const rows = Array.isArray(payload?.rows) ? payload.rows : [];
+      return {
+        orderId: Number(row.orderId),
+        createdAt: row.createdAt,
+        createdByDoctor: row.createdByDoctor || null,
+        rows: rows.map((r) => ({
+          id: Number(r?.id) || 0,
+          updatedAt: r?.updatedAt || r?.time || row.createdAt,
+          bloodPressure: r?.bloodPressure || '',
+          pulse: Number(r?.pulse) || 0,
+          temperature: Number(r?.temperature) || 0,
+          weight: Number(r?.weight) || 0,
+          respiratoryRate: Number(r?.respiratoryRate) || 0,
+          spo2: Number(r?.spo2) || 0,
+          symptoms: r?.symptoms || '',
+        })),
+        formPayload: payload,
+      };
+    });
+
     return res.json({
       success: true,
       regimen: {
@@ -780,6 +1184,7 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
         labTests: labRows || [],
         surgeries: surgeryRows || [],
         hospitalTransfers: transfers,
+        healthTrackingSlips,
       },
     });
   } catch (error) {
@@ -861,6 +1266,55 @@ exports.getPatientMedicalRegimensForDoctor = async (req, res) => {
       });
     }
 
+    const trackingSlipRows = await sequelize.query(
+      `SELECT
+         t.regimen_id AS regimenId,
+         o.id AS orderId,
+         t.time AS createdAt,
+         COALESCE(
+           NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''),
+           acc.username,
+           NULL
+         ) AS createdByDoctor,
+         p.note AS payload
+       FROM TREATMENT t
+       JOIN \`ORDER\` o ON o.treatment_id = t.id
+       JOIN PROCEDURE_ p ON p.order_id = o.id
+       LEFT JOIN DOCTOR d ON d.doctor_id = p.doctor_id
+       LEFT JOIN \`USER\` u ON u.id = d.user_id
+       LEFT JOIN ACCOUNT acc ON acc.user_id = d.user_id
+       WHERE t.regimen_id IN (${idCsv})
+         AND p.type = 'HEALTH_TRACKING_SLIP'
+       ORDER BY t.time ASC, o.id ASC`,
+      { type: QueryTypes.SELECT }
+    );
+
+    const trackingSlipsByRegimen = new Map();
+    for (const row of trackingSlipRows || []) {
+      const rid = Number(row.regimenId);
+      if (!Number.isFinite(rid)) continue;
+      if (!trackingSlipsByRegimen.has(rid)) trackingSlipsByRegimen.set(rid, []);
+      const payload = normalizeJsonColumn(row.payload);
+      const rows = Array.isArray(payload?.rows) ? payload.rows : [];
+      trackingSlipsByRegimen.get(rid).push({
+        orderId: Number(row.orderId),
+        createdAt: row.createdAt,
+        createdByDoctor: row.createdByDoctor || null,
+        rows: rows.map((r) => ({
+          id: Number(r?.id) || 0,
+          updatedAt: r?.updatedAt || r?.time || row.createdAt,
+          bloodPressure: r?.bloodPressure || '',
+          pulse: Number(r?.pulse) || 0,
+          temperature: Number(r?.temperature) || 0,
+          weight: Number(r?.weight) || 0,
+          respiratoryRate: Number(r?.respiratoryRate) || 0,
+          spo2: Number(r?.spo2) || 0,
+          symptoms: r?.symptoms || '',
+        })),
+        formPayload: payload,
+      });
+    }
+
     const [treatments, rxRows, labRows, surgeryRows] = await Promise.all([
       sequelize.query(
         `SELECT
@@ -875,7 +1329,7 @@ exports.getPatientMedicalRegimensForDoctor = async (req, res) => {
            cr.name AS roomName
          FROM TREATMENT t
          JOIN REGIMEN r ON r.id = t.regimen_id
-         LEFT JOIN DISEASE dis ON dis.id = r.disease_id
+         LEFT JOIN DISEASE dis ON dis.id = COALESCE(t.disease_id, r.disease_id)
          LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id
          LEFT JOIN \`USER\` u ON u.id = d.user_id
          LEFT JOIN ACCOUNT acc ON acc.user_id = d.user_id
@@ -1087,6 +1541,7 @@ exports.getPatientMedicalRegimensForDoctor = async (req, res) => {
         labTests,
         surgeries,
         hospitalTransfers: hospitalTransfersByRegimen.get(rid) || [],
+        healthTrackingSlips: trackingSlipsByRegimen.get(rid) || [],
       };
     });
 
@@ -1108,14 +1563,20 @@ exports.getPatientMedicalRegimensForDoctor = async (req, res) => {
 exports.getHealthInfo = async (req, res) => {
   try {
     const { patientId } = req.params;
-    const numericPatientId = Number(String(patientId).replace(/^OP0*/, ''));
+    const pid = await resolveCanonicalPatientIdFromEmrParam(patientId);
+    if (!pid) {
+      return res.status(404).json({ success: false, message: 'Patient not found' });
+    }
 
     const healthInfo = await HealthInfo.findOne({
-      where: { patient_id: numericPatientId },
+      where: { patient_id: pid },
       order: [['time', 'DESC']]
     });
 
-    const patient = await Patient.findByPk(patientId)
+    const patient = await Patient.findByPk(pid);
+    if (!patient) {
+      return res.status(404).json({ success: false, message: 'Patient not found' });
+    }
 
     const parseJSON = (val) => {
       try {
@@ -1127,12 +1588,6 @@ exports.getHealthInfo = async (req, res) => {
         return {}
       }
     }
-
-    console.log("RAW DATA:", healthInfo?.toJSON(), "Parsed:", {
-      blood_type: patient.blood_type,
-      allergic_info: parseJSON(patient.allergic_info),
-      medical_history: parseJSON(patient.medical_history)
-    })
 
     res.json({
       success: true,
@@ -1156,12 +1611,15 @@ exports.getHealthInfo = async (req, res) => {
 exports.getHealthInfoHistory = async (req, res) => {
   try {
     const { patientId } = req.params;
-    const numericPatientId = Number(String(patientId).replace(/^OP0*/, ''));
+    const pid = await resolveCanonicalPatientIdFromEmrParam(patientId);
+    if (!pid) {
+      return res.status(404).json({ success: false, message: 'Patient not found' });
+    }
     const { page = 1, limit = 10 } = req.query;
     const offset = (page - 1) * limit;
 
     const { count, rows: history } = await HealthInfo.findAndCountAll({
-      where: { patient_id: numericPatientId },
+      where: { patient_id: pid },
       order: [['time', 'DESC']],
       limit: parseInt(limit),
       offset: parseInt(offset)
@@ -1190,19 +1648,26 @@ exports.getHealthInfoHistory = async (req, res) => {
 exports.createHealthInfo = async (req, res) => {
   try {
     const { patientId } = req.params;
-    const doctorUser = req.user;
 
-    // Verify patient exists
-    const patient = await User.findOne({ where: { id: patientId, role: 'patient' } });
-    if (!patient) {
+    const pid = await resolveCanonicalPatientIdFromEmrParam(patientId);
+    const patientRow = pid ? await Patient.findByPk(pid) : null;
+    if (!patientRow) {
       return res.status(404).json({ success: false, message: 'Patient not found' });
     }
 
+    let mrPayload;
+    try {
+      mrPayload = coerceMedicalRecordCreatePayload(req.body);
+    } catch (e) {
+      if (e.statusCode === 400) {
+        return res.status(400).json({ success: false, message: e.message });
+      }
+      throw e;
+    }
+
     const healthInfo = await HealthInfo.create({
-      patient_id: parseInt(patientId),
-      ...req.body,
-      status: normalizeMedicalRecordStatus(req.body?.status),
-      updatedBy: doctorUser.username || `Doctor #${doctorUser.userId}`
+      patient_id: pid,
+      ...mrPayload,
     });
 
     res.status(201).json({ success: true, healthInfo });
@@ -1219,11 +1684,13 @@ exports.createHealthInfo = async (req, res) => {
 exports.updateHealthInfo = async (req, res) => {
   try {
     const { patientId, id } = req.params;
-    const doctorUser = req.user;
-    const numericPatientId = Number(String(patientId).replace(/^OP0*/, ''));
+    const pid = await resolveCanonicalPatientIdFromEmrParam(patientId);
+    if (!pid) {
+      return res.status(404).json({ success: false, message: 'Patient not found' });
+    }
 
     const healthInfo = await HealthInfo.findOne({
-      where: { id, patient_id: numericPatientId }
+      where: { id, patient_id: pid }
     });
 
     if (!healthInfo) {
@@ -1234,10 +1701,10 @@ exports.updateHealthInfo = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Only draft records can be edited' });
     }
 
-    await healthInfo.update({
-      ...req.body,
-      updatedBy: doctorUser.username || `Doctor #${doctorUser.userId}`
-    });
+    const updates = coerceMedicalRecordUpdatePayload(req.body);
+    if (Object.keys(updates).length > 0) {
+      await healthInfo.update(updates);
+    }
 
     res.json({ success: true, healthInfo });
   } catch (error) {
@@ -1253,10 +1720,13 @@ exports.updateHealthInfo = async (req, res) => {
 exports.deleteHealthInfo = async (req, res) => {
   try {
     const { patientId, id } = req.params;
-    const numericPatientId = Number(String(patientId).replace(/^OP0*/, ''));
+    const pid = await resolveCanonicalPatientIdFromEmrParam(patientId);
+    if (!pid) {
+      return res.status(404).json({ success: false, message: 'Patient not found' });
+    }
 
     const healthInfo = await HealthInfo.findOne({
-      where: { id, patient_id: numericPatientId }
+      where: { id, patient_id: pid }
     });
 
     if (!healthInfo) {
@@ -1274,10 +1744,13 @@ exports.deleteHealthInfo = async (req, res) => {
 
 exports.confirmHealthInfo = async (req, res) => {
   try {
-    const numericPatientId = Number(String(req.params.patientId).replace(/^OP0*/, ''));
+    const pid = await resolveCanonicalPatientIdFromEmrParam(req.params.patientId);
+    if (!pid) {
+      return res.status(404).json({ success: false, message: 'Patient not found' });
+    }
     const id = Number(req.params.id);
     const healthInfo = await HealthInfo.findOne({
-      where: { id, patient_id: numericPatientId }
+      where: { id, patient_id: pid }
     });
     if (!healthInfo) {
       return res.status(404).json({ success: false, message: 'Health info record not found' });
@@ -1374,13 +1847,36 @@ exports.getTechnicians = async (req, res) => {
 };
 
 /**
+ * GET /api/doctor/departments
+ * Master list of DEPARTMENT for combobox usage.
+ */
+exports.getDepartments = async (req, res) => {
+  try {
+    const rows = await sequelize.query(
+      `SELECT id, name
+       FROM DEPARTMENT
+       ORDER BY name ASC`,
+      { type: QueryTypes.SELECT }
+    );
+    const departments = rows.map((r) => ({
+      id: Number(r.id),
+      name: String(r.name || '').trim(),
+    }));
+    res.json({ success: true, departments });
+  } catch (error) {
+    console.error('Get departments error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+  }
+};
+
+/**
  * GET /api/doctor/patients/:patientId/diagnoses
  * Get all diagnoses for a patient
  */
 exports.getDiagnoses = async (req, res) => {
   try {
-    const numericId = parseRoutePatientId(req.params.patientId);
-    if (!numericId) {
+    const patientPk = await resolvePatientPkFromOpRoute(req.params.patientId, null);
+    if (!patientPk) {
       return res.status(400).json({ success: false, message: 'Invalid patient id' });
     }
     const diagnoses = await sequelize.query(
@@ -1398,14 +1894,14 @@ exports.getDiagnoses = async (req, res) => {
          t.time AS updatedAt
        FROM TREATMENT t
        JOIN REGIMEN r ON r.id = t.regimen_id
-       LEFT JOIN DISEASE dis ON dis.id = r.disease_id
+       LEFT JOIN DISEASE dis ON dis.id = COALESCE(t.disease_id, r.disease_id)
        LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id
        LEFT JOIN USER u ON u.id = d.user_id
        LEFT JOIN ACCOUNT a ON a.user_id = d.user_id
        WHERE r.patient_id = :patientId
        ${SQL_AND_TREATMENT_IS_STANDALONE_DIAGNOSIS}
        ORDER BY t.time DESC`,
-      { replacements: { patientId: numericId }, type: QueryTypes.SELECT }
+      { replacements: { patientId: patientPk }, type: QueryTypes.SELECT }
     );
 
     res.json({ success: true, diagnoses });
@@ -1422,8 +1918,8 @@ exports.getDiagnoses = async (req, res) => {
 exports.createDiagnosis = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
-    const numericId = parseRoutePatientId(req.params.patientId);
-    if (!numericId) {
+    const patientPk = await resolvePatientPkFromOpRoute(req.params.patientId, transaction);
+    if (!patientPk) {
       await transaction.rollback();
       return res.status(400).json({ success: false, message: 'Invalid patient id' });
     }
@@ -1437,7 +1933,7 @@ exports.createDiagnosis = async (req, res) => {
 
     const doctorId = await getDoctorIdForUserOrLatestForPatient(
       doctorUser.userId,
-      numericId,
+      patientPk,
       transaction
     );
     if (!doctorId) {
@@ -1447,7 +1943,7 @@ exports.createDiagnosis = async (req, res) => {
 
     const diseaseId = await ensureDisease(icd10, interpretation, transaction);
     const treatmentId = await createTreatmentForPatient({
-      patientId: numericId,
+      patientId: patientPk,
       doctorId,
       complaint,
       department,
@@ -1457,7 +1953,7 @@ exports.createDiagnosis = async (req, res) => {
     const doctorName = await resolveDoctorDisplayName(req);
     const diagnosis = {
       id: treatmentId,
-      patientId: numericId,
+      patientId: patientPk,
       doctorId: doctorUser.userId,
       doctorName,
       department: department || '',
@@ -1486,9 +1982,9 @@ exports.createDiagnosis = async (req, res) => {
 exports.updateDiagnosis = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
-    const numericId = parseRoutePatientId(req.params.patientId);
+    const patientPk = await resolvePatientPkFromOpRoute(req.params.patientId, transaction);
     const treatmentId = Number(req.params.id);
-    if (!numericId || !Number.isFinite(treatmentId)) {
+    if (!patientPk || !Number.isFinite(treatmentId)) {
       await transaction.rollback();
       return res.status(400).json({ success: false, message: 'Invalid patient or diagnosis id' });
     }
@@ -1502,96 +1998,79 @@ exports.updateDiagnosis = async (req, res) => {
     }
 
     const row = await sequelize.query(
-      `SELECT t.id, t.regimen_id, r.disease_id, r.patient_id
+      `SELECT t.id, t.regimen_id, r.patient_id,
+              COALESCE(t.disease_id, r.disease_id) AS effective_disease_id
        FROM TREATMENT t
        JOIN REGIMEN r ON r.id = t.regimen_id
        WHERE t.id = :treatmentId AND r.patient_id = :patientId
        LIMIT 1`,
-      { replacements: { treatmentId, patientId: numericId }, type: QueryTypes.SELECT, transaction }
+      { replacements: { treatmentId, patientId: patientPk }, type: QueryTypes.SELECT, transaction }
     );
     if (!row[0]) {
       await transaction.rollback();
       return res.status(404).json({ success: false, message: 'Diagnosis not found' });
     }
 
-    const { regimen_id: regimenId, disease_id: oldDiseaseId } = row[0];
+    const { regimen_id: regimenId, effective_disease_id: oldEffective } = row[0];
     const newDiseaseId = await ensureDisease(icd10, interpretation, transaction);
+    const oldEff = oldEffective != null ? Number(oldEffective) : NaN;
+    const newEff = Number(newDiseaseId);
 
-    if (Number(oldDiseaseId) !== Number(newDiseaseId)) {
-      const [regRow] = await sequelize.query(
-        `SELECT \`end\` AS ended FROM REGIMEN WHERE id = :id LIMIT 1`,
-        { replacements: { id: regimenId }, type: QueryTypes.SELECT, transaction }
+    const [regRow] = await sequelize.query(
+      `SELECT \`end\` AS ended FROM REGIMEN WHERE id = :id LIMIT 1`,
+      { replacements: { id: regimenId }, type: QueryTypes.SELECT, transaction }
+    );
+    const regOpen = regRow && (regRow.ended == null || regRow.ended === '');
+
+    if (Number.isFinite(oldEff) && oldEff !== newEff && !regOpen) {
+      const newRegimenId = await ensureRegimen(patientPk, newDiseaseId, transaction);
+      await sequelize.query(
+        `UPDATE TREATMENT
+         SET regimen_id = :newRegimenId,
+             \`condition\` = :complaint,
+             type = :type,
+             disease_id = :diseaseId
+         WHERE id = :treatmentId`,
+        {
+          replacements: {
+            newRegimenId,
+            complaint: complaint.trim(),
+            type: department || 'General',
+            diseaseId: newDiseaseId,
+            treatmentId,
+          },
+          type: QueryTypes.UPDATE,
+          transaction,
+        }
       );
-      const regOpen = regRow && (regRow.ended == null || regRow.ended === '');
-      if (regOpen) {
-        await sequelize.query(
-          `UPDATE REGIMEN SET disease_id = :diseaseId WHERE id = :rid`,
-          {
-            replacements: { diseaseId: newDiseaseId, rid: regimenId },
-            type: QueryTypes.UPDATE,
-            transaction
-          }
-        );
-        await sequelize.query(
-          `UPDATE TREATMENT
-           SET \`condition\` = :complaint, type = :type
-           WHERE id = :treatmentId`,
-          {
-            replacements: {
-              complaint: complaint.trim(),
-              type: department || 'General',
-              treatmentId
-            },
-            type: QueryTypes.UPDATE,
-            transaction
-          }
-        );
-      } else {
-        const newRegimenId = await ensureRegimen(numericId, newDiseaseId, transaction);
-        await sequelize.query(
-          `UPDATE TREATMENT
-           SET regimen_id = :newRegimenId,
-               \`condition\` = :complaint,
-               type = :type
-           WHERE id = :treatmentId`,
-          {
-            replacements: {
-              newRegimenId,
-              complaint: complaint.trim(),
-              type: department || 'General',
-              treatmentId
-            },
-            type: QueryTypes.UPDATE,
-            transaction
-          }
-        );
-      }
     } else {
       await sequelize.query(
         `UPDATE TREATMENT
          SET \`condition\` = :complaint,
-             type = :type
+             type = :type,
+             disease_id = :diseaseId
          WHERE id = :treatmentId`,
         {
           replacements: {
             complaint: complaint.trim(),
             type: department || 'General',
-            treatmentId
+            diseaseId: newDiseaseId,
+            treatmentId,
           },
           type: QueryTypes.UPDATE,
-          transaction
+          transaction,
         }
       );
-      if (interpretation != null && String(interpretation).trim() !== '') {
-        await sequelize.query(
-          'UPDATE DISEASE SET description = :description WHERE id = :diseaseId',
-          {
-            replacements: { description: String(interpretation).trim(), diseaseId: newDiseaseId },
-            type: QueryTypes.UPDATE,
-            transaction
-          }
-        );
-      }
+    }
+    if (interpretation != null && String(interpretation).trim() !== '') {
+      await sequelize.query(
+        'UPDATE DISEASE SET description = :description WHERE id = :diseaseId',
+        {
+          replacements: { description: String(interpretation).trim(), diseaseId: newDiseaseId },
+          type: QueryTypes.UPDATE,
+          transaction,
+        }
+      );
     }
 
     await transaction.commit();
@@ -1599,7 +2078,7 @@ exports.updateDiagnosis = async (req, res) => {
     const doctorName = await resolveDoctorDisplayName(req);
     const diagnosis = {
       id: treatmentId,
-      patientId: numericId,
+      patientId: patientPk,
       doctorId: doctorUser.userId,
       doctorName,
       department: department || '',
@@ -1629,8 +2108,8 @@ exports.updateDiagnosis = async (req, res) => {
  */
 exports.getPrescriptions = async (req, res) => {
   try {
-    const numericId = parseRoutePatientId(req.params.patientId);
-    if (!numericId) {
+    const patientPk = await resolvePatientPkFromOpRoute(req.params.patientId, null);
+    if (!patientPk) {
       return res.status(400).json({ success: false, message: 'Invalid patient id' });
     }
     const sqlWithDuration = `SELECT
@@ -1685,7 +2164,7 @@ exports.getPrescriptions = async (req, res) => {
       sequelize,
       sqlWithDuration,
       sqlLegacy,
-      { patientId: numericId }
+      { patientId: patientPk }
     );
 
     const map = new Map();
@@ -1694,7 +2173,7 @@ exports.getPrescriptions = async (req, res) => {
       if (!map.has(key)) {
         map.set(key, {
           id: key,
-          patientId: numericId,
+          patientId: patientPk,
           doctorId: row.doctorUserId || req.user.userId,
           doctorName: row.doctorName || '',
           department: 'General',
@@ -1734,8 +2213,8 @@ exports.getPrescriptions = async (req, res) => {
 exports.createPrescription = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
-    const numericId = parseRoutePatientId(req.params.patientId);
-    if (!numericId) {
+    const patientPk = await resolvePatientPkFromOpRoute(req.params.patientId, transaction);
+    if (!patientPk) {
       await transaction.rollback();
       return res.status(400).json({ success: false, message: 'Invalid patient id' });
     }
@@ -1750,7 +2229,7 @@ exports.createPrescription = async (req, res) => {
 
     const doctorId = await getDoctorIdForUserOrLatestForPatient(
       doctorUser.userId,
-      numericId,
+      patientPk,
       transaction
     );
     if (!doctorId) {
@@ -1759,14 +2238,14 @@ exports.createPrescription = async (req, res) => {
     }
     const diseaseId = await ensureDisease('Z00.0', 'General examination', transaction);
     const treatmentId = await createTreatmentForPatient({
-      patientId: numericId,
+      patientId: patientPk,
       doctorId,
       complaint: 'Prescription',
       department,
       diseaseId,
       transaction
     });
-    const [orderId] = await sequelize.query(
+    const [orderIns] = await sequelize.query(
       'INSERT INTO `ORDER` (status, treatment_id) VALUES (:status, :treatmentId)',
       {
         replacements: { status: 'active', treatmentId },
@@ -1774,6 +2253,11 @@ exports.createPrescription = async (req, res) => {
         transaction
       }
     );
+    const orderId = mysqlInsertId(orderIns);
+    if (orderId == null) {
+      await transaction.rollback();
+      return res.status(500).json({ success: false, message: 'Failed to create prescription order' });
+    }
     await insertMedicalPrescriptionCompat(sequelize, {
       orderId,
       duration: headerDuration,
@@ -1784,31 +2268,38 @@ exports.createPrescription = async (req, res) => {
     let no = 1;
     const meds = [];
     for (const med of medications) {
-      const medName = String(med.name || '').trim();
+      const medName = String(med.name || '').trim().slice(0, 200);
       if (!medName) continue;
       const lineDur = normalizePrescriptionLineDuration(med.duration);
       const found = await sequelize.query(
         'SELECT id FROM MEDICINE WHERE name = :name LIMIT 1',
         { replacements: { name: medName }, type: QueryTypes.SELECT, transaction }
       );
-      let medicineId = found[0]?.id;
+      let medicineId = found[0]?.id != null ? Number(found[0].id) : null;
       if (!medicineId) {
-        const [newMedId] = await sequelize.query(
+        const [insMed] = await sequelize.query(
           `INSERT INTO MEDICINE (name, manufacturer, description, type, form, unit, dosage, side_effects, contraindications)
            VALUES (:name, 'N/A', NULL, 'General', NULL, 'unit', 'as directed', NULL, NULL)`,
           { replacements: { name: medName }, type: QueryTypes.INSERT, transaction }
         );
-        medicineId = newMedId;
+        medicineId = mysqlInsertId(insMed);
       }
+      if (!medicineId) {
+        await transaction.rollback();
+        return res.status(500).json({ success: false, message: 'Failed to resolve medicine id' });
+      }
+      const unitNorm = normalizePrescriptionDetailUnit(med.unit);
+      const usageNorm = clampPrescriptionUsage(med.usage);
+      const noteNorm = clampPrescriptionNote(med.note);
       await insertPrescriptionDetailCompat(sequelize, {
         prescriptionId: orderId,
         no,
         medicineId,
         quantity: Number(med.quantity) || 1,
         duration: lineDur,
-        usage: med.usage || 'Take as directed',
-        unit: med.unit || 'tablet',
-        note: med.note || null,
+        usage: usageNorm,
+        unit: unitNorm,
+        note: noteNorm,
         transaction,
       });
       meds.push({
@@ -1816,11 +2307,16 @@ exports.createPrescription = async (req, res) => {
         name: medName,
         quantity: String(Number(med.quantity) || 1),
         duration: String(lineDur),
-        usage: med.usage || '',
-        unit: med.unit || 'tablet',
-        note: med.note || ''
+        usage: usageNorm,
+        unit: unitNorm,
+        note: noteNorm || ''
       });
       no += 1;
+    }
+
+    if (meds.length === 0) {
+      await transaction.rollback();
+      return res.status(400).json({ success: false, message: 'At least one medication with a name is required' });
     }
 
     const doctorName = await resolveDoctorDisplayName(req);
@@ -1832,7 +2328,7 @@ exports.createPrescription = async (req, res) => {
     const createdAt = rxTime ? new Date(rxTime).toISOString() : new Date().toISOString();
     const prescription = {
       id: orderId,
-      patientId: numericId,
+      patientId: patientPk,
       doctorId: doctorUser.userId,
       doctorName,
       department: department || '',
@@ -1859,9 +2355,9 @@ exports.createPrescription = async (req, res) => {
 exports.updatePrescription = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
-    const numericId = parseRoutePatientId(req.params.patientId);
+    const patientPk = await resolvePatientPkFromOpRoute(req.params.patientId, transaction);
     const orderId = Number(req.params.id);
-    if (!numericId || !Number.isFinite(orderId)) {
+    if (!patientPk || !Number.isFinite(orderId)) {
       await transaction.rollback();
       return res.status(400).json({ success: false, message: 'Invalid patient or prescription id' });
     }
@@ -1885,7 +2381,7 @@ exports.updatePrescription = async (req, res) => {
        JOIN REGIMEN r ON r.id = t.regimen_id
        WHERE rx.order_id = :orderId AND r.patient_id = :patientId
        LIMIT 1`,
-      { replacements: { orderId, patientId: numericId }, type: QueryTypes.SELECT, transaction }
+      { replacements: { orderId, patientId: patientPk }, type: QueryTypes.SELECT, transaction }
     );
     if (!exists[0]) {
       await transaction.rollback();
@@ -1908,31 +2404,38 @@ exports.updatePrescription = async (req, res) => {
     let no = 1;
     const meds = [];
     for (const med of medications) {
-      const medName = String(med.name || '').trim();
+      const medName = String(med.name || '').trim().slice(0, 200);
       if (!medName) continue;
       const lineDur = normalizePrescriptionLineDuration(med.duration);
       const found = await sequelize.query(
         'SELECT id FROM MEDICINE WHERE name = :name LIMIT 1',
         { replacements: { name: medName }, type: QueryTypes.SELECT, transaction }
       );
-      let medicineId = found[0]?.id;
+      let medicineId = found[0]?.id != null ? Number(found[0].id) : null;
       if (!medicineId) {
-        const [newMedId] = await sequelize.query(
+        const [insMed] = await sequelize.query(
           `INSERT INTO MEDICINE (name, manufacturer, description, type, form, unit, dosage, side_effects, contraindications)
            VALUES (:name, 'N/A', NULL, 'General', NULL, 'unit', 'as directed', NULL, NULL)`,
           { replacements: { name: medName }, type: QueryTypes.INSERT, transaction }
         );
-        medicineId = newMedId;
+        medicineId = mysqlInsertId(insMed);
       }
+      if (!medicineId) {
+        await transaction.rollback();
+        return res.status(500).json({ success: false, message: 'Failed to resolve medicine id' });
+      }
+      const unitNorm = normalizePrescriptionDetailUnit(med.unit);
+      const usageNorm = clampPrescriptionUsage(med.usage);
+      const noteNorm = clampPrescriptionNote(med.note);
       await insertPrescriptionDetailCompat(sequelize, {
         prescriptionId: orderId,
         no,
         medicineId,
         quantity: Number(med.quantity) || 1,
         duration: lineDur,
-        usage: med.usage || 'Take as directed',
-        unit: med.unit || 'tablet',
-        note: med.note || null,
+        usage: usageNorm,
+        unit: unitNorm,
+        note: noteNorm,
         transaction,
       });
       meds.push({
@@ -1940,9 +2443,9 @@ exports.updatePrescription = async (req, res) => {
         name: medName,
         quantity: String(Number(med.quantity) || 1),
         duration: String(lineDur),
-        usage: med.usage || '',
-        unit: med.unit || 'tablet',
-        note: med.note || ''
+        usage: usageNorm,
+        unit: unitNorm,
+        note: noteNorm || ''
       });
       no += 1;
     }
@@ -1958,7 +2461,7 @@ exports.updatePrescription = async (req, res) => {
     const updatedAt = rxTime ? new Date(rxTime).toISOString() : new Date().toISOString();
     const prescription = {
       id: orderId,
-      patientId: numericId,
+      patientId: patientPk,
       doctorId: req.user.userId,
       doctorName,
       department: department || '',
@@ -1985,8 +2488,8 @@ exports.updatePrescription = async (req, res) => {
 
 exports.getLabTests = async (req, res) => {
   try {
-    const numericId = parseRoutePatientId(req.params.patientId);
-    if (!numericId) {
+    const patientPk = await resolvePatientPkFromOpRoute(req.params.patientId, null);
+    if (!patientPk) {
       return res.status(400).json({ success: false, message: 'Invalid patient id' });
     }
     const rows = await sequelize.query(
@@ -2014,7 +2517,7 @@ exports.getLabTests = async (req, res) => {
        LEFT JOIN TEST_DETAIL td ON td.test_id = tst.id AND td.no = 1
        WHERE r.patient_id = :patientId
        ORDER BY tst.time DESC`,
-      { replacements: { patientId: numericId }, type: QueryTypes.SELECT }
+      { replacements: { patientId: patientPk }, type: QueryTypes.SELECT }
     );
     res.json({ success: true, labTests: rows });
   } catch (error) {
@@ -2026,8 +2529,9 @@ exports.getLabTests = async (req, res) => {
 exports.createLabTest = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
-    const numericId = parseRoutePatientId(req.params.patientId);
-    if (!numericId) {
+    const patientPk = await resolvePatientPkFromOpRoute(req.params.patientId, transaction);
+    if (!patientPk) {
+      await transaction.rollback();
       return res.status(400).json({ success: false, message: 'Invalid patient id' });
     }
     const { testType, testDate, technicianId, technicianName, resultSummary, fileUrl, note } = req.body;
@@ -2052,7 +2556,7 @@ exports.createLabTest = async (req, res) => {
 
     let doctorId = await getDoctorIdForUserOrLatestForPatient(
       req.user.userId,
-      numericId,
+      patientPk,
       transaction
     );
     if (!doctorId) {
@@ -2061,17 +2565,22 @@ exports.createLabTest = async (req, res) => {
     }
     const diseaseId = await ensureDisease('Z00.0', 'General examination', transaction);
     const treatmentId = await createTreatmentForPatient({
-      patientId: numericId,
+      patientId: patientPk,
       doctorId,
       complaint: 'Laboratory test',
       department: 'Lab',
       diseaseId,
       transaction
     });
-    const [orderId] = await sequelize.query(
+    const [orderIns] = await sequelize.query(
       'INSERT INTO `ORDER` (status, treatment_id) VALUES (:status, :treatmentId)',
       { replacements: { status: 'active', treatmentId }, type: QueryTypes.INSERT, transaction }
     );
+    const orderId = mysqlInsertId(orderIns);
+    if (orderId == null) {
+      await transaction.rollback();
+      return res.status(500).json({ success: false, message: 'Failed to create lab order' });
+    }
     await sequelize.query(
       `INSERT INTO PROCEDURE_ (order_id, note, technician_id, doctor_id, room_id, type)
        VALUES (:orderId, :note, :technicianId, :doctorId, NULL, 'TEST')`,
@@ -2105,7 +2614,17 @@ exports.createLabTest = async (req, res) => {
         transaction
       }
     );
-    const labTest = { id: orderId, patientId: numericId, testType, testDate, technicianId: technicianIdResolved, technicianName: technicianName || null, resultSummary: resultSummary || null, fileUrl: fileUrl || null, note: note || null };
+    const labTest = {
+      id: orderId,
+      patientId: patientPk,
+      testType,
+      testDate,
+      technicianId: technicianIdResolved,
+      technicianName: technicianName || null,
+      resultSummary: resultSummary || null,
+      fileUrl: fileUrl || null,
+      note: note || null,
+    };
     await transaction.commit();
     res.status(201).json({ success: true, labTest });
   } catch (error) {
@@ -2117,8 +2636,8 @@ exports.createLabTest = async (req, res) => {
 
 exports.updateLabTest = async (req, res) => {
   try {
-    const numericId = parseRoutePatientId(req.params.patientId);
-    if (!numericId) {
+    const patientPk = await resolvePatientPkFromOpRoute(req.params.patientId, null);
+    if (!patientPk) {
       return res.status(400).json({ success: false, message: 'Invalid patient id' });
     }
     const { id } = req.params;
@@ -2130,7 +2649,7 @@ exports.updateLabTest = async (req, res) => {
        JOIN REGIMEN r ON r.id = t.regimen_id
        WHERE tst.id = :id AND r.patient_id = :patientId
        LIMIT 1`,
-      { replacements: { id, patientId: numericId }, type: QueryTypes.SELECT }
+      { replacements: { id, patientId: patientPk }, type: QueryTypes.SELECT }
     );
     if (!exists[0]) {
       return res.status(404).json({ success: false, message: 'Lab test not found' });
@@ -2213,8 +2732,8 @@ exports.updateLabTest = async (req, res) => {
 
 exports.getLabTestDetails = async (req, res) => {
   try {
-    const numericId = parseRoutePatientId(req.params.patientId);
-    if (!numericId) {
+    const patientPk = await resolvePatientPkFromOpRoute(req.params.patientId, null);
+    if (!patientPk) {
       return res.status(400).json({ success: false, message: 'Invalid patient id' });
     }
 
@@ -2231,7 +2750,7 @@ exports.getLabTestDetails = async (req, res) => {
        JOIN REGIMEN r ON r.id = t.regimen_id
        WHERE tst.id = :id AND r.patient_id = :patientId
        LIMIT 1`,
-      { replacements: { id: testId, patientId: numericId }, type: QueryTypes.SELECT }
+      { replacements: { id: testId, patientId: patientPk }, type: QueryTypes.SELECT }
     );
     if (!exists[0]) {
       return res.status(404).json({ success: false, message: 'Lab test not found' });
@@ -2316,8 +2835,8 @@ function normalizeSurgeryTypeInput(value) {
 
 exports.getSurgeries = async (req, res) => {
   try {
-    const numericId = parseRoutePatientId(req.params.patientId);
-    if (!numericId) {
+    const patientPk = await resolvePatientPkFromOpRoute(req.params.patientId, null);
+    if (!patientPk) {
       return res.status(400).json({ success: false, message: 'Invalid patient id' });
     }
     const surgeries = await sequelize.query(
@@ -2341,7 +2860,7 @@ exports.getSurgeries = async (req, res) => {
        LEFT JOIN ACCOUNT a ON a.user_id = d.user_id
        WHERE r.patient_id = :patientId
        ORDER BY s.start DESC`,
-      { replacements: { patientId: numericId }, type: QueryTypes.SELECT }
+      { replacements: { patientId: patientPk }, type: QueryTypes.SELECT }
     );
     res.json({ success: true, surgeries });
   } catch (error) {
@@ -2353,8 +2872,9 @@ exports.getSurgeries = async (req, res) => {
 exports.createSurgery = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
-    const numericId = parseRoutePatientId(req.params.patientId);
-    if (!numericId) {
+    const patientPk = await resolvePatientPkFromOpRoute(req.params.patientId, transaction);
+    if (!patientPk) {
+      await transaction.rollback();
       return res.status(400).json({ success: false, message: 'Invalid patient id' });
     }
     const { type, start, end, surgeonName, urgency, result, note } = req.body;
@@ -2377,7 +2897,7 @@ exports.createSurgery = async (req, res) => {
     const urg = ['HIGH', 'MEDIUM', 'LOW'].includes(urgRaw) ? urgRaw : 'MEDIUM';
     const doctorId = await getDoctorIdForUserOrLatestForPatient(
       req.user.userId,
-      numericId,
+      patientPk,
       transaction
     );
     if (!doctorId) {
@@ -2386,17 +2906,22 @@ exports.createSurgery = async (req, res) => {
     }
     const diseaseId = await ensureDisease('Z00.0', 'General examination', transaction);
     const treatmentId = await createTreatmentForPatient({
-      patientId: numericId,
+      patientId: patientPk,
       doctorId,
       complaint: 'Surgery',
       department: 'Surgery',
       diseaseId,
       transaction
     });
-    const [orderId] = await sequelize.query(
+    const [orderIns] = await sequelize.query(
       'INSERT INTO `ORDER` (status, treatment_id) VALUES (:status, :treatmentId)',
       { replacements: { status: 'active', treatmentId }, type: QueryTypes.INSERT, transaction }
     );
+    const orderId = mysqlInsertId(orderIns);
+    if (orderId == null) {
+      await transaction.rollback();
+      return res.status(500).json({ success: false, message: 'Failed to create surgery order' });
+    }
     const procType = typeStr.length > 100 ? typeStr.slice(0, 100) : typeStr;
     await sequelize.query(
       `INSERT INTO PROCEDURE_ (order_id, note, technician_id, doctor_id, room_id, type)
@@ -2428,7 +2953,7 @@ exports.createSurgery = async (req, res) => {
     );
     const surgery = {
       id: orderId,
-      patientId: numericId,
+      patientId: patientPk,
       type: typeStr,
       start: startDt.toISOString(),
       end: endDt.toISOString(),
@@ -2448,8 +2973,8 @@ exports.createSurgery = async (req, res) => {
 
 exports.updateSurgery = async (req, res) => {
   try {
-    const numericId = parseRoutePatientId(req.params.patientId);
-    if (!numericId) {
+    const patientPk = await resolvePatientPkFromOpRoute(req.params.patientId, null);
+    if (!patientPk) {
       return res.status(400).json({ success: false, message: 'Invalid patient id' });
     }
     const { id } = req.params;
@@ -2461,7 +2986,7 @@ exports.updateSurgery = async (req, res) => {
        JOIN REGIMEN r ON r.id = t.regimen_id
        WHERE s.id = :id AND r.patient_id = :patientId
        LIMIT 1`,
-      { replacements: { id, patientId: numericId }, type: QueryTypes.SELECT }
+      { replacements: { id, patientId: patientPk }, type: QueryTypes.SELECT }
     );
     if (!exists[0]) {
       return res.status(404).json({ success: false, message: 'Surgery not found' });
@@ -2558,7 +3083,7 @@ exports.updateSurgery = async (req, res) => {
       success: true,
       surgery: {
         id: Number(id),
-        patientId: numericId,
+        patientId: patientPk,
         type: nextType,
         start: nextStart.toISOString(),
         end: nextEnd.toISOString(),
@@ -2621,7 +3146,7 @@ exports.getAppointments = async (req, res) => {
          a.\`condition\` AS symptoms,
          '' AS notes,
          cr.name AS room,
-         d.specifications AS department,
+         COALESCE(NULLIF(TRIM(dep.name), ''), NULLIF(TRIM(d.specifications), ''), '') AS department,
          p.user_id AS patientId,
          COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), acc.username, CONCAT('patient#', p.user_id)) AS patientName
        FROM APPOINTMENT a
@@ -2630,6 +3155,7 @@ exports.getAppointments = async (req, res) => {
        LEFT JOIN ACCOUNT acc ON acc.user_id = p.user_id
        JOIN DOCTOR d ON d.doctor_id = a.doctor_id
        LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id
+       LEFT JOIN DEPARTMENT dep ON dep.id = cr.department_id
        WHERE a.doctor_id = :doctorId
          AND (:startDate IS NULL OR DATE(a.time) >= :startDate)
          AND (:endDate IS NULL OR DATE(a.time) <= :endDate)
@@ -2644,6 +3170,7 @@ exports.getAppointments = async (req, res) => {
       patientId: r.patientId,
       patientName: r.patientName,
       doctor: req.user.username || '',
+      assignedDoctorId: Number(doctorId),
       department: r.department || '',
       date: r.date,
       time: r.time,
@@ -2830,7 +3357,7 @@ exports.createPatientTransfer = async (req, res) => {
       transaction,
     });
 
-    const [orderId] = await sequelize.query(
+    const [orderIns] = await sequelize.query(
       'INSERT INTO `ORDER` (status, treatment_id) VALUES (:status, :treatmentId)',
       {
         replacements: { status: 'active', treatmentId },
@@ -2838,6 +3365,11 @@ exports.createPatientTransfer = async (req, res) => {
         transaction,
       }
     );
+    const orderId = mysqlInsertId(orderIns);
+    if (orderId == null) {
+      await transaction.rollback();
+      return res.status(500).json({ success: false, message: 'Failed to create transfer order' });
+    }
 
     await sequelize.query(
       `INSERT INTO TRANSFERENCE (order_id, reason, time, note)
@@ -2934,6 +3466,191 @@ exports.createPatientTransfer = async (req, res) => {
     await transaction.rollback();
     console.error('Create patient transfer error:', error);
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+  }
+};
+
+/**
+ * PUT /api/doctor/appointments/:id/cover
+ * Reassign this slot to another doctor in the same department (patient is notified if booked).
+ */
+exports.coverAppointment = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const coverDoctorId = Number(req.body?.coverDoctorId);
+    if (!Number.isFinite(coverDoctorId) || coverDoctorId <= 0) {
+      return res.status(400).json({ success: false, message: 'coverDoctorId is required' });
+    }
+    const doctorRows = await sequelize.query(
+      'SELECT doctor_id FROM DOCTOR WHERE user_id = :userId LIMIT 1',
+      { replacements: { userId: req.user.userId }, type: QueryTypes.SELECT }
+    );
+    const myDoctorId = doctorRows[0]?.doctor_id;
+    if (!myDoctorId) {
+      return res.status(403).json({ success: false, message: 'Doctor profile not found' });
+    }
+
+    const [appt] = await sequelize.query(
+      `SELECT
+         a.id,
+         a.patient_id AS patientId,
+         a.doctor_id AS doctorId,
+         a.room_id AS roomId,
+         a.time AS slotTime,
+         a.status
+       FROM APPOINTMENT a
+       WHERE a.id = :id AND a.doctor_id = :myDoctorId AND a.status = 'scheduled'
+       LIMIT 1`,
+      { replacements: { id, myDoctorId }, type: QueryTypes.SELECT }
+    );
+    if (!appt) {
+      return res.status(404).json({ success: false, message: 'Appointment not found' });
+    }
+    if (Number(appt.doctorId) === coverDoctorId) {
+      return res.status(400).json({ success: false, message: 'Choose a different doctor' });
+    }
+
+    const [slotDeptRow] = await sequelize.query(
+      `SELECT cr.department_id AS deptId
+       FROM APPOINTMENT a
+       LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id
+       WHERE a.id = :id
+       LIMIT 1`,
+      { replacements: { id }, type: QueryTypes.SELECT }
+    );
+    const slotDeptId =
+      slotDeptRow?.deptId != null && Number.isFinite(Number(slotDeptRow.deptId))
+        ? Number(slotDeptRow.deptId)
+        : null;
+
+    if (slotDeptId) {
+      const [inSlotDept] = await sequelize.query(
+        `SELECT 1 AS ok
+         FROM DOCTOR_DEPARTMENT
+         WHERE doctor_id = :did AND department_id = :deptId
+         LIMIT 1`,
+        { replacements: { did: coverDoctorId, deptId: slotDeptId }, type: QueryTypes.SELECT }
+      );
+      if (!inSlotDept) {
+        return res.status(400).json({
+          success: false,
+          message: 'Covering doctor must work in the same department as this appointment room',
+        });
+      }
+    } else {
+      const [share] = await sequelize.query(
+        `SELECT 1 AS ok
+         FROM DOCTOR_DEPARTMENT dd1
+         INNER JOIN DOCTOR_DEPARTMENT dd2 ON dd1.department_id = dd2.department_id
+         WHERE dd1.doctor_id = :a AND dd2.doctor_id = :b
+         LIMIT 1`,
+        { replacements: { a: myDoctorId, b: coverDoctorId }, type: QueryTypes.SELECT }
+      );
+      if (!share) {
+        return res.status(400).json({
+          success: false,
+          message: 'Covering doctor must work in the same department as you',
+        });
+      }
+    }
+
+    // Keep the booked slot's room. Changing to the cover doctor's default room can violate
+    // UNIQUE(time, doctor_id, room_id) if that doctor already has (even cancelled) history at the same time+room.
+    const roomIdNum =
+      appt.roomId != null && appt.roomId !== '' && Number.isFinite(Number(appt.roomId))
+        ? Number(appt.roomId)
+        : null;
+
+    const [conflict] = await sequelize.query(
+      `SELECT x.id FROM APPOINTMENT x
+       WHERE x.doctor_id = :doctorId
+         AND x.time = (SELECT a2.time FROM APPOINTMENT a2 WHERE a2.id = :id LIMIT 1)
+         AND x.status = 'scheduled'
+         AND x.id <> :id
+       LIMIT 1`,
+      { replacements: { doctorId: coverDoctorId, id }, type: QueryTypes.SELECT }
+    );
+    if (conflict?.id) {
+      return res.status(409).json({
+        success: false,
+        message: 'That doctor already has another appointment at this time',
+      });
+    }
+
+    const [dupTriple] = await sequelize.query(
+      `SELECT x.id FROM APPOINTMENT x
+       WHERE x.doctor_id = :doctorId
+         AND x.time = (SELECT a2.time FROM APPOINTMENT a2 WHERE a2.id = :id LIMIT 1)
+         AND x.room_id = (SELECT a3.room_id FROM APPOINTMENT a3 WHERE a3.id = :id LIMIT 1)
+         AND x.id <> :id
+       LIMIT 1`,
+      { replacements: { doctorId: coverDoctorId, id }, type: QueryTypes.SELECT }
+    );
+    if (dupTriple?.id) {
+      return res.status(409).json({
+        success: false,
+        message: 'Cannot assign cover: this time and room are already tied to another record for that doctor',
+      });
+    }
+
+    const [od] = await sequelize.query(
+      `SELECT COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''),' ',COALESCE(u.last_name,''))), ''), a.username) AS name
+       FROM DOCTOR d
+       JOIN USER u ON u.id = d.user_id
+       JOIN ACCOUNT a ON a.user_id = d.user_id
+       WHERE d.doctor_id = :did LIMIT 1`,
+      { replacements: { did: myDoctorId }, type: QueryTypes.SELECT }
+    );
+    const oldDoctorLabel = od?.name ? `Dr. ${String(od.name).trim()}` : `Doctor #${myDoctorId}`;
+
+    await sequelize.query(`UPDATE APPOINTMENT SET doctor_id = :cid WHERE id = :id`, {
+      replacements: { cid: coverDoctorId, id },
+      type: QueryTypes.UPDATE,
+    });
+
+    const [nd] = await sequelize.query(
+      `SELECT COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''),' ',COALESCE(u.last_name,''))), ''), a.username) AS name
+       FROM DOCTOR d
+       JOIN USER u ON u.id = d.user_id
+       JOIN ACCOUNT a ON a.user_id = d.user_id
+       WHERE d.doctor_id = :did LIMIT 1`,
+      { replacements: { did: coverDoctorId }, type: QueryTypes.SELECT }
+    );
+    const newDoctorLabel = nd?.name ? `Dr. ${String(nd.name).trim()}` : `Doctor #${coverDoctorId}`;
+
+    if (appt.patientId) {
+      const [meta] = await sequelize.query(
+        `SELECT
+           DATE_FORMAT(a.time, '%d/%m/%Y') AS dateVi,
+           DATE_FORMAT(a.time, '%H:%i') AS timeVi,
+           COALESCE(NULLIF(TRIM(dep.name), ''), '') AS depName
+         FROM APPOINTMENT a
+         JOIN CLINIC_ROOM cr ON cr.id = a.room_id
+         LEFT JOIN DEPARTMENT dep ON dep.id = cr.department_id
+         WHERE a.id = :id LIMIT 1`,
+        { replacements: { id }, type: QueryTypes.SELECT }
+      );
+      await notifyPatientAppointmentDoctorReassigned(sequelize, {
+        patientId: Number(appt.patientId),
+        dateVi: meta?.dateVi || '',
+        timeVi: meta?.timeVi || '',
+        department: meta?.depName || '',
+        oldDoctorName: oldDoctorLabel,
+        newDoctorName: newDoctorLabel,
+      });
+    }
+
+    await notifyDoctorReceivedCoverAppointment(sequelize, {
+      appointmentId: Number(id),
+      previousDoctorLabel: oldDoctorLabel,
+    });
+
+    return res.json({
+      success: true,
+      appointment: { id: Number(id), doctorId: coverDoctorId, roomId: roomIdNum },
+    });
+  } catch (error) {
+    console.error('Cover appointment error:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
 
@@ -3188,7 +3905,7 @@ exports.getDashboardSummary = async (req, res) => {
            DATE(a.time) AS date,
            TIME(a.time) AS time,
            a.status AS dbStatus,
-           d.specifications AS department,
+           COALESCE(NULLIF(TRIM(dep.name), ''), NULLIF(TRIM(d.specifications), ''), '') AS department,
            cr.name AS room,
            p.user_id AS patientId,
            COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), acc.username, CONCAT('patient#', p.user_id)) AS patientName
@@ -3198,6 +3915,7 @@ exports.getDashboardSummary = async (req, res) => {
          LEFT JOIN ACCOUNT acc ON acc.user_id = p.user_id
          JOIN DOCTOR d ON d.doctor_id = a.doctor_id
          LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id
+         LEFT JOIN DEPARTMENT dep ON dep.id = cr.department_id
          WHERE a.doctor_id = :doctorId
            AND DATE(a.time) = CURDATE()
            AND a.status <> 'cancelled'

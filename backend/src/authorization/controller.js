@@ -6,39 +6,16 @@ const defineSystemConfig = require('../models/systemconfig');
 const Account = require('../models/Account');
 const Session = require('../models/Session');
 const User = require('../models/Users');
-
+const { createPatientAccountRecords } = require('../services/patientRegistrationService');
 
 
 const SystemConfig = defineSystemConfig(sequelize);
 
 // Security constants
-const SALT_ROUNDS = 12;
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_TIME_MINUTES = 15;
 const ACCESS_TOKEN_EXPIRY = '15m'; // Short-lived access token
 const REFRESH_TOKEN_EXPIRY = '7d'; // Long-lived refresh token
-
-// Password validation
-const validatePassword = (password) => {
-  if (password.length < 8) {
-    return { valid: false, error: 'Password must be at least 8 characters long' };
-  }
-  if (!/[A-Z]/.test(password)) {
-    return { valid: false, error: 'Password must contain at least one uppercase letter' };
-  }
-  if (!/[a-z]/.test(password)) {
-    return { valid: false, error: 'Password must contain at least one lowercase letter' };
-  }
-  if (!/[0-9]/.test(password)) {
-    return { valid: false, error: 'Password must contain at least one number' };
-  }
-  return { valid: true };
-};
-
-// Hash password using bcrypt
-const hashPassword = async (password) => {
-  return await bcrypt.hash(password, SALT_ROUNDS);
-};
 
 // Verify password
 const verifyPassword = async (password, hash) => {
@@ -54,138 +31,29 @@ const generateRefreshToken = (username, userId) =>
 
 exports.register = async (req, res) => {
   try {
-    const {
-      username,
-      sex,
-      email,
-      password,
-      dob,
-      tel,
-      idcard,
-      firstName,
-      lastName,
-      age,
-      // Relative information
-      relativeName,
-      relativeRelationship,
-      relativeDateOfBirth,
-      relativeSex,
-      relativePhone,
-      relativeEmail,
-      relativeNationalId,
-      // Insurance information
-      insuranceId,
-      insuranceProvider,
-      insuranceExpiry
-    } = req.body;
-
-    
-    // Validate required fields
-    if (!username || !email || !password || !firstName || !lastName) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'All fields are required' 
-      });
-    }
-    
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Invalid email format' 
-      });
-    }
-    
-    // Validate password strength
-    const passwordValidation = validatePassword(password);
-    if (!passwordValidation.valid) {
-      return res.status(400).json({ 
-        success: false, 
-        error: passwordValidation.error 
-      });
-    }
-    
-    // Check if username already exists in Account table
-    const existingUser = await Account.findOne({
-      where: { username }
-    });
-
-    if (existingUser) {
-      return res.status(409).json({
-        success: false,
-        error: 'Username already taken'
-      });
-    }
-
-    // Hash password with bcrypt
-    const hashedPassword = await hashPassword(password);
-
-    // Start a transaction (Requires Sequelize instance)
     const t = await sequelize.transaction();
-
-    let user; // Account record (for auth)
-    let newUser; // Users table record (for profile linkage)
-
+    let result;
     try {
-      // Create a User record first (Profile info)
-      newUser = await User.create({
-        first_name: firstName,
-        last_name: lastName,
-        email: email,
-        sex: sex,
-        dob: dob, // Approximate DOB
-        tel: tel, // number
-        idcard: idcard,
-        idcard: idcard
-      }, { transaction: t });
-
-      // Create account with hashed password and link to User
-      user = await Account.create({
-        username,
-        password: hashedPassword,
-        type: 'PAT', // Patient role for public registration
-        user_id: newUser.id, // Link to the created User
-        created_time: new Date(), // Explicitly set creation time to avoid DB default timezone mismatch
-        status: 'Active' // Set default status to valid
-      }, { transaction: t });
-
-      // Create initial profile including relative and insurance information
-      const fullName = `${firstName || ''} ${lastName || ''}`.trim() || username;
-      await Profile.create({
-        userId: newUser.id,
-        firstName,
-        lastName,
-        fullName,
-        dateOfBirth: dob,
-        sex,
-        phone: tel,
-        email,
-        nationalId: idcard,
-        // Relative info
-        relativeName,
-        relativeRelationship,
-        relativeDateOfBirth,
-        relativeSex,
-        relativePhone,
-        relativeEmail,
-        relativeNationalId,
-        // Insurance info
-        insuranceId,
-        insuranceProvider,
-        insuranceExpiry
-      }, { transaction: t });
-
-      // Commit the transaction
+      result = await createPatientAccountRecords(req.body, {
+        transaction: t,
+        createdByUserId: null,
+      });
+      if (!result.ok) {
+        await t.rollback();
+        return res.status(result.status).json({ success: false, error: result.error });
+      }
       await t.commit();
     } catch (error) {
       await t.rollback();
       throw error;
     }
-      
+
+    const user = result.account;
+    const loginUsername = user.username;
+
     // Generate tokens (outside transaction)
-    const accessToken = generateAccessToken(username, user.user_id, user.type);
-    const refreshToken = generateRefreshToken(username, user.user_id);
+    const accessToken = generateAccessToken(loginUsername, user.user_id, user.type);
+    const refreshToken = generateRefreshToken(loginUsername, user.user_id);
       
       // Create session
       const expiresAt = new Date();
@@ -211,10 +79,52 @@ exports.register = async (req, res) => {
         expiresAt: expiresAt.toISOString()
       });
   } catch (err) {
-    console.error('Registration error:', err);
+    console.error('Registration error:', err?.message || err, err?.original?.sqlMessage || '');
     res.status(500).json({ success: false, error: 'Registration failed. Please try again.' });
   }
 }
+
+/** Nurse (authenticated) creates a patient USER + ACCOUNT + PATIENT; sets ACCOUNT.created_by. */
+exports.registerPatientByNurse = async (req, res) => {
+  try {
+    const role = String(req.user?.role || '').toLowerCase();
+    if (role !== 'nurse') {
+      return res.status(403).json({ success: false, error: 'Nurse access only' });
+    }
+
+    const staffUserId = Number(req.user.userId);
+    if (!Number.isFinite(staffUserId)) {
+      return res.status(400).json({ success: false, error: 'Invalid session' });
+    }
+
+    const t = await sequelize.transaction();
+    let result;
+    try {
+      result = await createPatientAccountRecords(req.body, {
+        transaction: t,
+        createdByUserId: staffUserId,
+      });
+      if (!result.ok) {
+        await t.rollback();
+        return res.status(result.status).json({ success: false, error: result.error });
+      }
+      await t.commit();
+    } catch (error) {
+      await t.rollback();
+      throw error;
+    }
+
+    const account = result.account;
+    return res.status(201).json({
+      success: true,
+      userId: account.user_id,
+      username: account.username,
+    });
+  } catch (err) {
+    console.error('Nurse register patient error:', err?.message || err, err?.original?.sqlMessage || '');
+    res.status(500).json({ success: false, error: 'Registration failed. Please try again.' });
+  }
+};
 
 
 exports.login = async (req, res) => {

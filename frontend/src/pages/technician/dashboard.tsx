@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -11,7 +11,6 @@ import {
   UserRound,
   ArrowRight,
   Loader2,
-  FileSearch,
 } from "lucide-react"
 import { TechnicianLayout } from "@/components/technician-layout"
 import { doctorService, type DoctorDashboardSummary } from "@/services/doctor-service"
@@ -41,17 +40,6 @@ export default function TechnicianDashboard() {
     void load()
   }, [load])
 
-  const todayLabel = useMemo(
-    () =>
-      new Date().toLocaleDateString("vi-VN", {
-        weekday: "long",
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-      }),
-    []
-  )
-
   const stats = summary?.summary
   const queue = summary?.todaysSchedule ?? []
   const recent = summary?.recentPatients ?? []
@@ -74,78 +62,76 @@ export default function TechnicianDashboard() {
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Card className="border-cyan-100 shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-slate-700">Tests Today</CardTitle>
-              <FlaskConical className="h-4 w-4 text-cyan-600" />
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Lab tests today</CardTitle>
             </CardHeader>
-            <CardContent>
-              {loading ? (
-                <Loader2 className="h-6 w-6 animate-spin text-cyan-600" />
-              ) : (
-                <div className="text-2xl font-bold text-slate-900">{stats?.labTestsToday ?? 0}</div>
-              )}
-              <p className="text-xs text-muted-foreground mt-1">Total TEST records for today</p>
+            <CardContent className="p-6">
+              <div className="flex items-start justify-between gap-2">
+                {loading ? (
+                  <Loader2 className="h-6 w-6 animate-spin text-cyan-600" />
+                ) : (
+                  <div className="text-2xl font-bold text-slate-900">{stats?.labTestsToday ?? 0}</div>
+                )}
+                <FlaskConical className="h-4 w-4 shrink-0 text-cyan-600" aria-hidden />
+              </div>
             </CardContent>
           </Card>
 
           <Card className="border-amber-100 shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-slate-700">Pending Results</CardTitle>
-              <AlertCircle className="h-4 w-4 text-amber-600" />
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Appointments today</CardTitle>
             </CardHeader>
-            <CardContent>
-              {loading ? (
-                <Loader2 className="h-6 w-6 animate-spin text-amber-600" />
-              ) : (
-                <div className="text-2xl font-bold text-slate-900">{stats?.appointmentsToday ?? 0}</div>
-              )}
-              <p className="text-xs text-muted-foreground mt-1">
-                No summary result or attachment uploaded yet
-              </p>
+            <CardContent className="p-6">
+              <div className="flex items-start justify-between gap-2">
+                {loading ? (
+                  <Loader2 className="h-6 w-6 animate-spin text-amber-600" />
+                ) : (
+                  <div className="text-2xl font-bold text-slate-900">{stats?.appointmentsToday ?? 0}</div>
+                )}
+                <AlertCircle className="h-4 w-4 shrink-0 text-amber-600" aria-hidden />
+              </div>
             </CardContent>
           </Card>
 
           <Card className="border-emerald-100 shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-slate-700">Assigned to Me</CardTitle>
-              <ClipboardList className="h-4 w-4 text-emerald-600" />
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Diagnoses today</CardTitle>
             </CardHeader>
-            <CardContent>
-              {loading ? (
-                <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
-              ) : (
-                <div className="text-2xl font-bold text-slate-900">{stats?.diagnosesToday ?? 0}</div>
-              )}
-              <p className="text-xs text-muted-foreground mt-1">Matched by technician on TEST/PROCEDURE_</p>
+            <CardContent className="p-6">
+              <div className="flex items-start justify-between gap-2">
+                {loading ? (
+                  <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
+                ) : (
+                  <div className="text-2xl font-bold text-slate-900">{stats?.diagnosesToday ?? 0}</div>
+                )}
+                <ClipboardList className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden />
+              </div>
             </CardContent>
           </Card>
 
           <Card className="border-slate-200 shadow-sm opacity-90">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-slate-700">Recent Patients</CardTitle>
-              <UserRound className="h-4 w-4 text-slate-500" />
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Recent patients</CardTitle>
             </CardHeader>
-            <CardContent>
-              {loading ? (
-                <Loader2 className="h-6 w-6 animate-spin text-slate-500" />
-              ) : (
-                <div className="text-2xl font-bold text-slate-900">{recent.length}</div>
-              )}
-              <p className="text-xs text-muted-foreground mt-1">Patients with latest lab history</p>
+            <CardContent className="p-6">
+              <div className="flex items-start justify-between gap-2">
+                {loading ? (
+                  <Loader2 className="h-6 w-6 animate-spin text-slate-500" />
+                ) : (
+                  <div className="text-2xl font-bold text-slate-900">{recent.length}</div>
+                )}
+                <UserRound className="h-4 w-4 shrink-0 text-slate-500" aria-hidden />
+              </div>
             </CardContent>
           </Card>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-5">
           <Card className="lg:col-span-3 border-slate-200 shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <div>
-                <CardTitle className="text-lg">Today's Lab Queue</CardTitle>
-                <p className="text-sm text-muted-foreground">Sorted by time — open patient lab record</p>
-              </div>
-              <FileSearch className="h-5 w-5 text-cyan-600" />
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Today lab queue</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent className="space-y-2 p-6 pt-0">
               {loading && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground py-8 justify-center">
                   <Loader2 className="h-4 w-4 animate-spin" /> Loading...
@@ -199,10 +185,9 @@ export default function TechnicianDashboard() {
 
           <Card className="lg:col-span-2 border-slate-200 shadow-sm">
             <CardHeader className="pb-2">
-              <CardTitle className="text-lg">Recent Lab Patients</CardTitle>
-              <p className="text-sm text-muted-foreground">Quick access to result entry</p>
+              <CardTitle className="text-base">Recently handled</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent className="space-y-2 p-6 pt-0">
               {loading && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground py-6 justify-center">
                   <Loader2 className="h-4 w-4 animate-spin" /> Loading...

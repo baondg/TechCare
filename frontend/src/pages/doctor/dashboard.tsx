@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button"
 import { CalendarDays, FileText, FlaskConical, Pill } from "lucide-react"
 import { Link } from "react-router-dom";
 import { DoctorLayout } from "@/components/doctor-layout"
-import { CollapsibleSection } from "@/components/collapsible-section"
 import { useEffect, useMemo, useState } from "react"
 import { doctorService, type DoctorAppointment, type DoctorDashboardSummary } from "@/services/doctor-service"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -153,61 +152,61 @@ export default function DoctorDashboard() {
   return (
     <DoctorLayout>
       <div className="space-y-6">
-        <div>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Appointments today</CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-2xl font-bold">{dashboardSummary?.summary?.appointmentsToday ?? 0}</div>
+                <CalendarDays className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Diagnoses today</CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-2xl font-bold">{dashboardSummary?.summary?.diagnosesToday ?? 0}</div>
+                <FileText className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Prescriptions today</CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-2xl font-bold">{dashboardSummary?.summary?.prescriptionsToday ?? 0}</div>
+                <Pill className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Lab tests today</CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-2xl font-bold">{dashboardSummary?.summary?.labTestsToday ?? 0}</div>
+                <FlaskConical className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
-        <CollapsibleSection title="Overview Statistics" description="Today's performance metrics" defaultOpen={true}>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Appointments</CardTitle>
-                <CalendarDays className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{dashboardSummary?.summary?.appointmentsToday ?? 0}</div>
-                <p className="text-xs text-muted-foreground">Today</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Diagnoses</CardTitle>
-                <FileText className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{dashboardSummary?.summary?.diagnosesToday ?? 0}</div>
-                <p className="text-xs text-muted-foreground">Today</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Prescriptions</CardTitle>
-                <Pill className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{dashboardSummary?.summary?.prescriptionsToday ?? 0}</div>
-                <p className="text-xs text-muted-foreground">Today</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Lab Tests</CardTitle>
-                <FlaskConical className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{dashboardSummary?.summary?.labTestsToday ?? 0}</div>
-                <p className="text-xs text-muted-foreground">Today</p>
-              </CardContent>
-            </Card>
-          </div>
-        </CollapsibleSection>
-
-        <CollapsibleSection
-          title="Appointments"
-          defaultOpen={true}
-        >
+        <Card className="card-feature border-slate-200/60">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Schedule</CardTitle>
+          </CardHeader>
+          <CardContent className="p-6 pt-0 space-y-4">
           <Tabs value={scheduleTab} onValueChange={(v) => setScheduleTab(v as ScheduleTab)} className="w-full">
             <TabsList className="mb-3 grid w-full max-w-md grid-cols-3">
               <TabsTrigger value="day">Day</TabsTrigger>
@@ -217,7 +216,6 @@ export default function DoctorDashboard() {
 
             <TabsContent value="day" className="mt-0 space-y-3">
               <div className="max-w-sm">
-                <label className="mb-1.5 block text-sm text-muted-foreground">Select date</label>
                 <Popover open={dayPickerOpen} onOpenChange={setDayPickerOpen}>
                   <PopoverTrigger asChild>
                     <Button variant="outline" className="w-full justify-start text-left font-normal">
@@ -245,7 +243,6 @@ export default function DoctorDashboard() {
 
             <TabsContent value="week" className="mt-0 space-y-3">
               <div className="max-w-sm">
-                <label className="mb-1.5 block text-sm text-muted-foreground">Select week (Mon – Sun)</label>
                 <Popover open={weekPickerOpen} onOpenChange={setWeekPickerOpen}>
                   <PopoverTrigger asChild>
                     <Button variant="outline" className="w-full justify-start text-left font-normal">
@@ -273,7 +270,6 @@ export default function DoctorDashboard() {
 
             <TabsContent value="month" className="mt-0 space-y-3">
               <div className="max-w-sm">
-                <label className="mb-1.5 block text-sm text-muted-foreground">Select month</label>
                 <Popover open={monthPickerOpen} onOpenChange={setMonthPickerOpen}>
                   <PopoverTrigger asChild>
                     <Button variant="outline" className="w-full justify-start text-left font-normal">
@@ -357,10 +353,15 @@ export default function DoctorDashboard() {
               <div className="text-sm text-muted-foreground p-3">No appointments in the selected range.</div>
             )}
           </div>
-        </CollapsibleSection>
+          </CardContent>
+        </Card>
 
         <div className="grid gap-6 md:grid-cols-2">
-          <CollapsibleSection title="Recent Patients" description="Patients you've seen recently" defaultOpen={true}>
+          <Card className="card-feature border-slate-200/60">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Recent patients</CardTitle>
+            </CardHeader>
+            <CardContent className="p-6 pt-0">
             <div className="space-y-3">
               {(dashboardSummary?.recentPatients || []).map((patient) => (
                 <div key={patient.patientId} className="flex items-center justify-between p-3 border rounded-lg">
@@ -383,11 +384,17 @@ export default function DoctorDashboard() {
                 <div className="text-sm text-muted-foreground p-3">No recent patients.</div>
               )}
             </div>
-          </CollapsibleSection>
+            </CardContent>
+          </Card>
 
-          <CollapsibleSection title="AI Insights" description="Intelligent recommendations" defaultOpen={true}>
+          <Card className="card-feature border-slate-200/60">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Notes</CardTitle>
+            </CardHeader>
+            <CardContent className="p-6 pt-0">
             <div className="text-sm text-muted-foreground p-3">—</div>
-          </CollapsibleSection>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </DoctorLayout>

@@ -32,5 +32,6 @@ router.post('/refresh', AuthController.refreshToken);
 // Protected routes (require authentication)
 router.post('/logout', authenticateToken, AuthController.logout);
 router.get('/session', authenticateToken, AuthController.getSession);
+router.post('/register-patient', authenticateToken, AuthController.registerPatientByNurse);
 
 module.exports = router;

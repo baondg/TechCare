@@ -9,7 +9,8 @@ import { PatientLayout } from "@/components/patient-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Activity, Heart, AlertCircle, FileText, Save, History, X, Loader2, Stethoscope, Plus, Edit, Search, Copy, CheckCircle2, FileDown, Trash2 } from "lucide-react"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { PauseableCornerToastPortal } from "@/components/pauseable-corner-toast"
+import { usePauseableToast } from "@/hooks/usePauseableToast"
 import { CollapsibleSection } from "@/components/collapsible-section"
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
@@ -28,6 +29,7 @@ type HealthInfoPageProps = {
 }
 
 export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps) {
+  const { toast, isExiting, showSuccess, showError, onMouseEnter, onMouseLeave } = usePauseableToast(2600)
   const { user } = useAuth()
   const { mutationsAllowed } = useEmrSession()
   const allowHealthWrites = mode === "nurse" || mutationsAllowed
@@ -71,9 +73,6 @@ export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps)
   // Loading states
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
-
   const [isEditing, setIsEditing] = useState(false)
   const [isAdding, setIsAdding] = useState(false)
   const [height, setHeight] = useState("")
@@ -144,6 +143,7 @@ export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [exportingPdf, setExportingPdf] = useState(false)
+  const [addingTrackingSlip, setAddingTrackingSlip] = useState(false)
   const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false)
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null)
   const [pdfPreviewFilename, setPdfPreviewFilename] = useState<string | null>(null)
@@ -157,7 +157,8 @@ export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps)
     !isEditing &&
     selectedRecords.length > 0 &&
     selectedRecords.every((r) => r.status === "draft")
-  const canExportSelected = mode === "nurse" && selectedRecords.length > 0 && !exportingPdf
+  const canExportSelected = selectedRecords.length > 0 && !exportingPdf
+  const canAddToMedicalRecord = mode === "doctor" && selectedRecords.length > 0 && !exportingPdf && !addingTrackingSlip
 
   const toArray = (value: unknown): string[] => {
     if (Array.isArray(value)) return value.filter((item): item is string => typeof item === "string")
@@ -252,11 +253,10 @@ export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps)
       await Promise.all(selectedRecords.map((r) => doctorService.deleteHealthInfo(patientId, r.id)))
       setSelectedRecords([])
       setSelectedRecord(null)
-      setSuccess(`${selectedRecords.length} record(s) deleted successfully.`)
-      setError(null)
+      showSuccess(`${selectedRecords.length} record(s) deleted successfully.`)
       await loadHealthHistory()
     } catch (err: any) {
-      setError(err?.message || "Failed to delete records")
+      showError(err?.message || "Failed to delete records")
     } finally {
       setSaving(false)
     }
@@ -294,7 +294,7 @@ export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps)
       releasePdfBlobUrl(url)
       setPdfPreviewOpen(true)
     } catch (err: any) {
-      setError(err?.message || "Failed to export PDF")
+      showError(err?.message || "Failed to export PDF")
     } finally {
       setExportingPdf(false)
     }
@@ -307,6 +307,22 @@ export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps)
     a.download = pdfPreviewFilename
     a.rel = "noopener"
     a.click()
+  }
+
+  const handleAddTrackingSlipToMedicalRecord = async () => {
+    if (!patientId || !canAddToMedicalRecord) return
+    setAddingTrackingSlip(true)
+    try {
+      await doctorService.addHealthTrackingSlipToMedicalRecord(patientId, {
+        recordIds: selectedRecords.map((r) => r.id),
+      })
+      showSuccess("Health tracking slip added to active medical record.")
+      closePdfPreview()
+    } catch (err: any) {
+      showError(err?.message || "Failed to add slip to medical record")
+    } finally {
+      setAddingTrackingSlip(false)
+    }
   }
 
   // Load health info on mount
@@ -322,7 +338,7 @@ export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps)
         await loadHealthHistory()
       } catch (err) {
         console.error(err)
-        setError("Failed to load health information")
+        showError("Failed to load health information")
       } finally {
         setLoading(false)
       }
@@ -335,7 +351,6 @@ export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps)
     if (!patientId) return
     
     setLoading(true)
-    setError(null)
     
     try {
       const result = await doctorService.getHealthInfo(patientId)
@@ -426,10 +441,11 @@ export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps)
         setVaccinations(chooseNonEmpty(toArray(info.vaccinations ?? medicalHistory.vaccinations), defaults.vaccinations))
         setSubstanceAbuse(chooseNonEmpty(toArray(info.substanceAbuse ?? medicalHistory.substanceAbuse), defaults.substanceAbuse))
       } else {
-        setError("Failed to load health information")
+        showError("Failed to load health information")
       }
     } catch (err) {
       console.error("Failed to load health info:", err)
+      showError("Failed to load health information")
     } finally {
       setLoading(false)
     }
@@ -518,6 +534,7 @@ const loadHealthHistory = async () => {
     }
   } catch (err) {
     console.error("Failed to load health history:", err)
+    showError("Failed to load health history")
   }
 }
 
@@ -599,8 +616,6 @@ const loadHealthHistory = async () => {
     if (!allowHealthWrites) return
     if (!patientId) return
     setSaving(true)
-    setError(null)
-    setSuccess(null)
 
     try {
       const payload = {
@@ -628,10 +643,10 @@ const loadHealthHistory = async () => {
 
       if (currentHealthInfoId && !isAdding) {
         await doctorService.updateHealthInfo(patientId, currentHealthInfoId, payload)
-        setSuccess("Health record updated successfully.")
+        showSuccess("Health record updated successfully.")
       } else {
         await doctorService.createHealthInfo(patientId, payload)
-        setSuccess("Health record created successfully.")
+        showSuccess("Health record created successfully.")
       }
 
       setIsEditing(false)
@@ -639,7 +654,7 @@ const loadHealthHistory = async () => {
       await loadHealthInfo()
       await loadHealthHistory()
     } catch (err: any) {
-      setError(err?.message || "Failed to save health information")
+      showError(err?.message || "Failed to save health information")
     } finally {
       setSaving(false)
     }
@@ -740,6 +755,7 @@ const loadHealthHistory = async () => {
   }
 
   return (
+    <>
       <div className="space-y-6">
         <Dialog open={pdfPreviewOpen} onOpenChange={(open) => (!open ? closePdfPreview() : setPdfPreviewOpen(open))}>
           <DialogContent className="flex max-h-[90vh] w-[min(920px,96vw)] max-w-none flex-col gap-3 p-4 sm:p-6">
@@ -757,6 +773,17 @@ const loadHealthHistory = async () => {
               <Button type="button" variant="outline" className="btn-outline" onClick={closePdfPreview}>
                 Close
               </Button>
+              {mode === "doctor" ? (
+                <Button
+                  type="button"
+                  className="btn-outline"
+                  disabled={!canAddToMedicalRecord}
+                  onClick={() => void handleAddTrackingSlipToMedicalRecord()}
+                >
+                  {addingTrackingSlip ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
+                  Add to Medical record
+                </Button>
+              ) : null}
               <Button type="button" className="btn-gradient" onClick={handleSavePdfFromPreview}>
                 <FileDown className="h-4 w-4 mr-2" />
                 Save / Download
@@ -772,7 +799,7 @@ const loadHealthHistory = async () => {
           </TabsList>
 
           <TabsContent value="records" className="mt-4">
-            {mode === "nurse" ? (
+            {(mode === "nurse" || mode === "doctor") ? (
               <div className="mb-3 flex items-center justify-end gap-2">
                 <Button
                   type="button"
@@ -784,16 +811,18 @@ const loadHealthHistory = async () => {
                   {exportingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
                   <span className="ml-2">Export</span>
                 </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  className="btn-outline text-red-600"
-                  disabled={!canDeleteSelected}
-                  onClick={() => void handleDeleteSelectedRecords()}
-                >
-                  <Trash2 className="h-4 w-4" />
-                  <span className="ml-2">Delete</span>
-                </Button>
+                {mode === "nurse" ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="btn-outline text-red-600"
+                    disabled={!canDeleteSelected}
+                    onClick={() => void handleDeleteSelectedRecords()}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    <span className="ml-2">Delete</span>
+                  </Button>
+                ) : null}
               </div>
             ) : null}
             <Card className="flex flex-col h-fit">
@@ -1247,12 +1276,11 @@ const loadHealthHistory = async () => {
                   if (!selectedRecord) return
                   try {
                     await doctorService.confirmHealthInfo(patientId, selectedRecord.id)
-                    setSuccess("Health record confirmed successfully.")
-                    setError(null)
+                    showSuccess("Health record confirmed successfully.")
                     setSelectedRecord(null)
                     await loadHealthHistory()
                   } catch (err: any) {
-                    setError(err?.message || "Failed to confirm health record")
+                    showError(err?.message || "Failed to confirm health record")
                   }
                 }}
                 disabled={!canConfirmSelected || !allowHealthWrites}
@@ -1276,19 +1304,6 @@ const loadHealthHistory = async () => {
               </Button>
             </div>
           </div>
-        )}
-
-        {/* Success/Error Messages */}
-        {success && (
-          <Alert className="bg-green-50 border-green-200 text-green-800">
-            <AlertDescription>{success}</AlertDescription>
-          </Alert>
-        )}
-
-        {error && (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
         )}
 
         {/* ------------------- VITAL SIGNS ------------------- */}
@@ -1518,6 +1533,13 @@ const loadHealthHistory = async () => {
         </CollapsibleSection>
 
       </div>
+      <PauseableCornerToastPortal
+        toast={toast}
+        isExiting={isExiting}
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
+      />
+    </>
   )
 }
 

@@ -73,15 +73,45 @@ function fmtTime(d: Date): string {
   return d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })
 }
 
+function clamp(n: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, n))
+}
+
+function buildSvgPath(opts: { values: Array<number | null>; yFor: (v: number) => number }): string {
+  const stepX = 100 / 13
+  let d = ""
+  let penUp = true
+  for (let i = 0; i < opts.values.length; i++) {
+    const v = opts.values[i]
+    if (v == null || Number.isNaN(v)) {
+      penUp = true
+      continue
+    }
+    const x = i * stepX
+    const y = opts.yFor(v)
+    if (penUp) {
+      d += `M ${x.toFixed(3)} ${y.toFixed(3)} `
+      penUp = false
+    } else {
+      d += `L ${x.toFixed(3)} ${y.toFixed(3)} `
+    }
+  }
+  return d.trim()
+}
+
 export async function generateHealthInfoTrackingPdfBlob(opts: {
   patientName: string
   age: string
   gender: string
   diagnosis: string
+  ms?: string
+  admissionNo?: string
   rows: HealthInfoTrackingRow[]
   filename?: string
 }): Promise<HealthInfoTrackingPdfResult> {
   const points = [...opts.rows].sort((a, b) => a.updatedAt.getTime() - b.updatedAt.getTime()).slice(-14)
+  const GRAPH_ROWS = 28
+  const BOLD_LINE_IDX = Math.round(((41 - 37) / (41 - 35)) * GRAPH_ROWS)
 
   const cell = (v?: string | number | null) => `<td class="v">${v ? escapeHtml(String(v)) : ""}</td>`
   const valueCells = (getter: (r: HealthInfoTrackingRow) => string | number) =>
@@ -90,6 +120,29 @@ export async function generateHealthInfoTrackingPdfBlob(opts: {
   const dateCells = Array.from({ length: 14 }, (_, i) => 
     `<td class="v" style="font-size: 8px;">${points[i] ? fmtDate(points[i].updatedAt) : ""}</td>`
   ).join("")
+
+  const pulseValues: Array<number | null> = Array.from({ length: 14 }, (_, i) => {
+    const p = points[i]?.pulse
+    return typeof p === "number" && Number.isFinite(p) ? p : null
+  })
+  const temperatureValues: Array<number | null> = Array.from({ length: 14 }, (_, i) => {
+    const t = points[i]?.temperature
+    return typeof t === "number" && Number.isFinite(t) ? t : null
+  })
+
+  // Map values to the graph space (viewBox 0..100).
+  // Pulse range: 40..160 (as printed on the left). Temperature range: 35..41 (as printed on the right).
+  const pulseY = (v: number) => ((160 - clamp(v, 40, 160)) / (160 - 40)) * 100
+  const tempY = (v: number) => ((41 - clamp(v, 35, 41)) / (41 - 35)) * 100
+
+  const pulsePath = buildSvgPath({ values: pulseValues, yFor: pulseY })
+  const tempPath = buildSvgPath({ values: temperatureValues, yFor: tempY })
+
+  const line = (v?: string | number | null) => {
+    const s = v == null ? "" : String(v).trim()
+    const has = s.length > 0
+    return `<span class="content${has ? " no-dots" : ""}">${has ? escapeHtml(s) : "&nbsp;"}</span>`
+  }
 
   const html = `<!DOCTYPE html>
   <html lang="vi">
@@ -103,7 +156,7 @@ export async function generateHealthInfoTrackingPdfBlob(opts: {
       .head { display:flex; justify-content:space-between; align-items: flex-start; margin-bottom:15px; }
       .head .left { width: 30%; line-height: 1.5; }
       .head .title { flex: 1; text-align: center; font-weight: 700; font-size: 16px; white-space: nowrap; padding: 0 10px; margin-top: 10px; }
-      .head .right { width: 25%; text-align: left; font-size: 12px; }
+      .head .right { width: 25%; text-align: right; font-size: 13px; white-space: nowrap; }
       
       /* Cấu trúc dòng thông tin: Có dữ liệu thì ẩn chấm */
       .info-line { margin-bottom: 8px; display: flex; align-items: baseline; }
@@ -118,64 +171,71 @@ export async function generateHealthInfoTrackingPdfBlob(opts: {
       .no-dots { border-bottom: none !important; } /* Dùng khi muốn bỏ hẳn gạch chân */
 
       .grid { width:100%; border-collapse:collapse; table-layout:fixed; }
-      .grid td { border:1px solid #000; text-align:center; vertical-align:middle; height: 24px; padding: 2px; word-break: break-all; overflow: hidden; }
+      .grid td { border:1px solid #000; text-align:center; vertical-align:middle; height: 20px; padding: 1px; word-break: break-all; overflow: hidden; }
       
-      .label-col { width: 80px; text-align: left !important; padding-left: 5px !important; font-size: 12px; }
-      .unit-col { width: 55px; text-align: left !important; padding-left: 5px !important; font-size: 12px; }
+      .label-col { width: 80px; text-align: left !important; padding-left: 5px !important; font-size: 13px; }
+      .unit-col { width: 55px; text-align: left !important; padding-left: 5px !important; font-size: 13px; }
       
       .graph-container { position: relative; padding: 0 !important; }
       .inner-graph { width: 100%; border-collapse: collapse; height: 100%; border: none; }
-      .inner-graph td { border: 0.1pt solid #bbb; height: 12px; }
+      .inner-graph td { border: 0.1pt solid #bbb; height: 9px; }
       .inner-graph td:not(:last-child) { border-right: 1px solid #000; }
+      .graph-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 
-      .v { font-size: 10px; line-height: 1.1; }
-      .note { margin-top:15px; font-size:11px; font-style: italic; line-height: 1.5; }
+      .v { font-size: 11px; line-height: 1.15; }
+      .note { margin-top:15px; font-size:12px; font-style: italic; line-height: 1.5; }
     </style>
   </head>
   <body>
     <div class="sheet">
       <div class="head">
         <div class="left">
-          Sở Y tế: ...........................<br/>
-          BV: ................................<br/>
-          Khoa: .............................
+          <div class="info-line" style="margin-bottom:2px;">
+            <span class="label">Sở Y tế:</span> ${line("")}
+          </div>
+          <div class="info-line" style="margin-bottom:2px;">
+            <span class="label">BV:</span> ${line("")}
+          </div>
+          <div class="info-line" style="margin-bottom:0;">
+            <span class="label">Khoa:</span> ${line("")}
+          </div>
         </div>
         <div class="title">PHIẾU THEO DÕI CHỨC NĂNG SỐNG</div>
         <div class="right">
-          MS: 10/BV-01<br/>
-          Số vào viện: .........
+          MS: ${escapeHtml(String(opts.ms ?? "10/BV-01"))}<br/>
+          Số vào viện: ${escapeHtml(String(opts.admissionNo ?? ""))}
         </div>
       </div>
 
       <div style="display: flex; gap: 20px;">
         <div class="info-line" style="flex: 2;">
           <span class="label">- Họ tên người bệnh:</span>
-          <span class="content">${opts.patientName || ""}</span>
+          ${line(opts.patientName)}
         </div>
         <div class="info-line" style="flex: 0.5;">
           <span class="label">Tuổi:</span>
-          <span class="content">${opts.age || ""}</span>
+          ${line(opts.age)}
         </div>
         <div class="info-line" style="flex: 0.5;">
           <span class="label">Giới:</span>
-          <span class="content">${opts.gender || ""}</span>
+          ${line(opts.gender)}
         </div>
       </div>
 
       <div style="display: flex; gap: 20px;">
         <div class="info-line" style="flex: 1;">
           <span class="label">- Số giường:</span>
-          <span class="content"></span>
+          ${line("")}
         </div>
         <div class="info-line" style="flex: 1;">
           <span class="label">Buồng:</span>
-          <span class="content"></span>
+          ${line("")}
         </div>
       </div>
 
       <div class="info-line">
         <span class="label">- Chẩn đoán:</span>
-        <span class="content">${opts.diagnosis || ""}</span>
+        ${line(opts.diagnosis)}
       </div>
 
       <table class="grid">
@@ -201,9 +261,13 @@ export async function generateHealthInfoTrackingPdfBlob(opts: {
               <td class="label-col">${val}</td>
               <td class="unit-col" style="${temp === 37 ? 'font-weight:bold' : ''}">${temp}</td>
               ${idx === 0 ? `<td colspan="14" rowspan="7" class="graph-container">
+                  <svg class="graph-overlay" viewBox="0 0 100 100" preserveAspectRatio="none">
+                    ${pulsePath ? `<path d="${pulsePath}" stroke="#d00000" stroke-width="1.2" fill="none" vector-effect="non-scaling-stroke"/>` : ""}
+                    ${tempPath ? `<path d="${tempPath}" stroke="#0b57d0" stroke-width="1.2" fill="none" vector-effect="non-scaling-stroke"/>` : ""}
+                  </svg>
                   <table class="inner-graph">
-                    ${Array.from({length: 35}, (_, lineIdx) => `
-                      <tr style="${lineIdx === 20 ? 'border-bottom: 2px solid #000' : ''}">
+                    ${Array.from({length: GRAPH_ROWS}, (_, lineIdx) => `
+                      <tr style="${lineIdx === BOLD_LINE_IDX ? 'border-bottom: 2px solid #000' : ''}">
                         ${Array.from({length: 14}, () => `<td></td>`).join("")}
                       </tr>
                     `).join("")}
@@ -237,7 +301,7 @@ export async function generateHealthInfoTrackingPdfBlob(opts: {
     left: "-10000px",
     top: "0",
     width: "210mm",
-    height: "1400px",
+    height: "0",
     border: "none",
     visibility: "hidden",
   })
@@ -252,15 +316,16 @@ export async function generateHealthInfoTrackingPdfBlob(opts: {
   idoc.close()
 
   try {
-    const body = idoc.body
+    const sheet = idoc.querySelector(".sheet") as HTMLElement | null
+    if (!sheet) throw new Error("Export template missing .sheet")
     await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())))
-    const canvas = await html2canvas(body, {
+    const canvas = await html2canvas(sheet, {
       scale: 2,
       useCORS: true,
       logging: false,
       backgroundColor: "#ffffff",
-      windowWidth: body.scrollWidth,
-      windowHeight: body.scrollHeight,
+      windowWidth: sheet.scrollWidth,
+      windowHeight: sheet.scrollHeight,
       foreignObjectRendering: false,
     })
     const pdf = canvasToPdfDocument(canvas)

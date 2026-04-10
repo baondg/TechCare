@@ -4,13 +4,11 @@ import {
   useCallback,
   useEffect,
   useId,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type KeyboardEvent,
 } from "react"
-import { createPortal } from "react-dom"
 import { useParams } from "react-router-dom"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -46,7 +44,8 @@ import {
   type MedicineOption,
 } from "@/services/doctor-service"
 import { generatePrescriptionPdfBlob } from "@/lib/export-prescription-pdf"
-import { usePauseableToast, type PauseableToastEntry } from "@/hooks/usePauseableToast"
+import { usePauseableToast } from "@/hooks/usePauseableToast"
+import { PauseableCornerToastPortal } from "@/components/pauseable-corner-toast"
 import {
   Dialog,
   DialogContent,
@@ -390,7 +389,7 @@ function UsageTypeaheadInput({
 }
 
 export default function PatientPrescription() {
-  const { toast, isExiting, showSuccess, showError, onMouseEnter, onMouseLeave } = usePauseableToast()
+  const { toast, isExiting, showSuccess, showError, onMouseEnter, onMouseLeave } = usePauseableToast(2600)
   const { patientId } = useParams<{ patientId: string }>()
   const { mutationsAllowed } = useEmrSession()
   const [prescriptions, setPrescriptions] = useState<UiPrescription[]>([])
@@ -728,19 +727,6 @@ export default function PatientPrescription() {
     a.click()
   }
 
-  const pauseableToast =
-    toast &&
-    typeof document !== "undefined" &&
-    createPortal(
-      <PrescriptionPageToast
-        toast={toast}
-        isExiting={isExiting}
-        onMouseEnter={onMouseEnter}
-        onMouseLeave={onMouseLeave}
-      />,
-      document.body
-    )
-
   return (
     <>
     <div className="grid grid-cols-12 gap-6">
@@ -1057,48 +1043,12 @@ export default function PatientPrescription() {
         </CardContent>
       </Card>
     </div>
-    {pauseableToast}
-    </>
-  )
-}
-
-function PrescriptionPageToast({
-  toast,
-  isExiting,
-  onMouseEnter,
-  onMouseLeave,
-}: {
-  toast: PauseableToastEntry
-  isExiting: boolean
-  onMouseEnter: () => void
-  onMouseLeave: () => void
-}) {
-  const [entered, setEntered] = useState(false)
-
-  useLayoutEffect(() => {
-    setEntered(false)
-    const id = requestAnimationFrame(() => {
-      requestAnimationFrame(() => setEntered(true))
-    })
-    return () => cancelAnimationFrame(id)
-  }, [toast.id])
-
-  const visible = entered && !isExiting
-
-  return (
-    <div
-      role="status"
-      aria-live="polite"
-      className={cn(
-        "pointer-events-auto fixed bottom-6 left-6 z-[100] max-w-md rounded-lg border px-4 py-3 text-sm shadow-lg transition-opacity duration-300 ease-out",
-        visible ? "opacity-100" : "opacity-0",
-        toast.variant === "success" && "bg-[#34A853] text-white",
-        toast.variant === "error" && "bg-[#EA4335] text-white"
-      )}
+    <PauseableCornerToastPortal
+      toast={toast}
+      isExiting={isExiting}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
-    >
-      {toast.message}
-    </div>
+    />
+    </>
   )
 }

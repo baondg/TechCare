@@ -19,6 +19,7 @@ import { generateBloodTestPdfBlob } from "@/lib/export-blood-test-pdf"
 import { generateTreatmentFollowupPdfBlob } from "@/lib/export-treatment-followup-pdf"
 import { generateHospitalTransferPdfBlob } from "@/lib/export-hospital-transfer-pdf"
 import { generateSurgeryPdfBlob } from "@/lib/export-surgery-pdf"
+import { generateHealthInfoTrackingPdfBlob } from "@/lib/export-health-info-tracking-pdf"
 import { mergePdfBlobs } from "@/lib/merge-pdf-blobs"
 import { profileService, type PatientProfile } from "@/services/profile-service"
 import { healthInfoService } from "@/services/health-info-service"
@@ -648,6 +649,27 @@ export default function PatientHistoryPage() {
         blobs.push(blob)
       }
 
+      for (const slip of v.healthTrackingSlips ?? []) {
+        const { blob } = await generateHealthInfoTrackingPdfBlob({
+          patientName: name,
+          age: ageStr,
+          gender: patient.gender === "M" ? "Male" : patient.gender === "F" ? "Female" : "",
+          diagnosis: latestDiagnosisText,
+          rows: (slip.rows || []).map((r) => ({
+            updatedAt: new Date(r.updatedAt),
+            bloodPressure: r.bloodPressure || "",
+            pulse: Number(r.pulse) || 0,
+            temperature: Number(r.temperature) || 0,
+            weight: Number(r.weight) || 0,
+            respiratoryRate: Number(r.respiratoryRate) || 0,
+            spo2: Number(r.spo2) || 0,
+            symptoms: r.symptoms || "",
+          })),
+          filename: `health-tracking-${slip.orderId}.pdf`,
+        })
+        blobs.push(blob)
+      }
+
       if (blobs.length === 0) {
         window.alert("This visit has no documents to export yet.")
         return
@@ -739,6 +761,7 @@ export default function PatientHistoryPage() {
                 const isThisExporting = exportingRegimenId === v.regimenId
                 const exportBusy = exportingRegimenId !== null
                 const hospitalTransfers = v.hospitalTransfers ?? []
+                const healthTrackingSlips = v.healthTrackingSlips ?? []
                 return (
                 <Card key={v.regimenId} className="overflow-hidden border-border/80 shadow-sm">
                   <CardHeader className="bg-gradient-to-r from-sky-50/90 to-transparent dark:from-sky-950/30">
@@ -1005,6 +1028,34 @@ export default function PatientHistoryPage() {
                       </>
                     ) : null}
 
+                    {healthTrackingSlips.length > 0 ? (
+                      <>
+                        <Separator />
+                        <section className="space-y-3">
+                          <h3 className="flex items-center gap-2 text-sm font-semibold">
+                            <Activity className="h-4 w-4 text-red-600" />
+                            Health tracking slips
+                          </h3>
+                          <ul className="space-y-3">
+                            {healthTrackingSlips.map((slip) => (
+                              <li key={slip.orderId} className="rounded-lg border p-3 space-y-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="font-medium">Slip #{slip.orderId}</span>
+                                  <Badge variant="outline" className="text-[10px]">
+                                    {slip.rows?.length || 0} row(s)
+                                  </Badge>
+                                </div>
+                                <p className="text-xs text-muted-foreground">{formatDateTime(slip.createdAt)}</p>
+                                {slip.createdByDoctor ? (
+                                  <p className="text-xs text-muted-foreground">Created by: {slip.createdByDoctor}</p>
+                                ) : null}
+                              </li>
+                            ))}
+                          </ul>
+                        </section>
+                      </>
+                    ) : null}
+
                     {v.surgeries.length > 0 ? (
                       <>
                         <Separator />
@@ -1045,6 +1096,7 @@ export default function PatientHistoryPage() {
                     v.labTests.length === 0 &&
                     v.surgeries.length === 0 &&
                     hospitalTransfers.length === 0 &&
+                    healthTrackingSlips.length === 0 &&
                     !v.vitals ? (
                       <p className="text-xs text-muted-foreground text-center py-2">
                         Aside from the diagnosis, no prescriptions, lab tests, or vitals are linked to this visit yet.

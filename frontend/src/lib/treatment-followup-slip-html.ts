@@ -35,116 +35,153 @@ const SLIP_STYLES = `
         padding: 0;
         background: #fff;
       }
-      .sheet {
-        width: 190mm;
-        max-width: 100%;
+      .doc {
+        width: 210mm;
         margin: 0 auto;
-        padding: 8mm 2mm 6mm;
-        box-sizing: border-box;
+        background: #fff;
       }
+      .page {
+        width: 210mm;
+        min-height: 297mm;
+        box-sizing: border-box;
+        padding: 8mm 10mm 10mm 12mm;
+        display: flex;
+        flex-direction: column;
+        font-size: 13px;
+        page-break-after: always;
+      }
+      .page:last-child { page-break-after: auto; }
+
       .title {
         text-align: center;
         font-weight: 700;
-        font-size: 18px;
+        font-size: 16px;
         letter-spacing: 0.2px;
-        margin-bottom: 6px;
+        margin: 0 0 3mm;
+        white-space: nowrap;
       }
-      .subline {
-        font-size: 12px;
-        margin-bottom: 6px;
-      }
-      .top-grid {
-        width: 100%;
-        display: grid;
-        grid-template-columns: 1.2fr 0.7fr 1fr;
-        gap: 6px;
-        font-size: 12px;
-      }
-      .kv {
-        border-bottom: 1px dotted #444;
-        min-height: 16px;
-      }
-      .patient-row {
-        margin-top: 10px;
-        display: grid;
-        grid-template-columns: 1.35fr 0.45fr 1fr;
-        gap: 10px;
-        font-size: 12px;
-        align-items: center;
-      }
-      .field-line { min-height: 18px; }
-      .age { text-align: left; white-space: nowrap; }
-      .gender {
+      .top {
         display: flex;
-        gap: 10px;
-        align-items: center;
-        justify-content: flex-start;
+        justify-content: space-between;
+        gap: 10mm;
+        font-size: 13px;
+        line-height: 1.4;
       }
+      .top .left { width: 62mm; }
+      .top .center { flex: 1; text-align: center; }
+      .top .right { width: 62mm; text-align: right; }
+
+      .line {
+        display: inline-block;
+        border-bottom: 1px dotted #000;
+        min-height: 1em;
+        padding: 0 2px 1px;
+        vertical-align: baseline;
+      }
+      .no-dots { border-bottom: none; }
+
+      .info {
+        margin-top: 2mm;
+        font-size: 13px;
+        line-height: 1.55;
+      }
+      .row {
+        display: flex;
+        gap: 8mm;
+        align-items: baseline;
+      }
+      .row.top-person { align-items: center; }
+      .row .grow { flex: 1; min-width: 0; }
+      .row .fixed { white-space: nowrap; }
+      .row .gender-fixed { display: inline-flex; align-items: center; gap: 10px; }
       .check {
         display: inline-flex;
         gap: 6px;
         align-items: center;
       }
       .box {
-        width: 14px;
-        height: 14px;
+        width: 12px;
+        height: 12px;
         border: 1px solid #000;
         display: inline-block;
       }
       .box.checked::after{
         content:"";
         display:block;
-        width: 8px;
-        height: 8px;
+        width: 7px;
+        height: 7px;
         background:#000;
         margin: 2px;
       }
-      .diag-row {
-        margin-top: 10px;
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 10px;
-        font-size: 12px;
-      }
-      .diag-row .full { grid-column: 1 / span 2; }
-      .diag-box {
-        border-bottom: 1px dotted #444;
-        min-height: 18px;
-        padding-bottom: 1px;
-      }
+
       table.table {
         width: 100%;
         border-collapse: collapse;
-        margin-top: 12px;
+        margin-top: 4mm;
         table-layout: fixed;
+        font-size: 13px;
+      }
+      .table-wrap {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+      }
+      .table-wrap table.table {
+        height: 100%;
+      }
+      .table-wrap tbody tr {
+        height: calc(100% / var(--rows, 12));
       }
       table.table th, table.table td {
         border: 1px solid #000;
         vertical-align: top;
-        font-size: 12px;
-        padding: 4px 6px;
+        padding: 4px 5px;
         word-break: break-word;
         overflow-wrap: anywhere;
       }
-      table.table th {
-        text-align: center;
+      table.table th { text-align: center; font-weight: 700; }
+      th.w-time, td.w-time { width: 18%; }
+      th.w-soap, td.w-soap { width: 52%; }
+      th.w-order, td.w-order { width: 30%; }
+
+      td.dotted {
+        background-image: repeating-linear-gradient(
+          to bottom,
+          transparent 0px,
+          transparent 15px,
+          rgba(0,0,0,0.55) 15px,
+          rgba(0,0,0,0.55) 16px
+        );
+        background-size: 100% 16px;
+      }
+      td.w-time.dotted {
+        background-image: repeating-linear-gradient(
+          to bottom,
+          transparent 0px,
+          transparent 14px,
+          rgba(0,0,0,0.55) 14px,
+          rgba(0,0,0,0.55) 15px
+        );
+        background-size: 100% 15px;
+      }
+
+      .note {
+        margin-top: 3mm;
+        font-size: 13px;
+      }
+
+      /* SOAP guide page */
+      .guide-title {
+        font-size: 14px;
         font-weight: 700;
-        padding: 6px 6px;
+        margin: 2mm 0 4mm;
+        text-align: center;
       }
-      td.w-time { width: 22%; }
-      td.w-behavior { width: 46%; }
-      td.w-order { width: 32%; }
-      .stamp {
-        margin-top: 10px;
-        display: flex;
-        justify-content: flex-end;
-        font-size: 12px;
+      .guide {
+        font-size: 13px;
+        line-height: 1.55;
       }
-      .doctor-line {
-        min-width: 160px;
-        text-align: right;
-      }
-      .small { font-size: 11px; }
+      .guide .line-item { margin: 6px 0; }
 `
 
 export function buildTreatmentFollowupSlipHtmlDocument(opts: TreatmentFollowupSlipInputs): string {
@@ -165,16 +202,13 @@ export function buildTreatmentFollowupSlipHtmlDocument(opts: TreatmentFollowupSl
 
   const diagnosisLine = [icd10, diagnosisInterpretation].filter(Boolean).join(" — ")
 
-  const rowCount = 12
-  const rows = Array.from({ length: rowCount }, (_, i) => {
-    const t = i === 0 ? dateLabel : ""
-    const dienBien = i === 0 ? complaintSymptoms : ""
-    const chiDinh = i === 0 ? note : ""
+  const rowCount = 16
+  const blankRows = Array.from({ length: rowCount }, () => {
     return `
       <tr>
-        <td class="w-time">${escapeHtml(t)}</td>
-        <td class="w-behavior">${escapeHtml(dienBien)}</td>
-        <td class="w-order">${escapeHtml(chiDinh)}</td>
+        <td class="w-time dotted">&nbsp;</td>
+        <td class="w-soap dotted">&nbsp;</td>
+        <td class="w-order dotted">&nbsp;</td>
       </tr>
     `
   }).join("")
@@ -187,60 +221,83 @@ export function buildTreatmentFollowupSlipHtmlDocument(opts: TreatmentFollowupSl
     <style>${SLIP_STYLES}</style>
   </head>
   <body>
-    <div class="sheet">
-      <div class="title">PHIẾU THEO DÕI ĐIỀU TRỊ</div>
-      <div class="top-grid subline">
-        <div class="field-line">Cơ sở KB, CB.......................... <span class="kv"></span></div>
-        <div class="field-line">Tổ số: <span class="kv"></span></div>
-        <div class="field-line">MS: <span class="kv"></span> &nbsp;&nbsp; Số vào viện: <span class="kv"></span></div>
+    <div class="doc">
+      <div class="page">
+        <div class="top">
+          <div class="left">
+            Cơ sở KB, CB <span class="line" style="min-width: 120px">&nbsp;</span><br/>
+            Khoa <span class="line no-dots" style="min-width: 120px">${escapeHtml(department) || "&nbsp;"}</span>
+          </div>
+          <div class="center">
+            <div class="title">PHIẾU THEO DÕI ĐIỀU TRỊ</div>
+            Tờ số: <span class="line" style="min-width: 90px">&nbsp;</span>
+          </div>
+          <div class="right">
+            MS: <span class="line" style="min-width: 80px">&nbsp;</span><br/>
+            Số vào viện: <span class="line" style="min-width: 110px">&nbsp;</span><br/>
+            Mã người bệnh: <span class="line" style="min-width: 110px">&nbsp;</span>
+          </div>
+        </div>
+
+        <div class="info">
+          <div class="row top-person">
+            <div class="grow">
+              Họ và tên người bệnh: <span class="line no-dots" style="min-width: 210px; font-weight: 700">${escapeHtml(patientName)}</span>
+            </div>
+            <div class="fixed">
+              Tuổi: <span class="line no-dots" style="min-width: 28px">${escapeHtml(age)}</span>
+            </div>
+            <div class="fixed">
+              Giới tính: <span class="line no-dots" style="min-width: 60px">${isMale ? "Nam" : isFemale ? "Nữ" : escapeHtml(g)}</span>
+            </div>
+          </div>
+
+          <div class="row" style="margin-top:2mm;">
+            <div class="grow">
+              Khoa: <span class="line no-dots" style="min-width: 120px">${escapeHtml(department)}</span>
+            </div>
+            <div class="grow">
+              Phòng: <span class="line no-dots" style="min-width: 80px">${escapeHtml(roomLabel)}</span>
+            </div>
+            <div class="grow">
+              Giường: <span class="line" style="min-width: 80px">&nbsp;</span>
+            </div>
+          </div>
+
+          <div style="margin-top:2mm;">
+            Chẩn đoán: <span class="line no-dots" style="min-width: 430px">${escapeHtml(diagnosisLine)}</span>
+          </div>
+          <div style="margin-top:1mm;">
+            Chẩn đoán phân biệt: <span class="line" style="min-width: 380px">&nbsp;</span>
+          </div>
+        </div>
+
+        <div class="table-wrap" style="--rows:${rowCount}">
+          <table class="table">
+            <thead>
+              <tr>
+                <th class="w-time">Thời gian<br/><span style="font-weight:400">(Ngày, giờ)</span></th>
+                <th class="w-soap">Diễn biến bệnh<br/><span style="font-weight:400">(Viết diễn biến theo cấu trúc SOAP)</span></th>
+                <th class="w-order">Chỉ định</th>
+              </tr>
+            </thead>
+            <tbody>${blankRows}</tbody>
+          </table>
+        </div>
+
+        <div class="note">
+          <b>Ghi chú:</b> Bác sỹ ký ngay sau mỗi lần ghi chép trong phần “Diễn biến bệnh” hoặc “Chỉ định”.
+        </div>
       </div>
 
-      <div class="patient-row">
-        <div class="field-line">
-          <b>Họ và tên người bệnh:</b> ..............................................................
-          <span style="margin-left:6px; font-weight:600">${escapeHtml(patientName)}</span>
-        </div>
-        <div class="age field-line">
-          <b>Tuổi:</b> <span>${escapeHtml(age)}</span>
-        </div>
-        <div class="gender">
-          <span class="check"><span class="box ${isMale ? "checked" : ""}"></span>Nam</span>
-          <span class="check"><span class="box ${isFemale ? "checked" : ""}"></span>Nữ</span>
-        </div>
-      </div>
-
-      <div class="diag-row">
-        <div class="field-line">
-          <b>Khoa:</b> <span class="diag-box">${escapeHtml(department)}</span>
-        </div>
-        <div class="field-line">
-          <b>Phòng:</b> <span class="diag-box">${escapeHtml(roomLabel)}</span>
-        </div>
-        <div class="full field-line">
-          <b>Chẩn đoán:</b> <span class="diag-box">${escapeHtml(diagnosisLine)}</span>
-        </div>
-        <div class="full field-line">
-          <b>Chẩn đoán phân biệt:</b> <span class="diag-box"></span>
-        </div>
-      </div>
-
-      <table class="table">
-        <thead>
-          <tr>
-            <th class="w-time">Thời gian</th>
-            <th class="w-behavior">Diễn biến bệnh</th>
-            <th class="w-order">Chỉ định</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rows}
-        </tbody>
-      </table>
-
-      <div class="stamp">
-        <div class="doctor-line">
-          Ngày ... tháng ... năm ...<br/>
-          Bác sĩ: ${escapeHtml(doctorName)}
+      <div class="page">
+        <div class="guide-title">Hướng dẫn cách ghi chép theo cấu trúc (SOAP)</div>
+        <div class="guide">
+          <div class="line-item">- <b>S (Hỏi bệnh)</b>: ghi lại các thông tin của người bệnh tự khai như triệu chứng, bệnh sử, bối cảnh xuất hiện bệnh, tiền sử...</div>
+          <div class="line-item">- <b>O (Kết quả khám)</b>: ghi lại các thông tin do bác sỹ thăm khám như các dấu hiệu sinh tồn, các kết quả xét nghiệm...</div>
+          <div class="line-item">- <b>A (Đánh giá)</b>: đánh giá, phân tích kết quả và chẩn đoán trên cơ sở thông tin tự khai của người bệnh và kết quả khám bệnh.</div>
+          <div class="line-item">- <b>P (Kế hoạch điều trị)</b>: tóm tắt tình hình, diễn biến bệnh, đưa ra nhận định, đưa ra hướng xử trí tiếp theo.</div>
+          <div class="line-item">- <b>C (Chỉ định)</b>: cụ thể hóa kế hoạch điều trị như các vấn đề cần theo dõi (theo dõi thân nhiệt, nhịp thở, huyết áp...), các loại thuốc sử dụng, các thủ thuật cần làm...</div>
         </div>
       </div>
     </div>

@@ -8,13 +8,15 @@ async function fetchAppointmentSummary(sequelize, appointmentId) {
        a.doctor_id AS doctorId,
        DATE_FORMAT(a.time, '%d/%m/%Y') AS dateVi,
        DATE_FORMAT(a.time, '%H:%i') AS timeVi,
-       d.specifications AS department,
+       COALESCE(NULLIF(TRIM(dep.name), ''), NULLIF(TRIM(d.specifications), ''), '') AS department,
        COALESCE(NULLIF(TRIM(CONCAT(COALESCE(du.first_name,''),' ',COALESCE(du.last_name,''))), ''), dacc.username) AS doctorLabel,
        COALESCE(NULLIF(TRIM(CONCAT(COALESCE(pu.first_name,''),' ',COALESCE(pu.last_name,''))), ''), pacc.username) AS patientLabel
      FROM APPOINTMENT a
      JOIN DOCTOR d ON d.doctor_id = a.doctor_id
      JOIN ACCOUNT dacc ON dacc.user_id = d.user_id
      JOIN USER du ON du.id = d.user_id
+     LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id
+     LEFT JOIN DEPARTMENT dep ON dep.id = cr.department_id
      LEFT JOIN PATIENT p ON p.patient_id = a.patient_id
      LEFT JOIN ACCOUNT pacc ON pacc.user_id = p.user_id
      LEFT JOIN USER pu ON pu.id = p.user_id
@@ -33,7 +35,7 @@ async function fetchPatientDisplayName(sequelize, patientId) {
      WHERE p.patient_id = :pid LIMIT 1`,
     { replacements: { pid: patientId }, type: QueryTypes.SELECT }
   );
-  return row?.name || 'Bệnh nhân';
+  return row?.name || 'Patient';
 }
 
 async function doctorUserId(sequelize, doctorId) {
@@ -74,9 +76,9 @@ exports.notifyDoctorPatientBooked = (sequelize, appointmentId) =>
     const s = await fetchAppointmentSummary(sequelize, appointmentId);
     if (!s) return;
     const uid = await doctorUserId(sequelize, s.doctorId);
-    const patientName = s.patientLabel || 'Bệnh nhân';
+    const patientName = s.patientLabel || 'A patient';
     const dept = s.department ? ` — ${s.department}` : '';
-    const content = `${patientName} đã đặt lịch khám với bạn: ${s.dateVi} lúc ${s.timeVi}${dept}.`;
+    const content = `${patientName} booked an appointment with you: ${s.dateVi} at ${s.timeVi}${dept}.`;
     await insertNotif(sequelize, uid, 'appointment_patient_booked', content);
   });
 
@@ -85,22 +87,52 @@ exports.notifyDoctorPatientCancelledAppointment = (sequelize, appointmentId) =>
     const s = await fetchAppointmentSummary(sequelize, appointmentId);
     if (!s || !s.patientId) return;
     const uid = await doctorUserId(sequelize, s.doctorId);
-    const patientName = s.patientLabel || 'Bệnh nhân';
+    const patientName = s.patientLabel || 'A patient';
     const dept = s.department ? ` — ${s.department}` : '';
-    const content = `${patientName} đã hủy lịch khám: ${s.dateVi} lúc ${s.timeVi}${dept}.`;
+    const content = `${patientName} cancelled their appointment: ${s.dateVi} at ${s.timeVi}${dept}.`;
     await insertNotif(sequelize, uid, 'appointment_patient_cancelled', content);
   });
 
-/** Bác sĩ Cover / hủy lịch từ portal bác sĩ */
+/** Doctor cancelled appointment (patient notified). */
 exports.notifyPatientDoctorCover = (sequelize, appointmentId) =>
   safeRun('notifyPatientDoctorCover', async () => {
     const s = await fetchAppointmentSummary(sequelize, appointmentId);
     if (!s || !s.patientId) return;
     const uid = await patientUserId(sequelize, s.patientId);
-    const doctorName = s.doctorLabel || 'Bác sĩ';
+    const doctorName = s.doctorLabel || 'Your doctor';
     const dept = s.department ? ` — ${s.department}` : '';
-    const content = `${doctorName} đã hủy buổi hẹn (Cover): ${s.dateVi} lúc ${s.timeVi}${dept}. Vui lòng đặt lịch lại với bác sĩ khác nếu cần.`;
+    const content = `${doctorName} cancelled your appointment: ${s.dateVi} at ${s.timeVi}${dept}. Please book another slot if you still need a visit.`;
     await insertNotif(sequelize, uid, 'appointment_doctor_cover', content);
+  });
+
+/** After another doctor assigns cover: notify the receiving doctor (English). */
+exports.notifyDoctorReceivedCoverAppointment = (sequelize, { appointmentId, previousDoctorLabel }) =>
+  safeRun('notifyDoctorReceivedCoverAppointment', async () => {
+    const s = await fetchAppointmentSummary(sequelize, appointmentId);
+    if (!s) return;
+    const uid = await doctorUserId(sequelize, s.doctorId);
+    const dept = s.department ? ` — ${s.department}` : '';
+    const transfer = previousDoctorLabel
+      ? ` This visit was transferred from ${previousDoctorLabel}.`
+      : '';
+    if (s.patientId != null) {
+      const patientName = (s.patientLabel && String(s.patientLabel).trim()) || 'A patient';
+      const content = `${patientName} is now scheduled with you on ${s.dateVi} at ${s.timeVi}${dept}.${transfer}`;
+      await insertNotif(sequelize, uid, 'appointment_cover_received', content);
+    } else {
+      const content = `An open slot is now on your schedule on ${s.dateVi} at ${s.timeVi}${dept}.${transfer}`;
+      await insertNotif(sequelize, uid, 'appointment_cover_received', content);
+    }
+  });
+
+/** After nurse/doctor reassigns a booked slot to another doctor (same department). */
+exports.notifyPatientAppointmentDoctorReassigned = (sequelize, { patientId, dateVi, timeVi, department, oldDoctorName, newDoctorName }) =>
+  safeRun('notifyPatientAppointmentDoctorReassigned', async () => {
+    const uid = await patientUserId(sequelize, patientId);
+    if (!uid) return;
+    const dept = department ? ` (${department})` : '';
+    const content = `Your appointment on ${dateVi} at ${timeVi}${dept} is now with ${newDoctorName}. Your previous doctor was ${oldDoctorName}.`;
+    await insertNotif(sequelize, uid, 'appointment_doctor_reassigned', content);
   });
 
 /** Y tá đổi lịch trong ngày: thông báo bác sĩ khung cũ và khung mới */
@@ -112,13 +144,43 @@ exports.notifyDoctorsAfterNurseReschedule = (sequelize, { fromAppointmentId, toA
     if (fromS) {
       const uid = await doctorUserId(sequelize, fromS.doctorId);
       const dept = fromS.department ? ` — ${fromS.department}` : '';
-      const content = `${patientName} đã đổi lịch, không còn hẹn ngày ${fromS.dateVi} lúc ${fromS.timeVi}${dept}.`;
+      const content = `${patientName} was moved to another slot and is no longer booked on ${fromS.dateVi} at ${fromS.timeVi}${dept}.`;
       await insertNotif(sequelize, uid, 'appointment_patient_rescheduled', content);
     }
     if (toS) {
       const uid = await doctorUserId(sequelize, toS.doctorId);
       const dept = toS.department ? ` — ${toS.department}` : '';
-      const content = `${patientName} đã được chuyển đến lịch của bạn: ${toS.dateVi} lúc ${toS.timeVi}${dept}.`;
+      const content = `${patientName} has been assigned to your schedule: ${toS.dateVi} at ${toS.timeVi}${dept}.`;
+      await insertNotif(sequelize, uid, 'appointment_patient_rescheduled', content);
+    }
+  });
+
+/** Patient rescheduled via portal: notify old and new doctor (English). */
+exports.notifyDoctorsAfterPatientReschedule = (sequelize, { fromAppointmentId, toAppointmentId, patientId }) =>
+  safeRun('notifyDoctorsAfterPatientReschedule', async () => {
+    const patientName = await fetchPatientDisplayName(sequelize, patientId);
+    const fromS = await fetchAppointmentSummary(sequelize, fromAppointmentId);
+    const toS = await fetchAppointmentSummary(sequelize, toAppointmentId);
+    if (!fromS && !toS) return;
+    const sameDoctor = fromS && toS && Number(fromS.doctorId) === Number(toS.doctorId);
+    if (sameDoctor) {
+      const uid = await doctorUserId(sequelize, fromS.doctorId);
+      if (!uid) return;
+      const dept = toS.department ? ` — ${toS.department}` : '';
+      const content = `${patientName} rescheduled: new time ${toS.dateVi} at ${toS.timeVi}${dept} (was ${fromS.dateVi} at ${fromS.timeVi}).`;
+      await insertNotif(sequelize, uid, 'appointment_patient_rescheduled', content);
+      return;
+    }
+    if (fromS) {
+      const uid = await doctorUserId(sequelize, fromS.doctorId);
+      const dept = fromS.department ? ` — ${fromS.department}` : '';
+      const content = `${patientName} rescheduled and is no longer on your schedule: ${fromS.dateVi} at ${fromS.timeVi}${dept}.`;
+      await insertNotif(sequelize, uid, 'appointment_patient_rescheduled', content);
+    }
+    if (toS) {
+      const uid = await doctorUserId(sequelize, toS.doctorId);
+      const dept = toS.department ? ` — ${toS.department}` : '';
+      const content = `${patientName} rescheduled to your schedule: ${toS.dateVi} at ${toS.timeVi}${dept}.`;
       await insertNotif(sequelize, uid, 'appointment_patient_rescheduled', content);
     }
   });

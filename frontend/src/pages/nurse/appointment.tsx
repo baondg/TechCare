@@ -150,6 +150,8 @@ export default function NurseAppointmentsPage() {
 
   const [draftRows, setDraftRows] = useState<SlotDraftRow[]>(() => [newDraftRow(format(new Date(), "yyyy-MM-dd"))])
 
+  const [draftRows, setDraftRows] = useState<SlotDraftRow[]>(() => [newDraftRow(format(new Date(), "yyyy-MM-dd"))])
+
   const [viewDate, setViewDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState(new Date())
 
@@ -278,6 +280,7 @@ export default function NurseAppointmentsPage() {
 
     setSaving(true)
     setMessage("")
+    let created = 0
     try {
       if (isBulk) {
         const selected = slots.filter((s) => targetIds.includes(s.id))

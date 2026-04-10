@@ -24,6 +24,8 @@ export interface CreateAppointmentData {
   room?: string;
   symptoms?: string;
   notes?: string;
+  /** When set, moves booking from this appointment to the new slot and notifies doctors (English). */
+  rescheduleFromAppointmentId?: number;
 }
 
 export interface DoctorOption {
@@ -47,7 +49,10 @@ export interface NurseOpenSlot {
   department: string;
   roomId: number | null;
   roomName: string;
+  /** APPOINTMENT.patient_id — PATIENT.patient_id (PK), not USER.id */
   patientId: number | null;
+  /** USER.id — use for /nurse/patients/:id/profile and /api/profile */
+  patientUserId?: number | null;
   patientName: string;
   status: 'open' | 'booked' | 'cancelled';
 }
@@ -222,6 +227,24 @@ export type PatientMedicalRegimen = PatientMedicalVisit & {
     transport: string | null;
     formPayload: Record<string, unknown> | null;
   }>;
+  /** Phiếu theo dõi chức năng sống được bác sĩ thêm vào bệnh án */
+  healthTrackingSlips: Array<{
+    orderId: number;
+    createdAt: string;
+    createdByDoctor: string | null;
+    rows: Array<{
+      id: number;
+      updatedAt: string;
+      bloodPressure: string;
+      pulse: number;
+      temperature: number;
+      weight: number;
+      respiratoryRate: number;
+      spo2: number;
+      symptoms: string;
+    }>;
+    formPayload: Record<string, unknown> | null;
+  }>;
 };
 
 export interface PatientSymptomLog {
@@ -273,7 +296,10 @@ export const appointmentService = {
     return apiClient.post<{ success: boolean; slot: NurseOpenSlot }>('/api/appointments/open-slots', payload);
   },
 
-  async updateOpenSlot(id: number, payload: { date: string; time: string; roomId?: number }) {
+  async updateOpenSlot(
+    id: number,
+    payload: { date: string; time: string; roomId?: number; doctorId?: number }
+  ) {
     return apiClient.put<{ success: boolean; id: number; date: string; time: string }>(
       `/api/appointments/open-slots/${id}`,
       payload
@@ -303,6 +329,7 @@ export const appointmentService = {
     return (data.regimens ?? []).map((r) => ({
       ...r,
       hospitalTransfers: Array.isArray(r.hospitalTransfers) ? r.hospitalTransfers : [],
+      healthTrackingSlips: Array.isArray(r.healthTrackingSlips) ? r.healthTrackingSlips : [],
     }));
   },
 

@@ -119,7 +119,7 @@ exports.getCoverRequests = async (req, res) => {
          TIME(a.time) AS appointmentTime,
          a.\`condition\` AS appointmentCondition,
          COALESCE(NULLIF(TRIM(CONCAT(COALESCE(ou.first_name,''), ' ', COALESCE(ou.last_name,''))), ''), oa.username) AS originalDoctorName,
-         od.specifications AS department,
+         COALESCE(NULLIF(TRIM(dep_appt.name), ''), NULLIF(TRIM(od.specifications), ''), '') AS department,
          COALESCE(NULLIF(TRIM(CONCAT(COALESCE(pu.first_name,''), ' ', COALESCE(pu.last_name,''))), ''), 'Patient') AS patientName,
          cr2.name AS roomName
        FROM COVER_REQUEST cr
@@ -130,6 +130,7 @@ exports.getCoverRequests = async (req, res) => {
        LEFT JOIN PATIENT p ON p.patient_id = a.patient_id
        LEFT JOIN USER pu ON pu.id = p.user_id
        LEFT JOIN CLINIC_ROOM cr2 ON cr2.id = a.room_id
+       LEFT JOIN DEPARTMENT dep_appt ON dep_appt.id = cr2.department_id
        WHERE cr.status = 'pending'
          AND od.specifications = :spec
          AND cr.original_doctor_id != :myDoctorId

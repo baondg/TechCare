@@ -166,6 +166,12 @@ export async function generateBloodTestPdfBlob(input: BloodTestPdfInput): Promis
     </tr>`
   }).join("")
 
+  const line = (minWidthPx: number, text?: string) => {
+    const t = String(text ?? "").trim()
+    const has = t.length > 0
+    return `<span class="line${has ? " no-dots" : ""}" style="min-width:${minWidthPx}px">${has ? escapeHtml(t) : "&nbsp;"}</span>`
+  }
+
   const html = `<!DOCTYPE html><html lang="vi"><head><meta charset="utf-8" />
   <style>
     /* Reset & Base */
@@ -183,16 +189,25 @@ export async function generateBloodTestPdfBlob(input: BloodTestPdfInput): Promis
     }
 
     /* Header Section */
-    .head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px; }
-    .header-left { font-size: 14px; line-height: 1.4; }
-    .header-right { font-size: 14px; text-align: right; }
-    
-    .title-container { text-align: center; margin: 10px 0 20px 0; }
-    .title { font-weight: bold; font-size: 26px; text-transform: uppercase; }
+    .topbar { display:flex; justify-content: space-between; align-items:flex-start; gap: 12px; }
+    .topbar .org-left { width: 62mm; font-size: 14px; line-height: 1.4; }
+    .topbar .title-wrap { flex: 1; text-align: center; }
+    .topbar .meta { width: 52mm; font-size: 14px; line-height: 1.25; text-align: right; white-space: nowrap; }
+    .topbar .meta b { font-size: 14px; }
+    .title { font-weight: bold; font-size: 20px; text-transform: uppercase; white-space: nowrap; }
     
     /* Patient Info */
     .patient-info { font-size: 15px; line-height: 1.8; margin-bottom: 15px; }
-    .line { display: inline-block; border-bottom: 1px dotted #000; padding: 0 5px; font-weight: normal; }
+    .line {
+      display: inline-block;
+      border-bottom: 1px dotted #000;
+      padding: 0 5px 2px 5px;
+      font-weight: normal;
+      line-height: 1.1;
+      min-height: 1em;
+      vertical-align: baseline;
+    }
+    .no-dots { border-bottom: none; }
     .b { font-weight: bold; }
 
     /* Table Styling - Giúp bảng trông đầy trang hơn */
@@ -213,29 +228,29 @@ export async function generateBloodTestPdfBlob(input: BloodTestPdfInput): Promis
   </style></head>
   <body>
     <div class="sheet">
-      <div class="head">
-        <div class="header-left">
-          Sở Y Tế: <span class="line" style="min-width: 150px"></span><br/>
-          BV: <span class="line" style="min-width: 150px"></span><br/>
-          Khoa: <span class="line" style="min-width: 150px">${escapeHtml(input.department)}</span>
+      <div class="topbar">
+        <div class="org-left">
+          Sở Y tế: ${line(140)}<br/>
+          BV: ${line(140)}
         </div>
-        <div class="header-right">
-          <b style="font-size: 15px;">MS: 33/BV-01</b><br/>
-          Số vào viện: <span class="line" style="min-width: 80px"></span>
+        <div class="title-wrap">
+          <div class="title">PHIẾU XÉT NGHIỆM HOÁ SINH MÁU</div>
         </div>
-      </div>
-
-      <div class="title-container">
-        <div class="title">PHIẾU XÉT NGHIỆM HOÁ SINH MÁU</div>
+        <div class="meta">
+          <b>MS: 33/BV-01</b><br/>
+          Số vào viện: ${escapeHtml("")}
+        </div>
       </div>
 
       <div class="patient-info">
-        - Họ tên người bệnh: <span class="line" style="min-width: 320px; font-weight: bold; font-size: 17px;">${escapeHtml(input.patientName.toUpperCase())}</span>
-        &nbsp; Tuổi: <span class="line" style="min-width: 60px">${escapeHtml(input.age)}</span>
-        &nbsp; Nam/Nữ: <span class="line" style="min-width: 40px">${escapeHtml(gender)}</span><br/>
-        - Địa chỉ: <span class="line" style="min-width: 500px"></span><br/>
-        - Chẩn đoán: <span class="line" style="min-width: 550px">${escapeHtml(input.diagnosis)}</span><br/>
-        - Ngày xét nghiệm: <span class="line" style="min-width: 150px">${escapeHtml(input.testDateLabel)}</span>
+        - Họ tên người bệnh: <span class="line no-dots" style="min-width: 320px; font-weight: bold; font-size: 17px;">${escapeHtml(input.patientName.toUpperCase())}</span>
+        &nbsp; Tuổi: ${line(60, input.age)}
+        &nbsp; Nam/Nữ: ${line(40, gender)}<br/>
+        - Địa chỉ: ${line(520)}<br/>
+        - Khoa: ${line(220, input.department)}
+        &nbsp; Buồng: ${line(110)}
+        &nbsp; Giường: ${line(110)}<br/>
+        - Chẩn đoán: ${line(560, input.diagnosis)}<br/>
       </div>
 
       <table class="table">
@@ -265,7 +280,7 @@ export async function generateBloodTestPdfBlob(input: BloodTestPdfInput): Promis
 
   const iframe = document.createElement("iframe")
   Object.assign(iframe.style, {
-    position: "fixed", left: "-10000px", top: "0", width: "210mm", height: "1600px", border: "none", visibility: "hidden",
+    position: "fixed", left: "-10000px", top: "0", width: "210mm", height: "0", border: "none", visibility: "hidden",
   })
   document.body.appendChild(iframe)
   const idoc = iframe.contentDocument
@@ -275,11 +290,12 @@ export async function generateBloodTestPdfBlob(input: BloodTestPdfInput): Promis
   idoc.close()
 
   try {
-    const body = idoc.body
+    const sheet = idoc.querySelector(".sheet") as HTMLElement | null
+    if (!sheet) throw new Error("Export template missing .sheet")
     await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())))
-    const canvas = await html2canvas(body, {
+    const canvas = await html2canvas(sheet, {
       scale: 2, useCORS: true, logging: false, backgroundColor: "#ffffff",
-      windowWidth: body.scrollWidth, windowHeight: body.scrollHeight, foreignObjectRendering: false,
+      windowWidth: sheet.scrollWidth, windowHeight: sheet.scrollHeight, foreignObjectRendering: false,
     })
     const pdf = canvasToPdfDocument(canvas)
     const blob = pdf.output("blob")

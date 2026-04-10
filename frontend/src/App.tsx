@@ -33,6 +33,7 @@ import Nurse_EMRManagement from "./pages/nurse/medical_records/dashboard"
 import NurseAppointment from "./pages/nurse/appointment"
 import NurseWorkShifts from "./pages/nurse/work-shifts"
 import NurseFeedback from "./pages/nurse/feedback"
+import NursePatientRegistration from "./pages/nurse/patient-registration"
 import NursePatientProfilePage from "./pages/nurse/patient-profile"
 import TechnicianDashboard from './pages/technician/dashboard'
 import TechnicianPatients from './pages/technician/patients'
@@ -84,6 +85,7 @@ function App() {
 
           {/* Protected nurse Routes */}
           <Route path="/nurse/dashboard" element={<NurseDashboard />} />
+          <Route path="/nurse/patient-registration" element={<NursePatientRegistration />} />
           <Route path="/nurse/patients" element={<NursePatients />} />
           <Route path="/nurse/medical_records/:patientId/:tab" element={<NurseLayout2 />}>
             <Route index element={<Nurse_EMRManagement />} />

@@ -9,8 +9,8 @@ export type FollowUpReexamSlipInputs = {
   /** Sinh ngày dạng DD/MM/YYYY hoặc placeholder */
   dateOfBirthDisplay: string
   address: string
-  /** Mảng đúng 6 ký tự hiển thị trong ô vuông số thẻ BHYT */
-  insuranceCardSix: string[]
+  /** Mảng 4 phần số thẻ BHYT: 2 ký tự, 1 ký tự, 2 ký tự, phần còn lại */
+  insuranceCardParts: string[]
   insuranceValidFromDisplay: string
   insuranceValidToDisplay: string
   examDateDisplay: string
@@ -41,15 +41,16 @@ function escapeHtml(s: string): string {
     .replace(/'/g, "&#039;")
 }
 
-/** Lấy 6 ký tự đầu (sau khi bỏ khoảng trắng) cho ô vuông số thẻ. */
-export function splitInsuranceCardSix(raw: string | null | undefined): string[] {
+/** Tách số BHYT thành 4 phần: AA | B | CC | DDD... */
+export function splitInsuranceCardParts(raw: string | null | undefined): string[] {
   const clean = String(raw || "")
     .replace(/\s/g, "")
-    .slice(0, 6)
-    .split("")
-  const out = [...clean]
-  while (out.length < 6) out.push("")
-  return out.slice(0, 6)
+    .toUpperCase()
+  const p1 = clean.slice(0, 2)
+  const p2 = clean.slice(2, 3)
+  const p3 = clean.slice(3, 5)
+  const p4 = clean.slice(5)
+  return [p1, p2, p3, p4]
 }
 
 /** YYYY-MM-DD → { day, month, year } (chuỗi hiển thị, có thể pad). */
@@ -71,84 +72,75 @@ export function formatDdMmYyyy(iso: string): string {
 }
 
 const STYLES = `
-  body { margin: 0; padding: 0; background: #fff; color: #000; }
+  body { margin: 0; padding: 0; background: #fff; color: #000; font-family: "Times New Roman", Times, "DejaVu Serif", serif; }
   .sheet {
-    width: 190mm;
-    max-width: 100%;
+    width: 210mm;
+    min-height: 297mm;
     margin: 0 auto;
     padding: 10mm 12mm 12mm;
     box-sizing: border-box;
-    font-family: "Times New Roman", Times, "DejaVu Serif", serif;
     font-size: 13px;
-    line-height: 1.45;
+    line-height: 1.4;
   }
+  .head {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10mm;
+    margin-bottom: 2mm;
+  }
+  .head .left, .head .right { font-weight: 700; text-align: center; }
+  .head .small { font-weight: 700; font-size: 12px; }
+  .center { text-align: center; }
   .title {
+    margin-top: 8mm;
     text-align: center;
+    font-size: 35px;
     font-weight: 700;
-    font-size: 17px;
-    letter-spacing: 0.5px;
-    margin-bottom: 16px;
     text-transform: uppercase;
   }
-  .row { margin-bottom: 11px; }
-  .label { font-weight: 400; }
-  .fill {
-    border-bottom: 1px dotted #000;
+  .line {
     display: inline-block;
-    min-height: 1.15em;
+    border-bottom: 1px dotted #000;
+    min-height: 1em;
     vertical-align: baseline;
     padding: 0 2px 1px;
   }
-  .fill-long { min-width: 55%; }
-  .fill-mid { min-width: 28%; }
-  .fill-short { min-width: 3.5em; }
-  .inline-gio { margin-left: 8px; }
-  .ins-wrap { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; vertical-align: middle; }
-  .ins-boxes { display: inline-flex; gap: 5px; margin-left: 4px; }
+  .no-dots { border-bottom: none; }
+  .row { margin: 6px 0; }
+  .ins-boxes { display: inline-flex; gap: 0; margin-left: 6px; vertical-align: middle; }
   .ins-box {
-    width: 22px;
-    height: 24px;
+    min-width: 22px;
+    height: 22px;
     border: 1px solid #000;
+    border-right: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 13px;
-    font-weight: 600;
+    font-weight: 700;
     box-sizing: border-box;
   }
-  .block-text {
-    margin: 14px 0;
-    text-align: justify;
-    line-height: 1.55;
-  }
-  .legal {
-    margin-top: 12px;
-    font-size: 12px;
-    line-height: 1.5;
-    text-align: justify;
-  }
+  .ins-box:last-child { border-right: 1px solid #000; }
+  .ins-box.box-1 { min-width: 36px; }
+  .ins-box.box-2 { min-width: 24px; }
+  .ins-box.box-3 { min-width: 30px; }
+  .ins-box.box-4 { min-width: 138px; justify-content: flex-start; padding: 0 6px; }
+  .para { margin-top: 6px; text-align: justify; }
   .footer {
-    margin-top: 28px;
+    margin-top: 18px;
     text-align: right;
-    font-size: 13px;
-    line-height: 1.65;
+    line-height: 1.5;
   }
-  .sig-bold { font-weight: 700; margin-top: 6px; }
-  .muted { color: #333; }
-  .time-hint { font-size: 12px; margin-top: 6px; }
+  .sig { font-weight: 700; }
 `
 
 export function buildFollowUpReexamSlipHtmlDocument(opts: FollowUpReexamSlipInputs): string {
-  const six = (opts.insuranceCardSix || []).slice(0, 6)
-  while (six.length < 6) six.push("")
-  const boxes = six
-    .map((ch) => `<span class="ins-box">${escapeHtml(ch || "\u00A0")}</span>`)
+  const parts = (opts.insuranceCardParts || []).slice(0, 4)
+  while (parts.length < 4) parts.push("")
+  const boxes = parts
+    .map((part, idx) => `<span class="ins-box box-${idx + 1}">${escapeHtml(part || "\u00A0")}</span>`)
     .join("")
 
   const dept = (opts.departmentLabel || "").trim()
-  const deptLine = dept
-    ? `<div class="time-hint"><span class="label">Khoa hẹn:</span> <span class="fill fill-mid">${escapeHtml(dept)}</span></div>`
-    : ""
 
   return `<!DOCTYPE html>
 <html lang="vi">
@@ -159,62 +151,55 @@ export function buildFollowUpReexamSlipHtmlDocument(opts: FollowUpReexamSlipInpu
 </head>
 <body>
   <div class="sheet">
+    <div class="head">
+      <div class="left">
+        CƠ QUAN CHỦ QUẢN<br/>(BYT/SYT/.....)<br/>Tên cơ sở KCB<br/><br/>
+        Số<span class="line" style="min-width:80px">&nbsp;</span>
+      </div>
+      <div class="right">
+        CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM<br/>Độc lập - Tự do - Hạnh phúc<br/>--------------
+      </div>
+    </div>
+
     <div class="title">PHIẾU HẸN KHÁM LẠI</div>
 
     <div class="row">
-      <span class="label">Họ tên người bệnh:</span>
-      <span class="fill fill-long">${escapeHtml(opts.patientName)}</span>
-      <span class="inline-gio"><span class="label">Giới:</span> <span class="fill fill-short">${escapeHtml(opts.genderLabel)}</span></span>
+      Họ tên người bệnh:<span class="line no-dots" style="min-width:320px">${escapeHtml(opts.patientName)}</span>
+      Giới:<span class="line no-dots" style="min-width:56px">${escapeHtml(opts.genderLabel)}</span>
     </div>
-
     <div class="row">
-      <span class="label">Sinh ngày:</span> <span class="fill fill-mid">${escapeHtml(opts.dateOfBirthDisplay)}</span>
-      <span class="inline-gio"><span class="label">Địa chỉ:</span> <span class="fill fill-long" style="min-width:52%">${escapeHtml(opts.address)}</span></span>
+      Sinh ngày: <span class="line" style="min-width:120px">${escapeHtml(opts.dateOfBirthDisplay)}</span>
+      Địa chỉ: <span class="line no-dots" style="min-width:250px">${escapeHtml(opts.address)}</span>
     </div>
-
     <div class="row">
-      <span class="label">Số thẻ BHYT:</span>
-      <span class="ins-wrap"><span class="ins-boxes">${boxes}</span></span>
+      Số thẻ BHYT: <span class="ins-boxes">${boxes}</span>
     </div>
-
     <div class="row">
-      <span class="label">Hạn sử dụng:</span>
-      Từ <span class="fill fill-mid">${escapeHtml(opts.insuranceValidFromDisplay)}</span>
-      Đến <span class="fill fill-mid">${escapeHtml(opts.insuranceValidToDisplay)}</span>
+      Hạn sử dụng: Từ <span class="line" style="min-width:120px">${escapeHtml(opts.insuranceValidFromDisplay)}</span>
+      Đến <span class="line" style="min-width:120px">${escapeHtml(opts.insuranceValidToDisplay)}</span>
     </div>
-
+    <div class="row">Ngày khám bệnh: <span class="line" style="min-width:120px">${escapeHtml(opts.examDateDisplay)}</span></div>
     <div class="row">
-      <span class="label">Ngày khám bệnh:</span> <span class="fill fill-mid">${escapeHtml(opts.examDateDisplay)}</span>
+      Ngày vào viện:<span class="line" style="min-width:110px">${escapeHtml(opts.admissionDateDisplay)}</span>
+      Ngày ra viện:<span class="line" style="min-width:110px">${escapeHtml(opts.dischargeDateDisplay)}</span>
     </div>
+    <div class="row">Chẩn đoán:<span class="line no-dots" style="min-width:520px">${escapeHtml(opts.diagnosis)}</span></div>
+    <div class="row">Bệnh kèm theo:<span class="line no-dots" style="min-width:490px">${escapeHtml(opts.comorbidities)}</span></div>
 
-    <div class="row">
-      <span class="label">Ngày vào viện:</span> <span class="fill fill-mid">${escapeHtml(opts.admissionDateDisplay)}</span>
-      <span class="inline-gio"><span class="label">Ngày ra viện:</span> <span class="fill fill-mid">${escapeHtml(opts.dischargeDateDisplay)}</span></span>
-    </div>
-
-    <div class="row">
-      <span class="label">Chẩn đoán:</span> <span class="fill" style="display:block;width:100%;margin-top:4px;min-height:2.2em">${escapeHtml(opts.diagnosis)}</span>
-    </div>
-
-    <div class="row">
-      <span class="label">Bệnh kèm theo:</span> <span class="fill" style="display:block;width:100%;margin-top:4px;min-height:2.2em">${escapeHtml(opts.comorbidities)}</span>
-    </div>
-
-    <div class="block-text">
-      Hẹn khám lại vào ngày <b>${escapeHtml(opts.revisitDay)}</b> tháng <b>${escapeHtml(opts.revisitMonth)}</b> năm <b>${escapeHtml(opts.revisitYear)}</b>,
+    <div class="para">
+      Hẹn khám lại vào ngày <b>${escapeHtml(opts.revisitDay || "....")}</b> tháng <b>${escapeHtml(opts.revisitMonth || "....")}</b> năm <b>${escapeHtml(opts.revisitYear || "....")}</b>,
       hoặc đến bất kỳ thời gian nào trước ngày được hẹn khám lại nếu có dấu hiệu (triệu chứng) bất thường.
+      ${opts.appointmentTimeLabel?.trim() ? ` Giờ hẹn: ${escapeHtml(opts.appointmentTimeLabel.trim())}.` : ""}
+      ${dept ? ` Khoa hẹn: ${escapeHtml(dept)}.` : ""}
     </div>
-    ${opts.appointmentTimeLabel?.trim() ? `<div class="time-hint"><span class="label">Giờ hẹn:</span> ${escapeHtml(opts.appointmentTimeLabel.trim())}</div>` : ""}
-    ${deptLine}
-
-    <div class="legal muted">
+    <div class="para">
       Phiếu hẹn khám lại chỉ có giá trị sử dụng 01 (một) lần. Trường hợp không đúng hẹn cần liên hệ với cơ sở khám bệnh chữa bệnh để được giải quyết.
     </div>
 
     <div class="footer">
-      <div>${escapeHtml(opts.footerPlaceLine)}<span class="muted">, ngày </span>${escapeHtml(opts.footerDay)}<span class="muted"> tháng </span>${escapeHtml(opts.footerMonth)}<span class="muted"> năm </span>${escapeHtml(opts.footerYear)}</div>
-      <div class="sig-bold">Bác sĩ, Y sĩ khám bệnh</div>
-      <div class="muted">(ký tên)</div>
+      <div>........., ngày….tháng …. năm……</div>
+      <div class="sig">Bác sĩ, Y sĩ khám bệnh</div>
+      <div class="sig">(ký tên)</div>
       <div style="margin-top:16px; min-height: 2.5em; border-bottom: 1px solid #000; max-width: 220px; margin-left: auto;"></div>
       <div style="margin-top:6px">${escapeHtml(opts.doctorDisplayName)}</div>
     </div>

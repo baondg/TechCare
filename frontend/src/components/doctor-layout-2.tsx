@@ -30,21 +30,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { doctorService, type PatientDetail } from "@/services/doctor-service"
+import { doctorService, type DepartmentOption, type PatientDetail } from "@/services/doctor-service"
 import { appointmentService, type ClinicRoomOption } from "@/services/appointment-service"
 import { buildHospitalTransferSlipHtmlDocument } from "@/lib/hospital-transfer-slip-html"
 import {
   buildFollowUpReexamSlipHtmlDocument,
   formatDdMmYyyy,
   parseIsoDateForSlip,
-  splitInsuranceCardSix,
+  splitInsuranceCardParts,
 } from "@/lib/follow-up-reexam-slip-html"
 import { generateFollowUpReexamPdfBlob } from "@/lib/export-follow-up-reexam-pdf"
 import { generatePrescriptionPdfBlob } from "@/lib/export-prescription-pdf"
 import { generateSurgeryPdfBlob } from "@/lib/export-surgery-pdf"
 import { generateBloodTestPdfBlob } from "@/lib/export-blood-test-pdf"
 import { generateHospitalTransferPdfBlob } from "@/lib/export-hospital-transfer-pdf"
-import { Loader2, ArrowRightLeft, AlertCircle, FileDown, Printer } from "lucide-react"
+import { generateHealthInfoTrackingPdfBlob } from "@/lib/export-health-info-tracking-pdf"
+import { Loader2, ArrowRightLeft, AlertCircle, FileDown, Printer, Plus, Minus } from "lucide-react"
 
 const tabs = [
   { label: "Dashboard", value: "dashboard" },
@@ -94,6 +95,7 @@ export function DoctorLayout2() {
   const [followDate, setFollowDate] = useState("")
   const [followTime, setFollowTime] = useState("09:00")
   const [followDepartment, setFollowDepartment] = useState("")
+  const [departmentOptions, setDepartmentOptions] = useState<DepartmentOption[]>([])
   const [followSymptoms, setFollowSymptoms] = useState("")
 
   const [transferOpen, setTransferOpen] = useState(false)
@@ -127,6 +129,7 @@ export function DoctorLayout2() {
   const [finishWizardDocsLoading, setFinishWizardDocsLoading] = useState(false)
   const [finishWizardDocsError, setFinishWizardDocsError] = useState<string | null>(null)
   const [finishWizardDocs, setFinishWizardDocs] = useState<Awaited<ReturnType<typeof doctorService.getActiveRegimenDocuments>>["regimen"]>(null)
+  const [slipPreviewZoom, setSlipPreviewZoom] = useState(0.48)
 
   const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false)
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null)
@@ -204,8 +207,8 @@ export function DoctorLayout2() {
       if (res.success && res.patient) {
         setPatientData(res.patient)
         const dept =
-          res.patient.latestDiagnosis?.department ||
           res.patient.inDepartment ||
+          res.patient.latestDiagnosis?.department ||
           "Outpatient"
         setFollowDepartment(String(dept))
       } else {
@@ -253,6 +256,24 @@ export function DoctorLayout2() {
   }, [transferOpen])
 
   useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const r = await doctorService.getDepartments()
+        if (!cancelled) setDepartmentOptions(Array.isArray(r.departments) ? r.departments : [])
+      } catch (e) {
+        if (!cancelled) {
+          setDepartmentOptions([])
+          console.error(e)
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
     if (!finishWizardOpen || finishWizardStep !== 2 || !patientId) return
     let cancelled = false
     void (async () => {
@@ -274,6 +295,10 @@ export function DoctorLayout2() {
       cancelled = true
     }
   }, [finishWizardOpen, finishWizardStep, patientId])
+
+  useEffect(() => {
+    if (finishWizardOpen) setSlipPreviewZoom(0.48)
+  }, [finishWizardOpen])
 
   const renderHeader = () => {
     if (loading) return "Loading patient..."
@@ -341,11 +366,12 @@ export function DoctorLayout2() {
     return buildFollowUpReexamSlipHtmlDocument({
       patientName,
       genderLabel,
-      dateOfBirthDisplay: placeholderDate,
+      dateOfBirthDisplay: patientData.dateOfBirth ? formatDdMmYyyy(patientData.dateOfBirth) || placeholderDate : placeholderDate,
       address: "—",
-      insuranceCardSix: splitInsuranceCardSix(patientData.healthInsuranceId),
+      insuranceCardParts: splitInsuranceCardParts(patientData.healthInsuranceId),
       insuranceValidFromDisplay: placeholderDate,
-      insuranceValidToDisplay: placeholderDate,
+      insuranceValidToDisplay:
+        patientData.healthInsuranceExpiredDate ? formatDdMmYyyy(patientData.healthInsuranceExpiredDate) || placeholderDate : placeholderDate,
       examDateDisplay: examDateDisplay || placeholderDate,
       admissionDateDisplay: placeholderDate,
       dischargeDateDisplay: placeholderDate,
@@ -596,7 +622,7 @@ export function DoctorLayout2() {
     if (!patientData) return null
     const patientName = `${patientData.firstName || ""} ${patientData.lastName || ""}`.trim() || "—"
     const genderLabel =
-      patientData.gender === "M" ? "Male" : patientData.gender === "F" ? "Female" : patientData.gender?.trim() || "—"
+      patientData.gender === "M" ? "Nam" : patientData.gender === "F" ? "Nữ" : patientData.gender?.trim() || "—"
     const dx = patientData.latestDiagnosis
     const diagnosis = [dx?.icd10, dx?.interpretation].filter(Boolean).join(" — ") || "—"
     const rev = followDate.trim() ? parseIsoDateForSlip(followDate) : null
@@ -614,11 +640,12 @@ export function DoctorLayout2() {
     return {
       patientName,
       genderLabel,
-      dateOfBirthDisplay: placeholderDate,
+      dateOfBirthDisplay: patientData.dateOfBirth ? formatDdMmYyyy(patientData.dateOfBirth) || placeholderDate : placeholderDate,
       address: "—",
-      insuranceCardSix: splitInsuranceCardSix(patientData.healthInsuranceId),
+      insuranceCardParts: splitInsuranceCardParts(patientData.healthInsuranceId),
       insuranceValidFromDisplay: placeholderDate,
-      insuranceValidToDisplay: placeholderDate,
+      insuranceValidToDisplay:
+        patientData.healthInsuranceExpiredDate ? formatDdMmYyyy(patientData.healthInsuranceExpiredDate) || placeholderDate : placeholderDate,
       examDateDisplay: examDateDisplay || placeholderDate,
       admissionDateDisplay: placeholderDate,
       dischargeDateDisplay: placeholderDate,
@@ -665,7 +692,7 @@ export function DoctorLayout2() {
       </Dialog>
 
       <Dialog open={finishWizardOpen} onOpenChange={setFinishWizardOpen}>
-        <DialogContent className="flex max-h-[90vh] w-full max-w-[min(1120px,98vw)] flex-col gap-3 overflow-hidden p-6">
+        <DialogContent className="flex max-h-[92vh] w-full max-w-[min(1360px,99vw)] flex-col gap-3 overflow-hidden p-6">
           <DialogHeader className="shrink-0 space-y-1">
             <DialogTitle>Finish examination ({finishWizardStep}/2)</DialogTitle>
             <p className="text-xs text-muted-foreground">
@@ -674,7 +701,7 @@ export function DoctorLayout2() {
           </DialogHeader>
 
           {finishWizardStep === 1 ? (
-            <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_min(380px,42vw)]">
+            <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[minmax(340px,0.78fr)_minmax(620px,1.22fr)]">
               <div className="max-h-[min(72vh,640px)] min-h-0 space-y-4 overflow-y-auto py-1 pr-1">
                 <div className="space-y-2">
                   <Label>Choose an optional action</Label>
@@ -727,7 +754,18 @@ export function DoctorLayout2() {
                       <Label htmlFor="fu-dept">
                         Department <span className="text-red-500">*</span>
                       </Label>
-                      <Input id="fu-dept" value={followDepartment} onChange={(e) => setFollowDepartment(e.target.value)} placeholder="e.g. Outpatient" />
+                      <Select value={followDepartment} onValueChange={setFollowDepartment}>
+                        <SelectTrigger id="fu-dept" aria-required="true">
+                          <SelectValue placeholder="Select department" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {departmentOptions.map((d) => (
+                            <SelectItem key={d.id} value={d.name}>
+                              {d.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="fu-symptoms">Reason / symptoms (optional)</Label>
@@ -795,12 +833,68 @@ export function DoctorLayout2() {
               </div>
 
               <div className="flex min-h-[260px] flex-col overflow-hidden rounded-lg border bg-muted/20 lg:min-h-0 lg:max-h-[min(72vh,640px)]">
-                <div className="shrink-0 border-b bg-background px-3 py-1.5 text-xs font-medium">Print preview</div>
-                <div className="min-h-0 flex-1 bg-white p-1">
+                <div className="shrink-0 flex items-center justify-between gap-2 border-b bg-background px-3 py-1.5">
+                  <div className="text-xs font-medium">Print preview</div>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="outline"
+                      className="h-7 w-7"
+                      onClick={() => setSlipPreviewZoom((z) => Math.max(0.3, Number((z - 0.05).toFixed(2))))}
+                      title="Zoom out"
+                    >
+                      <Minus className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2 text-[11px]"
+                      onClick={() => setSlipPreviewZoom(0.48)}
+                      title="Reset fit"
+                    >
+                      {Math.round(slipPreviewZoom * 100)}%
+                    </Button>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="outline"
+                      className="h-7 w-7"
+                      onClick={() => setSlipPreviewZoom((z) => Math.min(1.5, Number((z + 0.05).toFixed(2))))}
+                      title="Zoom in"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="min-h-0 flex-1 overflow-auto bg-white p-1">
                   {finishWizardChoice === "followup" ? (
-                    <iframe title="Follow-up slip preview" className="h-full min-h-[280px] w-full border-0" srcDoc={followUpPreviewHtml} sandbox="" />
+                    <iframe
+                      title="Follow-up slip preview"
+                      className="min-h-[280px] border-0 bg-white origin-top-left"
+                      scrolling="no"
+                      style={{
+                        width: `${Math.round(100 / slipPreviewZoom)}%`,
+                        height: `${Math.round(100 / slipPreviewZoom)}%`,
+                        transform: `scale(${slipPreviewZoom})`,
+                      }}
+                      srcDoc={followUpPreviewHtml}
+                      sandbox=""
+                    />
                   ) : finishWizardChoice === "hospital-transfer" ? (
-                    <iframe title="Hospital transfer slip preview" className="h-full min-h-[280px] w-full border-0" srcDoc={hospitalTransferPreviewHtml} sandbox="" />
+                    <iframe
+                      title="Hospital transfer slip preview"
+                      className="min-h-[280px] border-0 bg-white origin-top-left"
+                      scrolling="no"
+                      style={{
+                        width: `${Math.round(100 / slipPreviewZoom)}%`,
+                        height: `${Math.round(100 / slipPreviewZoom)}%`,
+                        transform: `scale(${slipPreviewZoom})`,
+                      }}
+                      srcDoc={hospitalTransferPreviewHtml}
+                      sandbox=""
+                    />
                   ) : (
                     <p className="p-4 text-sm text-muted-foreground">Choose an action to preview the print slip.</p>
                   )}
@@ -833,6 +927,10 @@ export function DoctorLayout2() {
                     <div className="flex items-center justify-between">
                       <span className="text-slate-700">Hospital transfers</span>
                       <span className="font-medium">{finishWizardDocs.hospitalTransfers?.length || 0}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-700">Health tracking slips</span>
+                      <span className="font-medium">{finishWizardDocs.healthTrackingSlips?.length || 0}</span>
                     </div>
                   </div>
                   <div className="border-t p-3 space-y-3">
@@ -972,10 +1070,11 @@ export function DoctorLayout2() {
                                 variant="outline"
                                 disabled={!patientData || pdfGeneratingKey === key}
                                 onClick={async () => {
-                                  if (!patientData) return
+                                  if (!patientData || !patientId) return
                                   setPdfGeneratingKey(key)
                                   try {
-                                    const details = await appointmentService.getPatientLabTestDetails(t.id)
+                                    const detailRes = await doctorService.getLabTestDetails(patientId, t.id)
+                                    const details = detailRes.details ?? []
                                     const { blob, filename } = await generateBloodTestPdfBlob({
                                       patientName,
                                       age: ageStr,
@@ -1064,6 +1163,69 @@ export function DoctorLayout2() {
                         })}
                         {finishWizardDocs.hospitalTransfers.length > 6 ? (
                           <div className="text-xs text-muted-foreground">…and {finishWizardDocs.hospitalTransfers.length - 6} more</div>
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    {finishWizardDocs.healthTrackingSlips?.length ? (
+                      <div className="space-y-1">
+                        <div className="text-xs font-semibold text-slate-600">Health tracking slips</div>
+                        {finishWizardDocs.healthTrackingSlips.slice(0, 6).map((slip) => {
+                          const key = `hts-${slip.orderId}`
+                          return (
+                            <div key={slip.orderId} className="flex items-center justify-between gap-2 rounded-md border bg-slate-50 px-3 py-2">
+                              <div className="min-w-0">
+                                <div className="text-slate-800 font-medium truncate">Health Tracking Slip #{slip.orderId}</div>
+                                <div className="text-xs text-slate-600">
+                                  {formatDateTime(slip.createdAt)} · {slip.rows?.length || 0} row(s)
+                                </div>
+                              </div>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                disabled={!patientData || pdfGeneratingKey === key}
+                                onClick={async () => {
+                                  if (!patientData) return
+                                  setPdfGeneratingKey(key)
+                                  try {
+                                    const rows = Array.isArray(slip.rows) ? slip.rows : []
+                                    const diagnosis = patientData.latestDiagnosis
+                                      ? `${patientData.latestDiagnosis.icd10 || ""}${patientData.latestDiagnosis.icd10 && patientData.latestDiagnosis.interpretation ? " - " : ""}${patientData.latestDiagnosis.interpretation || ""}`
+                                      : ""
+                                    const { blob, filename } = await generateHealthInfoTrackingPdfBlob({
+                                      patientName: `${patientData.firstName || ""} ${patientData.lastName || ""}`.trim() || patientData.username || "",
+                                      age: patientData.age == null ? "" : String(patientData.age),
+                                      gender: patientData.gender === "M" ? "Male" : patientData.gender === "F" ? "Female" : "",
+                                      diagnosis,
+                                      rows: rows.map((r) => ({
+                                        updatedAt: new Date(r.updatedAt),
+                                        bloodPressure: r.bloodPressure || "",
+                                        pulse: Number(r.pulse) || 0,
+                                        temperature: Number(r.temperature) || 0,
+                                        weight: Number(r.weight) || 0,
+                                        respiratoryRate: Number(r.respiratoryRate) || 0,
+                                        spo2: Number(r.spo2) || 0,
+                                        symptoms: r.symptoms || "",
+                                      })),
+                                      filename: `health-tracking-${slip.orderId}.pdf`,
+                                    })
+                                    openPdfPreview(blob, filename, `Health tracking slip #${slip.orderId} (PDF)`)
+                                  } catch (e) {
+                                    window.alert(e instanceof Error ? e.message : "Failed to generate PDF")
+                                  } finally {
+                                    setPdfGeneratingKey(null)
+                                  }
+                                }}
+                              >
+                                {pdfGeneratingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                                Preview PDF
+                              </Button>
+                            </div>
+                          )
+                        })}
+                        {finishWizardDocs.healthTrackingSlips.length > 6 ? (
+                          <div className="text-xs text-muted-foreground">…and {finishWizardDocs.healthTrackingSlips.length - 6} more</div>
                         ) : null}
                       </div>
                     ) : null}

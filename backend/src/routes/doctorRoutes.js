@@ -22,6 +22,7 @@ router.use(requireActiveEmrVisitForDoctorTech);
 router.get('/diseases', doctorController.getDiseaseCodes);
 router.get('/medicines', doctorController.getMedicines);
 router.get('/technicians', doctorController.getTechnicians);
+router.get('/departments', doctorController.getDepartments);
 
 // ─── Dashboard ───
 router.get('/dashboard/summary', doctorController.getDashboardSummary);
@@ -33,6 +34,7 @@ router.get('/patients/:patientId/regimen/active', doctorController.getActiveRegi
 router.get('/patients/:patientId/regimen/active/documents', doctorController.getActiveRegimenDocumentsForPatient);
 router.get('/patients/:patientId/medical-regimens', doctorController.getPatientMedicalRegimensForDoctor);
 router.post('/patients/:patientId/regimen/close', doctorController.closeOpenRegimenForPatient);
+router.post('/patients/:patientId/health-tracking-slips', doctorController.createHealthTrackingSlipForPatient);
 
 // ─── Health Info ───
 router.get('/patients/:patientId/health-info', doctorController.getHealthInfo);
@@ -69,6 +71,7 @@ router.put('/patients/:patientId/surgeries/:id', doctorController.updateSurgery)
 router.get('/appointments', doctorController.getAppointments);
 router.post('/appointments', doctorController.createAppointment);
 router.put('/appointments/:id/cancel', doctorController.cancelAppointment);
+router.put('/appointments/:id/cover', doctorController.coverAppointment);
 router.put('/appointments/:id/confirm', doctorController.confirmAppointment);
 
 // ─── Signature ───

@@ -67,7 +67,7 @@ export async function generateTreatmentFollowupPdfBlob(opts: TreatmentFollowupPd
     left: "-10000px",
     top: "0",
     width: "210mm",
-    height: "1400px",
+    height: "0",
     border: "none",
     visibility: "hidden",
   })
@@ -82,15 +82,16 @@ export async function generateTreatmentFollowupPdfBlob(opts: TreatmentFollowupPd
   idoc.close()
 
   try {
-    const body = idoc.body
+    const doc = idoc.querySelector(".doc") as HTMLElement | null
+    if (!doc) throw new Error("Export template missing .doc")
     await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())))
-    const canvas = await html2canvas(body, {
+    const canvas = await html2canvas(doc, {
       scale: 2,
       useCORS: true,
       logging: false,
       backgroundColor: "#ffffff",
-      windowWidth: body.scrollWidth,
-      windowHeight: body.scrollHeight,
+      windowWidth: doc.scrollWidth,
+      windowHeight: doc.scrollHeight,
       foreignObjectRendering: false,
     })
     const pdf = canvasToPdfDocument(canvas)

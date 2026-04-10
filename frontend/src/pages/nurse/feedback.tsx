@@ -196,14 +196,6 @@ export default function NurseFeedback() {
   return (
     <NurseLayout>
       <div className="w-full space-y-6">
-        {/* Gradient header */}
-        <div>
-          <h2 className="h-12 text-4xl font-bold bg-linear-to-r from-[#06b6d4] via-[#0891b2] to-[#06b6d4] bg-clip-text text-transparent mb-2">
-            Feedback & AI Suggestions
-          </h2>
-          <p className="text-slate-600 text-lg">Share your experience and review AI recommendations</p>
-        </div>
-
         {/* Tab navigation */}
         <div className="flex gap-2 p-1 bg-slate-100 rounded-xl w-fit">
           <button
@@ -244,11 +236,7 @@ export default function NurseFeedback() {
           <div className="space-y-6">
             {/* Category Selection */}
             <Card className="card-feature border-slate-200/60">
-              <CardHeader className="bg-linear-to-r from-cyan-50/50 to-transparent">
-                <CardTitle className="text-slate-900">Feedback Category</CardTitle>
-                <CardDescription>Tell us what your feedback is about</CardDescription>
-              </CardHeader>
-              <CardContent className="pt-6">
+              <CardContent className="p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {[
                     { value: "general" as FeedbackCategory, label: "General Experience", icon: MessageSquare },
@@ -302,11 +290,7 @@ export default function NurseFeedback() {
 
             {/* Rating Selection */}
             <Card className="card-feature border-slate-200/60">
-              <CardHeader className="bg-linear-to-r from-amber-50/50 to-transparent">
-                <CardTitle className="text-slate-900">Rate Your Experience</CardTitle>
-                <CardDescription>How would you rate this experience?</CardDescription>
-              </CardHeader>
-              <CardContent className="pt-6">
+              <CardContent className="p-6">
                 <div className="flex gap-3 justify-center">
                   {[1, 2, 3, 4, 5].map((star) => (
                     <button
@@ -336,11 +320,7 @@ export default function NurseFeedback() {
 
             {/* Feedback Text */}
             <Card className="card-feature border-slate-200/60">
-              <CardHeader className="bg-linear-to-r from-blue-50/50 to-transparent">
-                <CardTitle className="text-slate-900">Your Feedback</CardTitle>
-                <CardDescription>Share your detailed thoughts and suggestions</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4 pt-6">
+              <CardContent className="space-y-4 p-6">
                 <Textarea
                   placeholder="Tell us about your experience, what went well, and what could be improved..."
                   value={feedbackText}
@@ -367,10 +347,7 @@ export default function NurseFeedback() {
             </Card>
 
             <Card className="card-feature border-slate-200/60">
-              <CardHeader className="bg-linear-to-r from-indigo-50/50 to-transparent">
-                <CardTitle className="text-slate-900">Your Recent Feedback</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-6">
+              <CardContent className="p-6">
                 {loadingHistory ? (
                   <p className="text-sm text-slate-500">Loading feedback history...</p>
                 ) : latestVisibleFeedback.length === 0 ? (
@@ -400,11 +377,7 @@ export default function NurseFeedback() {
 
         {activeTab === "all-feedback" && (
           <Card className="card-feature border-slate-200/60">
-            <CardHeader className="bg-linear-to-r from-indigo-50/50 to-transparent">
-              <CardTitle className="text-slate-900">All Visible Feedback</CardTitle>
-              <CardDescription>Feedback records that admin allows everyone to view</CardDescription>
-            </CardHeader>
-            <CardContent className="pt-6">
+            <CardContent className="p-6">
               {loadingAllFeedback ? (
                 <p className="text-sm text-slate-500">Loading visible feedback...</p>
               ) : allVisibleFeedback.length === 0 ? (

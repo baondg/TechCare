@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { useNavigate } from "react-router-dom"
+import { useLocation, useNavigate } from "react-router-dom"
 import { ChevronLeft, ChevronRight, Check, Calendar, Clock, Sparkles, Loader2 } from "lucide-react"
 import { PatientLayout } from "@/components/patient-layout"
 import { Button } from "@/components/ui/button"
@@ -22,7 +22,14 @@ interface TimeSlot {
 
 export default function BookAppointmentPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { user } = useAuth()
+
+  const rescheduleFromAppointmentId = useMemo(() => {
+    const s = location.state as { rescheduleId?: number } | null | undefined
+    const n = Number(s?.rescheduleId)
+    return Number.isFinite(n) && n > 0 ? n : undefined
+  }, [location.state])
   
   // viewDate controls the month currently being viewed in the calendar
   const [viewDate, setViewDate] = useState(new Date())
@@ -146,11 +153,14 @@ export default function BookAppointmentPage() {
         time: formattedTime,
         room: selectedSlot.room === "Room -" ? "" : selectedSlot.room,
         symptoms: checkedSymptom === 'yes' ? 'Patient reported symptoms' : 'No symptoms reported',
-        notes: 'Booked via web portal'
+        notes: 'Booked via web portal',
+        ...(rescheduleFromAppointmentId
+          ? { rescheduleFromAppointmentId: rescheduleFromAppointmentId }
+          : {}),
       })
 
       setShowNotification(false)
-      navigate("/patient/appointments")
+      navigate("/patient/appointments", { replace: true })
     } catch (error: any) {
       console.error("Booking failed:", error)
       alert(error.message || "Failed to book appointment. Please try again.")
@@ -191,6 +201,15 @@ export default function BookAppointmentPage() {
   return (
     <PatientLayout>
       <div className="space-y-8">
+        {rescheduleFromAppointmentId ? (
+          <div
+            className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+            role="status"
+          >
+            You are rescheduling an appointment. Choose a new date and time slot, then confirm. Your previous
+            booking will be released and your doctors will be notified.
+          </div>
+        ) : null}
 
         {/* Calendar and Time Slots */}
         <div className="grid gap-6 lg:grid-cols-5 lg:min-h-[calc(100vh-170px)]">

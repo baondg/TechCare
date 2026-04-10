@@ -9,8 +9,8 @@ const User = sequelize.define(
       primaryKey: true,
       autoIncrement: true
     },
-    idcard:{
-      type: DataTypes.INTEGER,
+    idcard: {
+      type: DataTypes.STRING(12),
       allowNull: false
     },
     first_name: {
@@ -35,15 +35,7 @@ const User = sequelize.define(
     },
     email: {
       type: DataTypes.STRING,
-      allowNull: false
-    },
-    first_name: {
-      type: DataTypes.STRING,
-      allowNull: true
-    },
-    last_name: {
-      type: DataTypes.STRING,
-      allowNull: true
+      allowNull: true, // DB: DEFAULT NULL
     },
   },
   {

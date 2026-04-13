@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import { Bell } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { cn } from '@/lib/utils'
+import { NotificationTabbedList } from '@/components/notification-tabbed-list'
 import {
   fetchNotifications,
   markNotificationRead,
@@ -12,17 +12,16 @@ import {
 
 const POLL_MS = 60_000
 
-function formatNotifTime(iso: string): string {
-  try {
-    const d = new Date(iso)
-    if (Number.isNaN(d.getTime())) return iso
-    return d.toLocaleString('vi-VN', { dateStyle: 'medium', timeStyle: 'short' })
-  } catch {
-    return iso
-  }
+const PORTALS = new Set(['patient', 'doctor', 'nurse', 'technician'])
+
+function portalFromPathname(pathname: string): string {
+  const seg = pathname.split('/').filter(Boolean)[0] ?? ''
+  return PORTALS.has(seg) ? seg : 'patient'
 }
 
 export function PatientNotificationBell() {
+  const { pathname } = useLocation()
+  const notificationsHref = useMemo(() => `/${portalFromPathname(pathname)}/notifications`, [pathname])
   const [open, setOpen] = useState(false)
   const [items, setItems] = useState<AppNotification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
@@ -84,40 +83,35 @@ export function PatientNotificationBell() {
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-[min(100vw-2rem,22rem)] p-0">
-        <div className="border-b px-3 py-2 text-sm font-semibold text-foreground">
-          Notifications
-          {loading && (
-            <span className="ml-2 text-xs font-normal text-muted-foreground">Loading…</span>
+      <PopoverContent
+        align="end"
+        className="flex max-h-[min(88vh,520px)] min-h-0 w-[min(100vw-1rem,32rem)] flex-col overflow-hidden border-2 border-cyan-200/90 bg-white p-0 shadow-xl shadow-slate-400/25 ring-1 ring-slate-300/60 dark:border-cyan-900/50 dark:bg-slate-950 dark:ring-slate-600/80 sm:w-[min(100vw-1.5rem,34rem)]"
+      >
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200/90 bg-linear-to-b from-slate-50 to-white px-2.5 py-1.5 dark:border-slate-700 dark:from-slate-900 dark:to-slate-950">
+          <div className="text-xs font-semibold text-foreground">
+            Notifications
+            {loading && (
+              <span className="ml-1.5 text-[10px] font-normal text-muted-foreground">Loading…</span>
+            )}
+          </div>
+          <Button variant="link" size="sm" className="h-auto p-0 text-[10px]" asChild>
+            <Link to={notificationsHref} onClick={() => setOpen(false)}>
+              View all
+            </Link>
+          </Button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-hidden">
+          {items.length === 0 && !loading ? (
+            <p className="p-3 text-xs text-muted-foreground">No notifications yet.</p>
+          ) : (
+            <NotificationTabbedList
+              variant="popover"
+              items={items}
+              scrollAreaClassName=""
+              onRowClick={(n) => void onRowClick(n)}
+            />
           )}
         </div>
-        <ScrollArea className="h-[min(60vh,320px)]">
-          {items.length === 0 ? (
-            <p className="p-4 text-sm text-muted-foreground">No notifications yet.</p>
-          ) : (
-            <ul className="divide-y">
-              {items.map((n) => (
-                <li key={n.id}>
-                  <button
-                    type="button"
-                    className={cn(
-                      'w-full text-left px-3 py-2.5 text-sm transition-colors hover:bg-muted/80',
-                      n.status === 'unread' && 'bg-cyan-50/80 dark:bg-cyan-950/30',
-                    )}
-                    onClick={() => void onRowClick(n)}
-                  >
-                    <div className="text-xs text-muted-foreground mb-1">
-                      {formatNotifTime(n.time)}
-                    </div>
-                    <div className="text-foreground leading-snug whitespace-pre-wrap break-words">
-                      {n.content}
-                    </div>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </ScrollArea>
       </PopoverContent>
     </Popover>
   )

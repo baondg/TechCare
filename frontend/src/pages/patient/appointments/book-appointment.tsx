@@ -1,15 +1,20 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
-import { ChevronLeft, ChevronRight, Check, Calendar, Clock, Sparkles, Loader2 } from "lucide-react"
+import { ChevronLeft, ChevronRight, Calendar, Clock, Loader2 } from "lucide-react"
 import { PatientLayout } from "@/components/patient-layout"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { appointmentService, type DoctorOption, type NurseOpenSlot } from "@/services/appointment-service"
 import { useAuth } from "@/contexts/AuthContext"
+import { usePauseableToast } from "@/hooks/usePauseableToast"
+import { PauseableCornerToastPortal } from "@/components/pauseable-corner-toast"
 import { format, isSameDay, startOfDay } from "date-fns"
+
+/** Fade-in + display duration from `usePauseableToast(2600)` (see usePauseableToast). */
+const BOOK_SUCCESS_NAV_DELAY_MS = 300 + 2600
 
 interface TimeSlot {
   id: number
@@ -24,6 +29,8 @@ export default function BookAppointmentPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const { user } = useAuth()
+  const { toast, isExiting, showSuccess, showError, onMouseEnter, onMouseLeave } = usePauseableToast(2600)
+  const successNavTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const rescheduleFromAppointmentId = useMemo(() => {
     const s = location.state as { rescheduleId?: number } | null | undefined
@@ -38,8 +45,7 @@ export default function BookAppointmentPage() {
   const [selectedDate, setSelectedDate] = useState(new Date())
   
   const [selectedDepartment, setSelectedDepartment] = useState("")
-  const [showNotification, setShowNotification] = useState(false)
-  const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null)
+  const [bookingSlotId, setBookingSlotId] = useState<number | null>(null)
   const [checkedSymptom, setCheckedSymptom] = useState<"yes" | "no" | null>(null)
   const [doctors, setDoctors] = useState<DoctorOption[]>([])
   const [openSlots, setOpenSlots] = useState<NurseOpenSlot[]>([])
@@ -57,25 +63,35 @@ export default function BookAppointmentPage() {
     loadDoctors()
   }, [])
 
+  const loadOpenSlots = useCallback(async () => {
+    setLoadingSlots(true)
+    try {
+      const date = format(selectedDate, "yyyy-MM-dd")
+      const data = await appointmentService.getOpenSlots({
+        startDate: date,
+        endDate: date,
+      })
+      setOpenSlots(data || [])
+    } catch (error) {
+      console.error("Load open slots failed:", error)
+      setOpenSlots([])
+    } finally {
+      setLoadingSlots(false)
+    }
+  }, [selectedDate])
+
   useEffect(() => {
-    const loadOpenSlots = async () => {
-      setLoadingSlots(true)
-      try {
-        const date = format(selectedDate, "yyyy-MM-dd")
-        const data = await appointmentService.getOpenSlots({
-          startDate: date,
-          endDate: date,
-        })
-        setOpenSlots(data || [])
-      } catch (error) {
-        console.error("Load open slots failed:", error)
-        setOpenSlots([])
-      } finally {
-        setLoadingSlots(false)
+    void loadOpenSlots()
+  }, [loadOpenSlots])
+
+  useEffect(() => {
+    return () => {
+      if (successNavTimerRef.current) {
+        clearTimeout(successNavTimerRef.current)
+        successNavTimerRef.current = null
       }
     }
-    void loadOpenSlots()
-  }, [selectedDate])
+  }, [])
 
   const specialtyGroups = useMemo(() => {
     const unique = new Map<string, string>()
@@ -131,39 +147,43 @@ export default function BookAppointmentPage() {
     setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1))
   }
 
-  const handleBookSlot = (slot: TimeSlot) => {
-    if (!slot.available) return
-    setSelectedSlot(slot)
-    setShowNotification(true)
-  }
+  const bookSlot = async (slot: TimeSlot) => {
+    if (!slot.available || !user?.id) return
 
-  const handleConfirmBooking = async () => {
-    if (!selectedSlot || !user?.id) return
-
+    setBookingSlotId(slot.id)
     try {
-      const formattedDate = format(selectedDate, 'yyyy-MM-dd')
-      
-      // Format time to HH:mm:ss
-      const formattedTime = `${selectedSlot.time}:00`
+      const formattedDate = format(selectedDate, "yyyy-MM-dd")
+      const formattedTime = `${slot.time}:00`
 
       await appointmentService.createAppointment({
-        doctor: selectedSlot.doctor,
-        department: selectedSlot.department,
+        doctor: slot.doctor,
+        department: slot.department,
         date: formattedDate,
         time: formattedTime,
-        room: selectedSlot.room === "Room -" ? "" : selectedSlot.room,
-        symptoms: checkedSymptom === 'yes' ? 'Patient reported symptoms' : 'No symptoms reported',
-        notes: 'Booked via web portal',
+        room: slot.room === "Room -" ? "" : slot.room,
+        symptoms: checkedSymptom === "yes" ? "Patient reported symptoms" : "No symptoms reported",
+        notes: "Booked via web portal",
         ...(rescheduleFromAppointmentId
           ? { rescheduleFromAppointmentId: rescheduleFromAppointmentId }
           : {}),
       })
 
-      setShowNotification(false)
-      navigate("/patient/appointments", { replace: true })
-    } catch (error: any) {
+      await loadOpenSlots()
+      showSuccess(
+        "Booking successful. Your visit is saved as Awaiting doctor until your doctor accepts it — you will get a notification when they respond."
+      )
+      if (successNavTimerRef.current) clearTimeout(successNavTimerRef.current)
+      successNavTimerRef.current = setTimeout(() => {
+        successNavTimerRef.current = null
+        navigate("/patient/appointments", { replace: true })
+      }, BOOK_SUCCESS_NAV_DELAY_MS)
+    } catch (error: unknown) {
       console.error("Booking failed:", error)
-      alert(error.message || "Failed to book appointment. Please try again.")
+      showError(
+        error instanceof Error ? error.message : "Failed to book appointment. Please try again."
+      )
+    } finally {
+      setBookingSlotId(null)
     }
   }
 
@@ -206,8 +226,8 @@ export default function BookAppointmentPage() {
             className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
             role="status"
           >
-            You are rescheduling an appointment. Choose a new date and time slot, then confirm. Your previous
-            booking will be released and your doctors will be notified.
+            You are rescheduling an appointment. Choose a new date and time slot, then use Select on a slot to
+            book. Your previous booking will be released and your doctors will be notified.
           </div>
         ) : null}
 
@@ -354,45 +374,73 @@ export default function BookAppointmentPage() {
             <div className="h-[460px] rounded-xl border border-slate-200 bg-white p-3 overflow-y-auto">
               {checkedSymptom !== null && selectedDepartment ? (
                 <div className="space-y-3 pr-2">
-                {doctorSlots.map((slot) => (
-                  <button
-                    key={slot.id}
-                    onClick={() => handleBookSlot(slot)}
-                    disabled={!slot.available}
-                    className={`
-                      card-feature-group w-full p-5 rounded-xl text-left transition-all duration-300
-                      ${slot.available
-                        ? "cursor-pointer hover:shadow-lg hover:scale-[1.02]"
-                        : "opacity-50 cursor-not-allowed bg-slate-50"
-                      }
-                    `}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-4 mb-3">
-                          <div className="flex items-center gap-2">
-                            <Clock className="h-5 w-5 text-cyan-600" />
-                            <span className="text-2xl font-bold text-cyan-600">{slot.time}</span>
+                {doctorSlots.map((slot) => {
+                  const booking = bookingSlotId === slot.id
+                  return (
+                    <div
+                      key={slot.id}
+                      className={`
+                        group w-full rounded-xl border bg-white text-left transition-colors duration-200
+                        ${slot.available
+                          ? "border-slate-200 hover:border-cyan-500 hover:border-2 focus-within:border-cyan-500"
+                          : "border-slate-200 opacity-50 cursor-not-allowed bg-slate-50"
+                        }
+                      `}
+                    >
+                      <div className="flex items-center justify-between gap-4 p-5">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-3 mb-3">
+                            <div className="flex items-center gap-2">
+                              <Clock className="h-5 w-5 text-cyan-600 shrink-0" />
+                              <span className="text-2xl font-bold text-cyan-600">{slot.time}</span>
+                            </div>
+                            <span
+                              className={`text-xs px-3 py-1 rounded-full font-semibold shrink-0 ${
+                                slot.available
+                                  ? "bg-green-100 text-green-700"
+                                  : "bg-red-100 text-red-700"
+                              }`}
+                            >
+                              {slot.available ? "Available" : "Booked"}
+                            </span>
                           </div>
-                          <span className={`text-xs px-3 py-1 rounded-full font-semibold ${
-                            slot.available 
-                              ? "bg-green-100 text-green-700" 
-                              : "bg-red-100 text-red-700"
-                          }`}>
-                            {slot.available ? "Available" : "Booked"}
-                          </span>
+                          <p className="font-semibold text-slate-900 mb-1">{slot.doctor}</p>
+                          <p className="text-sm text-slate-600">
+                            {slot.room ? `Room ${slot.room}` : "Room -"}
+                          </p>
                         </div>
-                        <p className="font-semibold text-slate-900 mb-1">{slot.doctor}</p>
-                        <p className="text-sm text-slate-600">{slot.room ? `Room ${slot.room}` : "Room -"}</p>
+
+                        {slot.available ? (
+                          <div className="shrink-0 self-center flex justify-end">
+                            <Button
+                              type="button"
+                              size="lg"
+                              className={`btn-gradient shadow-md transition-opacity duration-200 [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto ${
+                                booking
+                                  ? "opacity-100 pointer-events-auto"
+                                  : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto"
+                              }`}
+                              disabled={booking}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                void bookSlot(slot)
+                              }}
+                            >
+                              {booking ? (
+                                <>
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  Booking…
+                                </>
+                              ) : (
+                                "Select"
+                              )}
+                            </Button>
+                          </div>
+                        ) : null}
                       </div>
-                      {slot.available && (
-                        <div className="card-icon-wrapper h-12 w-12">
-                          <ChevronRight className="h-6 w-6" />
-                        </div>
-                      )}
                     </div>
-                  </button>
-                ))}
+                  )
+                })}
                 {loadingSlots ? (
                   <div className="text-center py-12 text-slate-500">
                     <p>Loading available slots...</p>
@@ -414,50 +462,12 @@ export default function BookAppointmentPage() {
         </div>
       </div>
 
-      {/* Confirmation Modal */}
-      {showNotification && selectedSlot && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <Card className="max-w-md w-full p-8 shadow-2xl animate-in fade-in zoom-in duration-300">
-            <div className="text-center mb-6">
-              <div className="card-icon-wrapper h-20 w-20 mx-auto mb-4">
-                <Check className="h-10 w-10" />
-              </div>
-              <h3 className="text-3xl font-bold text-slate-900 mb-2">Confirm Booking</h3>
-              <p className="text-slate-600">Review your appointment details</p>
-            </div>
-
-            <div className="bg-linear-to-br from-cyan-50 to-blue-50 rounded-xl p-5 mb-6 border border-cyan-100">
-              <ul className="space-y-3">
-                <li className="flex items-start gap-3">
-                  <span className="text-cyan-600 font-bold">•</span>
-                  <span className="text-slate-900 font-medium">{selectedSlot.doctor}</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <span className="text-cyan-600 font-bold">•</span>
-                  <span className="text-slate-700">Department of {selectedSlot.department}</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <span className="text-cyan-600 font-bold">•</span>
-                  <span className="text-slate-700">{selectedSlot.room ? `Room ${selectedSlot.room}` : "Room -"}</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <span className="text-cyan-600 font-bold">•</span>
-                  <span className="text-slate-700">At {selectedSlot.time}</span>
-                </li>
-              </ul>
-            </div>
-
-            <div className="flex gap-3">
-              <Button variant="outline" className="flex-1 h-12" onClick={() => setShowNotification(false)}>
-                Cancel
-              </Button>
-              <Button className="flex-1 h-12 btn-gradient" onClick={handleConfirmBooking}>
-                Confirm Booking
-              </Button>
-            </div>
-          </Card>
-        </div>
-      )}
+      <PauseableCornerToastPortal
+        toast={toast}
+        isExiting={isExiting}
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
+      />
     </PatientLayout>
   )
 }

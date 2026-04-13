@@ -40,9 +40,15 @@ export default function ViewingPatientDashboard() {
     const loadAppointments = async () => {
       if (!patientId) return
       try {
-        const res = await doctorService.getAppointments()
-        const numericPatientId = Number(String(patientId).replace(/^OP0*/i, ""))
-        const rows = (res.appointments || []).filter((a) => Number(a.patientId) === numericPatientId)
+        const [apptRes, patientRes] = await Promise.all([
+          doctorService.getAppointments(),
+          doctorService.getPatient(patientId),
+        ])
+        /** Doctor appointments API returns patientId = PATIENT.user_id (USER.id), not OP digits / patient_id PK. */
+        const userId = patientRes.patient?.id
+        const rows = (apptRes.appointments || []).filter(
+          (a) => userId != null && Number(a.patientId) === Number(userId),
+        )
         setAppointments(rows)
       } catch (error) {
         console.error("Load appointments failed:", error)

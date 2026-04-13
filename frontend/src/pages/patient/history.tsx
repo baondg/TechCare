@@ -20,7 +20,10 @@ import { generateTreatmentFollowupPdfBlob } from "@/lib/export-treatment-followu
 import { generateHospitalTransferPdfBlob } from "@/lib/export-hospital-transfer-pdf"
 import { generateSurgeryPdfBlob } from "@/lib/export-surgery-pdf"
 import { generateHealthInfoTrackingPdfBlob } from "@/lib/export-health-info-tracking-pdf"
+import { generateFollowUpReexamPdfBlob } from "@/lib/export-follow-up-reexam-pdf"
+import type { FollowUpReexamSlipInputs } from "@/lib/follow-up-reexam-slip-html"
 import { mergePdfBlobs } from "@/lib/merge-pdf-blobs"
+import { signingLineFromIso, stampPdfWithExportFooter } from "@/lib/pdf-export-stamp"
 import { profileService, type PatientProfile } from "@/services/profile-service"
 import { healthInfoService } from "@/services/health-info-service"
 import type { PatientDetail } from "@/services/doctor-service"
@@ -41,6 +44,12 @@ import {
   User,
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { TooltipProvider } from "@/components/ui/tooltip"
+import { RegimenDocumentPreviewTooltip } from "@/components/regimen-document-preview-tooltip"
+import {
+  buildHealthTrackingSlipTooltipSummary,
+  buildHospitalTransferTooltipSummary,
+} from "@/lib/history-regimen-tooltip-text"
 import { useSearchParams } from "react-router-dom"
 import {
   appointmentService,
@@ -366,37 +375,59 @@ export default function PatientHistoryPage() {
     [flatLabRows, selectedLabKey]
   )
 
-  const handleSavePdfFromPreview = useCallback(() => {
+  const handleSavePdfFromPreview = useCallback(async () => {
     if (!pdfPreviewUrl || !pdfPreviewFilename) return
-    const a = document.createElement("a")
-    a.href = pdfPreviewUrl
-    a.download = pdfPreviewFilename
-    a.rel = "noopener"
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
+    try {
+      const res = await fetch(pdfPreviewUrl)
+      const raw = await res.blob()
+      const stamped = await stampPdfWithExportFooter(raw, new Date())
+      const url = URL.createObjectURL(stamped)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = pdfPreviewFilename
+      a.rel = "noopener"
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      console.error(e)
+      window.alert(e instanceof Error ? e.message : "Download failed")
+    }
   }, [pdfPreviewUrl, pdfPreviewFilename])
 
-  const handlePrintPdfFromPreview = useCallback(() => {
+  const handlePrintPdfFromPreview = useCallback(async () => {
     if (!pdfPreviewUrl) return
-    const iframe = document.createElement("iframe")
-    iframe.style.position = "fixed"
-    iframe.style.right = "0"
-    iframe.style.bottom = "0"
-    iframe.style.width = "0"
-    iframe.style.height = "0"
-    iframe.style.border = "0"
-    iframe.src = pdfPreviewUrl
-    document.body.appendChild(iframe)
-    iframe.onload = () => {
-      try {
-        iframe.contentWindow?.focus()
-        iframe.contentWindow?.print()
-      } finally {
-        setTimeout(() => {
-          if (iframe.parentNode) iframe.parentNode.removeChild(iframe)
-        }, 500)
+    let stampedUrl: string | null = null
+    try {
+      const res = await fetch(pdfPreviewUrl)
+      const raw = await res.blob()
+      const stamped = await stampPdfWithExportFooter(raw, new Date())
+      stampedUrl = URL.createObjectURL(stamped)
+      const iframe = document.createElement("iframe")
+      iframe.style.position = "fixed"
+      iframe.style.right = "0"
+      iframe.style.bottom = "0"
+      iframe.style.width = "0"
+      iframe.style.height = "0"
+      iframe.style.border = "0"
+      iframe.src = stampedUrl
+      document.body.appendChild(iframe)
+      iframe.onload = () => {
+        try {
+          iframe.contentWindow?.focus()
+          iframe.contentWindow?.print()
+        } finally {
+          setTimeout(() => {
+            if (iframe.parentNode) iframe.parentNode.removeChild(iframe)
+            if (stampedUrl) URL.revokeObjectURL(stampedUrl)
+          }, 500)
+        }
       }
+    } catch (e) {
+      console.error(e)
+      if (stampedUrl) URL.revokeObjectURL(stampedUrl)
+      window.alert(e instanceof Error ? e.message : "Print failed")
     }
   }, [pdfPreviewUrl])
 
@@ -421,6 +452,7 @@ export default function PatientHistoryPage() {
           prescriptionDate: formatDateTime(rx.prescribedAt),
           doctorName: doctorLabel,
           signatureStatus: "signed",
+          signingTimeDisplay: signingLineFromIso(rx.prescribedAt),
         })
         blobs.push(blob)
       }
@@ -470,6 +502,7 @@ export default function PatientHistoryPage() {
         testDateLabel: formatDateTime(selectedLabRow.testAt),
         details,
         filename: `lab-${selectedLabRow.id}-${exportDateStamp()}.pdf`,
+        signingTimeDisplay: signingLineFromIso(selectedLabRow.testAt),
       })
       const url = URL.createObjectURL(blob)
       setPdfPreviewFilename(filename)
@@ -515,6 +548,7 @@ export default function PatientHistoryPage() {
           diagnosis: v.interpretation,
           formPayload: ht.formPayload,
           filename: `phieu-chuyen-vien-regimen-${v.regimenId}-order-${ht.orderId}.pdf`,
+          signingTimeDisplay: signingLineFromIso(ht.transferAt),
         })
         const url = URL.createObjectURL(blob)
         setPdfPreviewFilename(filename)
@@ -561,6 +595,22 @@ export default function PatientHistoryPage() {
           note: vitNote.trim() ? vitNote : "—",
           dateLabel: formatDateTime(v.visitAt),
           filename: `visit-${v.regimenId}-encounter-summary.pdf`,
+          signingTimeDisplay: signingLineFromIso(v.visitAt),
+        })
+        blobs.push(blob)
+      }
+
+      for (const item of v.followUpReexamSlips ?? []) {
+        const raw = item.slip
+        if (!raw || typeof raw !== "object") continue
+        const slip = { ...(raw as Record<string, unknown>) } as unknown as FollowUpReexamSlipInputs
+        if (!Array.isArray(slip.insuranceCardParts)) {
+          ;(slip as { insuranceCardParts: string[] }).insuranceCardParts = []
+        }
+        const { blob } = await generateFollowUpReexamPdfBlob({
+          ...slip,
+          signingTimeDisplay: signingLineFromIso(item.createdAt),
+          filename: `follow-up-reexam-regimen-${v.regimenId}-order-${item.orderId}.pdf`,
         })
         blobs.push(blob)
       }
@@ -580,6 +630,7 @@ export default function PatientHistoryPage() {
           prescriptionDate: formatDateTime(rx.prescribedAt),
           doctorName: rxDoctor,
           signatureStatus: mapPrescriptionExportSignature(rx.signatureStatus),
+          signingTimeDisplay: signingLineFromIso(rx.prescribedAt),
         })
         blobs.push(blob)
       }
@@ -599,6 +650,7 @@ export default function PatientHistoryPage() {
           result: s.result || "—",
           note: s.note || "",
           filename: `surgery-${s.id}.pdf`,
+          signingTimeDisplay: signingLineFromIso(s.start) ?? signingLineFromIso(v.visitAt),
         })
         blobs.push(blob)
       }
@@ -614,6 +666,7 @@ export default function PatientHistoryPage() {
           testDateLabel: formatDateTime(lab.testAt),
           details,
           filename: `lab-${lab.id}-${exportDateStamp()}.pdf`,
+          signingTimeDisplay: signingLineFromIso(lab.testAt),
         })
         blobs.push(blob)
       }
@@ -645,6 +698,29 @@ export default function PatientHistoryPage() {
           diagnosis: v.interpretation,
           formPayload: ht.formPayload,
           filename: `phieu-chuyen-vien-regimen-${v.regimenId}-order-${ht.orderId}.pdf`,
+          signingTimeDisplay: signingLineFromIso(ht.transferAt),
+        })
+        blobs.push(blob)
+      }
+
+      for (const slip of v.healthTrackingSlips ?? []) {
+        const { blob } = await generateHealthInfoTrackingPdfBlob({
+          patientName: name,
+          age: ageStr,
+          gender: patient.gender === "M" ? "Male" : patient.gender === "F" ? "Female" : "",
+          diagnosis: latestDiagnosisText,
+          rows: (slip.rows || []).map((r) => ({
+            updatedAt: new Date(r.updatedAt),
+            bloodPressure: r.bloodPressure || "",
+            pulse: Number(r.pulse) || 0,
+            temperature: Number(r.temperature) || 0,
+            weight: Number(r.weight) || 0,
+            respiratoryRate: Number(r.respiratoryRate) || 0,
+            spo2: Number(r.spo2) || 0,
+            symptoms: r.symptoms || "",
+          })),
+          filename: `health-tracking-${slip.orderId}.pdf`,
+          signingTimeDisplay: signingLineFromIso(slip.createdAt),
         })
         blobs.push(blob)
       }
@@ -717,7 +793,7 @@ export default function PatientHistoryPage() {
               <Printer className="mr-2 h-4 w-4" />
               Print
             </Button>
-            <Button type="button" onClick={handleSavePdfFromPreview} disabled={!pdfPreviewUrl}>
+            <Button type="button" className="btn-gradient" onClick={handleSavePdfFromPreview} disabled={!pdfPreviewUrl}>
               <FileDown className="mr-2 h-4 w-4" />
               Save / Download
             </Button>
@@ -740,6 +816,7 @@ export default function PatientHistoryPage() {
           </TabsList>
 
           <TabsContent value="visits" className="space-y-4">
+            <TooltipProvider delayDuration={200}>
             {visitsLoading ? (
               <div className="flex items-center justify-center gap-2 py-16 text-muted-foreground">
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -979,10 +1056,12 @@ export default function PatientHistoryPage() {
                               const hKey = `${v.regimenId}-${ht.orderId}`
                               const busyH = exportingHospitalKey === hKey
                               return (
-                                <li
+                                <RegimenDocumentPreviewTooltip
                                   key={ht.orderId}
-                                  className="rounded-lg border border-rose-100 bg-rose-50/40 dark:bg-rose-950/20 p-3 space-y-2"
+                                  summary={buildHospitalTransferTooltipSummary(ht, formatDateTime)}
+                                  formPayload={ht.formPayload}
                                 >
+                                  <li className="rounded-lg border border-rose-100 bg-rose-50/40 dark:bg-rose-950/20 p-3 space-y-2 cursor-help">
                                   <div className="flex flex-wrap items-start justify-between gap-2">
                                     <div className="min-w-0 space-y-1">
                                       <p className="font-medium text-sm leading-tight">
@@ -1020,7 +1099,8 @@ export default function PatientHistoryPage() {
                                       PDF
                                     </Button>
                                   </div>
-                                </li>
+                                  </li>
+                                </RegimenDocumentPreviewTooltip>
                               )
                             })}
                           </ul>
@@ -1038,18 +1118,24 @@ export default function PatientHistoryPage() {
                           </h3>
                           <ul className="space-y-3">
                             {healthTrackingSlips.map((slip) => (
-                              <li key={slip.orderId} className="rounded-lg border p-3 space-y-1">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <span className="font-medium">Slip #{slip.orderId}</span>
-                                  <Badge variant="outline" className="text-[10px]">
-                                    {slip.rows?.length || 0} row(s)
-                                  </Badge>
-                                </div>
-                                <p className="text-xs text-muted-foreground">{formatDateTime(slip.createdAt)}</p>
-                                {slip.createdByDoctor ? (
-                                  <p className="text-xs text-muted-foreground">Created by: {slip.createdByDoctor}</p>
-                                ) : null}
-                              </li>
+                              <RegimenDocumentPreviewTooltip
+                                key={slip.orderId}
+                                summary={buildHealthTrackingSlipTooltipSummary(slip, formatDateTime)}
+                                formPayload={slip.formPayload}
+                              >
+                                <li className="rounded-lg border p-3 space-y-1 cursor-help">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="font-medium">Slip #{slip.orderId}</span>
+                                    <Badge variant="outline" className="text-[10px]">
+                                      {slip.rows?.length || 0} row(s)
+                                    </Badge>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground">{formatDateTime(slip.createdAt)}</p>
+                                  {slip.createdByDoctor ? (
+                                    <p className="text-xs text-muted-foreground">Created by: {slip.createdByDoctor}</p>
+                                  ) : null}
+                                </li>
+                              </RegimenDocumentPreviewTooltip>
                             ))}
                           </ul>
                         </section>
@@ -1107,6 +1193,7 @@ export default function PatientHistoryPage() {
                 )
               })
             )}
+            </TooltipProvider>
           </TabsContent>
 
           <TabsContent value="prescriptions" className="space-y-4">

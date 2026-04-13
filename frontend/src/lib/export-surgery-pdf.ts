@@ -18,6 +18,8 @@ type ExportSurgeryPdfInput = {
   note: string
   /** optional; default: export-surgery-<patient>.pdf */
   filename?: string
+  /** Phía trên tên bác sĩ phẫu thuật */
+  signingTimeDisplay?: string | null
 }
 
 const MARGIN_MM = { top: 10, left: 10, bottom: 12, right: 10 }
@@ -99,7 +101,15 @@ export async function generateSurgeryPdfBlob(opts: ExportSurgeryPdfInput): Promi
     result,
     note,
     filename: filenameOpt,
+    signingTimeDisplay,
   } = opts
+
+  const signingHtml =
+    signingTimeDisplay?.trim()
+      ? `<div style="font-size:11px;font-style:italic;margin-top:6px;text-align:right;">${escapeHtml(
+          signingTimeDisplay.trim()
+        )}</div>`
+      : ""
 
   const safePatient = escapeHtml(patientLabel || "—")
   const safeAge = escapeHtml(patientAge == null ? "—" : String(patientAge))
@@ -186,6 +196,7 @@ export async function generateSurgeryPdfBlob(opts: ExportSurgeryPdfInput): Promi
         <div style="width: 52%;">
           <div style="font-size:13px; font-weight:700; margin-bottom: 8px;">Chữ ký bác sĩ phẫu thuật</div>
           <div style="border-bottom:1px solid #111; height: 28px;"></div>
+          ${signingHtml}
           <div style="font-size:12px; color:#444; margin-top: 6px; text-align:right;">${safeSurgeon}</div>
         </div>
       </div>

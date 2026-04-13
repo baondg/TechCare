@@ -1,46 +1,81 @@
-import './App.css'
+import "./App.css"
 
+import { lazy, Suspense } from "react"
 import FadeTransition from "@/components/FadeTransition"
-import NetworkBackground from "@/components/NetworkBackground";
+import NetworkBackground from "@/components/NetworkBackground"
 import { Routes, Route } from "react-router-dom"
-import LandingPage from "./LandingPage" 
-import LoginPage from "./authentication/login"
-import RegisterPage from "./authentication/register"
-import DashBoardPage from "./pages/patient/dashboard"
-import FeedBackPage from "./pages/patient/feedback"
-import ProfilePage from "./pages/patient/profile"
-import ChatbotPage from "./pages/patient/chatbot"
-import AppointmentsPage from "./pages/patient/appointments"
-import BookAppointmentPage from "./pages/patient/appointments/book-appointment"
-import HealthInfoPage from "./pages/patient/healthInfo"
-import RecordsPage from "./pages/patient/records"
-import SymptomCheckerPage from "./pages/patient/symptomchecker"
-import AdminDashboardPage from "./pages/admin/dashboard"
-import SystemConfig from "./pages/admin/config"
-import UserManagement from "./pages/admin/accountMng"
-import FeedbackManagement from "./pages/admin/feedback"
-import DoctorDashboard from "./pages/doctor/dashboard"
-import DoctorPatients from "./pages/doctor/patients"
-import { DoctorLayout2 } from "@/components/doctor-layout-2"
-import Doctor_EMRManagement from "./pages/doctor/medical_records/dashboard"
-import DoctorAppointment from "./pages/doctor/appointment"
-import DoctorWorkShifts from "./pages/doctor/work-shifts"
-import DoctorFeedback from "./pages/doctor/feedback"
-import NurseDashboard from './pages/nurse/dashboard'
-import NursePatients from "./pages/nurse/patients"
-import { NurseLayout2 } from "@/components/nurse-layout-2"
-import Nurse_EMRManagement from "./pages/nurse/medical_records/dashboard"
-import NurseAppointment from "./pages/nurse/appointment"
-import NurseWorkShifts from "./pages/nurse/work-shifts"
-import NurseFeedback from "./pages/nurse/feedback"
-import NursePatientRegistration from "./pages/nurse/patient-registration"
-import NursePatientProfilePage from "./pages/nurse/patient-profile"
-import TechnicianDashboard from './pages/technician/dashboard'
-import TechnicianPatients from './pages/technician/patients'
-import { TechnicianLayout2 } from "@/components/technician-layout-2"
-import Technician_EMRManagement from "./pages/technician/medical_records/lab"
-import TechnicianWorkShifts from "./pages/technician/work-shifts"
-import TechnicianFeedback from "./pages/technician/feedback"
+
+const LandingPage = lazy(() => import("./LandingPage"))
+const LoginPage = lazy(() => import("./authentication/login"))
+const RegisterPage = lazy(() => import("./authentication/register"))
+const DashBoardPage = lazy(() => import("./pages/patient/dashboard"))
+const FeedBackPage = lazy(() => import("./pages/patient/feedback"))
+const ProfilePage = lazy(() => import("./pages/patient/profile"))
+const ChatbotPage = lazy(() => import("./pages/patient/chatbot"))
+const AppointmentsPage = lazy(() => import("./pages/patient/appointments"))
+const BookAppointmentPage = lazy(() => import("./pages/patient/appointments/book-appointment"))
+const HealthInfoPage = lazy(() => import("./pages/patient/healthInfo"))
+const RecordsPage = lazy(() => import("./pages/patient/records"))
+const SymptomCheckerPage = lazy(() => import("./pages/patient/symptomchecker"))
+const AdminDashboardPage = lazy(() => import("./pages/admin/dashboard"))
+const SystemConfig = lazy(() => import("./pages/admin/config"))
+const UserManagement = lazy(() => import("./pages/admin/accountMng"))
+const FeedbackManagement = lazy(() => import("./pages/admin/feedback"))
+const DoctorDashboard = lazy(() => import("./pages/doctor/dashboard"))
+const DoctorPatients = lazy(() => import("./pages/doctor/patients"))
+const DoctorLayout2 = lazy(() =>
+  import("@/components/doctor-layout-2").then((m) => ({ default: m.DoctorLayout2 })),
+)
+const Doctor_EMRManagement = lazy(() => import("./pages/doctor/medical_records/dashboard"))
+const DoctorAppointment = lazy(() => import("./pages/doctor/appointment"))
+const DoctorWorkShifts = lazy(() => import("./pages/doctor/work-shifts"))
+const DoctorFeedback = lazy(() => import("./pages/doctor/feedback"))
+const NurseDashboard = lazy(() => import("./pages/nurse/dashboard"))
+const NursePatients = lazy(() => import("./pages/nurse/patients"))
+const NurseLayout2 = lazy(() =>
+  import("@/components/nurse-layout-2").then((m) => ({ default: m.NurseLayout2 })),
+)
+const Nurse_EMRManagement = lazy(() => import("./pages/nurse/medical_records/dashboard"))
+const NurseAppointment = lazy(() => import("./pages/nurse/appointment"))
+const NurseWorkShifts = lazy(() => import("./pages/nurse/work-shifts"))
+const NurseFeedback = lazy(() => import("./pages/nurse/feedback"))
+const NursePatientRegistration = lazy(() => import("./pages/nurse/patient-registration"))
+const NursePatientProfilePage = lazy(() => import("./pages/nurse/patient-profile"))
+const TechnicianDashboard = lazy(() => import("./pages/technician/dashboard"))
+const TechnicianPatients = lazy(() => import("./pages/technician/patients"))
+const TechnicianLayout2 = lazy(() =>
+  import("@/components/technician-layout-2").then((m) => ({ default: m.TechnicianLayout2 })),
+)
+const Technician_EMRManagement = lazy(() => import("./pages/technician/medical_records/lab"))
+const TechnicianWorkShifts = lazy(() => import("./pages/technician/work-shifts"))
+const TechnicianFeedback = lazy(() => import("./pages/technician/feedback"))
+
+const PatientPortalNotificationsPage = lazy(() =>
+  import("./pages/portal-notifications").then((m) => ({ default: m.PatientPortalNotificationsPage })),
+)
+const DoctorPortalNotificationsPage = lazy(() =>
+  import("./pages/portal-notifications").then((m) => ({ default: m.DoctorPortalNotificationsPage })),
+)
+const NursePortalNotificationsPage = lazy(() =>
+  import("./pages/portal-notifications").then((m) => ({ default: m.NursePortalNotificationsPage })),
+)
+const TechnicianPortalNotificationsPage = lazy(() =>
+  import("./pages/portal-notifications").then((m) => ({
+    default: m.TechnicianPortalNotificationsPage,
+  })),
+)
+
+function RouteFallback() {
+  return (
+    <div
+      className="flex min-h-[40vh] w-full items-center justify-center text-muted-foreground text-sm"
+      role="status"
+      aria-live="polite"
+    >
+      Loading…
+    </div>
+  )
+}
 
 function App() {
   return (
@@ -49,6 +84,7 @@ function App() {
         <NetworkBackground />
       </div>
 
+      <Suspense fallback={<RouteFallback />}>
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
@@ -65,6 +101,7 @@ function App() {
           <Route path="/patient/records" element={<RecordsPage />} />
           <Route path="/patient/history" element={<RecordsPage />} />
           <Route path="/patient/symptom-checker" element={<SymptomCheckerPage />} />
+          <Route path="/patient/notifications" element={<PatientPortalNotificationsPage />} />
 
           {/* Protected Admin Routes */}
           <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
@@ -82,6 +119,7 @@ function App() {
           <Route path="/doctor/work-shifts" element={<DoctorWorkShifts />} />
           <Route path="/doctor/patients/:patientId/profile" element={<NursePatientProfilePage />} />
           <Route path="/doctor/feedback" element={<DoctorFeedback />} />
+          <Route path="/doctor/notifications" element={<DoctorPortalNotificationsPage />} />
 
           {/* Protected nurse Routes */}
           <Route path="/nurse/dashboard" element={<NurseDashboard />} />
@@ -94,6 +132,7 @@ function App() {
           <Route path="/nurse/work-shifts" element={<NurseWorkShifts />} />
           <Route path="/nurse/patients/:patientId/profile" element={<NursePatientProfilePage />} />
           <Route path="/nurse/feedback" element={<NurseFeedback />} />
+          <Route path="/nurse/notifications" element={<NursePortalNotificationsPage />} />
 
           {/* Protected technician Routes */}
           <Route path="/technician/dashboard" element={<TechnicianDashboard />} />
@@ -103,8 +142,9 @@ function App() {
           </Route>
           <Route path="/technician/work-shifts" element={<TechnicianWorkShifts />} />
           <Route path="/technician/feedback" element={<TechnicianFeedback />} />
+          <Route path="/technician/notifications" element={<TechnicianPortalNotificationsPage />} />
         </Routes>
-
+      </Suspense>
     </FadeTransition>
   )
 }

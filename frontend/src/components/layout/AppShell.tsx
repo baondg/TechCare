@@ -6,14 +6,14 @@
  *   769–1024px (tablet) → full sidebar with text labels
  *   ≤768px (mobile)    → bottom navigation bar, no sidebar
  *
- * The sidebar toggle button allows manual expand/collapse at any desktop/tablet width.
+ * Click the sidebar (outside nav links) to expand/collapse. Nav links only navigate.
  * On mobile the sidebar is hidden entirely and replaced with a fixed bottom nav.
  */
 
 import type React from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Activity, ChevronLeft, ChevronRight, LogOut, UserRound, Menu, Bell } from 'lucide-react'
+import { Activity, LogOut, UserRound, Menu, Bell } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -97,6 +97,15 @@ export function AppShell({ children, navItems, portalLabel, headerEnd }: AppShel
       return next
     })
   }, [])
+
+  const onSidebarBackgroundClick = useCallback(
+    (e: React.MouseEvent<HTMLElement>) => {
+      const t = e.target as HTMLElement
+      if (t.closest('a[href]')) return
+      toggleSidebar()
+    },
+    [toggleSidebar]
+  )
 
   const userBadgeLabel = sidebarUserLabel(portalLabel, user)
 
@@ -231,11 +240,17 @@ export function AppShell({ children, navItems, portalLabel, headerEnd }: AppShel
 
       <div className="flex min-h-[calc(100vh-4rem)] w-full">
 
-        {/* ── Sidebar + edge toggle ── */}
+        {/* ── Sidebar (click background to expand/collapse; links only navigate) ── */}
         <div className="relative shrink-0 sticky top-16 h-[calc(100vh-4rem)] self-start z-40">
           <aside
+            onClick={onSidebarBackgroundClick}
+            aria-label={
+              sidebarCollapsed
+                ? 'Sidebar collapsed. Click to expand.'
+                : 'Sidebar expanded. Click outside menu links to collapse.'
+            }
             className={cn(
-              'flex max-h-full h-full flex-col border-r border-white/40 bg-white/80 backdrop-blur-xl shadow-[4px_0_20px_rgba(0,0,0,0.05)] transition-[width] duration-200 ease-in-out overflow-hidden',
+              'flex max-h-full h-full flex-col border-r border-white/40 bg-white/80 backdrop-blur-xl shadow-[4px_0_20px_rgba(0,0,0,0.05)] transition-[width] duration-200 ease-in-out overflow-hidden cursor-pointer',
               sidebarCollapsed ? 'w-[4.25rem]' : 'w-64',
             )}
           >
@@ -293,25 +308,6 @@ export function AppShell({ children, navItems, portalLabel, headerEnd }: AppShel
               </div>
             </nav>
           </aside>
-
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className={cn(
-              'absolute top-1/2 left-full h-9 w-9 -translate-x-1/2 -translate-y-1/2 rounded-full border border-slate-200/90 bg-white text-slate-600 shadow-md',
-              'hover:bg-cyan-50 hover:text-cyan-800 hover:border-cyan-300 z-50',
-            )}
-            onClick={toggleSidebar}
-            aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            {sidebarCollapsed ? (
-              <ChevronRight className="h-5 w-5" />
-            ) : (
-              <ChevronLeft className="h-5 w-5" />
-            )}
-          </Button>
         </div>
 
         {/* ── Main content ── */}

@@ -39,6 +39,24 @@ exports.listNotifications = async (req, res) => {
 };
 
 /**
+ * PATCH /api/notifications/read-all
+ */
+exports.markAllNotificationsRead = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    await sequelize.query(
+      `UPDATE NOTIFICATION SET status = 'read'
+       WHERE user_id = :userId AND status = 'unread'`,
+      { replacements: { userId }, type: QueryTypes.UPDATE }
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Mark all notifications read error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+  }
+};
+
+/**
  * PATCH /api/notifications/:id/read
  */
 exports.markNotificationRead = async (req, res) => {

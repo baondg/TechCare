@@ -1,6 +1,7 @@
 import html2canvas from "html2canvas"
 import { jsPDF } from "jspdf"
 import type { PatientDetail } from "@/services/doctor-service"
+import { stampPdfWithExportFooter } from "@/lib/pdf-export-stamp"
 
 export interface ExportMedicationRow {
   name: string
@@ -104,6 +105,8 @@ export async function generatePrescriptionPdfBlob(opts: {
   signatureStatus?: ExportPrescriptionSignatureStatus
   /** Base64 data URL of the doctor's signature image */
   signatureDataUrl?: string | null
+  /** Phía trên tên bác sĩ ở khối ký */
+  signingTimeDisplay?: string | null
 }): Promise<PrescriptionPdfResult> {
   const { patient, medications, prescriptionDate, doctorName } = opts
   const fullName = `${patient.firstName || ""} ${patient.lastName || ""}`.trim() || patient.username
@@ -187,6 +190,10 @@ export async function generatePrescriptionPdfBlob(opts: {
   /** Draft: empty under signature box; Signed & Voided: show doctor name */
   const showSignatureBlockName = opts.signatureStatus !== "draft"
   const signatureDoctorLine = showSignatureBlockName ? escapeHtml(doctorName) : ""
+  const signingLine =
+    opts.signingTimeDisplay?.trim() != null && String(opts.signingTimeDisplay).trim() !== ""
+      ? `<div style="font-size:11px;font-style:italic;margin-top:6px">${escapeHtml(String(opts.signingTimeDisplay).trim())}</div>`
+      : ""
 
   const bodyHtml = `
     <div class="pdf-doc-root" style="position:relative;min-height:100%">
@@ -222,6 +229,7 @@ export async function generatePrescriptionPdfBlob(opts: {
       <div class="sig">
         <div style="font-weight:600">Bác sĩ</div>
         <div class="sig-box" aria-hidden="true"></div>
+        ${signingLine}
         <div>${signatureDoctorLine}</div>
       </div>
     </div>
@@ -288,7 +296,8 @@ export async function generatePrescriptionPdfBlob(opts: {
 export async function downloadPrescriptionPdf(
   opts: Parameters<typeof generatePrescriptionPdfBlob>[0]
 ): Promise<void> {
-  const { blob, filename } = await generatePrescriptionPdfBlob(opts)
+  const { blob: raw, filename } = await generatePrescriptionPdfBlob(opts)
+  const blob = await stampPdfWithExportFooter(raw, new Date())
   const url = URL.createObjectURL(blob)
   try {
     const a = document.createElement("a")

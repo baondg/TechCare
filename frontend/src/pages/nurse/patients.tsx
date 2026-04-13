@@ -1,11 +1,11 @@
 "use client"
 
-import { useEffect, useState, useMemo } from "react"
+import { useCallback, useEffect, useState, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent} from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ChevronLeft, ChevronRight, CalendarIcon, Search,  } from "lucide-react"
+import { ChevronLeft, ChevronRight, CalendarIcon, Search } from "lucide-react"
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 import { NurseLayout } from "@/components/nurse-layout"
 import { Popover,  PopoverContent,  PopoverTrigger} from "@/components/ui/popover"
@@ -16,7 +16,25 @@ import { useNavigate } from "react-router-dom"
 import { Checkbox } from "@/components/ui/checkbox"
 import {Tooltip,TooltipContent,TooltipProvider,TooltipTrigger,} from "@/components/ui/tooltip"
 import { PATIENT_IN_DEPARTMENT_OPTIONS } from "@/lib/patient-departments"
+import { NurseCheckInDialog } from "@/components/nurse-check-in-dialog"
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000"
+const VISIT_STORAGE_PREFIX = "nurseExamVisit:"
+
+type StoredVisit = { startedAt: string; appointmentId?: number; regimenId?: number }
+
+function writeStoredVisit(patientKey: string, visit: StoredVisit | null) {
+  if (!visit) sessionStorage.removeItem(VISIT_STORAGE_PREFIX + patientKey)
+  else sessionStorage.setItem(VISIT_STORAGE_PREFIX + patientKey, JSON.stringify(visit))
+}
+
+type TodayAppointment = {
+  appointmentId: number
+  timeDisplay: string
+  checkedIn: boolean
+  roomId: number | null
+  roomName: string
+}
 
 type Patient = {
   id: string
@@ -31,9 +49,11 @@ type Patient = {
   department: string | null
   recoverDays: number | null
   recoverPercent: number | null
+  /** Today’s first scheduled slot (server CURDATE); null if none. */
+  todayAppointment: TodayAppointment | null
 }
 
-type ColumnKey = keyof Patient | "no"
+type ColumnKey = keyof Patient | "no" | "visitStatus"
 
 const columns: {
   key: ColumnKey
@@ -50,6 +70,7 @@ const columns: {
   { key: "doctor", label: "Doctor", sortable: true },
   { key: "recoverDays", label: "Remaining days", sortable: true },
   { key: "recoverPercent", label: "Progress (%)", sortable: true },
+  { key: "visitStatus", label: "Status", sortable: true },
 ]
 
 const ICD10_MAP: Record<string, string> = {
@@ -65,45 +86,69 @@ const ICD10_MAP: Record<string, string> = {
   "R51": "Headache",
 }
 
+function visitStatusRank(p: Patient): { tier: number; label: string } {
+  const t = p.todayAppointment
+  if (!t) return { tier: 2, label: "" }
+  if (t.checkedIn) return { tier: 0, label: "Examining" }
+  return { tier: 1, label: t.timeDisplay || "" }
+}
 
 export default function NursePatients() {
     const navigate = useNavigate()
     const [patients, setPatients] = useState<Patient[]>([])
+    const [checkInDialogOpen, setCheckInDialogOpen] = useState(false)
+    const [checkInPatientOpId, setCheckInPatientOpId] = useState<string | null>(null)
 
-    useEffect(() => {
-      const fetchPatients = async () => {
-        try {
-          const token = localStorage.getItem("authToken")
-          const res = await fetch("http://localhost:3000/api/appointments/patients", {
-            method: "GET",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${token}`
+    const loadPatients = useCallback(async () => {
+      try {
+        const token = localStorage.getItem("authToken")
+        const res = await fetch(`${API_BASE_URL}/api/appointments/patients`, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        })
+        const data = await res.json()
+        if (!data.success) return
+
+        const mapped = (data.patients || []).map((p: Record<string, unknown>) => {
+          const raw = p.todayAppointment as Record<string, unknown> | null | undefined
+          let todayAppointment: TodayAppointment | null = null
+          if (raw && typeof raw.appointmentId === "number" && Number.isFinite(raw.appointmentId)) {
+            const rid = raw.roomId != null ? Number(raw.roomId) : null
+            todayAppointment = {
+              appointmentId: raw.appointmentId,
+              timeDisplay: String(raw.timeDisplay || ""),
+              checkedIn: Boolean(raw.checkedIn),
+              roomId: rid != null && Number.isFinite(rid) && rid > 0 ? rid : null,
+              roomName: String(raw.roomName || ""),
             }
-          })
-          const data = await res.json()
-          if (!data.success) return
-
-          const mapped = (data.patients || []).map((p: any) => ({
+          }
+          return {
             id: "OP" + String(p.id).padStart(9, "0"),
-            name: `${p.firstName || ""} ${p.lastName || ""}`.trim() || p.username || `Patient #${p.id}`,
-            sex: p.gender || null,
+            name: `${p.firstName || ""} ${p.lastName || ""}`.trim() || String(p.username || "") || `Patient #${p.id}`,
+            sex: (p.gender as Patient["sex"]) || null,
             age: String(p.age || ""),
-            latestVisit: p.latestVisit ? new Date(p.latestVisit).toLocaleDateString("vi-VN") : "",
-            diagnosis: p.latestDiagnosis?.icd10 || "",
-            diagnosisDescription: p.latestDiagnosis?.interpretation || "",
-            doctor: p.doctor || "",
+            latestVisit: p.latestVisit ? new Date(String(p.latestVisit)).toLocaleDateString("vi-VN") : "",
+            diagnosis: (p.latestDiagnosis as { icd10?: string } | null)?.icd10 || "",
+            diagnosisDescription: (p.latestDiagnosis as { interpretation?: string } | null)?.interpretation || "",
+            doctor: String(p.doctor || ""),
             department: p.inDepartment != null ? String(p.inDepartment) : null,
             recoverDays: null,
             recoverPercent: null,
-          }))
-          setPatients(mapped)
-        } catch (err) {
-          console.error("Fetch patients error:", err)
-        }
+            todayAppointment,
+          }
+        })
+        setPatients(mapped)
+      } catch (err) {
+        console.error("Fetch patients error:", err)
       }
-      void fetchPatients()
     }, [])
+
+    useEffect(() => {
+      void loadPatients()
+    }, [loadPatients])
 
     const [filters, setFilters] = useState({
         patientId: "",
@@ -190,8 +235,19 @@ export default function NursePatients() {
 
         if (key === "no") return 0
 
-        aValue = a[key]
-        bValue = b[key]
+        if (key === "visitStatus") {
+          const ra = visitStatusRank(a)
+          const rb = visitStatusRank(b)
+          if (ra.tier !== rb.tier) {
+            return direction === "asc" ? ra.tier - rb.tier : rb.tier - ra.tier
+          }
+          return direction === "asc"
+            ? ra.label.localeCompare(rb.label)
+            : rb.label.localeCompare(ra.label)
+        }
+
+        aValue = a[key as keyof Patient]
+        bValue = b[key as keyof Patient]
 
         if (aValue == null) return 1
         if (bValue == null) return -1
@@ -223,6 +279,21 @@ export default function NursePatients() {
 
   return (
     <NurseLayout>
+      <NurseCheckInDialog
+        open={checkInDialogOpen}
+        onOpenChange={(open) => {
+          setCheckInDialogOpen(open)
+          if (!open) setCheckInPatientOpId(null)
+        }}
+        patientIdParam={checkInPatientOpId ?? undefined}
+        onSuccess={({ appointmentId, startedAt, regimenId }) => {
+          const key = checkInPatientOpId
+          if (key) {
+            writeStoredVisit(key, { startedAt, appointmentId, regimenId })
+          }
+          void loadPatients()
+        }}
+      />
       <div className="p-1 space-y-1">
         {/* Header — one toolbar row: column toggles + filters */}
         <div className="space-y-2">
@@ -452,6 +523,8 @@ export default function NursePatients() {
                                 className="h-8 text-xs text-center"
                               />
                             )}
+
+                            {col.key === "visitStatus" && <span className="sr-only">Status filter</span>}
                           </TableHead>
                         ) : null
                       )}
@@ -465,7 +538,7 @@ export default function NursePatients() {
                         onClick={() =>
                           navigate(`/nurse/medical_records/${patient.id}/dashboard`)
                         }
-                        className="hover:bg-muted/50 cursor-pointer h-14 transition-colors"
+                        className="group hover:bg-muted/50 cursor-pointer h-14 transition-colors"
                       >
                         {visibleColumns.includes("no") && (
                           <TableCell className="text-center font-medium">
@@ -525,6 +598,38 @@ export default function NursePatients() {
                         {visibleColumns.includes("recoverPercent") && (
                           <TableCell className="text-center">
                             {patient.recoverPercent != null ? `${patient.recoverPercent}%` : "-"}
+                          </TableCell>
+                        )}
+
+                        {visibleColumns.includes("visitStatus") && (
+                          <TableCell
+                            className="w-[min(9.5rem,22vw)] min-w-[7.5rem] text-center align-middle"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {patient.todayAppointment?.checkedIn ? (
+                              <span className="text-sm font-semibold text-emerald-700 whitespace-nowrap">
+                                Examining
+                              </span>
+                            ) : patient.todayAppointment ? (
+                              <div className="relative flex min-h-9 items-center justify-center px-0.5">
+                                <span className="text-sm tabular-nums text-foreground group-hover:hidden">
+                                  {patient.todayAppointment.timeDisplay || "—"}
+                                </span>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  className="hidden h-8 whitespace-nowrap px-3 text-xs group-hover:inline-flex !bg-emerald-600 hover:!bg-emerald-700 text-white border-0 shadow-sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    if (!patient.todayAppointment) return
+                                    setCheckInPatientOpId(patient.id)
+                                    setCheckInDialogOpen(true)
+                                  }}
+                                >
+                                  Check in
+                                </Button>
+                              </div>
+                            ) : null}
                           </TableCell>
                         )}
                       </TableRow>

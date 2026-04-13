@@ -157,15 +157,9 @@ export function NurseLayout2() {
               </Button>
             </div>
             {visitSession && (
-              <div className="text-xs text-slate-500 max-w-md text-right space-y-0.5">
-                <p>
-                  Visit in progress · started {new Date(visitSession.startedAt).toLocaleString("vi-VN")}
-                </p>
-                <p className="text-slate-400">
-                  The doctor ends this visit with &quot;Finish examination&quot; (that also starts patient medication
-                  reminders when a prescription exists).
-                </p>
-              </div>
+              <p className="text-xs text-slate-500 max-w-md text-right">
+                Visit in progress · started {new Date(visitSession.startedAt).toLocaleString("vi-VN")}
+              </p>
             )}
           </div>
         </Card>

@@ -108,6 +108,7 @@ export async function generateHealthInfoTrackingPdfBlob(opts: {
   admissionNo?: string
   rows: HealthInfoTrackingRow[]
   filename?: string
+  signingTimeDisplay?: string
 }): Promise<HealthInfoTrackingPdfResult> {
   const points = [...opts.rows].sort((a, b) => a.updatedAt.getTime() - b.updatedAt.getTime()).slice(-14)
   const GRAPH_ROWS = 28
@@ -285,6 +286,14 @@ export async function generateHealthInfoTrackingPdfBlob(opts: {
         <tr><td class="label-col">Y tá - ĐD</td><td class="unit-col"></td>${Array.from({length:14}, () => `<td></td>`).join("")}</tr>
         <tr><td class="label-col" style="height:40px">Ký tên</td><td class="unit-col"></td>${Array.from({length:14}, () => `<td></td>`).join("")}</tr>
       </table>
+
+      ${
+        opts.signingTimeDisplay?.trim()
+          ? `<div style="text-align:right;font-size:11px;font-style:italic;margin-top:8px">${escapeHtml(
+              opts.signingTimeDisplay.trim()
+            )}</div>`
+          : ""
+      }
 
       <div class="note">
         Ghi chú: ô số 1, 2, 3, 4, 5 để ghi các chỉ số theo dõi chỉ định của bác sỹ<br/>

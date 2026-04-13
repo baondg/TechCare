@@ -19,7 +19,7 @@ interface UseAppointmentsReturn {
   appointments: Appointment[]
   loading: boolean
   error: string | null
-  cancel: (id: number) => Promise<void>
+  cancel: (id: number, cancellationReason: string) => Promise<void>
   refresh: () => void
 }
 
@@ -44,8 +44,8 @@ export function useAppointments(): UseAppointmentsReturn {
 
   useEffect(() => { void load() }, [load])
 
-  const cancel = useCallback(async (id: number) => {
-    await appointmentService.updateAppointment(id, { status: 'Cancelled' })
+  const cancel = useCallback(async (id: number, cancellationReason: string) => {
+    await appointmentService.updateAppointment(id, { status: 'Cancelled', cancellationReason })
     void load()
   }, [load])
 

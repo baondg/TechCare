@@ -35,6 +35,7 @@ router.get('/patients/:patientId/regimen/active/documents', doctorController.get
 router.get('/patients/:patientId/medical-regimens', doctorController.getPatientMedicalRegimensForDoctor);
 router.post('/patients/:patientId/regimen/close', doctorController.closeOpenRegimenForPatient);
 router.post('/patients/:patientId/health-tracking-slips', doctorController.createHealthTrackingSlipForPatient);
+router.post('/patients/:patientId/follow-up-reexam-slip', doctorController.createFollowUpReexamSlipForPatient);
 
 // ─── Health Info ───
 router.get('/patients/:patientId/health-info', doctorController.getHealthInfo);
@@ -73,6 +74,7 @@ router.post('/appointments', doctorController.createAppointment);
 router.put('/appointments/:id/cancel', doctorController.cancelAppointment);
 router.put('/appointments/:id/cover', doctorController.coverAppointment);
 router.put('/appointments/:id/confirm', doctorController.confirmAppointment);
+router.put('/appointments/:id/decline', doctorController.declineAppointment);
 
 // ─── Signature ───
 router.get('/signature', doctorController.getSignature);

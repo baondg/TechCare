@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/table"
 import { doctorService, type SurgeryRecord } from "@/services/doctor-service"
 import { generateSurgeryPdfBlob } from "@/lib/export-surgery-pdf"
+import { signingLineFromIso, stampPdfWithExportFooter } from "@/lib/pdf-export-stamp"
 import {
   Dialog,
   DialogContent,
@@ -290,6 +291,7 @@ export default function PatientSurgery() {
         end: selected.endIso,
         result: selected.result,
         note: selected.note ?? "",
+        signingTimeDisplay: signingLineFromIso(selected.startIso),
       })
       const url = URL.createObjectURL(blob)
       releasePdfBlobUrl(url)
@@ -302,13 +304,23 @@ export default function PatientSurgery() {
     }
   }
 
-  const handleSavePdfFromPreview = () => {
+  const handleSavePdfFromPreview = async () => {
     if (!pdfPreviewUrl || !pdfPreviewFilename) return
-    const a = document.createElement("a")
-    a.href = pdfPreviewUrl
-    a.download = pdfPreviewFilename
-    a.rel = "noopener"
-    a.click()
+    try {
+      const res = await fetch(pdfPreviewUrl)
+      const raw = await res.blob()
+      const stamped = await stampPdfWithExportFooter(raw, new Date())
+      const url = URL.createObjectURL(stamped)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = pdfPreviewFilename
+      a.rel = "noopener"
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      console.error(e)
+      alert(e instanceof Error ? e.message : "Download failed")
+    }
   }
 
   return (

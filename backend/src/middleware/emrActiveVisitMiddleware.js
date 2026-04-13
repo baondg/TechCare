@@ -37,6 +37,9 @@ async function requireActiveEmrVisitForDoctorTech(req, res, next) {
     if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(m)) return next();
 
     const path = req.path || '';
+    /** Health info can be maintained by doctors like nurses (no open-regimen gate). */
+    if (path.includes('/health-info')) return next();
+
     const match = path.match(/^\/patients\/([^/]+)\//);
     if (!match) return next();
 

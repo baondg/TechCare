@@ -16,6 +16,8 @@ import {
   CheckCircle,
 } from "lucide-react"
 import { PatientLayout } from "@/components/patient-layout"
+import { FeedbackRatingStars } from "@/components/feedback-rating-stars"
+import { SymptomCheckerRecommendationDisplay } from "@/components/symptom-checker-recommendation-display"
 import {
   appointmentService,
   type PatientAiRecommendation,
@@ -326,10 +328,10 @@ export default function FeedbackPage() {
                   ))}
                 </div>
                 {feedbackRating && (
-                  <p className="mt-4 text-center text-slate-600">
-                    You rated this experience{" "}
-                    <span className="font-bold text-amber-600">{feedbackRating} out of 5 stars</span>
-                  </p>
+                  <div className="mt-4 flex flex-col items-center gap-2 text-center text-slate-600">
+                    <span className="text-sm">You rated this experience</span>
+                    <FeedbackRatingStars rating={feedbackRating} size="md" className="scale-125" />
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -388,7 +390,10 @@ export default function FeedbackPage() {
                           </span>
                         </div>
                         <p className="mt-2 text-sm text-slate-700">{item.content}</p>
-                        <p className="mt-2 text-xs text-amber-600 font-semibold">Rating: {item.rating}/5</p>
+                        <div className="mt-2 flex items-center gap-2">
+                          <span className="text-xs text-slate-500">Rating</span>
+                          <FeedbackRatingStars rating={Number(item.rating)} size="sm" />
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -427,9 +432,12 @@ export default function FeedbackPage() {
                           <span className="font-semibold">Admin Response:</span> {item.response}
                         </div>
                       ) : null}
-                      <div className="mt-2 flex items-center justify-between text-xs">
-                        <span className="text-amber-600 font-semibold">Rating: {item.rating}/5</span>
-                        <span className="text-slate-500">{item.userName || `User #${item.userId || "?"}`}</span>
+                      <div className="mt-2 flex items-center justify-between gap-2 text-xs">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-slate-500 shrink-0">Rating</span>
+                          <FeedbackRatingStars rating={Number(item.rating)} size="sm" />
+                        </div>
+                        <span className="text-slate-500 shrink-0">{item.userName || `User #${item.userId || "?"}`}</span>
                       </div>
                     </div>
                   ))}
@@ -491,7 +499,13 @@ export default function FeedbackPage() {
                         <Sparkles className="h-4 w-4 text-cyan-600" />
                         AI Recommendation:
                       </p>
-                      <p className="text-slate-900 leading-relaxed">{rec.suggestion}</p>
+                      {rec.type === "symptomchecker" ? (
+                        <SymptomCheckerRecommendationDisplay content={rec.suggestion} />
+                      ) : (
+                        <p className="text-slate-900 leading-relaxed whitespace-pre-wrap break-words">
+                          {rec.suggestion}
+                        </p>
+                      )}
                     </div>
 
                     {rec.userResponse === "pending" ? (

@@ -1,13 +1,12 @@
 const Patient = require('../models/Patient');
 const MedicalRecord = require('../models/MedicalRecord');
 
+const PATIENT_BLOOD_TYPES = new Set(['A+', 'B+', 'AB+', 'O+', 'A-', 'B-', 'AB-', 'O-']);
+
 const toPatientBloodType = (value) => {
-  if (!value) return null;
-  const upper = String(value).toUpperCase();
-  if (upper.startsWith('AB')) return 'AB';
-  if (upper.startsWith('A')) return 'A';
-  if (upper.startsWith('B')) return 'B';
-  if (upper.startsWith('O')) return 'O';
+  if (value === undefined || value === null || value === '') return null;
+  const s = String(value).trim();
+  if (PATIENT_BLOOD_TYPES.has(s)) return s;
   return null;
 };
 

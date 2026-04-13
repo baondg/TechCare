@@ -16,6 +16,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -45,6 +46,7 @@ import { generateSurgeryPdfBlob } from "@/lib/export-surgery-pdf"
 import { generateBloodTestPdfBlob } from "@/lib/export-blood-test-pdf"
 import { generateHospitalTransferPdfBlob } from "@/lib/export-hospital-transfer-pdf"
 import { generateHealthInfoTrackingPdfBlob } from "@/lib/export-health-info-tracking-pdf"
+import { buildSigningTimeLine, signingLineFromIso, stampPdfWithExportFooter } from "@/lib/pdf-export-stamp"
 import { Loader2, ArrowRightLeft, AlertCircle, FileDown, Printer, Plus, Minus } from "lucide-react"
 
 const tabs = [
@@ -82,6 +84,38 @@ function formatDateTime(value: string | null | undefined, locale = "vi-VN") {
   return d.toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" })
 }
 
+const FOLLOW_UP_MINUTE_OPTIONS = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, "0"))
+const FOLLOW_UP_HOUR24_OPTIONS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"))
+
+/** Parse `HH:mm` (24h) for follow-up UI: hour 0–23 and minute. */
+function parseFollowTime24hString(time24: string): { hour24: number; minute: number } {
+  const raw = String(time24 || "").trim()
+  const [hPart, mPart] = raw.split(":")
+  const hour24 = Math.min(23, Math.max(0, Number.parseInt(hPart ?? "", 10) || 0))
+  const minute = Math.min(59, Math.max(0, Number.parseInt(String(mPart ?? "0").slice(0, 2), 10) || 0))
+  return { hour24, minute }
+}
+
+function formatFollowTime24h(hour24: number, minute: number): string {
+  const h = Math.min(23, Math.max(0, Math.floor(hour24)))
+  const mm = Math.min(59, Math.max(0, Math.floor(minute)))
+  return `${String(h).padStart(2, "0")}:${String(mm).padStart(2, "0")}`
+}
+
+/** Clamp hour 0–23 from digits the user typed (empty → 0 on commit paths). */
+function parseFollowHourInputValue(s: string): number {
+  const d = String(s || "").replace(/\D/g, "")
+  if (d === "") return 0
+  return Math.min(23, Math.max(0, Number.parseInt(d, 10)))
+}
+
+/** Clamp minute 0–59 from digits the user typed (empty → 0 on commit paths). */
+function parseFollowMinuteInputValue(s: string): number {
+  const d = String(s || "").replace(/\D/g, "")
+  if (d === "") return 0
+  return Math.min(59, Math.max(0, Number.parseInt(d, 10)))
+}
+
 export function DoctorLayout2() {
   const navigate = useNavigate()
   const { tab = "dashboard", patientId } = useParams()
@@ -94,6 +128,8 @@ export function DoctorLayout2() {
 
   const [followDate, setFollowDate] = useState("")
   const [followTime, setFollowTime] = useState("09:00")
+  const [followHourInput, setFollowHourInput] = useState("09")
+  const [followMinuteInput, setFollowMinuteInput] = useState("00")
   const [followDepartment, setFollowDepartment] = useState("")
   const [departmentOptions, setDepartmentOptions] = useState<DepartmentOption[]>([])
   const [followSymptoms, setFollowSymptoms] = useState("")
@@ -120,6 +156,7 @@ export function DoctorLayout2() {
   const [finishSubmitting, setFinishSubmitting] = useState(false)
   const [visitLoading, setVisitLoading] = useState(true)
   const [visitActive, setVisitActive] = useState(false)
+  const [checkInRoom, setCheckInRoom] = useState<{ id: number; name: string } | null>(null)
 
   const [finishWizardOpen, setFinishWizardOpen] = useState(false)
   const [finishWizardStep, setFinishWizardStep] = useState<1 | 2>(1)
@@ -154,13 +191,23 @@ export function DoctorLayout2() {
     setPdfPreviewUrl(null)
   }, [pdfPreviewUrl])
 
-  const savePdfFromPreview = useCallback(() => {
+  const savePdfFromPreview = useCallback(async () => {
     if (!pdfPreviewUrl) return
-    const a = document.createElement("a")
-    a.href = pdfPreviewUrl
-    a.download = pdfPreviewFilename || "document.pdf"
-    a.rel = "noopener"
-    a.click()
+    try {
+      const res = await fetch(pdfPreviewUrl)
+      const raw = await res.blob()
+      const stamped = await stampPdfWithExportFooter(raw, new Date())
+      const url = URL.createObjectURL(stamped)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = pdfPreviewFilename || "document.pdf"
+      a.rel = "noopener"
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      console.error(e)
+      window.alert(e instanceof Error ? e.message : "Download failed")
+    }
   }, [pdfPreviewUrl, pdfPreviewFilename])
 
   useEffect(() => {
@@ -173,14 +220,28 @@ export function DoctorLayout2() {
     if (!patientId) {
       setVisitLoading(false)
       setVisitActive(false)
+      setCheckInRoom(null)
       return
     }
     setVisitLoading(true)
     try {
       const r = await doctorService.getActiveRegimen(patientId)
       setVisitActive(Boolean(r.success && r.active))
+      const room = r.checkInRoom
+      if (r.success && room) {
+        const rawId = room.id
+        const roomId = typeof rawId === "number" ? rawId : Number(rawId)
+        if (Number.isFinite(roomId) && roomId > 0) {
+          setCheckInRoom({ id: roomId, name: String(room.name || "").trim() || `Room #${roomId}` })
+        } else {
+          setCheckInRoom(null)
+        }
+      } else {
+        setCheckInRoom(null)
+      }
     } catch {
       setVisitActive(false)
+      setCheckInRoom(null)
     } finally {
       setVisitLoading(false)
     }
@@ -227,6 +288,14 @@ export function DoctorLayout2() {
   }, [loadPatient])
 
   useEffect(() => {
+    if (checkInRoom) {
+      setFromRoomId(String(checkInRoom.id))
+    } else {
+      setFromRoomId("")
+    }
+  }, [checkInRoom])
+
+  useEffect(() => {
     if (!transferOpen) return
     let cancelled = false
     void (async () => {
@@ -235,11 +304,11 @@ export function DoctorLayout2() {
         const rooms = await appointmentService.getClinicRooms()
         if (!cancelled) {
           setClinicRooms(rooms)
+          const fromIdStr = checkInRoom ? String(checkInRoom.id) : ""
           if (rooms.length >= 2) {
-            setFromRoomId(String(rooms[0].id))
-            setToRoomId(String(rooms[1].id))
+            const other = rooms.find((r) => String(r.id) !== fromIdStr) ?? rooms[1]
+            setToRoomId(String(other.id))
           } else if (rooms.length === 1) {
-            setFromRoomId(String(rooms[0].id))
             setToRoomId(String(rooms[0].id))
           }
         }
@@ -253,7 +322,25 @@ export function DoctorLayout2() {
     return () => {
       cancelled = true
     }
-  }, [transferOpen])
+  }, [transferOpen, checkInRoom])
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const r = await doctorService.getDepartments()
+        if (!cancelled) setDepartmentOptions(Array.isArray(r.departments) ? r.departments : [])
+      } catch (e) {
+        if (!cancelled) {
+          setDepartmentOptions([])
+          console.error(e)
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -343,6 +430,25 @@ export function DoctorLayout2() {
     () => departmentLabelForRoomId(toRoomId),
     [departmentLabelForRoomId, toRoomId]
   )
+
+  useEffect(() => {
+    if (!finishWizardOpen || finishWizardChoice !== "followup") return
+    const { hour24, minute } = parseFollowTime24hString(followTime)
+    setFollowHourInput(String(hour24).padStart(2, "0"))
+    setFollowMinuteInput(String(minute).padStart(2, "0"))
+    // Re-seed when opening the follow-up form or switching to it; followTime is read once per transition.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [finishWizardOpen, finishWizardChoice])
+
+  const commitFollowTimeFromInputs = useCallback(() => {
+    const h = parseFollowHourInputValue(followHourInput)
+    const m = parseFollowMinuteInputValue(followMinuteInput)
+    const next = formatFollowTime24h(h, m)
+    setFollowTime(next)
+    setFollowHourInput(String(h).padStart(2, "0"))
+    setFollowMinuteInput(String(m).padStart(2, "0"))
+    return next
+  }, [followHourInput, followMinuteInput])
 
   const followUpPreviewHtml = useMemo(() => {
     if (!finishWizardOpen || finishWizardChoice !== "followup" || !patientData) return ""
@@ -457,10 +563,17 @@ export function DoctorLayout2() {
     setTransferSubmitting(true)
     try {
       if (transferKind === "clinic") {
-        const fromR = Number(fromRoomId)
+        const fromR = checkInRoom != null ? Number(checkInRoom.id) : Number(fromRoomId)
         const toR = Number(toRoomId)
-        if (!Number.isFinite(fromR) || !Number.isFinite(toR)) {
-          window.alert("Select from and to rooms.")
+        if (!Number.isFinite(fromR) || fromR <= 0) {
+          window.alert(
+            "Could not determine the check-in room for this visit. Ask the nurse to confirm today’s appointment / check-in.",
+          )
+          setTransferSubmitting(false)
+          return
+        }
+        if (!Number.isFinite(toR) || toR <= 0) {
+          window.alert("Select a destination room.")
           setTransferSubmitting(false)
           return
         }
@@ -544,7 +657,8 @@ export function DoctorLayout2() {
     setFinishWizardSaving(true)
     try {
       if (finishWizardChoice === "followup") {
-        if (!numericRouteId || !followDate || !followTime.trim() || !followDepartment.trim()) {
+        const timeCommitted = commitFollowTimeFromInputs()
+        if (!numericRouteId || !followDate || !timeCommitted.trim() || !followDepartment.trim()) {
           window.alert("Please fill date, time, and department.")
           return
         }
@@ -552,13 +666,26 @@ export function DoctorLayout2() {
           patientId: numericRouteId,
           department: followDepartment.trim(),
           date: followDate,
-          time: followTime.length <= 5 ? `${followTime}:00` : followTime,
+          time: timeCommitted.length <= 5 ? `${timeCommitted}:00` : timeCommitted,
           symptoms: followSymptoms.trim() || undefined,
           notes: followSymptoms.trim() || undefined,
         })
+        try {
+          const slipInputs = buildFollowUpReexamSlipInputs()
+          if (slipInputs) {
+            await doctorService.createFollowUpReexamSlip(patientId, slipInputs as unknown as Record<string, unknown>)
+          }
+        } catch (slipErr) {
+          console.error(slipErr)
+          window.alert(
+            slipErr instanceof Error
+              ? `${slipErr.message}\n\nThe appointment was saved, but the follow-up slip could not be stored for the patient export PDF.`
+              : 'The appointment was saved, but the follow-up slip could not be stored for the patient export PDF.',
+          )
+        }
         setFinishWizardSaved({
           type: "followup",
-          summary: `Follow-up scheduled: ${followDate} ${followTime} — ${followDepartment.trim()}`,
+          summary: `Follow-up scheduled: ${followDate} ${timeCommitted} — ${followDepartment.trim()}`,
         })
       } else {
         if (!transferReason.trim()) {
@@ -671,6 +798,7 @@ export function DoctorLayout2() {
         <DialogContent className="flex max-h-[90vh] w-[min(920px,96vw)] max-w-none flex-col gap-3 p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle>{pdfPreviewTitle}</DialogTitle>
+            <DialogDescription className="sr-only">Preview the generated PDF before saving or downloading.</DialogDescription>
           </DialogHeader>
           {pdfPreviewUrl ? (
             <iframe
@@ -695,9 +823,9 @@ export function DoctorLayout2() {
         <DialogContent className="flex max-h-[92vh] w-full max-w-[min(1360px,99vw)] flex-col gap-3 overflow-hidden p-6">
           <DialogHeader className="shrink-0 space-y-1">
             <DialogTitle>Finish examination ({finishWizardStep}/2)</DialogTitle>
-            <p className="text-xs text-muted-foreground">
+            <DialogDescription className="text-xs text-muted-foreground">
               Step 1: optionally add follow-up or hospital transfer. Step 2: review and finish.
-            </p>
+            </DialogDescription>
           </DialogHeader>
 
           {finishWizardStep === 1 ? (
@@ -745,10 +873,84 @@ export function DoctorLayout2() {
                       <Input id="fu-date" type="date" value={followDate} onChange={(e) => setFollowDate(e.target.value)} />
                     </div>
                     <div className="grid gap-2">
-                      <Label htmlFor="fu-time">
+                      <Label id="fu-time-label">
                         Time <span className="text-red-500">*</span>
                       </Label>
-                      <Input id="fu-time" type="time" value={followTime} onChange={(e) => setFollowTime(e.target.value)} />
+                      <div
+                        className="flex flex-wrap items-end gap-2"
+                        role="group"
+                        aria-labelledby="fu-time-label"
+                      >
+                        <datalist id="fu-follow-hour-options">
+                          {FOLLOW_UP_HOUR24_OPTIONS.map((h) => (
+                            <option key={h} value={h} />
+                          ))}
+                        </datalist>
+                        <datalist id="fu-follow-minute-options">
+                          {FOLLOW_UP_MINUTE_OPTIONS.map((m) => (
+                            <option key={m} value={m} />
+                          ))}
+                        </datalist>
+                        <div className="grid w-[min(5.5rem,28vw)] gap-1">
+                          <span className="text-[11px] text-muted-foreground">Hour (0–23)</span>
+                          <Input
+                            id="fu-time-hour"
+                            className="h-9 font-mono tabular-nums"
+                            list="fu-follow-hour-options"
+                            inputMode="numeric"
+                            autoComplete="off"
+                            aria-label="Hour, 0 to 23 — type or pick from suggestions"
+                            value={followHourInput}
+                            onChange={(e) => {
+                              const raw = e.target.value.replace(/\D/g, "").slice(0, 2)
+                              setFollowHourInput(raw)
+                              if (raw !== "") {
+                                const h = Math.min(23, Number.parseInt(raw, 10))
+                                const m = parseFollowMinuteInputValue(followMinuteInput)
+                                setFollowTime(formatFollowTime24h(h, m))
+                              }
+                            }}
+                            onBlur={() => {
+                              const h = parseFollowHourInputValue(followHourInput)
+                              const m = parseFollowMinuteInputValue(followMinuteInput)
+                              setFollowTime(formatFollowTime24h(h, m))
+                              setFollowHourInput(String(h).padStart(2, "0"))
+                              setFollowMinuteInput(String(m).padStart(2, "0"))
+                            }}
+                          />
+                        </div>
+                        <span className="pb-2 text-sm text-muted-foreground" aria-hidden>
+                          :
+                        </span>
+                        <div className="grid w-[min(5.5rem,28vw)] gap-1">
+                          <span className="text-[11px] text-muted-foreground">Minute</span>
+                          <Input
+                            id="fu-time-minute"
+                            className="h-9 font-mono tabular-nums"
+                            list="fu-follow-minute-options"
+                            inputMode="numeric"
+                            autoComplete="off"
+                            aria-label="Minute, 0 to 59 — type or pick from suggestions"
+                            value={followMinuteInput}
+                            onChange={(e) => {
+                              const raw = e.target.value.replace(/\D/g, "").slice(0, 2)
+                              setFollowMinuteInput(raw)
+                              if (raw !== "") {
+                                const m = Math.min(59, Number.parseInt(raw, 10))
+                                const h = parseFollowHourInputValue(followHourInput)
+                                setFollowTime(formatFollowTime24h(h, m))
+                              }
+                            }}
+                            onBlur={() => {
+                              const h = parseFollowHourInputValue(followHourInput)
+                              const m = parseFollowMinuteInputValue(followMinuteInput)
+                              setFollowTime(formatFollowTime24h(h, m))
+                              setFollowHourInput(String(h).padStart(2, "0"))
+                              setFollowMinuteInput(String(m).padStart(2, "0"))
+                            }}
+                          />
+                        </div>
+                      </div>
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="fu-dept">
@@ -968,6 +1170,7 @@ export function DoctorLayout2() {
                                       doctorName: readSignedInDisplayName() || "—",
                                       signatureStatus: "signed",
                                       filename: `prescription-${rx.id}.pdf`,
+                                      signingTimeDisplay: signingLineFromIso(rx.prescribedAt),
                                     })
                                     openPdfPreview(blob, filename, `Prescription #${rx.id} (PDF)`)
                                   } catch (e) {
@@ -1027,6 +1230,7 @@ export function DoctorLayout2() {
                                       result: s.result || "—",
                                       note: s.note || "",
                                       filename: `surgery-${s.id}.pdf`,
+                                      signingTimeDisplay: signingLineFromIso(s.start),
                                     })
                                     openPdfPreview(blob, filename, `Surgery #${s.id} (PDF)`)
                                   } catch (e) {
@@ -1084,6 +1288,7 @@ export function DoctorLayout2() {
                                       testDateLabel: formatDateTime(t.testAt),
                                       details,
                                       filename: `lab-${t.id}.pdf`,
+                                      signingTimeDisplay: signingLineFromIso(t.testAt),
                                     })
                                     openPdfPreview(blob, filename, `Lab #${t.id} (PDF)`)
                                   } catch (e) {
@@ -1146,6 +1351,7 @@ export function DoctorLayout2() {
                                       diagnosis: patientData.latestDiagnosis?.interpretation,
                                       formPayload: ht.formPayload,
                                       filename: `hospital-transfer-${ht.orderId}.pdf`,
+                                      signingTimeDisplay: signingLineFromIso(ht.transferAt),
                                     })
                                     openPdfPreview(blob, filename, `Hospital transfer #${ht.orderId} (PDF)`)
                                   } catch (e) {
@@ -1209,6 +1415,7 @@ export function DoctorLayout2() {
                                         symptoms: r.symptoms || "",
                                       })),
                                       filename: `health-tracking-${slip.orderId}.pdf`,
+                                      signingTimeDisplay: signingLineFromIso(slip.createdAt),
                                     })
                                     openPdfPreview(blob, filename, `Health tracking slip #${slip.orderId} (PDF)`)
                                   } catch (e) {
@@ -1256,6 +1463,7 @@ export function DoctorLayout2() {
                       try {
                         const { blob, filename } = await generateFollowUpReexamPdfBlob({
                           ...slip,
+                          signingTimeDisplay: buildSigningTimeLine(new Date()),
                           filename: `follow-up-${followDate || "date"}.pdf`,
                         })
                         openPdfPreview(blob, filename, "Follow-up appointment slip (PDF)")
@@ -1321,6 +1529,9 @@ export function DoctorLayout2() {
         >
           <DialogHeader className="shrink-0 space-y-1">
             <DialogTitle>Transfer clinic</DialogTitle>
+            <DialogDescription className="sr-only">
+              Move the patient to another clinic room. From room reflects the nurse check-in slot for today.
+            </DialogDescription>
           </DialogHeader>
           <div
             className={
@@ -1353,22 +1564,16 @@ export function DoctorLayout2() {
                   <Label>
                     From room <span className="text-red-500">*</span>
                   </Label>
-                  {roomsLoading ? (
-                    <p className="text-sm text-muted-foreground">Loading rooms…</p>
-                  ) : (
+                  {visitLoading ? (
+                    <p className="text-sm text-muted-foreground">Loading visit…</p>
+                  ) : checkInRoom ? (
                     <>
-                      <Select value={fromRoomId} onValueChange={setFromRoomId}>
-                        <SelectTrigger aria-required="true">
-                          <SelectValue placeholder="Select room" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {clinicRooms.map((r) => (
-                            <SelectItem key={r.id} value={String(r.id)}>
-                              {r.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div
+                        className="rounded-lg border bg-muted/40 px-3 py-2 text-sm text-foreground"
+                        aria-readonly="true"
+                      >
+                        {checkInRoom.name}
+                      </div>
                       {fromRoomDepartmentLabel ? (
                         <p className="text-sm text-slate-600 rounded-md border border-cyan-100 bg-cyan-50/60 px-3 py-2">
                           <span className="text-slate-500">Department: </span>
@@ -1376,6 +1581,10 @@ export function DoctorLayout2() {
                         </p>
                       ) : null}
                     </>
+                  ) : (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2 text-sm text-amber-950">
+                      No check-in room on file for today. Clinic transfer needs the room from the nurse check-in slot.
+                    </div>
                   )}
                 </div>
                 <div className="grid gap-2">
@@ -1415,7 +1624,8 @@ export function DoctorLayout2() {
             <Button
               type="button"
               className="btn-gradient gap-1"
-              disabled={transferSubmitting}
+              disabled={transferSubmitting || !checkInRoom}
+              title={!checkInRoom ? "Check-in room is required for a clinic transfer" : undefined}
               onClick={() => void submitTransfer()}
             >
               {transferSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRightLeft className="h-4 w-4" />}
@@ -1448,7 +1658,7 @@ export function DoctorLayout2() {
               className="btn-outline transition-transform duration-500 text-base px-5 py-3 gap-1"
               onClick={() => {
                 setTransferKind("clinic")
-                setTransferOpen(true)
+                void loadVisitState().finally(() => setTransferOpen(true))
               }}
               disabled={!emrSessionValue.mutationsAllowed}
               title={!emrSessionValue.mutationsAllowed ? "Available after nurse check-in" : undefined}

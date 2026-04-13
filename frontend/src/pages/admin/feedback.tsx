@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { AdminLayout } from "@/components/admin-layout"
+import { FeedbackRatingStars } from "@/components/feedback-rating-stars"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Edit, Eye, EyeOff, Reply, Search } from 'lucide-react'
 import {
@@ -110,25 +111,6 @@ export default function FeedbackManagement() {
     } finally {
       setSaving(false)
     }
-  }
-
-  const getRatingColor = (rating: number) => {
-    if (rating >= 4) return 'text-green-600'
-    if (rating >= 3) return 'text-yellow-600'
-    return 'text-red-600'
-  }
-
-  const renderStars = (rating: number) => {
-    const fullStars = Math.floor(rating)
-    return (
-      <div className="flex gap-1">
-        {[...Array(5)].map((_, i) => (
-          <span key={i} className={i < fullStars ? 'text-yellow-400' : 'text-gray-300'}>
-            ★
-          </span>
-        ))}
-      </div>
-    )
   }
 
   const filteredFeedbacks = useMemo(() => {
@@ -367,12 +349,7 @@ export default function FeedbackManagement() {
                       </TableCell>
                       <TableCell className="px-4 py-3">{feedback.type}</TableCell>
                       <TableCell className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          {renderStars(feedback.rating)}
-                          <span className={`font-semibold ${getRatingColor(feedback.rating)}`}>
-                            {feedback.rating}
-                          </span>
-                        </div>
+                        <FeedbackRatingStars rating={Number(feedback.rating)} size="md" />
                       </TableCell>
                       <TableCell className="px-4 py-3 max-w-xs truncate">{feedback.content}</TableCell>
                       <TableCell className="px-4 py-3 max-w-xs">

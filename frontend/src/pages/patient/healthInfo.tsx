@@ -1,7 +1,6 @@
 "use client"
 
-import { useState, useMemo, useEffect, useLayoutEffect } from "react"
-import { createPortal } from "react-dom"
+import { useState, useMemo, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -17,14 +16,40 @@ import { Badge } from "@/components/ui/badge"
 import { healthInfoService } from "@/services/health-info-service"
 import type { HealthInfo } from "@/services/health-info-service"
 import { useAuth } from "@/contexts/AuthContext"
-import { usePauseableToast, type PauseableToastEntry } from "@/hooks/usePauseableToast"
-import { cn } from "@/lib/utils"
+import { usePauseableToast } from "@/hooks/usePauseableToast"
+import { PauseableCornerToastPortal } from "@/components/pauseable-corner-toast"
+import {
+  PATIENT_BLOOD_TYPES,
+  PATIENT_BLOOD_TYPE_UNSET,
+  bloodTypeForApiPayload,
+  normalizePatientBloodTypeForSelect,
+} from "@/lib/patient-blood-types"
+import {
+  vitalNumericError,
+  vitalMainFormErrorMessages,
+  formatVitalValidationErrorToast,
+} from "@/lib/vital-signs-limits"
 import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, AreaChart, Area, ReferenceLine, ReferenceArea } from "recharts"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
+function VitalWarning({ message }: { message: string | null }) {
+  if (!message) return null
+  return <span className="text-sm text-red-600 block mt-0.5">{message}</span>
+}
+
+function VitalWarningTable({ message }: { message: string | null }) {
+  if (!message) return null
+  return (
+    <span className="text-[11px] text-red-600 leading-snug block mt-0.5 text-left w-full max-w-[140px] mx-auto">
+      {message}
+    </span>
+  )
+}
+
 export default function HealthInfoPage() {
   const { user } = useAuth()
-  const { toast, isExiting, showSuccess, showError, dismiss, onMouseEnter, onMouseLeave } = usePauseableToast()
+  const { toast, isExiting, showSuccess, showError, dismiss, onMouseEnter, onMouseLeave } =
+    usePauseableToast(2600)
 
   type HealthRecord = {
     id: number
@@ -56,7 +81,7 @@ export default function HealthInfoPage() {
   const [respiratoryRate, setRespiratoryRate] = useState("")
   const [temperature, setTemperature] = useState("")
   const [spo2, setSpo2] = useState("")
-  const [bloodType, setBloodType] = useState("O")
+  const [bloodType, setBloodType] = useState(PATIENT_BLOOD_TYPE_UNSET)
   const [symptoms, setSymptoms] = useState("")
 
   // for filters
@@ -84,6 +109,11 @@ export default function HealthInfoPage() {
     if (!h || !w || h <= 0) return "N/A"
     return (w / ((h / 100) ** 2)).toFixed(1)
   }, [height, weight])
+
+  const bloodPressureTableInputValue = useMemo(
+    () => `${bpSys.trim()}${bpDia.trim() ? `/${bpDia.trim()}` : ""}`,
+    [bpSys, bpDia]
+  )
 
   const [healthHistory, setHealthHistory] = useState<HealthRecord[]>([])
 
@@ -114,16 +144,6 @@ export default function HealthInfoPage() {
 
   const [selectedRecord, setSelectedRecord] = useState<HealthRecord | null>(null)
   const [inlineEditingId, setInlineEditingId] = useState<number | null>(null)
-  const [inlineEditDraft, setInlineEditDraft] = useState<{
-    height: string
-    weight: string
-    bloodPressure: string
-    heartRate: string
-    respiratoryRate: string
-    temperature: string
-    spo2: string
-    symptoms: string
-  } | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const selectedStatus = selectedRecord?.status
@@ -241,24 +261,12 @@ export default function HealthInfoPage() {
     if (!selectedRecord) return
     if (selectedRecord.status !== "draft") return
     setInlineEditingId(selectedRecord.id)
-    setInlineEditDraft({
-      height: String(selectedRecord.height),
-      weight: String(selectedRecord.weight),
-      bloodPressure: selectedRecord.bloodPressure,
-      heartRate: String(selectedRecord.heartRate),
-      respiratoryRate: String(selectedRecord.respiratoryRate),
-      temperature: String(selectedRecord.temperature),
-      spo2: String(selectedRecord.spo2),
-      symptoms: selectedRecord.symptoms || "",
-    })
   }
 
   const cancelInlineEdit = () => {
     setInlineEditingId(null)
-    setInlineEditDraft(null)
     setIsEditing(false)
   }
-
 
   // Load health info on mount
   useEffect(() => {
@@ -288,7 +296,7 @@ export default function HealthInfoPage() {
         setRespiratoryRate(info.respiratoryRate?.toString() || "")
         setTemperature(info.temperature?.toString() || "")
         setSpo2(info.spo2?.toString() || "")
-        setBloodType(info.bloodType || "O")
+        setBloodType(normalizePatientBloodTypeForSelect(info.bloodType))
         setSymptoms(info.currentSymptoms || "")
         
         // Set allergies (supports both flat fields and allergic_info object)
@@ -358,7 +366,7 @@ export default function HealthInfoPage() {
     setRespiratoryRate("")
     setTemperature("")
     setSpo2("")
-    setBloodType("O")
+    setBloodType(PATIENT_BLOOD_TYPE_UNSET)
     setSymptoms("")
     setDrugAllergies([])
     setFoodAllergies([])
@@ -378,18 +386,31 @@ export default function HealthInfoPage() {
     dismiss()
 
     try {
-      if (inlineEditingId && inlineEditDraft) {
-        const [sysRaw, diaRaw] = inlineEditDraft.bloodPressure.split("/")
+      if (inlineEditingId) {
+        const inlineVitalErrs = vitalMainFormErrorMessages({
+          height,
+          weight,
+          bpSys,
+          bpDia,
+          heartRate,
+          respiratoryRate,
+          temperature,
+          spo2,
+        })
+        if (inlineVitalErrs.length) {
+          showError(formatVitalValidationErrorToast(inlineVitalErrs))
+          return
+        }
         const updateData = {
-          height: inlineEditDraft.height ? parseFloat(inlineEditDraft.height) : undefined,
-          weight: inlineEditDraft.weight ? parseFloat(inlineEditDraft.weight) : undefined,
-          bloodPressureSys: sysRaw ? parseInt(sysRaw, 10) : undefined,
-          bloodPressureDia: diaRaw ? parseInt(diaRaw, 10) : undefined,
-          heartRate: inlineEditDraft.heartRate ? parseInt(inlineEditDraft.heartRate, 10) : undefined,
-          respiratoryRate: inlineEditDraft.respiratoryRate ? parseInt(inlineEditDraft.respiratoryRate, 10) : undefined,
-          temperature: inlineEditDraft.temperature ? parseFloat(inlineEditDraft.temperature) : undefined,
-          spo2: inlineEditDraft.spo2 ? parseInt(inlineEditDraft.spo2, 10) : undefined,
-          currentSymptoms: inlineEditDraft.symptoms,
+          height: height ? parseFloat(height) : undefined,
+          weight: weight ? parseFloat(weight) : undefined,
+          bloodPressureSys: bpSys ? parseInt(bpSys, 10) : undefined,
+          bloodPressureDia: bpDia ? parseInt(bpDia, 10) : undefined,
+          heartRate: heartRate ? parseInt(heartRate, 10) : undefined,
+          respiratoryRate: respiratoryRate ? parseInt(respiratoryRate, 10) : undefined,
+          temperature: temperature ? parseFloat(temperature) : undefined,
+          spo2: spo2 ? parseInt(spo2, 10) : undefined,
+          currentSymptoms: symptoms,
           updatedBy: "Patient",
         }
 
@@ -404,6 +425,22 @@ export default function HealthInfoPage() {
         return
       }
 
+      const mainVitalErrs = vitalMainFormErrorMessages({
+        height,
+        weight,
+        bpSys,
+        bpDia,
+        heartRate,
+        respiratoryRate,
+        temperature,
+        spo2,
+      })
+      if (mainVitalErrs.length) {
+        showError(formatVitalValidationErrorToast(mainVitalErrs))
+        return
+      }
+
+      const bloodTypePayload = bloodTypeForApiPayload(bloodType)
       const healthData = {
         height: height ? parseFloat(height) : undefined,
         weight: weight ? parseFloat(weight) : undefined,
@@ -413,7 +450,7 @@ export default function HealthInfoPage() {
         respiratoryRate: respiratoryRate ? parseInt(respiratoryRate) : undefined,
         temperature: temperature ? parseFloat(temperature) : undefined,
         spo2: spo2 ? parseInt(spo2) : undefined,
-        bloodType: bloodType as any,
+        ...(bloodTypePayload !== undefined ? { bloodType: bloodTypePayload } : {}),
         currentSymptoms: symptoms,
         drugAllergies,
         foodAllergies,
@@ -559,19 +596,14 @@ export default function HealthInfoPage() {
     )
   }
 
-  /* Portal to document.body: main uses z-10 vs sidebar z-40, so fixed toasts inside main stay under the sidebar. */
-  const pauseableToast =
-    toast &&
-    typeof document !== "undefined" &&
-    createPortal(
-      <HealthInfoToast
-        toast={toast}
-        isExiting={isExiting}
-        onMouseEnter={onMouseEnter}
-        onMouseLeave={onMouseLeave}
-      />,
-      document.body
-    )
+  const cornerToast = (
+    <PauseableCornerToastPortal
+      toast={toast}
+      isExiting={isExiting}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+    />
+  )
 
   if (loading) {
     return (
@@ -582,7 +614,7 @@ export default function HealthInfoPage() {
             <p className="text-slate-600">Loading health information...</p>
           </div>
         </div>
-        {pauseableToast}
+        {cornerToast}
       </PatientLayout>
     )
   }
@@ -813,76 +845,108 @@ export default function HealthInfoPage() {
                         </span>
                       </TableCell>
                       <TableCell className="text-center">
-                        {inlineEditingId === r.id && inlineEditDraft ? (
-                          <Input
-                            className="h-8 text-center"
-                            value={inlineEditDraft.height}
-                            onChange={(e) => setInlineEditDraft((prev) => prev ? { ...prev, height: e.target.value } : prev)}
-                          />
+                        {inlineEditingId === r.id ? (
+                          <div className="flex flex-col items-center w-full max-w-[100px] mx-auto min-w-0">
+                            <Input
+                              className="h-8 text-center w-full"
+                              value={height}
+                              onChange={(e) => setHeight(e.target.value)}
+                            />
+                            <VitalWarningTable message={vitalNumericError("height", height)} />
+                          </div>
                         ) : r.height}
                       </TableCell>
                       <TableCell className="text-center">
-                        {inlineEditingId === r.id && inlineEditDraft ? (
-                          <Input
-                            className="h-8 text-center"
-                            value={inlineEditDraft.weight}
-                            onChange={(e) => setInlineEditDraft((prev) => prev ? { ...prev, weight: e.target.value } : prev)}
-                          />
+                        {inlineEditingId === r.id ? (
+                          <div className="flex flex-col items-center w-full max-w-[100px] mx-auto min-w-0">
+                            <Input
+                              className="h-8 text-center w-full"
+                              value={weight}
+                              onChange={(e) => setWeight(e.target.value)}
+                            />
+                            <VitalWarningTable message={vitalNumericError("weight", weight)} />
+                          </div>
                         ) : r.weight}
                       </TableCell>
                       <TableCell className="text-center font-semibold">
-                        {inlineEditingId === r.id && inlineEditDraft
+                        {inlineEditingId === r.id
                           ? (() => {
-                              const h = parseFloat(inlineEditDraft.height || "0")
-                              const w = parseFloat(inlineEditDraft.weight || "0")
+                              const h = parseFloat(height || "0")
+                              const w = parseFloat(weight || "0")
                               if (!h || !w) return "N/A"
                               return (w / ((h / 100) ** 2)).toFixed(1)
                             })()
                           : r.bmi.toFixed(1)}
                       </TableCell>
                       <TableCell className="text-center">
-                        {inlineEditingId === r.id && inlineEditDraft ? (
-                          <Input
-                            className="h-8 text-center"
-                            value={inlineEditDraft.bloodPressure}
-                            onChange={(e) => setInlineEditDraft((prev) => prev ? { ...prev, bloodPressure: e.target.value } : prev)}
-                          />
+                        {inlineEditingId === r.id ? (
+                          <div className="flex flex-col items-center w-full max-w-[120px] mx-auto min-w-0">
+                            <Input
+                              className="h-8 text-center w-full"
+                              value={bloodPressureTableInputValue}
+                              onChange={(e) => {
+                                const v = e.target.value
+                                const idx = v.indexOf("/")
+                                if (idx === -1) {
+                                  setBpSys(v.trim())
+                                  setBpDia("")
+                                } else {
+                                  setBpSys(v.slice(0, idx).trim())
+                                  setBpDia(v.slice(idx + 1).trim())
+                                }
+                              }}
+                            />
+                            <VitalWarningTable message={vitalNumericError("bpSys", bpSys)} />
+                            <VitalWarningTable message={vitalNumericError("bpDia", bpDia)} />
+                          </div>
                         ) : r.bloodPressure}
                       </TableCell>
                       <TableCell className="text-center">
-                        {inlineEditingId === r.id && inlineEditDraft ? (
-                          <Input
-                            className="h-8 text-center"
-                            value={inlineEditDraft.heartRate}
-                            onChange={(e) => setInlineEditDraft((prev) => prev ? { ...prev, heartRate: e.target.value } : prev)}
-                          />
+                        {inlineEditingId === r.id ? (
+                          <div className="flex flex-col items-center w-full max-w-[100px] mx-auto min-w-0">
+                            <Input
+                              className="h-8 text-center w-full"
+                              value={heartRate}
+                              onChange={(e) => setHeartRate(e.target.value)}
+                            />
+                            <VitalWarningTable message={vitalNumericError("heartRate", heartRate)} />
+                          </div>
                         ) : r.heartRate}
                       </TableCell>
                       <TableCell className="text-center">
-                        {inlineEditingId === r.id && inlineEditDraft ? (
-                          <Input
-                            className="h-8 text-center"
-                            value={inlineEditDraft.respiratoryRate}
-                            onChange={(e) => setInlineEditDraft((prev) => prev ? { ...prev, respiratoryRate: e.target.value } : prev)}
-                          />
+                        {inlineEditingId === r.id ? (
+                          <div className="flex flex-col items-center w-full max-w-[100px] mx-auto min-w-0">
+                            <Input
+                              className="h-8 text-center w-full"
+                              value={respiratoryRate}
+                              onChange={(e) => setRespiratoryRate(e.target.value)}
+                            />
+                            <VitalWarningTable message={vitalNumericError("respiratoryRate", respiratoryRate)} />
+                          </div>
                         ) : r.respiratoryRate}
                       </TableCell>
                       <TableCell className="text-center">
-                        {inlineEditingId === r.id && inlineEditDraft ? (
-                          <Input
-                            className="h-8 text-center"
-                            value={inlineEditDraft.temperature}
-                            onChange={(e) => setInlineEditDraft((prev) => prev ? { ...prev, temperature: e.target.value } : prev)}
-                          />
+                        {inlineEditingId === r.id ? (
+                          <div className="flex flex-col items-center w-full max-w-[100px] mx-auto min-w-0">
+                            <Input
+                              className="h-8 text-center w-full"
+                              value={temperature}
+                              onChange={(e) => setTemperature(e.target.value)}
+                            />
+                            <VitalWarningTable message={vitalNumericError("temperature", temperature)} />
+                          </div>
                         ) : `${r.temperature.toFixed(1)}°C`}
                       </TableCell>
                       <TableCell className="text-center">
-                        {inlineEditingId === r.id && inlineEditDraft ? (
-                          <Input
-                            className="h-8 text-center"
-                            value={inlineEditDraft.spo2}
-                            onChange={(e) => setInlineEditDraft((prev) => prev ? { ...prev, spo2: e.target.value } : prev)}
-                          />
+                        {inlineEditingId === r.id ? (
+                          <div className="flex flex-col items-center w-full max-w-[90px] mx-auto min-w-0">
+                            <Input
+                              className="h-8 text-center w-full"
+                              value={spo2}
+                              onChange={(e) => setSpo2(e.target.value)}
+                            />
+                            <VitalWarningTable message={vitalNumericError("spo2", spo2)} />
+                          </div>
                         ) : (
                           <span className={r.spo2 >= 95 ? "text-green-600" : "text-red-600"}>
                             {r.spo2}%
@@ -890,11 +954,11 @@ export default function HealthInfoPage() {
                         )}
                       </TableCell>
                       <TableCell className="text-sm max-w-xs truncate" title={r.symptoms}>
-                        {inlineEditingId === r.id && inlineEditDraft ? (
+                        {inlineEditingId === r.id ? (
                           <Input
                             className="h-8"
-                            value={inlineEditDraft.symptoms}
-                            onChange={(e) => setInlineEditDraft((prev) => prev ? { ...prev, symptoms: e.target.value } : prev)}
+                            value={symptoms}
+                            onChange={(e) => setSymptoms(e.target.value)}
                           />
                         ) : (r.symptoms || "-")}
                       </TableCell>
@@ -1187,17 +1251,22 @@ export default function HealthInfoPage() {
             <div className="space-y-2">
               <Label>Blood Pressure (mmHg)</Label>
               <div className="flex gap-2 text-sm font-normal bg-background text-muted-foreground">
-                <Input
-                  value={bpSys}
-                  onChange={(e) => setBpSys(e.target.value)}
-                  disabled={!isEditing}
-                />
-
-                <Input
-                  value={bpDia}
-                  onChange={(e) => setBpDia(e.target.value)}
-                  disabled={!isEditing}
-                />
+                <div className="flex-1 min-w-0 space-y-0">
+                  <Input
+                    value={bpSys}
+                    onChange={(e) => setBpSys(e.target.value)}
+                    disabled={!isEditing}
+                  />
+                  <VitalWarning message={vitalNumericError("bpSys", bpSys)} />
+                </div>
+                <div className="flex-1 min-w-0 space-y-0">
+                  <Input
+                    value={bpDia}
+                    onChange={(e) => setBpDia(e.target.value)}
+                    disabled={!isEditing}
+                  />
+                  <VitalWarning message={vitalNumericError("bpDia", bpDia)} />
+                </div>
               </div>
             </div>
 
@@ -1210,6 +1279,7 @@ export default function HealthInfoPage() {
                 onChange={(e) => setSpo2(e.target.value)}
                 disabled={!isEditing}
               />
+              <VitalWarning message={vitalNumericError("spo2", spo2)} />
             </div>
 
             {/* Temperature */}
@@ -1221,6 +1291,7 @@ export default function HealthInfoPage() {
                 onChange={(e) => setTemperature(e.target.value)}
                 disabled={!isEditing}
               />
+              <VitalWarning message={vitalNumericError("temperature", temperature)} />
             </div>
 
             {/* Height */}
@@ -1232,6 +1303,7 @@ export default function HealthInfoPage() {
                 onChange={(e) => setHeight(e.target.value)}
                 disabled={!isEditing}
                 type="number" />
+              <VitalWarning message={vitalNumericError("height", height)} />
             </div>
 
             {/* Respiratory Rate */}
@@ -1243,6 +1315,7 @@ export default function HealthInfoPage() {
                 onChange={(e) => setRespiratoryRate(e.target.value)}
                 disabled={!isEditing}
               />
+              <VitalWarning message={vitalNumericError("respiratoryRate", respiratoryRate)} />
             </div>
 
             {/* Weight */}
@@ -1253,6 +1326,7 @@ export default function HealthInfoPage() {
                 disabled={!isEditing}
                 onChange={(e) => setWeight(e.target.value)}
                 type="number" />
+              <VitalWarning message={vitalNumericError("weight", weight)} />
             </div>
 
             {/* Heart Rate */}
@@ -1264,6 +1338,7 @@ export default function HealthInfoPage() {
                 onChange={(e) => setHeartRate(e.target.value)}
                 disabled={!isEditing}
               />
+              <VitalWarning message={vitalNumericError("heartRate", heartRate)} />
             </div>
 
             {/* BMI */}
@@ -1282,10 +1357,12 @@ export default function HealthInfoPage() {
                 </div>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="A">A</SelectItem>
-                  <SelectItem value="B">B</SelectItem>
-                  <SelectItem value="O">O</SelectItem>
-                  <SelectItem value="AB">AB</SelectItem>
+                  {PATIENT_BLOOD_TYPES.map((bt) => (
+                    <SelectItem key={bt} value={bt}>
+                      {bt}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value={PATIENT_BLOOD_TYPE_UNSET}>Not specified</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1400,49 +1477,9 @@ export default function HealthInfoPage() {
           </div>
         </CollapsibleSection>
       </div>
-      {pauseableToast}
+
+      {cornerToast}
     </PatientLayout>
-  )
-}
-
-function HealthInfoToast({
-  toast,
-  isExiting,
-  onMouseEnter,
-  onMouseLeave,
-}: {
-  toast: PauseableToastEntry
-  isExiting: boolean
-  onMouseEnter: () => void
-  onMouseLeave: () => void
-}) {
-  const [entered, setEntered] = useState(false)
-
-  useLayoutEffect(() => {
-    setEntered(false)
-    const id = requestAnimationFrame(() => {
-      requestAnimationFrame(() => setEntered(true))
-    })
-    return () => cancelAnimationFrame(id)
-  }, [toast.id])
-
-  const visible = entered && !isExiting
-
-  return (
-    <div
-      role="status"
-      aria-live="polite"
-      className={cn(
-        "pointer-events-auto fixed bottom-6 left-6 z-[100] max-w-md rounded-lg border px-4 py-3 text-sm shadow-lg transition-opacity duration-300 ease-out",
-        visible ? "opacity-100" : "opacity-0",
-        toast.variant === "success" && "bg-[#34A853] text-white",
-        toast.variant === "error" && "bg-[#EA4335] text-white"
-      )}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
-    >
-      {toast.message}
-    </div>
   )
 }
 

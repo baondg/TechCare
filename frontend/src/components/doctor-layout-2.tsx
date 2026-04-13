@@ -343,6 +343,24 @@ export function DoctorLayout2() {
   }, [])
 
   useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const r = await doctorService.getDepartments()
+        if (!cancelled) setDepartmentOptions(Array.isArray(r.departments) ? r.departments : [])
+      } catch (e) {
+        if (!cancelled) {
+          setDepartmentOptions([])
+          console.error(e)
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
     if (!finishWizardOpen || finishWizardStep !== 2 || !patientId) return
     let cancelled = false
     void (async () => {

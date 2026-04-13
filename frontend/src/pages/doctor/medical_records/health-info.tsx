@@ -352,6 +352,22 @@ export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps)
     }
   }
 
+  const handleAddTrackingSlipToMedicalRecord = async () => {
+    if (!patientId || !canAddToMedicalRecord) return
+    setAddingTrackingSlip(true)
+    try {
+      await doctorService.addHealthTrackingSlipToMedicalRecord(patientId, {
+        recordIds: selectedRecords.map((r) => r.id),
+      })
+      showSuccess("Health tracking slip added to active medical record.")
+      closePdfPreview()
+    } catch (err: any) {
+      showError(err?.message || "Failed to add slip to medical record")
+    } finally {
+      setAddingTrackingSlip(false)
+    }
+  }
+
   // Load health info on mount
   useEffect(() => {
     if (!patientId) return

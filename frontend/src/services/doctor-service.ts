@@ -790,6 +790,16 @@ export const doctorService = {
     });
   },
 
+  async coverAppointment(appointmentId: number, coverDoctorId: number) {
+    return apiRequest<{
+      success: boolean;
+      appointment: { id: number; doctorId: number; roomId: number };
+    }>(`${API_BASE_URL}/api/doctor/appointments/${appointmentId}/cover`, {
+      method: 'PUT',
+      body: JSON.stringify({ coverDoctorId }),
+    });
+  },
+
   async confirmAppointment(id: number) {
     return apiRequest<{
       success: boolean;

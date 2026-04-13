@@ -725,6 +725,27 @@ export default function PatientHistoryPage() {
         blobs.push(blob)
       }
 
+      for (const slip of v.healthTrackingSlips ?? []) {
+        const { blob } = await generateHealthInfoTrackingPdfBlob({
+          patientName: name,
+          age: ageStr,
+          gender: patient.gender === "M" ? "Male" : patient.gender === "F" ? "Female" : "",
+          diagnosis: latestDiagnosisText,
+          rows: (slip.rows || []).map((r) => ({
+            updatedAt: new Date(r.updatedAt),
+            bloodPressure: r.bloodPressure || "",
+            pulse: Number(r.pulse) || 0,
+            temperature: Number(r.temperature) || 0,
+            weight: Number(r.weight) || 0,
+            respiratoryRate: Number(r.respiratoryRate) || 0,
+            spo2: Number(r.spo2) || 0,
+            symptoms: r.symptoms || "",
+          })),
+          filename: `health-tracking-${slip.orderId}.pdf`,
+        })
+        blobs.push(blob)
+      }
+
       if (blobs.length === 0) {
         window.alert("This visit has no documents to export yet.")
         return

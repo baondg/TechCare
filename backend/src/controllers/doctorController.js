@@ -1065,6 +1065,741 @@ exports.createHealthTrackingSlipForPatient = async (req, res) => {
 };
 
 /**
+ * GET /api/doctor/patients/:patientId/regimen/active/documents
+ * Doctor view: aggregate papers/orders in the currently open REGIMEN.
+ * Used by Finish examination step 2/2 review.
+ */
+exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
+  try {
+    if (!['doctor', 'admin', 'nurse', 'technician'].includes(req.user.role)) {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
+
+    const patientPk = await resolvePatientPkFromRouteParam(req.params.patientId, null);
+    if (!patientPk) {
+      return res.status(400).json({ success: false, message: 'Invalid patient' });
+    }
+
+    const [open] = await sequelize.query(
+      `SELECT id AS regimenId, \`start\` AS regimenStart
+       FROM REGIMEN
+       WHERE patient_id = :pid AND \`end\` IS NULL
+       ORDER BY \`start\` DESC, id DESC
+       LIMIT 1`,
+      { replacements: { pid: patientPk }, type: QueryTypes.SELECT }
+    );
+    if (!open) {
+      return res.json({ success: true, regimen: null });
+    }
+    const regimenId = Number(open.regimenId);
+
+    const [treatments, rxRows, labRows, surgeryRows, hospitalTransferRows, trackingSlipRows] = await Promise.all([
+      sequelize.query(
+        `SELECT
+           t.id AS treatmentId,
+           t.time AS visitAt,
+           t.type AS department,
+         t.\`condition\` AS complaint,
+         dis.icd_code AS icd10,
+         dis.description AS interpretation,
+         COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), acc.username, CONCAT('doctor#', d.user_id)) AS doctorName,
+           cr.name AS roomName
+         FROM TREATMENT t
+         JOIN REGIMEN r ON r.id = t.regimen_id
+         LEFT JOIN DISEASE dis ON dis.id = COALESCE(t.disease_id, r.disease_id)
+         LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id
+         LEFT JOIN \`USER\` u ON u.id = d.user_id
+         LEFT JOIN ACCOUNT acc ON acc.user_id = d.user_id
+         LEFT JOIN CLINIC_ROOM cr ON cr.id = t.room_id
+         WHERE r.patient_id = :patientId AND r.id = :regimenId
+         ORDER BY t.time ASC`,
+        { replacements: { patientId: patientPk, regimenId }, type: QueryTypes.SELECT }
+      ),
+      selectPrescriptionRowsWithDurationFallback(
+        sequelize,
+        `SELECT
+           o.treatment_id AS treatmentId,
+           rx.order_id AS orderId,
+           rx.time AS prescribedAt,
+           pd.no AS medNo,
+           m.name,
+           pd.quantity,
+           pd.\`usage\` AS frequency,
+           pd.unit,
+           COALESCE(pd.duration, 7) AS lineDuration
+         FROM MEDICAL_PRESCRIPTION rx
+         JOIN \`ORDER\` o ON o.id = rx.order_id
+         JOIN TREATMENT t ON t.id = o.treatment_id
+         JOIN REGIMEN r ON r.id = t.regimen_id
+         LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id
+         LEFT JOIN MEDICINE m ON m.id = pd.medicine_id
+         WHERE r.patient_id = :patientId AND r.id = :regimenId
+         ORDER BY rx.time DESC, pd.no ASC`,
+        `SELECT
+           o.treatment_id AS treatmentId,
+           rx.order_id AS orderId,
+           rx.time AS prescribedAt,
+           pd.no AS medNo,
+           m.name,
+           pd.quantity,
+           pd.\`usage\` AS frequency,
+           pd.unit
+         FROM MEDICAL_PRESCRIPTION rx
+         JOIN \`ORDER\` o ON o.id = rx.order_id
+         JOIN TREATMENT t ON t.id = o.treatment_id
+         JOIN REGIMEN r ON r.id = t.regimen_id
+         LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id
+         LEFT JOIN MEDICINE m ON m.id = pd.medicine_id
+         WHERE r.patient_id = :patientId AND r.id = :regimenId
+         ORDER BY rx.time DESC, pd.no ASC`,
+        { patientId: patientPk, regimenId }
+      ),
+      sequelize.query(
+        `SELECT
+           o.treatment_id AS treatmentId,
+           tst.id AS id,
+           tst.time AS testAt,
+           tst.type AS testType,
+           tst.result AS resultSummary,
+           tst.note,
+           tst.attachment_url AS fileUrl,
+           COALESCE(
+             NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''),
+             a.username
+           ) AS technicianName
+         FROM TEST tst
+         JOIN \`ORDER\` o ON o.id = tst.id
+         JOIN TREATMENT t ON t.id = o.treatment_id
+         JOIN REGIMEN r ON r.id = t.regimen_id
+         LEFT JOIN PROCEDURE_ p ON p.order_id = tst.id
+         LEFT JOIN TECHNICIAN te ON te.technician_id = COALESCE(tst.technician_id, p.technician_id)
+         LEFT JOIN \`USER\` u ON u.id = te.user_id
+         LEFT JOIN ACCOUNT a ON a.user_id = te.user_id
+         WHERE r.patient_id = :patientId AND r.id = :regimenId
+         ORDER BY tst.time DESC`,
+        { replacements: { patientId: patientPk, regimenId }, type: QueryTypes.SELECT }
+      ),
+      sequelize.query(
+        `SELECT
+           o.treatment_id AS treatmentId,
+           s.id AS id,
+           s.type AS surgeryType,
+           s.start,
+           s.end,
+           s.result,
+           s.surgeon,
+           s.note,
+           s.urgency
+         FROM SURGERY s
+         JOIN PROCEDURE_ pr ON pr.order_id = s.id
+         JOIN \`ORDER\` o ON o.id = pr.order_id
+         JOIN TREATMENT t ON t.id = o.treatment_id
+         JOIN REGIMEN r ON r.id = t.regimen_id
+         WHERE r.patient_id = :patientId AND r.id = :regimenId
+         ORDER BY s.start DESC`,
+        { replacements: { patientId: patientPk, regimenId }, type: QueryTypes.SELECT }
+      ),
+      sequelize.query(
+        `SELECT
+           o.treatment_id AS treatmentId,
+           tr.order_id AS orderId,
+           tr.reason,
+           tr.time AS transferAt,
+           tr.note,
+           ht.to_id AS toHospitalId,
+           ht.to_name AS toHospitalName,
+           ht.transport,
+           ht.form_payload AS formPayload
+         FROM TREATMENT t
+         JOIN \`ORDER\` o ON o.treatment_id = t.id
+         JOIN TRANSFERENCE tr ON tr.order_id = o.id
+         INNER JOIN HOSPITAL_TRANSFERENCE ht ON ht.transference_id = tr.order_id
+         WHERE t.regimen_id = :regimenId
+         ORDER BY tr.time ASC`,
+        { replacements: { regimenId }, type: QueryTypes.SELECT }
+      ),
+      sequelize.query(
+        `SELECT
+           o.id AS orderId,
+           t.time AS createdAt,
+           COALESCE(
+             NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''),
+             acc.username,
+             NULL
+           ) AS createdByDoctor,
+           p.note AS payload
+         FROM TREATMENT t
+         JOIN \`ORDER\` o ON o.treatment_id = t.id
+         JOIN PROCEDURE_ p ON p.order_id = o.id
+         LEFT JOIN DOCTOR d ON d.doctor_id = p.doctor_id
+         LEFT JOIN \`USER\` u ON u.id = d.user_id
+         LEFT JOIN ACCOUNT acc ON acc.user_id = d.user_id
+         WHERE t.regimen_id = :regimenId
+           AND p.type = 'HEALTH_TRACKING_SLIP'
+         ORDER BY t.time ASC, o.id ASC`,
+        { replacements: { regimenId }, type: QueryTypes.SELECT }
+      ),
+    ]);
+
+    const rxByOrder = new Map();
+    for (const row of rxRows || []) {
+      if (!rxByOrder.has(row.orderId)) {
+        rxByOrder.set(row.orderId, {
+          id: row.orderId,
+          prescribedAt: row.prescribedAt,
+          signatureStatus: 'signed',
+          medications: [],
+        });
+      }
+      if (row.name) {
+        rxByOrder.get(row.orderId).medications.push({
+          id: `${row.orderId}-${row.medNo}`,
+          name: row.name,
+          quantity: String(row.quantity ?? ''),
+          frequency: row.frequency || '',
+          unit: row.unit || '',
+          duration: String(row.lineDuration != null ? row.lineDuration : 7),
+        });
+      }
+    }
+
+    const transfers = (hospitalTransferRows || []).map((row) => ({
+      orderId: Number(row.orderId),
+      reason: row.reason || '',
+      note: row.note || '',
+      transferAt: row.transferAt,
+      toHospitalId: row.toHospitalId != null ? String(row.toHospitalId) : null,
+      toHospitalName: row.toHospitalName || '',
+      transport: row.transport || null,
+      formPayload: normalizeJsonColumn(row.formPayload),
+    }));
+
+    const healthTrackingSlips = (trackingSlipRows || []).map((row) => {
+      const payload = normalizeJsonColumn(row.payload);
+      const rows = Array.isArray(payload?.rows) ? payload.rows : [];
+      return {
+        orderId: Number(row.orderId),
+        createdAt: row.createdAt,
+        createdByDoctor: row.createdByDoctor || null,
+        rows: rows.map((r) => ({
+          id: Number(r?.id) || 0,
+          updatedAt: r?.updatedAt || r?.time || row.createdAt,
+          bloodPressure: r?.bloodPressure || '',
+          pulse: Number(r?.pulse) || 0,
+          temperature: Number(r?.temperature) || 0,
+          weight: Number(r?.weight) || 0,
+          respiratoryRate: Number(r?.respiratoryRate) || 0,
+          spo2: Number(r?.spo2) || 0,
+          symptoms: r?.symptoms || '',
+        })),
+        formPayload: payload,
+      };
+    });
+
+    return res.json({
+      success: true,
+      regimen: {
+        regimenId,
+        regimenStart: open.regimenStart,
+        treatments: treatments || [],
+        prescriptions: Array.from(rxByOrder.values()),
+        labTests: labRows || [],
+        surgeries: surgeryRows || [],
+        hospitalTransfers: transfers,
+        healthTrackingSlips,
+      },
+    });
+  } catch (error) {
+    console.error('getActiveRegimenDocumentsForPatient error:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+  }
+};
+
+/**
+ * GET /api/doctor/patients/:patientId/medical-regimens
+ * Doctor view: completed encounters (REGIMEN with end set) for one patient.
+ */
+exports.getPatientMedicalRegimensForDoctor = async (req, res) => {
+  try {
+    const patientPk = await resolvePatientPkFromRouteParam(req.params.patientId, null);
+    if (!patientPk) {
+      return res.status(400).json({ success: false, message: 'Invalid patient' });
+    }
+
+    const regimenRows = await sequelize.query(
+      `SELECT r.id AS regimenId, r.start AS regimenStart, r.end AS regimenEnd,
+              d.icd_code AS icd10, d.description AS diseaseDescription
+       FROM REGIMEN r
+       LEFT JOIN DISEASE d ON d.id = r.disease_id
+       WHERE r.patient_id = :patientId AND r.end IS NOT NULL
+       ORDER BY r.start DESC, r.id DESC`,
+      { replacements: { patientId: patientPk }, type: QueryTypes.SELECT }
+    );
+    if (!regimenRows.length) {
+      return res.json({ success: true, regimens: [] });
+    }
+
+    const regimenIds = regimenRows.map((x) => Number(x.regimenId)).filter((id) => Number.isFinite(id));
+    const idCsv = regimenIds.join(',');
+
+    const normalizeJsonColumn = (val) => {
+      if (val == null) return null;
+      if (typeof val === 'object' && !Buffer.isBuffer(val)) return val;
+      try {
+        return JSON.parse(String(val));
+      } catch {
+        return null;
+      }
+    };
+
+    const hospitalTransferRows = await sequelize.query(
+      `SELECT t.regimen_id AS regimenId,
+              tr.order_id AS orderId,
+              tr.reason,
+              tr.time AS transferAt,
+              tr.note,
+              ht.to_id AS toHospitalId,
+              ht.to_name AS toHospitalName,
+              ht.transport,
+              ht.form_payload AS formPayload
+       FROM TREATMENT t
+       JOIN \`ORDER\` o ON o.treatment_id = t.id
+       JOIN TRANSFERENCE tr ON tr.order_id = o.id
+       INNER JOIN HOSPITAL_TRANSFERENCE ht ON ht.transference_id = tr.order_id
+       WHERE t.regimen_id IN (${idCsv})
+       ORDER BY tr.time ASC`,
+      { type: QueryTypes.SELECT }
+    );
+
+    const hospitalTransfersByRegimen = new Map();
+    for (const row of hospitalTransferRows || []) {
+      const rid = Number(row.regimenId);
+      if (!Number.isFinite(rid)) continue;
+      if (!hospitalTransfersByRegimen.has(rid)) hospitalTransfersByRegimen.set(rid, []);
+      hospitalTransfersByRegimen.get(rid).push({
+        orderId: Number(row.orderId),
+        reason: row.reason || '',
+        note: row.note || '',
+        transferAt: row.transferAt,
+        toHospitalId: row.toHospitalId != null ? String(row.toHospitalId) : null,
+        toHospitalName: row.toHospitalName || '',
+        transport: row.transport || null,
+        formPayload: normalizeJsonColumn(row.formPayload),
+      });
+    }
+
+    const trackingSlipRows = await sequelize.query(
+      `SELECT
+         t.regimen_id AS regimenId,
+         o.id AS orderId,
+         t.time AS createdAt,
+         COALESCE(
+           NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''),
+           acc.username,
+           NULL
+         ) AS createdByDoctor,
+         p.note AS payload
+       FROM TREATMENT t
+       JOIN \`ORDER\` o ON o.treatment_id = t.id
+       JOIN PROCEDURE_ p ON p.order_id = o.id
+       LEFT JOIN DOCTOR d ON d.doctor_id = p.doctor_id
+       LEFT JOIN \`USER\` u ON u.id = d.user_id
+       LEFT JOIN ACCOUNT acc ON acc.user_id = d.user_id
+       WHERE t.regimen_id IN (${idCsv})
+         AND p.type = 'HEALTH_TRACKING_SLIP'
+       ORDER BY t.time ASC, o.id ASC`,
+      { type: QueryTypes.SELECT }
+    );
+
+    const trackingSlipsByRegimen = new Map();
+    for (const row of trackingSlipRows || []) {
+      const rid = Number(row.regimenId);
+      if (!Number.isFinite(rid)) continue;
+      if (!trackingSlipsByRegimen.has(rid)) trackingSlipsByRegimen.set(rid, []);
+      const payload = normalizeJsonColumn(row.payload);
+      const rows = Array.isArray(payload?.rows) ? payload.rows : [];
+      trackingSlipsByRegimen.get(rid).push({
+        orderId: Number(row.orderId),
+        createdAt: row.createdAt,
+        createdByDoctor: row.createdByDoctor || null,
+        rows: rows.map((r) => ({
+          id: Number(r?.id) || 0,
+          updatedAt: r?.updatedAt || r?.time || row.createdAt,
+          bloodPressure: r?.bloodPressure || '',
+          pulse: Number(r?.pulse) || 0,
+          temperature: Number(r?.temperature) || 0,
+          weight: Number(r?.weight) || 0,
+          respiratoryRate: Number(r?.respiratoryRate) || 0,
+          spo2: Number(r?.spo2) || 0,
+          symptoms: r?.symptoms || '',
+        })),
+        formPayload: payload,
+      });
+    }
+
+    const [treatments, rxRows, labRows, surgeryRows] = await Promise.all([
+      sequelize.query(
+        `SELECT
+           t.id AS treatmentId,
+           t.regimen_id AS regimenId,
+           t.time AS visitAt,
+           t.type AS department,
+           t.\`condition\` AS complaint,
+           dis.icd_code AS icd10,
+           dis.description AS interpretation,
+           COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), acc.username, CONCAT('doctor#', d.user_id)) AS doctorName,
+           cr.name AS roomName
+         FROM TREATMENT t
+         JOIN REGIMEN r ON r.id = t.regimen_id
+         LEFT JOIN DISEASE dis ON dis.id = COALESCE(t.disease_id, r.disease_id)
+         LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id
+         LEFT JOIN \`USER\` u ON u.id = d.user_id
+         LEFT JOIN ACCOUNT acc ON acc.user_id = d.user_id
+         LEFT JOIN CLINIC_ROOM cr ON cr.id = t.room_id
+         WHERE r.patient_id = :patientId AND r.id IN (${idCsv})
+         ORDER BY t.time ASC`,
+        { replacements: { patientId: patientPk }, type: QueryTypes.SELECT }
+      ),
+      selectPrescriptionRowsWithDurationFallback(
+        sequelize,
+        `SELECT
+           o.treatment_id AS treatmentId,
+           rx.order_id AS orderId,
+           rx.time AS prescribedAt,
+           pd.no AS medNo,
+           m.name,
+           pd.quantity,
+           pd.\`usage\` AS frequency,
+           pd.unit,
+           COALESCE(pd.duration, 7) AS lineDuration
+         FROM MEDICAL_PRESCRIPTION rx
+         JOIN \`ORDER\` o ON o.id = rx.order_id
+         JOIN TREATMENT t ON t.id = o.treatment_id
+         JOIN REGIMEN r ON r.id = t.regimen_id
+         LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id
+         LEFT JOIN MEDICINE m ON m.id = pd.medicine_id
+         WHERE r.patient_id = :patientId AND r.id IN (${idCsv})
+         ORDER BY rx.time DESC, pd.no ASC`,
+        `SELECT
+           o.treatment_id AS treatmentId,
+           rx.order_id AS orderId,
+           rx.time AS prescribedAt,
+           pd.no AS medNo,
+           m.name,
+           pd.quantity,
+           pd.\`usage\` AS frequency,
+           pd.unit
+         FROM MEDICAL_PRESCRIPTION rx
+         JOIN \`ORDER\` o ON o.id = rx.order_id
+         JOIN TREATMENT t ON t.id = o.treatment_id
+         JOIN REGIMEN r ON r.id = t.regimen_id
+         LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id
+         LEFT JOIN MEDICINE m ON m.id = pd.medicine_id
+         WHERE r.patient_id = :patientId AND r.id IN (${idCsv})
+         ORDER BY rx.time DESC, pd.no ASC`,
+        { patientId: patientPk }
+      ),
+      sequelize.query(
+        `SELECT
+           o.treatment_id AS treatmentId,
+           tst.id AS testId,
+           tst.time AS testAt,
+           tst.type AS testType,
+           tst.result AS resultSummary,
+           tst.note,
+           tst.attachment_url AS fileUrl,
+           COALESCE(
+             NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''),
+             a.username
+           ) AS technicianName
+         FROM TEST tst
+         JOIN \`ORDER\` o ON o.id = tst.id
+         JOIN TREATMENT t ON t.id = o.treatment_id
+         JOIN REGIMEN r ON r.id = t.regimen_id
+         LEFT JOIN PROCEDURE_ p ON p.order_id = tst.id
+         LEFT JOIN TECHNICIAN te ON te.technician_id = COALESCE(tst.technician_id, p.technician_id)
+         LEFT JOIN \`USER\` u ON u.id = te.user_id
+         LEFT JOIN ACCOUNT a ON a.user_id = te.user_id
+         WHERE r.patient_id = :patientId AND r.id IN (${idCsv})
+         ORDER BY tst.time DESC`,
+        { replacements: { patientId: patientPk }, type: QueryTypes.SELECT }
+      ),
+      sequelize.query(
+        `SELECT
+           o.treatment_id AS treatmentId,
+           s.id AS orderId,
+           s.type AS surgeryType,
+           s.start,
+           s.end,
+           s.result,
+           s.surgeon,
+           s.note,
+           s.urgency
+         FROM SURGERY s
+         JOIN PROCEDURE_ pr ON pr.order_id = s.id
+         JOIN \`ORDER\` o ON o.id = pr.order_id
+         JOIN TREATMENT t ON t.id = o.treatment_id
+         JOIN REGIMEN r ON r.id = t.regimen_id
+         WHERE r.patient_id = :patientId AND r.id IN (${idCsv})
+         ORDER BY s.start DESC`,
+        { replacements: { patientId: patientPk }, type: QueryTypes.SELECT }
+      ),
+    ]);
+
+    const rxByTreatment = new Map();
+    for (const row of rxRows) {
+      const tid = row.treatmentId;
+      if (tid == null) continue;
+      if (!rxByTreatment.has(tid)) rxByTreatment.set(tid, new Map());
+      const ordersMap = rxByTreatment.get(tid);
+      if (!ordersMap.has(row.orderId)) {
+        ordersMap.set(row.orderId, {
+          id: row.orderId,
+          prescribedAt: row.prescribedAt,
+          signatureStatus: 'signed',
+          medications: [],
+        });
+      }
+      if (row.name) {
+        ordersMap.get(row.orderId).medications.push({
+          id: `${row.orderId}-${row.medNo}`,
+          name: row.name,
+          quantity: String(row.quantity ?? ''),
+          frequency: row.frequency || '',
+          unit: row.unit || '',
+          duration: String(row.lineDuration != null ? row.lineDuration : 7),
+        });
+      }
+    }
+
+    const labByTreatment = new Map();
+    for (const row of labRows) {
+      const tid = row.treatmentId;
+      if (tid == null) continue;
+      if (!labByTreatment.has(tid)) labByTreatment.set(tid, []);
+      labByTreatment.get(tid).push({
+        id: row.testId,
+        testType: row.testType,
+        testAt: row.testAt,
+        resultSummary: row.resultSummary || '',
+        note: row.note || '',
+        fileUrl: row.fileUrl || null,
+        technicianName: row.technicianName || '',
+      });
+    }
+
+    const surgeryByTreatment = new Map();
+    for (const row of surgeryRows) {
+      const tid = row.treatmentId;
+      if (tid == null) continue;
+      if (!surgeryByTreatment.has(tid)) surgeryByTreatment.set(tid, []);
+      surgeryByTreatment.get(tid).push({
+        id: row.orderId,
+        surgeryType: row.surgeryType,
+        start: row.start,
+        end: row.end,
+        result: row.result || '',
+        surgeon: row.surgeon || '',
+        note: row.note || '',
+        urgency: row.urgency || '',
+      });
+    }
+
+    const treatmentsByRegimen = new Map();
+    for (const t of treatments || []) {
+      const rid = Number(t.regimenId);
+      if (!Number.isFinite(rid)) continue;
+      if (!treatmentsByRegimen.has(rid)) treatmentsByRegimen.set(rid, []);
+      treatmentsByRegimen.get(rid).push(t);
+    }
+
+    const regimens = (regimenRows || []).map((reg) => {
+      const rid = Number(reg.regimenId);
+      const tlist = treatmentsByRegimen.get(rid) || [];
+      const primary = tlist[0] || null;
+
+      const prescriptionsDedup = new Map();
+      for (const tr of tlist) {
+        const tid = tr.treatmentId;
+        const ordersMap = rxByTreatment.get(tid) || new Map();
+        for (const order of ordersMap.values()) {
+          if (!prescriptionsDedup.has(order.id)) prescriptionsDedup.set(order.id, order);
+        }
+      }
+      const prescriptionsList = Array.from(prescriptionsDedup.values());
+
+      const labDedup = new Map();
+      for (const tr of tlist) {
+        for (const lab of labByTreatment.get(tr.treatmentId) || []) {
+          labDedup.set(lab.id, lab);
+        }
+      }
+      const labTests = Array.from(labDedup.values());
+
+      const surgeryDedup = new Map();
+      for (const tr of tlist) {
+        for (const s of surgeryByTreatment.get(tr.treatmentId) || []) {
+          surgeryDedup.set(s.id, s);
+        }
+      }
+      const surgeries = Array.from(surgeryDedup.values());
+
+      const complaints = tlist.map((x) => x.complaint).filter((c) => c && String(c).trim());
+      const doctors = [...new Set(tlist.map((x) => x.doctorName).filter(Boolean))];
+
+      return {
+        regimenId: rid,
+        treatmentId: primary ? primary.treatmentId : 0,
+        visitAt: reg.regimenStart,
+        visitEnd: reg.regimenEnd,
+        department: primary?.department || tlist.find((x) => x.department)?.department || '',
+        complaint: complaints.length ? complaints.join('\n\n') : '',
+        doctorName: doctors.length ? doctors.join(', ') : primary?.doctorName || '',
+        roomName: primary?.roomName || '',
+        icd10: primary?.icd10 || reg.icd10 || '',
+        interpretation: primary?.interpretation || reg.diseaseDescription || '',
+        vitals: null,
+        prescriptions: prescriptionsList,
+        labTests,
+        surgeries,
+        hospitalTransfers: hospitalTransfersByRegimen.get(rid) || [],
+        healthTrackingSlips: trackingSlipsByRegimen.get(rid) || [],
+      };
+    });
+
+    return res.json({ success: true, regimens });
+  } catch (error) {
+    console.error('Close open regimen error:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+  }
+};
+
+/**
+ * POST /api/doctor/patients/:patientId/health-tracking-slips
+ * Persist a "health tracking slip" document into current open regimen.
+ */
+exports.createHealthTrackingSlipForPatient = async (req, res) => {
+  const transaction = await sequelize.transaction();
+  try {
+    if (!['doctor', 'admin'].includes(req.user.role)) {
+      await transaction.rollback();
+      return res.status(403).json({ success: false, message: 'Only a doctor can add this document' });
+    }
+
+    const patientPk = await resolvePatientPkFromRouteParam(req.params.patientId, transaction);
+    if (!patientPk) {
+      await transaction.rollback();
+      return res.status(404).json({ success: false, message: 'Patient not found' });
+    }
+
+    const [open] = await sequelize.query(
+      `SELECT id AS regimenId
+       FROM REGIMEN
+       WHERE patient_id = :pid AND \`end\` IS NULL
+       ORDER BY \`start\` DESC, id DESC
+       LIMIT 1`,
+      { replacements: { pid: patientPk }, type: QueryTypes.SELECT, transaction }
+    );
+    if (!open) {
+      await transaction.rollback();
+      return res.status(400).json({ success: false, message: 'No active regimen found for this patient' });
+    }
+
+    const rawIds = Array.isArray(req.body?.recordIds) ? req.body.recordIds : [];
+    const recordIds = [...new Set(rawIds.map((x) => Number(x)).filter((n) => Number.isFinite(n) && n > 0))];
+    if (!recordIds.length) {
+      await transaction.rollback();
+      return res.status(400).json({ success: false, message: 'recordIds is required' });
+    }
+
+    const mrRows = await sequelize.query(
+      `SELECT id, time, \`condition\`, blood_pressure, heart_rate, temperature, weight, respiratory_rate, spo2
+       FROM MEDICAL_RECORD
+       WHERE patient_id = :patientId AND id IN (:recordIds)
+       ORDER BY time ASC`,
+      {
+        replacements: { patientId: patientPk, recordIds },
+        type: QueryTypes.SELECT,
+        transaction,
+      }
+    );
+    if (!mrRows.length) {
+      await transaction.rollback();
+      return res.status(400).json({ success: false, message: 'No matching health records found' });
+    }
+
+    const doctorId = await getDoctorIdForUserOrLatestForPatient(req.user.userId, patientPk, transaction);
+    if (!doctorId) {
+      await transaction.rollback();
+      return res.status(400).json({ success: false, message: MSG_NO_DOCTOR_OR_PRIOR_TREATMENT });
+    }
+
+    const diseaseId = await ensureDisease('Z00.0', 'General examination', transaction);
+    const treatmentId = await createTreatmentForPatient({
+      patientId: patientPk,
+      doctorId,
+      complaint: 'Health tracking slip',
+      department: 'Health info',
+      diseaseId,
+      transaction,
+    });
+
+    const [orderIns] = await sequelize.query(
+      'INSERT INTO `ORDER` (status, treatment_id) VALUES (:status, :treatmentId)',
+      {
+        replacements: { status: 'active', treatmentId },
+        type: QueryTypes.INSERT,
+        transaction,
+      }
+    );
+    const orderId = mysqlInsertId(orderIns);
+    if (orderId == null) {
+      await transaction.rollback();
+      return res.status(500).json({ success: false, message: 'Failed to create order for health tracking slip' });
+    }
+
+    const payload = {
+      version: 1,
+      createdAt: new Date().toISOString(),
+      ms: req.body?.ms != null ? String(req.body.ms).trim() : '',
+      admissionNo: req.body?.admissionNo != null ? String(req.body.admissionNo).trim() : '',
+      note: req.body?.note != null ? String(req.body.note).trim() : '',
+      recordIds: mrRows.map((r) => Number(r.id)),
+      rows: mrRows.map(mapMedicalRecordRowToTrackingRow),
+    };
+
+    await sequelize.query(
+      `INSERT INTO PROCEDURE_ (order_id, note, technician_id, doctor_id, room_id, type)
+       VALUES (:orderId, :note, NULL, :doctorId, NULL, :type)`,
+      {
+        replacements: {
+          orderId,
+          note: JSON.stringify(payload),
+          doctorId,
+          type: 'HEALTH_TRACKING_SLIP',
+        },
+        type: QueryTypes.INSERT,
+        transaction,
+      }
+    );
+
+    await transaction.commit();
+    return res.status(201).json({
+      success: true,
+      slip: {
+        orderId: Number(orderId),
+        regimenId: Number(open.regimenId),
+        rowsCount: mrRows.length,
+      },
+    });
+  } catch (error) {
+    await transaction.rollback();
+    console.error('createHealthTrackingSlipForPatient error:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+  }
+};
+
+/**
  * POST /api/doctor/patients/:patientId/follow-up-reexam-slip
  * Persist PHIẾU HẸN KHÁM LẠI payload into the current open regimen (PROCEDURE_).
  */

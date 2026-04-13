@@ -436,7 +436,7 @@ export function DoctorLayout2() {
     if (!finishWizardOpen || finishWizardChoice !== "followup" || !patientData) return ""
     const patientName = `${patientData.firstName || ""} ${patientData.lastName || ""}`.trim() || "—"
     const genderLabel =
-      patientData.gender === "M" ? "Nam" : patientData.gender === "F" ? "Nữ" : patientData.gender?.trim() || "—"
+      patientData.gender === "M" ? "Male" : patientData.gender === "F" ? "Female" : patientData.gender?.trim() || "—"
     const dx = patientData.latestDiagnosis
     const diagnosis = [dx?.icd10, dx?.interpretation].filter(Boolean).join(" — ") || "—"
     const rev = followDate.trim() ? parseIsoDateForSlip(followDate) : null

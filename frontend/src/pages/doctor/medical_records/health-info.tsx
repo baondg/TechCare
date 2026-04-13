@@ -22,17 +22,33 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Ar
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { generateHealthInfoTrackingPdfBlob } from "@/lib/export-health-info-tracking-pdf"
-import { useEmrSession } from "@/contexts/emr-session-context"
+import { signingLineFromIso, stampPdfWithExportFooter } from "@/lib/pdf-export-stamp"
+import {
+  PATIENT_BLOOD_TYPES,
+  PATIENT_BLOOD_TYPE_UNSET,
+  bloodTypeForApiPayload,
+  normalizePatientBloodTypeForSelect,
+} from "@/lib/patient-blood-types"
+import {
+  vitalNumericError,
+  vitalMainFormErrorMessages,
+  formatVitalValidationErrorToast,
+} from "@/lib/vital-signs-limits"
 
 type HealthInfoPageProps = {
   mode?: "doctor" | "nurse"
 }
 
+function VitalWarning({ message }: { message: string | null }) {
+  if (!message) return null
+  return <span className="text-sm text-red-600 block mt-0.5">{message}</span>
+}
+
 export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps) {
   const { toast, isExiting, showSuccess, showError, onMouseEnter, onMouseLeave } = usePauseableToast(2600)
   const { user } = useAuth()
-  const { mutationsAllowed } = useEmrSession()
-  const allowHealthWrites = mode === "nurse" || mutationsAllowed
+  /** Doctors and nurses can edit patient health info on this page (same controls). */
+  const allowHealthWrites = mode === "nurse" || mode === "doctor"
   const params = useParams<{ patientId: string }>()
   // Strip "OP000..." prefix → numeric ID (e.g. "OP000000001" → 1)
   const patientId = Number(params.patientId?.replace(/^OP0*/, '') || '0')
@@ -83,7 +99,7 @@ export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps)
   const [respiratoryRate, setRespiratoryRate] = useState("")
   const [temperature, setTemperature] = useState("")
   const [spo2, setSpo2] = useState("")
-  const [bloodType, setBloodType] = useState("O")
+  const [bloodType, setBloodType] = useState(PATIENT_BLOOD_TYPE_UNSET)
   const [symptoms, setSymptoms] = useState("")
 
   // for filters
@@ -153,7 +169,7 @@ export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps)
   const canEditSelected = !!selectedRecord && selectedStatus === "draft" && !isEditing
   const canConfirmSelected = !!selectedRecord && selectedStatus === "draft" && !isEditing
   const canDeleteSelected =
-    mode === "nurse" &&
+    (mode === "nurse" || mode === "doctor") &&
     !isEditing &&
     selectedRecords.length > 0 &&
     selectedRecords.every((r) => r.status === "draft")
@@ -181,7 +197,7 @@ export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps)
     vaccinations: string[]
     substanceAbuse: string[]
   }>({
-    bloodType: "O",
+    bloodType: PATIENT_BLOOD_TYPE_UNSET,
     drugAllergies: [],
     foodAllergies: [],
     otherAllergies: [],
@@ -247,13 +263,14 @@ export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps)
   const handleDeleteSelectedRecords = async () => {
     if (!allowHealthWrites) return
     if (!patientId || !canDeleteSelected) return
-    if (!confirm(`Delete ${selectedRecords.length} selected draft record(s)?`)) return
+    const deleteCount = selectedRecords.length
+    if (!confirm(`Delete ${deleteCount} selected draft record(s)?`)) return
     setSaving(true)
     try {
       await Promise.all(selectedRecords.map((r) => doctorService.deleteHealthInfo(patientId, r.id)))
       setSelectedRecords([])
       setSelectedRecord(null)
-      showSuccess(`${selectedRecords.length} record(s) deleted successfully.`)
+      showSuccess(`${deleteCount} record(s) deleted successfully.`)
       await loadHealthHistory()
     } catch (err: any) {
       showError(err?.message || "Failed to delete records")
@@ -300,13 +317,23 @@ export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps)
     }
   }
 
-  const handleSavePdfFromPreview = () => {
+  const handleSavePdfFromPreview = async () => {
     if (!pdfPreviewUrl || !pdfPreviewFilename) return
-    const a = document.createElement("a")
-    a.href = pdfPreviewUrl
-    a.download = pdfPreviewFilename
-    a.rel = "noopener"
-    a.click()
+    try {
+      const res = await fetch(pdfPreviewUrl)
+      const raw = await res.blob()
+      const stamped = await stampPdfWithExportFooter(raw, new Date())
+      const url = URL.createObjectURL(stamped)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = pdfPreviewFilename
+      a.rel = "noopener"
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err: unknown) {
+      console.error(err)
+      showError(err instanceof Error ? err.message : "Download failed")
+    }
   }
 
   const handleAddTrackingSlipToMedicalRecord = async () => {
@@ -401,7 +428,7 @@ export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps)
         })()
 
         const defaults = {
-          bloodType: patientInfo.blood_type || "O",
+          bloodType: normalizePatientBloodTypeForSelect(patientInfo.blood_type ?? ""),
           drugAllergies: toArray(patientAllergicInfo.drugAllergies),
           foodAllergies: toArray(patientAllergicInfo.foodAllergies),
           otherAllergies: toArray(patientAllergicInfo.otherAllergies),
@@ -440,6 +467,12 @@ export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps)
         setPastIllnesses(chooseNonEmpty(toArray(info.pastIllnesses ?? medicalHistory.pastIllnesses), defaults.pastIllnesses))
         setVaccinations(chooseNonEmpty(toArray(info.vaccinations ?? medicalHistory.vaccinations), defaults.vaccinations))
         setSubstanceAbuse(chooseNonEmpty(toArray(info.substanceAbuse ?? medicalHistory.substanceAbuse), defaults.substanceAbuse))
+
+        setBloodType(
+          normalizePatientBloodTypeForSelect(
+            info.blood_type ?? info.bloodType ?? patientInfo.blood_type ?? "",
+          ),
+        )
       } else {
         showError("Failed to load health information")
       }
@@ -511,7 +544,7 @@ const loadHealthHistory = async () => {
 
           updatedBy: "Patient",
 
-          bloodType: h.blood_type || h.bloodType || "O",
+          bloodType: normalizePatientBloodTypeForSelect(h.blood_type || h.bloodType || ""),
 
           // Support both flat API fields and nested JSON blobs
           drugAllergies: toArray(h.drugAllergies ?? allergicInfo.drugAllergies),
@@ -561,7 +594,7 @@ const loadHealthHistory = async () => {
     setSelectedRecord(record)
     setCurrentHealthInfoId(record.id)
 
-    setBloodType(record.bloodType || patientInfoDefaults.bloodType || "O")
+    setBloodType(normalizePatientBloodTypeForSelect(record.bloodType || patientInfoDefaults.bloodType || ""))
 
     setDrugAllergies(chooseNonEmpty(record.drugAllergies || [], patientInfoDefaults.drugAllergies))
     setFoodAllergies(chooseNonEmpty(record.foodAllergies || [], patientInfoDefaults.foodAllergies))
@@ -587,7 +620,7 @@ const loadHealthHistory = async () => {
     setRespiratoryRate("")
     setTemperature("")
     setSpo2("")
-    setBloodType("O")
+    setBloodType(PATIENT_BLOOD_TYPE_UNSET)
     setSymptoms("")
     setDrugAllergies([])
     setFoodAllergies([])
@@ -618,6 +651,22 @@ const loadHealthHistory = async () => {
     setSaving(true)
 
     try {
+      const mainVitalErrs = vitalMainFormErrorMessages({
+        height,
+        weight,
+        bpSys,
+        bpDia,
+        heartRate,
+        respiratoryRate,
+        temperature,
+        spo2,
+      })
+      if (mainVitalErrs.length) {
+        showError(formatVitalValidationErrorToast(mainVitalErrs))
+        return
+      }
+
+      const bloodTypePayload = bloodTypeForApiPayload(bloodType)
       const payload = {
         height: height ? parseFloat(height) : undefined,
         weight: weight ? parseFloat(weight) : undefined,
@@ -627,7 +676,7 @@ const loadHealthHistory = async () => {
         respiratoryRate: respiratoryRate ? parseInt(respiratoryRate, 10) : undefined,
         temperature: temperature ? parseFloat(temperature) : undefined,
         spo2: spo2 ? parseInt(spo2, 10) : undefined,
-        bloodType: bloodType as any,
+        ...(bloodTypePayload !== undefined ? { bloodType: bloodTypePayload } : {}),
         currentSymptoms: symptoms,
         drugAllergies,
         foodAllergies,
@@ -811,7 +860,7 @@ const loadHealthHistory = async () => {
                   {exportingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
                   <span className="ml-2">Export</span>
                 </Button>
-                {mode === "nurse" ? (
+                {(mode === "nurse" || mode === "doctor") ? (
                   <Button
                     type="button"
                     size="sm"
@@ -1214,7 +1263,7 @@ const loadHealthHistory = async () => {
         </Tabs>
 
 
-        {mode === "nurse" && (
+        {(mode === "nurse" || mode === "doctor") && (
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-2xl font-bold">Health Information</h3>
@@ -1319,17 +1368,22 @@ const loadHealthHistory = async () => {
             <div className="space-y-2">
               <Label>Blood Pressure (mmHg)</Label>
               <div className="flex gap-2 text-sm font-normal bg-background text-muted-foreground">
-                <Input
-                  value={bpSys}
-                  onChange={(e) => setBpSys(e.target.value)}
-                  disabled={!isEditing || !allowHealthWrites}
-                />
-
-                <Input
-                  value={bpDia}
-                  onChange={(e) => setBpDia(e.target.value)}
-                  disabled={!isEditing || !allowHealthWrites}
-                />
+                <div className="flex-1 min-w-0 space-y-0">
+                  <Input
+                    value={bpSys}
+                    onChange={(e) => setBpSys(e.target.value)}
+                    disabled={!isEditing || !allowHealthWrites}
+                  />
+                  <VitalWarning message={vitalNumericError("bpSys", bpSys)} />
+                </div>
+                <div className="flex-1 min-w-0 space-y-0">
+                  <Input
+                    value={bpDia}
+                    onChange={(e) => setBpDia(e.target.value)}
+                    disabled={!isEditing || !allowHealthWrites}
+                  />
+                  <VitalWarning message={vitalNumericError("bpDia", bpDia)} />
+                </div>
               </div>
             </div>
 
@@ -1342,6 +1396,7 @@ const loadHealthHistory = async () => {
                 onChange={(e) => setSpo2(e.target.value)}
                 disabled={!isEditing || !allowHealthWrites}
               />
+              <VitalWarning message={vitalNumericError("spo2", spo2)} />
             </div>
 
             {/* Temperature */}
@@ -1353,6 +1408,7 @@ const loadHealthHistory = async () => {
                 onChange={(e) => setTemperature(e.target.value)}
                 disabled={!isEditing || !allowHealthWrites}
               />
+              <VitalWarning message={vitalNumericError("temperature", temperature)} />
             </div>
 
             {/* Height */}
@@ -1364,6 +1420,7 @@ const loadHealthHistory = async () => {
                 onChange={(e) => setHeight(e.target.value)}
                 disabled={!isEditing || !allowHealthWrites}
                 type="number" />
+              <VitalWarning message={vitalNumericError("height", height)} />
             </div>
 
             {/* Respiratory Rate */}
@@ -1375,6 +1432,7 @@ const loadHealthHistory = async () => {
                 onChange={(e) => setRespiratoryRate(e.target.value)}
                 disabled={!isEditing || !allowHealthWrites}
               />
+              <VitalWarning message={vitalNumericError("respiratoryRate", respiratoryRate)} />
             </div>
 
             {/* Weight */}
@@ -1385,6 +1443,7 @@ const loadHealthHistory = async () => {
                 disabled={!isEditing || !allowHealthWrites}
                 onChange={(e) => setWeight(e.target.value)}
                 type="number" />
+              <VitalWarning message={vitalNumericError("weight", weight)} />
             </div>
 
             {/* Heart Rate */}
@@ -1396,6 +1455,7 @@ const loadHealthHistory = async () => {
                 onChange={(e) => setHeartRate(e.target.value)}
                 disabled={!isEditing || !allowHealthWrites}
               />
+              <VitalWarning message={vitalNumericError("heartRate", heartRate)} />
             </div>
 
             {/* BMI */}
@@ -1414,10 +1474,12 @@ const loadHealthHistory = async () => {
                 </div>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="A">A</SelectItem>
-                  <SelectItem value="B">B</SelectItem>
-                  <SelectItem value="O">O</SelectItem>
-                  <SelectItem value="AB">AB</SelectItem>
+                  {PATIENT_BLOOD_TYPES.map((bt) => (
+                    <SelectItem key={bt} value={bt}>
+                      {bt}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value={PATIENT_BLOOD_TYPE_UNSET}>Not specified</SelectItem>
                 </SelectContent>
               </Select>
             </div>

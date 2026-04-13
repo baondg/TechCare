@@ -1,10 +1,10 @@
 "use client"
 
-import { useCallback, useEffect, useState, useRef } from "react"
+import { useCallback, useEffect, useState, useRef, useId } from "react"
 import { useParams } from "react-router-dom"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Copy, FileDown, History, Plus, Save, Search, X, Loader2 } from "lucide-react"
+import { ChevronDown, Copy, FileDown, History, Plus, Save, Search, X, Loader2 } from "lucide-react"
 import {
   Table,
   TableHeader,
@@ -27,10 +27,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { generateTreatmentFollowupPdfBlob } from "@/lib/export-treatment-followup-pdf"
+import { signingLineFromIso, stampPdfWithExportFooter } from "@/lib/pdf-export-stamp"
 import { useEmrSession } from "@/contexts/emr-session-context"
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Input } from "@/components/ui/input"
+import { cn } from "@/lib/utils"
 
 type UiDiagnosis = {
   id: string
+  /** ISO từ API — dùng cho dòng thời gian ký trên PDF */
+  createdAtIso?: string
   date: string
   doctor: string
   department: string
@@ -52,6 +59,7 @@ function formatDt(iso: string) {
 function mapApiToUi(d: ApiDiagnosis): UiDiagnosis {
   return {
     id: String(d.id),
+    createdAtIso: d.createdAt,
     date: formatDt(d.createdAt),
     doctor: d.doctorName,
     department: d.department || "",
@@ -69,7 +77,6 @@ export default function PatientDiagnosis() {
   const [diagnoses, setDiagnoses] = useState<UiDiagnosis[]>([])
   const [selectedDx, setSelectedDx] = useState<UiDiagnosis | null>(null)
   const [viewDxBeforeEdit, setViewDxBeforeEdit] = useState<UiDiagnosis | null>(null)
-  const [diseaseCodes, setDiseaseCodes] = useState<DiseaseCode[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
@@ -117,18 +124,6 @@ export default function PatientDiagnosis() {
   useEffect(() => {
     load()
   }, [load])
-
-  useEffect(() => {
-    const loadDiseaseCodes = async () => {
-      try {
-        const res = await doctorService.getDiseaseCodes()
-        setDiseaseCodes(res.diseases || [])
-      } catch (e) {
-        console.error(e)
-      }
-    }
-    loadDiseaseCodes()
-  }, [])
 
   const handleAddDiagnosis = () => {
     if (!mutationsAllowed) return
@@ -212,8 +207,6 @@ export default function PatientDiagnosis() {
   const canInherit = hasSelectedViewRow && !loading && !saving && mutationsAllowed
   const canCancelDraft = !!selectedDx?.isDraft && !loading
   const canSaveDraft = !!selectedDx?.isDraft && !loading && mutationsAllowed
-  const diseaseMap = new Map(diseaseCodes.map((d) => [d.code, d.description]))
-
   const canExportPdf = !!patientId && !!selectedDx && !exportingPdf
 
   const handleExportPdf = async () => {
@@ -240,6 +233,7 @@ export default function PatientDiagnosis() {
         doctorName: selectedDx.doctor || "",
         note: selectedDx.note || "",
         dateLabel: selectedDx.date && selectedDx.date !== "—" ? selectedDx.date : "",
+        signingTimeDisplay: signingLineFromIso(selectedDx.createdAtIso),
       })
       const url = URL.createObjectURL(blob)
       setPdfPreviewFilename(filename)
@@ -252,13 +246,23 @@ export default function PatientDiagnosis() {
     }
   }
 
-  const handleSavePdfFromPreview = () => {
+  const handleSavePdfFromPreview = async () => {
     if (!pdfPreviewUrl || !pdfPreviewFilename) return
-    const a = document.createElement("a")
-    a.href = pdfPreviewUrl
-    a.download = pdfPreviewFilename
-    a.rel = "noopener"
-    a.click()
+    try {
+      const res = await fetch(pdfPreviewUrl)
+      const raw = await res.blob()
+      const stamped = await stampPdfWithExportFooter(raw, new Date())
+      const url = URL.createObjectURL(stamped)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = pdfPreviewFilename
+      a.rel = "noopener"
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      console.error(e)
+      alert(e instanceof Error ? e.message : "Download failed")
+    }
   }
 
   useEffect(() => {
@@ -427,17 +431,15 @@ export default function PatientDiagnosis() {
                 onChange={(v) => setSelectedDx({ ...selectedDx, complaint: v })}
               />
 
-              <DiagnosisCodeField
+              <Icd10Combobox
                 label="Diagnosis (ICD-10)"
                 value={selectedDx.icd10}
-                editable={!!selectedDx.isDraft && mutationsAllowed}
-                options={diseaseCodes}
-                onChange={(v) => {
-                  const autoDescription = diseaseMap.get(v.trim())
+                disabled={!selectedDx.isDraft || !mutationsAllowed}
+                onIcdChange={(icd10, interpretationFromPick) => {
                   setSelectedDx({
                     ...selectedDx,
-                    icd10: v,
-                    interpretation: autoDescription ?? "",
+                    icd10,
+                    ...(interpretationFromPick !== undefined ? { interpretation: interpretationFromPick } : {}),
                   })
                 }}
               />
@@ -474,43 +476,165 @@ export default function PatientDiagnosis() {
   )
 }
 
-function DiagnosisCodeField({
+/**
+ * Server-backed search (GET /api/doctor/diseases?q=) — avoids huge <datalist> and the API’s
+ * default LIMIT 300 when no query (only early alphabet codes would load client-side).
+ */
+function Icd10Combobox({
   label,
   value,
-  editable,
-  onChange,
-  options,
+  disabled,
+  onIcdChange,
 }: {
   label: string
   value: string
-  editable: boolean
-  onChange: (v: string) => void
-  options: DiseaseCode[]
+  disabled: boolean
+  /** Second arg only when user picks a row — then interpretation is set from DB. */
+  onIcdChange: (icd10: string, interpretationFromPick?: string) => void
 }) {
-  const listId = "diagnosis-icd10-options"
+  const listId = useId()
+  const skipBlurResolveRef = useRef(false)
+  const blurResolveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [open, setOpen] = useState(false)
+  const [items, setItems] = useState<DiseaseCode[]>([])
+  const [loading, setLoading] = useState(false)
+
+  const load = useCallback(async (q: string) => {
+    setLoading(true)
+    try {
+      const res = await doctorService.getDiseaseCodes(q.trim() || undefined)
+      setItems(res.diseases || [])
+    } catch {
+      setItems([])
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!open) return
+    const t = window.setTimeout(() => {
+      void load(value)
+    }, 220)
+    return () => window.clearTimeout(t)
+  }, [open, value, load])
+
+  const tryResolveExactIcd = useCallback(async () => {
+    const c = value.trim()
+    if (!c) return
+    try {
+      const res = await doctorService.getDiseaseCodes(c)
+      const exact = res.diseases?.find((x) => x.code === c)
+      if (exact) onIcdChange(exact.code, exact.description)
+    } catch {
+      /* ignore */
+    }
+  }, [value, onIcdChange])
+
+  if (disabled) {
+    return (
+      <div className="space-y-1">
+        <label className="text-sm font-medium text-slate-600">{label}</label>
+        <div className="rounded-lg border bg-slate-50 px-3 py-2 text-sm">{value || "—"}</div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-1">
       <label className="text-sm font-medium text-slate-600">{label}</label>
-      {editable ? (
-        <>
-          <input
-            list={listId}
-            className="w-full rounded-lg border px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-400"
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder="Select or enter ICD-10 code"
-          />
-          <datalist id={listId}>
-            {options.map((d) => (
-              <option key={d.code} value={d.code}>
-                {d.description}
-              </option>
-            ))}
-          </datalist>
-        </>
-      ) : (
-        <div className="rounded-lg border bg-slate-50 px-3 py-2 text-sm">{value || "—"}</div>
-      )}
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverAnchor asChild>
+          <div
+            className={cn(
+              "flex h-10 w-full items-stretch rounded-lg border border-slate-200 bg-white shadow-sm",
+              "focus-within:border-cyan-500 focus-within:ring-1 focus-within:ring-cyan-500/30",
+            )}
+          >
+            <Input
+              className="h-10 min-h-10 min-w-0 flex-1 rounded-none border-0 bg-transparent px-3 py-2 text-sm shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+              value={value}
+              onChange={(e) => onIcdChange(e.target.value)}
+              onFocus={() => setOpen(true)}
+              onBlur={() => {
+                if (blurResolveTimerRef.current) clearTimeout(blurResolveTimerRef.current)
+                blurResolveTimerRef.current = window.setTimeout(() => {
+                  blurResolveTimerRef.current = null
+                  if (skipBlurResolveRef.current) return
+                  void tryResolveExactIcd()
+                }, 200)
+              }}
+              autoComplete="off"
+              placeholder="Type code or name (e.g. C03) — search from database"
+              role="combobox"
+              aria-expanded={open}
+              aria-haspopup="listbox"
+              aria-controls={listId}
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-10 min-h-10 w-9 shrink-0 rounded-none rounded-r-lg border-l border-slate-200 p-0 hover:bg-slate-50"
+              aria-label="Open ICD-10 suggestions"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => setOpen((o) => !o)}
+            >
+              <ChevronDown
+                className={cn("h-4 w-4 text-slate-600 transition-transform duration-200", open && "rotate-180")}
+              />
+            </Button>
+          </div>
+        </PopoverAnchor>
+        <PopoverContent
+          className="p-0 w-[var(--radix-popover-anchor-width)] min-w-[min(28rem,calc(100vw-2rem))] max-w-[min(36rem,96vw)]"
+          align="start"
+          sideOffset={4}
+          onOpenAutoFocus={(e) => e.preventDefault()}
+        >
+          <ScrollArea className="h-[min(280px,40vh)]">
+            {loading ? (
+              <div className="flex items-center gap-2 p-3 text-sm text-slate-500">
+                <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                Searching…
+              </div>
+            ) : items.length === 0 ? (
+              <div className="p-3 text-sm text-slate-500">No matching ICD-10 rows. Try another code or keyword.</div>
+            ) : (
+              <ul id={listId} className="py-1" role="listbox">
+                {items.map((d) => (
+                  <li key={d.code}>
+                    <button
+                      type="button"
+                      role="option"
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-cyan-50"
+                      title={`${d.code} — ${d.description}`}
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        if (blurResolveTimerRef.current) {
+                          clearTimeout(blurResolveTimerRef.current)
+                          blurResolveTimerRef.current = null
+                        }
+                        skipBlurResolveRef.current = true
+                      }}
+                      onClick={() => {
+                        onIcdChange(d.code, d.description)
+                        setOpen(false)
+                        skipBlurResolveRef.current = false
+                      }}
+                    >
+                      <span className="font-mono font-medium text-slate-900">{d.code}</span>
+                      <span className="mt-0.5 block text-xs leading-snug text-slate-600 line-clamp-2">
+                        {d.description}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </ScrollArea>
+        </PopoverContent>
+      </Popover>
     </div>
   )
 }

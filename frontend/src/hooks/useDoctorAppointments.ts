@@ -4,12 +4,12 @@
  * Responsibilities (logic):
  *   - Fetch all appointments and filter only those belonging to the current doctor
  *   - Confirm an appointment (status → 'Confirmed')
- *   - Reject an appointment (status → 'Rejected')
+ *   - Cancel an accepted visit with required reason
  *
  * What stays in the page (UI):
  *   - Date filter inputs (startDate / endDate)
  *   - Filtering via useMemo in the page
- *   - Confirmation dialog (confirm on reject)
+ *   - Cover / cancel reason dialogs (handled in the page)
  */
 
 import { useState, useEffect, useCallback } from 'react'
@@ -20,7 +20,7 @@ interface UseDoctorAppointmentsReturn {
   loading: boolean
   error: string | null
   confirm: (id: number) => Promise<void>
-  reject: (id: number) => Promise<void>
+  cancelConfirmed: (id: number, reason: string) => Promise<void>
   refresh: () => void
 }
 
@@ -50,10 +50,10 @@ export function useDoctorAppointments(): UseDoctorAppointmentsReturn {
     void load()
   }, [load])
 
-  const reject = useCallback(async (id: number) => {
-    await doctorService.cancelAppointment(id)
+  const cancelConfirmed = useCallback(async (id: number, reason: string) => {
+    await doctorService.cancelAppointment(id, reason)
     void load()
   }, [load])
 
-  return { appointments, loading, error, confirm, reject, refresh: load }
+  return { appointments, loading, error, confirm, cancelConfirmed, refresh: load }
 }

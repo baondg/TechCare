@@ -16,6 +16,8 @@ export type TreatmentFollowupSlipInputs = {
   note: string
   /** Dòng đầu cột "Thời gian" trong bảng (vd. lịch hẹn). */
   dateLabel?: string
+  /** Cuối trang 1, căn phải — ví dụ thời gian lập / ký phiếu */
+  signingTimeDisplay?: string
 }
 
 function escapeHtml(s: string): string {
@@ -288,6 +290,13 @@ export function buildTreatmentFollowupSlipHtmlDocument(opts: TreatmentFollowupSl
         <div class="note">
           <b>Ghi chú:</b> Bác sỹ ký ngay sau mỗi lần ghi chép trong phần “Diễn biến bệnh” hoặc “Chỉ định”.
         </div>
+        ${
+          opts.signingTimeDisplay?.trim()
+            ? `<div style="margin-top:3mm;font-size:11px;font-style:italic;text-align:right;color:#333">${escapeHtml(
+                opts.signingTimeDisplay.trim()
+              )}</div>`
+            : ""
+        }
       </div>
 
       <div class="page">

@@ -226,6 +226,9 @@ export interface DoctorAppointment {
   notes: string;
   patientName: string;
   patientId: number;
+  doctorConfirmed?: boolean;
+  /** Patient portal booking waiting for Accept / Decline */
+  awaitingDoctorConfirmation?: boolean;
 }
 
 export interface DoctorDashboardSummary {
@@ -286,6 +289,8 @@ export const doctorService = {
     return apiRequest<{
       success: boolean;
       active: { regimenId: number; startAt: string } | null;
+      /** Today’s check-in slot room (APPOINTMENT), or first treatment room on open visit — for clinic transfer “from”. */
+      checkInRoom: { id: number; name: string } | null;
     }>(`${API_BASE_URL}/api/doctor/patients/${patientId}/regimen/active`);
   },
 
@@ -300,6 +305,14 @@ export const doctorService = {
     return apiRequest<{ success: boolean; regimenId: number }>(
       `${API_BASE_URL}/api/doctor/patients/${patientId}/regimen/close`,
       { method: 'POST' }
+    );
+  },
+
+  /** Persist PHIẾU HẸN KHÁM LẠI into the open regimen (merged patient/doctor PDF export). */
+  async createFollowUpReexamSlip(patientId: number | string, slip: Record<string, unknown>) {
+    return apiRequest<{ success: boolean; slip: { orderId: number; regimenId: number } }>(
+      `${API_BASE_URL}/api/doctor/patients/${encodeURIComponent(String(patientId))}/follow-up-reexam-slip`,
+      { method: 'POST', body: JSON.stringify({ slip }) }
     );
   },
 
@@ -390,6 +403,7 @@ export const doctorService = {
       ...r,
       hospitalTransfers: Array.isArray(r.hospitalTransfers) ? r.hospitalTransfers : [],
       healthTrackingSlips: Array.isArray((r as any).healthTrackingSlips) ? (r as any).healthTrackingSlips : [],
+      followUpReexamSlips: Array.isArray((r as any).followUpReexamSlips) ? (r as any).followUpReexamSlips : [],
     }));
   },
 
@@ -756,22 +770,23 @@ export const doctorService = {
     });
   },
 
-  async cancelAppointment(id: number) {
+  async cancelAppointment(id: number, reason: string) {
     return apiRequest<{
       success: boolean;
       appointment: DoctorAppointment;
     }>(`${API_BASE_URL}/api/doctor/appointments/${id}/cancel`, {
       method: 'PUT',
+      body: JSON.stringify({ reason }),
     });
   },
 
-  async coverAppointment(appointmentId: number, coverDoctorId: number) {
+  async coverAppointment(appointmentId: number, coverDoctorId: number, reason: string) {
     return apiRequest<{
       success: boolean;
       appointment: { id: number; doctorId: number; roomId: number };
     }>(`${API_BASE_URL}/api/doctor/appointments/${appointmentId}/cover`, {
       method: 'PUT',
-      body: JSON.stringify({ coverDoctorId }),
+      body: JSON.stringify({ coverDoctorId, reason }),
     });
   },
 
@@ -781,6 +796,16 @@ export const doctorService = {
       appointment: DoctorAppointment;
     }>(`${API_BASE_URL}/api/doctor/appointments/${id}/confirm`, {
       method: 'PUT',
+    });
+  },
+
+  async declineAppointment(id: number, reason: string) {
+    return apiRequest<{
+      success: boolean;
+      appointment: { id: number; status: string };
+    }>(`${API_BASE_URL}/api/doctor/appointments/${id}/decline`, {
+      method: 'PUT',
+      body: JSON.stringify({ reason }),
     });
   },
 

@@ -78,31 +78,57 @@ exports.notifyDoctorPatientBooked = (sequelize, appointmentId) =>
     const uid = await doctorUserId(sequelize, s.doctorId);
     const patientName = s.patientLabel || 'A patient';
     const dept = s.department ? ` — ${s.department}` : '';
-    const content = `${patientName} booked an appointment with you: ${s.dateVi} at ${s.timeVi}${dept}.`;
+    const content = `${patientName} requested an appointment with you: ${s.dateVi} at ${s.timeVi}${dept}. Please Accept or Decline in My Appointments.`;
     await insertNotif(sequelize, uid, 'appointment_patient_booked', content);
   });
 
-exports.notifyDoctorPatientCancelledAppointment = (sequelize, appointmentId) =>
+exports.notifyDoctorPatientCancelledAppointment = (sequelize, appointmentId, reason) =>
   safeRun('notifyDoctorPatientCancelledAppointment', async () => {
     const s = await fetchAppointmentSummary(sequelize, appointmentId);
     if (!s || !s.patientId) return;
     const uid = await doctorUserId(sequelize, s.doctorId);
     const patientName = s.patientLabel || 'A patient';
     const dept = s.department ? ` — ${s.department}` : '';
-    const content = `${patientName} cancelled their appointment: ${s.dateVi} at ${s.timeVi}${dept}.`;
+    const reasonText = reason && String(reason).trim() ? ` Reason: ${String(reason).trim()}` : '';
+    const content = `${patientName} cancelled their appointment: ${s.dateVi} at ${s.timeVi}${dept}.${reasonText}`;
     await insertNotif(sequelize, uid, 'appointment_patient_cancelled', content);
   });
 
 /** Doctor cancelled appointment (patient notified). */
-exports.notifyPatientDoctorCover = (sequelize, appointmentId) =>
+exports.notifyPatientDoctorCover = (sequelize, appointmentId, reason) =>
   safeRun('notifyPatientDoctorCover', async () => {
     const s = await fetchAppointmentSummary(sequelize, appointmentId);
     if (!s || !s.patientId) return;
     const uid = await patientUserId(sequelize, s.patientId);
     const doctorName = s.doctorLabel || 'Your doctor';
     const dept = s.department ? ` — ${s.department}` : '';
-    const content = `${doctorName} cancelled your appointment: ${s.dateVi} at ${s.timeVi}${dept}. Please book another slot if you still need a visit.`;
+    const reasonText = reason && String(reason).trim() ? ` Reason: ${String(reason).trim()}.` : '';
+    const content = `${doctorName} cancelled your appointment: ${s.dateVi} at ${s.timeVi}${dept}.${reasonText} Please book another slot if you still need a visit.`;
     await insertNotif(sequelize, uid, 'appointment_doctor_cover', content);
+  });
+
+/** Doctor accepted a patient-requested booking. */
+exports.notifyPatientDoctorAcceptedBooking = (sequelize, appointmentId) =>
+  safeRun('notifyPatientDoctorAcceptedBooking', async () => {
+    const s = await fetchAppointmentSummary(sequelize, appointmentId);
+    if (!s || !s.patientId) return;
+    const uid = await patientUserId(sequelize, s.patientId);
+    const doctorName = s.doctorLabel || 'Your doctor';
+    const dept = s.department ? ` — ${s.department}` : '';
+    const content = `${doctorName} has accepted your appointment request for ${s.dateVi} at ${s.timeVi}${dept}.`;
+    await insertNotif(sequelize, uid, 'appointment_doctor_accepted', content);
+  });
+
+/** Doctor declined a pending patient booking (slot reopened). */
+exports.notifyPatientDoctorDeclinedBooking = (sequelize, { patientId, doctorLabel, dateVi, timeVi, department, reason }) =>
+  safeRun('notifyPatientDoctorDeclinedBooking', async () => {
+    const uid = await patientUserId(sequelize, patientId);
+    if (!uid) return;
+    const doctorName = doctorLabel || 'The doctor';
+    const dept = department ? ` — ${department}` : '';
+    const reasonText = reason && String(reason).trim() ? String(reason).trim() : 'No reason given';
+    const content = `${doctorName} cannot keep this appointment (${dateVi} at ${timeVi}${dept}). Reason: ${reasonText}. Please choose another time slot.`;
+    await insertNotif(sequelize, uid, 'appointment_doctor_declined', content);
   });
 
 /** After another doctor assigns cover: notify the receiving doctor (English). */
@@ -126,12 +152,13 @@ exports.notifyDoctorReceivedCoverAppointment = (sequelize, { appointmentId, prev
   });
 
 /** After nurse/doctor reassigns a booked slot to another doctor (same department). */
-exports.notifyPatientAppointmentDoctorReassigned = (sequelize, { patientId, dateVi, timeVi, department, oldDoctorName, newDoctorName }) =>
+exports.notifyPatientAppointmentDoctorReassigned = (sequelize, { patientId, dateVi, timeVi, department, oldDoctorName, newDoctorName, reason }) =>
   safeRun('notifyPatientAppointmentDoctorReassigned', async () => {
     const uid = await patientUserId(sequelize, patientId);
     if (!uid) return;
     const dept = department ? ` (${department})` : '';
-    const content = `Your appointment on ${dateVi} at ${timeVi}${dept} is now with ${newDoctorName}. Your previous doctor was ${oldDoctorName}.`;
+    const reasonText = reason && String(reason).trim() ? ` Note from clinic: ${String(reason).trim()}.` : '';
+    const content = `Your appointment on ${dateVi} at ${timeVi}${dept} is now covered by ${newDoctorName} (previously ${oldDoctorName}).${reasonText}`;
     await insertNotif(sequelize, uid, 'appointment_doctor_reassigned', content);
   });
 

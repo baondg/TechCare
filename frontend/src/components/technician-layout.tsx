@@ -1,6 +1,7 @@
 ﻿import type React from 'react'
 import { AppShell } from '@/components/layout/AppShell'
 import type { NavItem } from '@/components/layout/AppShell'
+import { PatientNotificationBell } from '@/components/patient-notification-bell'
 import { Activity, Users, CalendarClock, FileText } from 'lucide-react'
 
 const navigation: NavItem[] = [
@@ -11,5 +12,13 @@ const navigation: NavItem[] = [
 ]
 
 export function TechnicianLayout({ children }: { children: React.ReactNode }) {
-  return <AppShell navItems={navigation} portalLabel="Technician Portal">{children}</AppShell>
+  return (
+    <AppShell
+      navItems={navigation}
+      portalLabel="Technician Portal"
+      headerEnd={<PatientNotificationBell />}
+    >
+      {children}
+    </AppShell>
+  )
 }

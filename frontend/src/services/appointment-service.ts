@@ -11,9 +11,12 @@ export interface Appointment {
   date: string;
   time: string;
   status: 'Upcoming' | 'Done' | 'Cancelled' | "Confirmed" | "Rejected" | "Pending";
+  /** True when patient booked online and the doctor has not accepted yet */
+  awaitingDoctorConfirmation?: boolean;
   room?: string;
   symptoms?: string;
   notes?: string;
+  cancellationReason?: string;
 }
 
 export interface CreateAppointmentData {
@@ -245,6 +248,12 @@ export type PatientMedicalRegimen = PatientMedicalVisit & {
     }>;
     formPayload: Record<string, unknown> | null;
   }>;
+  /** PHIẾU HẸN KHÁM LẠI — payload matches `FollowUpReexamSlipInputs` (see follow-up-reexam-slip-html). */
+  followUpReexamSlips: Array<{
+    orderId: number;
+    createdAt: string;
+    slip: Record<string, unknown>;
+  }>;
 };
 
 export interface PatientSymptomLog {
@@ -330,6 +339,7 @@ export const appointmentService = {
       ...r,
       hospitalTransfers: Array.isArray(r.hospitalTransfers) ? r.hospitalTransfers : [],
       healthTrackingSlips: Array.isArray(r.healthTrackingSlips) ? r.healthTrackingSlips : [],
+      followUpReexamSlips: Array.isArray(r.followUpReexamSlips) ? r.followUpReexamSlips : [],
     }));
   },
 
@@ -347,13 +357,16 @@ export const appointmentService = {
     return data.details ?? [];
   },
 
-  async updateAppointment(id: number, updates: Partial<Appointment>): Promise<Appointment> {
+  async updateAppointment(
+    id: number,
+    updates: Partial<Appointment> & { cancellationReason?: string }
+  ): Promise<Appointment> {
     const data = await apiClient.put<{ success: boolean; appointment: Appointment }>(`/api/appointments/${id}`, updates);
     return data.appointment;
   },
 
-  async deleteAppointment(id: number): Promise<void> {
-    await apiClient.delete<{ success: boolean }>(`/api/appointments/${id}`);
+  async deleteAppointment(id: number, cancellationReason: string): Promise<void> {
+    await apiClient.delete<{ success: boolean }>(`/api/appointments/${id}`, { cancellationReason });
   },
 
   async getFeedbacks(): Promise<PatientFeedback[]> {
@@ -431,7 +444,12 @@ export const appointmentService = {
     );
   },
 
-  async postNurseCheckInAccept(body: { patientId: string | number; appointmentId: number }) {
+  async postNurseCheckInAccept(body: {
+    patientId: string | number;
+    appointmentId: number;
+    /** Optional: assign clinic room before starting the visit (must exist in CLINIC_ROOM). */
+    roomId?: number;
+  }) {
     return apiClient.post<{ success: boolean; appointment: NurseCheckInSlot; regimenId: number }>(
       '/api/appointments/nurse/check-in-accept',
       body

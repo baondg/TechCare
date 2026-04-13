@@ -1,6 +1,12 @@
 import html2canvas from "html2canvas"
 import { jsPDF } from "jspdf"
 import type { LabTestDetail } from "@/services/doctor-service"
+import {
+  evaluateLabMetric,
+  normalizeLabMetricKey,
+  parseLabNumericValue,
+  resolveLabMetricKey,
+} from "@/lib/lab-metric-eval"
 
 export type BloodTestPdfResult = { blob: Blob; filename: string }
 
@@ -13,6 +19,8 @@ export type BloodTestPdfInput = {
   testDateLabel: string
   details: LabTestDetail[]
   filename?: string
+  /** Hiển thị dưới dòng ngày tháng, trên dòng chức danh ký */
+  signingTimeDisplay?: string
 }
 
 type MetricDef = {
@@ -37,14 +45,6 @@ function slugFilenamePart(s: string): string {
     .replace(/[^\w\u00C0-\u024f]+/gi, "-")
     .replace(/^-|-$/g, "")
     .toLowerCase() || "patient"
-}
-
-function normalizeMetricKey(raw: string) {
-  return String(raw || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9+]/g, "")
 }
 
 function parseRefRange(raw: string): { min?: number; max?: number } | null {
@@ -98,7 +98,8 @@ function chooseRef(def: MetricDef, gender: string) {
   return def.refCommon || def.refMale || def.refFemale || ""
 }
 
-function evaluateAbnormal(value: number | null, refText: string): boolean {
+/** Fallback when a row is not in the shared lab reference map (e.g. creatinin). */
+function evaluateAbnormalFromRefText(value: number | null, refText: string): boolean {
   if (value === null || !refText) return false
   const r = parseRefRange(refText)
   if (!r) return false
@@ -107,15 +108,27 @@ function evaluateAbnormal(value: number | null, refText: string): boolean {
   return false
 }
 
-function buildMetricCell(def: MetricDef, map: Map<string, LabTestDetail>, gender: string): string {
+function buildMetricCell(
+  def: MetricDef,
+  map: Map<string, LabTestDetail>,
+  gender: string,
+  genderRaw: string | null | undefined
+): string {
   const detail = def.keys.map((k) => map.get(k)).find(Boolean) || null
   const ref = chooseRef(def, gender)
-  const abnormal = evaluateAbnormal(detail?.numericValue ?? null, ref)
+  const ctx = { gender: genderRaw ?? null }
+  let abnormal = false
+  if (detail) {
+    const ev = evaluateLabMetric(detail, ctx)
+    if (ev.status !== "unknown") abnormal = ev.abnormal
+    else abnormal = evaluateAbnormalFromRefText(parseLabNumericValue(detail), ref)
+  }
   const resultHtml = detail ? escapeHtml(detail.result || "") : ""
+  const resultClass = abnormal ? "result-val result-val-abnormal" : "result-val result-val-normal"
   return `
     <td>${escapeHtml(def.label)}</td>
     <td>${escapeHtml(ref)}</td>
-    <td class="${abnormal ? "abnormal" : ""}">${resultHtml}</td>
+    <td class="${resultClass}">${resultHtml}</td>
   `
 }
 
@@ -149,20 +162,27 @@ function canvasToPdfDocument(canvas: HTMLCanvasElement): jsPDF {
   return pdf
 }
 
-// ... (Giữ nguyên các hàm helper: escapeHtml, slugFilenamePart, normalizeMetricKey, parseRefRange, chooseRef, evaluateAbnormal)
-
 export async function generateBloodTestPdfBlob(input: BloodTestPdfInput): Promise<BloodTestPdfResult> {
+  const signingFooter =
+    input.signingTimeDisplay?.trim() != null && String(input.signingTimeDisplay).trim() !== ""
+      ? `<div style="font-size:10px;font-style:italic;margin:4px 0 6px">${escapeHtml(String(input.signingTimeDisplay).trim())}</div>`
+      : ""
+
   const map = new Map<string, LabTestDetail>()
-  for (const d of input.details || []) map.set(normalizeMetricKey(d.itemIndex), d)
+  for (const d of input.details || []) {
+    const k = normalizeLabMetricKey(d.itemIndex)
+    const r = resolveLabMetricKey(k)
+    map.set(k, d)
+    if (r !== k) map.set(r, d)
+  }
   const gender = String(input.gender || "").toUpperCase()
 
   const rows = Array.from({ length: Math.max(LEFT.length, RIGHT.length) }, (_, i) => {
     const left = LEFT[i]
     const right = RIGHT[i]
-    // Thêm style font-weight: bold cho các ô kết quả giống trong hình 
     return `<tr>
-      ${left ? buildMetricCell(left, map, gender) : "<td></td><td></td><td></td>"}
-      ${right ? buildMetricCell(right, map, gender) : "<td></td><td></td><td></td>"}
+      ${left ? buildMetricCell(left, map, gender, input.gender) : "<td></td><td></td><td></td>"}
+      ${right ? buildMetricCell(right, map, gender, input.gender) : "<td></td><td></td><td></td>"}
     </tr>`
   }).join("")
 
@@ -217,9 +237,13 @@ export async function generateBloodTestPdfBlob(input: BloodTestPdfInput): Promis
     .table td { vertical-align: middle; height: 22px; }
     .table td:nth-child(1), .table td:nth-child(4) { width: 25%; } /* Tên XN */
     .table td:nth-child(2), .table td:nth-child(5) { width: 15%; text-align: center; } /* Trị số BT */
-    .table td:nth-child(3), .table td:nth-child(6) { width: 10%; text-align: center; font-weight: bold; } /* Kết quả */
+    .table td:nth-child(3), .table td:nth-child(6) { width: 10%; vertical-align: middle; } /* Kết quả */
 
-    .abnormal { text-decoration: underline; color: red; } /* Nhấn mạnh kết quả bất thường */
+    .result-val-normal { text-align: left; font-weight: normal; color: #000; }
+    .result-val-abnormal {
+      text-align: center; font-weight: bold; text-decoration: underline; color: #b91c1c;
+      background: #fef2f2;
+    }
 
     /* Footer / Signature */
     .footer { margin-top: 30px; display: grid; grid-template-columns: 1fr 1fr; font-size: 14px; }
@@ -266,11 +290,13 @@ export async function generateBloodTestPdfBlob(input: BloodTestPdfInput): Promis
       <div class="footer">
         <div class="center">
           <span class="date-placeholder">Ngày.....tháng.....năm 20...</span>
+          ${signingFooter}
           <b>BÁC SĨ ĐIỀU TRỊ</b>
           <div style="margin-top: 60px;"></div>
         </div>
         <div class="center">
           <span class="date-placeholder">Ngày.....tháng.....năm 20...</span>
+          ${signingFooter}
           <b>TRƯỞNG KHOA XÉT NGHIỆM</b>
           <div style="margin-top: 60px;"></div>
         </div>

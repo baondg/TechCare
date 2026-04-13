@@ -30,6 +30,8 @@ export type FollowUpReexamSlipInputs = {
   footerMonth: string
   footerYear: string
   doctorDisplayName: string
+  /** Hiển thị phía trên vạch ký, ví dụ từ `signingLineFromIso(createdAt)` */
+  signingTimeDisplay?: string
 }
 
 function escapeHtml(s: string): string {
@@ -200,6 +202,13 @@ export function buildFollowUpReexamSlipHtmlDocument(opts: FollowUpReexamSlipInpu
       <div>........., ngày….tháng …. năm……</div>
       <div class="sig">Bác sĩ, Y sĩ khám bệnh</div>
       <div class="sig">(ký tên)</div>
+      ${
+        opts.signingTimeDisplay?.trim()
+          ? `<div class="sig" style="font-size:12px;font-style:italic;margin-top:10px;text-align:right;max-width:220px;margin-left:auto">${escapeHtml(
+              opts.signingTimeDisplay.trim()
+            )}</div>`
+          : ""
+      }
       <div style="margin-top:16px; min-height: 2.5em; border-bottom: 1px solid #000; max-width: 220px; margin-left: auto;"></div>
       <div style="margin-top:6px">${escapeHtml(opts.doctorDisplayName)}</div>
     </div>

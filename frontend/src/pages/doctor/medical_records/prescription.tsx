@@ -44,6 +44,7 @@ import {
   type MedicineOption,
 } from "@/services/doctor-service"
 import { generatePrescriptionPdfBlob } from "@/lib/export-prescription-pdf"
+import { buildSigningTimeLine, signingLineFromIso, stampPdfWithExportFooter } from "@/lib/pdf-export-stamp"
 import { usePauseableToast } from "@/hooks/usePauseableToast"
 import { PauseableCornerToastPortal } from "@/components/pauseable-corner-toast"
 import {
@@ -718,13 +719,23 @@ export default function PatientPrescription() {
     }
   }
 
-  const handleSavePdfFromPreview = () => {
+  const handleSavePdfFromPreview = async () => {
     if (!pdfPreviewUrl || !pdfPreviewFilename) return
-    const a = document.createElement("a")
-    a.href = pdfPreviewUrl
-    a.download = pdfPreviewFilename
-    a.rel = "noopener"
-    a.click()
+    try {
+      const res = await fetch(pdfPreviewUrl)
+      const raw = await res.blob()
+      const stamped = await stampPdfWithExportFooter(raw, new Date())
+      const url = URL.createObjectURL(stamped)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = pdfPreviewFilename
+      a.rel = "noopener"
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      console.error(e)
+      showError(e instanceof Error ? e.message : "Download failed")
+    }
   }
 
   return (

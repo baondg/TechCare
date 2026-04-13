@@ -7,6 +7,15 @@ import { PatientLayout } from "@/components/patient-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { useAppointments } from "@/hooks/useAppointments"
 import { format, parseISO } from "date-fns"
 
@@ -14,6 +23,10 @@ export default function AppointmentsPage() {
   const navigate = useNavigate()
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
+  const [cancelTargetId, setCancelTargetId] = useState<number | null>(null)
+  const [cancelReason, setCancelReason] = useState("")
+  const [cancelSaving, setCancelSaving] = useState(false)
 
   const { appointments, loading, cancel } = useAppointments()
 
@@ -44,9 +57,25 @@ export default function AppointmentsPage() {
     navigate("/patient/appointments/book-appointment", { state: { rescheduleId: id } })
   }
 
-  const handleCancel = async (id: number) => {
-    if (confirm("Are you sure you want to cancel this appointment?")) {
-      await cancel(id)
+  const openCancelDialog = (id: number) => {
+    setCancelTargetId(id)
+    setCancelReason("")
+    setCancelDialogOpen(true)
+  }
+
+  const submitCancel = async () => {
+    const reason = cancelReason.trim()
+    if (!cancelTargetId || !reason) return
+    setCancelSaving(true)
+    try {
+      await cancel(cancelTargetId, reason)
+      setCancelDialogOpen(false)
+      setCancelTargetId(null)
+      setCancelReason("")
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : "Could not cancel appointment")
+    } finally {
+      setCancelSaving(false)
     }
   }
 
@@ -143,11 +172,13 @@ export default function AppointmentsPage() {
                         <div className={`mt-2 md:mt-0 px-4 py-1.5 rounded-full text-sm font-medium ${
                           appointment.status === "Upcoming" 
                             ? "bg-cyan-50 text-cyan-700 border border-cyan-100" 
+                            : appointment.status === "Pending"
+                            ? "bg-amber-50 text-amber-800 border border-amber-100"
                             : appointment.status === "Done"
                             ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
                             : "bg-red-50 text-red-700 border border-red-100"
                         }`}>
-                          {appointment.status}
+                          {appointment.status === "Pending" ? "Awaiting doctor" : appointment.status}
                         </div>
                       </div>
 
@@ -163,7 +194,7 @@ export default function AppointmentsPage() {
                       </div>
 
                       <div className="flex gap-3">
-                        {appointment.status === "Upcoming" ? (
+                        {appointment.status === "Upcoming" || appointment.status === "Pending" ? (
                           <>
                             <Button 
                               variant="outline" 
@@ -175,7 +206,7 @@ export default function AppointmentsPage() {
                             <Button 
                               variant="outline" 
                               className="border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800"
-                              onClick={() => handleCancel(appointment.id)}
+                              onClick={() => openCancelDialog(appointment.id)}
                             >
                               Cancel
                             </Button>
@@ -197,6 +228,46 @@ export default function AppointmentsPage() {
           )}
         </div>
       </div>
+
+      <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cancel appointment</DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              Please tell your doctor why you are cancelling. This message will be sent with the cancellation notice.
+            </p>
+          </DialogHeader>
+          <div className="grid gap-2 py-2">
+            <Label htmlFor="cancel-reason">Reason</Label>
+            <Textarea
+              id="cancel-reason"
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder="e.g. schedule conflict, feeling better…"
+              rows={4}
+              className="resize-none"
+            />
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setCancelDialogOpen(false)}
+              disabled={cancelSaving}
+            >
+              Back
+            </Button>
+            <Button
+              type="button"
+              className="bg-red-600 hover:bg-red-700 text-white"
+              disabled={!cancelReason.trim() || cancelSaving}
+              onClick={() => void submitCancel()}
+            >
+              {cancelSaving ? "Cancelling…" : "OK — Cancel appointment"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PatientLayout>
   )
 }

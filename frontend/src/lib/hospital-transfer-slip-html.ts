@@ -20,6 +20,8 @@ export type HospitalTransferSlipInputs = {
   icd10?: string
   diagnosis?: string
   formPayload?: Record<string, unknown> | null
+  /** Phía trên khối ký đại diện */
+  signingTimeDisplay?: string
 }
 
 function escapeHtml(s: string): string {
@@ -194,6 +196,13 @@ export function buildHospitalTransferSlipHtmlDocument(opts: HospitalTransferSlip
         <div class="row">- Họ tên, chức danh, trình độ chuyên môn của người hộ tống (nếu có): <span class="line" style="min-width:240px">${escapeHtml(doctor)}</span></div>
         <div class="row"><span class="line" style="min-width:580px">&nbsp;</span></div>
 
+        ${
+          opts.signingTimeDisplay?.trim()
+            ? `<div style="text-align:right;font-size:11px;font-style:italic;margin:8px 0 4px">${escapeHtml(
+                opts.signingTimeDisplay.trim()
+              )}</div>`
+            : ""
+        }
         <div class="sign">Ngày .... tháng .... năm ....<br/>ĐẠI DIỆN CƠ SỞ KCB/BS ĐIỀU TRỊ<br/><span class="muted">(Ký tên, đóng dấu)</span></div>
 
         <div style="margin-top: 14px;" class="muted"><b>Ghi chú:</b><br/>

@@ -324,8 +324,10 @@ export default function BookAppointmentPage() {
                   <div className="flex items-center gap-3 min-w-0">
                     <input
                       type="radio"
+                      id="checked-symptom-yes"
                       name="checkedSymptom"
                       value="yes"
+                      aria-label="Checked symptom yes"
                       checked={checkedSymptom === "yes"}
                       onChange={() => { setCheckedSymptom("yes"); setSelectedDepartment("") }}
                       className="w-4 h-4 text-cyan-600 shrink-0"
@@ -355,8 +357,10 @@ export default function BookAppointmentPage() {
                   <div className="flex items-center gap-3 min-w-0">
                     <input
                       type="radio"
+                      id="checked-symptom-no"
                       name="checkedSymptom"
                       value="no"
+                      aria-label="Checked symptom no"
                       checked={checkedSymptom === "no"}
                       onChange={() => { setCheckedSymptom("no"); setSelectedDepartment("outpatient") }}
                       className="w-4 h-4 text-cyan-600 shrink-0"

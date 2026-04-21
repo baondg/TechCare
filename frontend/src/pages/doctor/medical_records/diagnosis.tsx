@@ -427,7 +427,7 @@ export default function PatientDiagnosis() {
               <FormField
                 label="Chief complaint / symptoms"
                 value={selectedDx.complaint}
-                editable={selectedDx.isDraft && mutationsAllowed}
+                editable={!!selectedDx.isDraft && mutationsAllowed}
                 onChange={(v) => setSelectedDx({ ...selectedDx, complaint: v })}
               />
 
@@ -554,7 +554,15 @@ function Icd10Combobox({
             <Input
               className="h-10 min-h-10 min-w-0 flex-1 rounded-none border-0 bg-transparent px-3 py-2 text-sm shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
               value={value}
-              onChange={(e) => onIcdChange(e.target.value)}
+              onChange={(e) => {
+                onIcdChange(e.target.value)
+                setOpen(true)
+              }}
+              onInput={(e) => {
+                onIcdChange((e.target as HTMLInputElement).value)
+                setOpen(true)
+              }}
+              onClick={() => setOpen(true)}
               onFocus={() => setOpen(true)}
               onBlur={() => {
                 if (blurResolveTimerRef.current) clearTimeout(blurResolveTimerRef.current)
@@ -660,6 +668,8 @@ function FormField({
           rows={2}
           value={value}
           onChange={(e) => onChange(e.target.value)}
+          onInput={(e) => onChange((e.target as HTMLTextAreaElement).value)}
+          onBlur={(e) => onChange(e.target.value)}
         />
       ) : (
         <div className="rounded-lg border bg-slate-50 px-3 py-2 text-sm">{value || "—"}</div>

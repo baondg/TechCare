@@ -243,6 +243,7 @@ export default function AppointmentsPage() {
               id="cancel-reason"
               value={cancelReason}
               onChange={(e) => setCancelReason(e.target.value)}
+              onInput={(e) => setCancelReason((e.target as HTMLTextAreaElement).value)}
               placeholder="e.g. schedule conflict, feeling better…"
               rows={4}
               className="resize-none"
@@ -259,11 +260,12 @@ export default function AppointmentsPage() {
             </Button>
             <Button
               type="button"
-              className="bg-red-600 hover:bg-red-700 text-white"
+              id="cancel-appointment"
+              className="!bg-red-600 !hover:bg-red-700 text-white"
               disabled={!cancelReason.trim() || cancelSaving}
               onClick={() => void submitCancel()}
             >
-              {cancelSaving ? "Cancelling…" : "OK — Cancel appointment"}
+              {cancelSaving ? "Cancelling…" : "OK - Cancel appointment"}
             </Button>
           </DialogFooter>
         </DialogContent>

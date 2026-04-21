@@ -6,15 +6,10 @@ const Users = require('./Users');
 const Account = sequelize.define(
     'ACCOUNT',
     {      
-      id: {
-        type: DataTypes.INTEGER,
-        primaryKey: true,
-        autoIncrement: true
-      },
-
       user_id: {
         type: DataTypes.INTEGER,
-        unique: true,
+        primaryKey: true,
+        allowNull: false,
       },
 
       username: {

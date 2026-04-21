@@ -8,21 +8,18 @@ import { Textarea } from "@/components/ui/textarea"
 import { PatientLayout } from "@/components/patient-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Activity, Heart, AlertCircle, FileText, Save, History, X, Loader2, Stethoscope, Plus, Edit, Search, Copy, CheckCircle2, FileDown, Trash2 } from "lucide-react"
+import { Activity, Heart, AlertCircle, FileText, Save, X, Loader2, Plus, Edit, Search, Copy, CheckCircle2, FileDown, Trash2 } from "lucide-react"
 import { PauseableCornerToastPortal } from "@/components/pauseable-corner-toast"
 import { usePauseableToast } from "@/hooks/usePauseableToast"
 import { CollapsibleSection } from "@/components/collapsible-section"
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
-import { Badge } from "@/components/ui/badge"
 import { useParams } from "react-router-dom"
 import { doctorService } from "@/services/doctor-service"
-import type { HealthInfo } from "@/services/doctor-service"
-import { useAuth } from "@/contexts/AuthContext"
 import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, AreaChart, Area, ReferenceLine, ReferenceArea } from "recharts"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { generateHealthInfoTrackingPdfBlob } from "@/lib/export-health-info-tracking-pdf"
-import { signingLineFromIso, stampPdfWithExportFooter } from "@/lib/pdf-export-stamp"
+import { stampPdfWithExportFooter } from "@/lib/pdf-export-stamp"
 import {
   PATIENT_BLOOD_TYPES,
   PATIENT_BLOOD_TYPE_UNSET,
@@ -46,7 +43,6 @@ function VitalWarning({ message }: { message: string | null }) {
 
 export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps) {
   const { toast, isExiting, showSuccess, showError, onMouseEnter, onMouseLeave } = usePauseableToast(2600)
-  const { user } = useAuth()
   /** Doctors and nurses can edit patient health info on this page (same controls). */
   const allowHealthWrites = mode === "nurse" || mode === "doctor"
   const params = useParams<{ patientId: string }>()
@@ -99,7 +95,7 @@ export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps)
   const [respiratoryRate, setRespiratoryRate] = useState("")
   const [temperature, setTemperature] = useState("")
   const [spo2, setSpo2] = useState("")
-  const [bloodType, setBloodType] = useState(PATIENT_BLOOD_TYPE_UNSET)
+  const [bloodType, setBloodType] = useState<string>(PATIENT_BLOOD_TYPE_UNSET)
   const [symptoms, setSymptoms] = useState("")
 
   // for filters
@@ -152,8 +148,6 @@ export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps)
       (filters.status === "All" || !filters.status || status === filters.status)
     )
   })
-
-  const [historyPagination, setHistoryPagination] = useState({ total: 0, page: 1, limit: 10, totalPages: 1 })
 
   const [selectedRecord, setSelectedRecord] = useState<HealthRecord | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
@@ -447,13 +441,11 @@ export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps)
         const [sys, dia] = (info.blood_pressure || "0/0").split("/")
         setBpSys(sys)
         setBpDia(dia)
-        setBpDia(info.blood_pressure?.toString() || "")
         setHeartRate(info.heart_rate?.toString() || "")
         setRespiratoryRate(info.respiratory_rate?.toString() || "")
         setTemperature(info.temperature?.toString() || "")
         setSpo2(info.spo2?.toString() || "")
-        setSymptoms(info.condition || "")
-        setSymptoms(info.currentSymptoms || "")
+        setSymptoms(info.currentSymptoms ?? info.condition ?? "")
         
         // Set allergies (supports both flat fields and allergic_info object)
         setDrugAllergies(chooseNonEmpty(toArray(info.drugAllergies ?? allergicInfo.drugAllergies), defaults.drugAllergies))
@@ -758,6 +750,8 @@ const loadHealthHistory = async () => {
                 value={v}
                 disabled={disabled}
                 onChange={(e) => updateValue(i, e.target.value)}
+                onInput={(e) => updateValue(i, (e.target as HTMLInputElement).value)}
+                onBlur={(e) => updateValue(i, e.target.value)}
                 className="flex-1"
               />
 
@@ -908,6 +902,7 @@ const loadHealthHistory = async () => {
                         className="h-8 text-xs"
                         value={filters.date}
                         onChange={(e) => setFilters({ ...filters, date: e.target.value })}
+                        onInput={(e) => setFilters({ ...filters, date: (e.target as HTMLInputElement).value })}
                       />
                     </TableHead>
 
@@ -918,6 +913,7 @@ const loadHealthHistory = async () => {
                           className="h-8 text-xs text-center pr-8"
                           value={filters.height}
                           onChange={(e) => setFilters({ ...filters, height: e.target.value })}
+                          onInput={(e) => setFilters({ ...filters, height: (e.target as HTMLInputElement).value })}
                         />
                         <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                       </div>
@@ -929,6 +925,7 @@ const loadHealthHistory = async () => {
                           className="h-8 text-xs text-center pr-8"
                           value={filters.weight}
                           onChange={(e) => setFilters({ ...filters, weight: e.target.value })}
+                          onInput={(e) => setFilters({ ...filters, weight: (e.target as HTMLInputElement).value })}
                         />
                         <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                       </div>
@@ -942,6 +939,7 @@ const loadHealthHistory = async () => {
                           className="h-8 text-xs text-center"
                           value={filters.bmi}
                           onChange={(e) => setFilters({ ...filters, bmi: e.target.value })}
+                          onInput={(e) => setFilters({ ...filters, bmi: (e.target as HTMLInputElement).value })}
                         />
                       </div>
                     </TableHead>
@@ -954,6 +952,7 @@ const loadHealthHistory = async () => {
                           className="h-8 text-xs text-center"
                           value={filters.bloodPressure}
                           onChange={(e) => setFilters({ ...filters, bloodPressure: e.target.value })}
+                          onInput={(e) => setFilters({ ...filters, bloodPressure: (e.target as HTMLInputElement).value })}
                         />
                       </div>
                     </TableHead>
@@ -966,6 +965,7 @@ const loadHealthHistory = async () => {
                           className="h-8 text-xs text-center"
                           value={filters.heartRate}
                           onChange={(e) => setFilters({ ...filters, heartRate: e.target.value })}
+                          onInput={(e) => setFilters({ ...filters, heartRate: (e.target as HTMLInputElement).value })}
                         />
                       </div>
                     </TableHead>
@@ -978,6 +978,7 @@ const loadHealthHistory = async () => {
                           className="h-8 text-xs text-center"
                           value={filters.respiratoryRate}
                           onChange={(e) => setFilters({ ...filters, respiratoryRate: e.target.value })}
+                          onInput={(e) => setFilters({ ...filters, respiratoryRate: (e.target as HTMLInputElement).value })}
                         />
                       </div>
                     </TableHead>
@@ -990,6 +991,7 @@ const loadHealthHistory = async () => {
                           className="h-8 text-xs text-center"
                           value={filters.temperature}
                           onChange={(e) => setFilters({ ...filters, temperature: e.target.value })}
+                          onInput={(e) => setFilters({ ...filters, temperature: (e.target as HTMLInputElement).value })}
                         />
                       </div>
                     </TableHead>
@@ -1002,6 +1004,7 @@ const loadHealthHistory = async () => {
                           className="h-8 text-xs text-center"
                           value={filters.spo2}
                           onChange={(e) => setFilters({ ...filters, spo2: e.target.value })}
+                          onInput={(e) => setFilters({ ...filters, spo2: (e.target as HTMLInputElement).value })}
                         />
                       </div>
                     </TableHead>
@@ -1014,6 +1017,7 @@ const loadHealthHistory = async () => {
                           className="h-8 text-xs"
                           value={filters.symptoms}
                           onChange={(e) => setFilters({ ...filters, symptoms: e.target.value })}
+                          onInput={(e) => setFilters({ ...filters, symptoms: (e.target as HTMLInputElement).value })}
                         />
                       </div>
                     </TableHead>
@@ -1370,16 +1374,22 @@ const loadHealthHistory = async () => {
               <div className="flex gap-2 text-sm font-normal bg-background text-muted-foreground">
                 <div className="flex-1 min-w-0 space-y-0">
                   <Input
+                    id="bpSys"
                     value={bpSys}
                     onChange={(e) => setBpSys(e.target.value)}
+                    onInput={(e) => setBpSys((e.target as HTMLInputElement).value)}
+                    onBlur={(e) => setBpSys(e.target.value)}
                     disabled={!isEditing || !allowHealthWrites}
                   />
                   <VitalWarning message={vitalNumericError("bpSys", bpSys)} />
                 </div>
                 <div className="flex-1 min-w-0 space-y-0">
                   <Input
+                    id="bpDia"
                     value={bpDia}
                     onChange={(e) => setBpDia(e.target.value)}
+                    onInput={(e) => setBpDia((e.target as HTMLInputElement).value)}
+                    onBlur={(e) => setBpDia(e.target.value)}
                     disabled={!isEditing || !allowHealthWrites}
                   />
                   <VitalWarning message={vitalNumericError("bpDia", bpDia)} />
@@ -1394,6 +1404,8 @@ const loadHealthHistory = async () => {
                 id="oxygen"
                 value={spo2}
                 onChange={(e) => setSpo2(e.target.value)}
+                onInput={(e) => setSpo2((e.target as HTMLInputElement).value)}
+                onBlur={(e) => setSpo2(e.target.value)}
                 disabled={!isEditing || !allowHealthWrites}
               />
               <VitalWarning message={vitalNumericError("spo2", spo2)} />
@@ -1406,6 +1418,8 @@ const loadHealthHistory = async () => {
                 id="temperature"
                 value={temperature}
                 onChange={(e) => setTemperature(e.target.value)}
+                onInput={(e) => setTemperature((e.target as HTMLInputElement).value)}
+                onBlur={(e) => setTemperature(e.target.value)}
                 disabled={!isEditing || !allowHealthWrites}
               />
               <VitalWarning message={vitalNumericError("temperature", temperature)} />
@@ -1418,6 +1432,8 @@ const loadHealthHistory = async () => {
                 id="height" 
                 value={height}
                 onChange={(e) => setHeight(e.target.value)}
+                onInput={(e) => setHeight((e.target as HTMLInputElement).value)}
+                onBlur={(e) => setHeight(e.target.value)}
                 disabled={!isEditing || !allowHealthWrites}
                 type="number" />
               <VitalWarning message={vitalNumericError("height", height)} />
@@ -1430,6 +1446,8 @@ const loadHealthHistory = async () => {
                 id="respiratory"
                 value={respiratoryRate}
                 onChange={(e) => setRespiratoryRate(e.target.value)}
+                onInput={(e) => setRespiratoryRate((e.target as HTMLInputElement).value)}
+                onBlur={(e) => setRespiratoryRate(e.target.value)}
                 disabled={!isEditing || !allowHealthWrites}
               />
               <VitalWarning message={vitalNumericError("respiratoryRate", respiratoryRate)} />
@@ -1442,6 +1460,8 @@ const loadHealthHistory = async () => {
                 value={weight}
                 disabled={!isEditing || !allowHealthWrites}
                 onChange={(e) => setWeight(e.target.value)}
+                onInput={(e) => setWeight((e.target as HTMLInputElement).value)}
+                onBlur={(e) => setWeight(e.target.value)}
                 type="number" />
               <VitalWarning message={vitalNumericError("weight", weight)} />
             </div>
@@ -1453,6 +1473,8 @@ const loadHealthHistory = async () => {
                 id="heart-rate"
                 value={heartRate}
                 onChange={(e) => setHeartRate(e.target.value)}
+                onInput={(e) => setHeartRate((e.target as HTMLInputElement).value)}
+                onBlur={(e) => setHeartRate(e.target.value)}
                 disabled={!isEditing || !allowHealthWrites}
               />
               <VitalWarning message={vitalNumericError("heartRate", heartRate)} />
@@ -1531,8 +1553,11 @@ const loadHealthHistory = async () => {
           <div className="space-y-2">
             <Label>Symptoms</Label>
             <Textarea
+              id="symptoms"
               value={symptoms}
               onChange={(e) => setSymptoms(e.target.value)}
+              onInput={(e) => setSymptoms((e.target as HTMLTextAreaElement).value)}
+              onBlur={(e) => setSymptoms(e.target.value)}
               disabled={!isEditing || !allowHealthWrites}
               rows={4}
               placeholder="Describe any current symptoms you are experiencing..."

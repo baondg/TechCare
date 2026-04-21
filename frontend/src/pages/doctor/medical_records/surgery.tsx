@@ -471,9 +471,12 @@ export default function PatientSurgery() {
                   <div>
                     <label className="text-xs text-slate-500">Surgeon</label>
                     <input
+                      id="surgeon"
                       className="w-full border rounded px-2 py-1 text-sm"
                       value={selected.surgeon}
                       onChange={(e) => patchSelected({ surgeon: e.target.value })}
+                      onInput={(e) => patchSelected({ surgeon: (e.target as HTMLInputElement).value })}
+                      onBlur={(e) => patchSelected({ surgeon: e.target.value })}
                     />
                   </div>
                 ) : (
@@ -524,6 +527,10 @@ export default function PatientSurgery() {
                           const iso = toIsoFromLocal(e.target.value)
                           if (iso) patchSelected({ startIso: iso })
                         }}
+                        onInput={(e) => {
+                          const iso = toIsoFromLocal((e.target as HTMLInputElement).value)
+                          if (iso) patchSelected({ startIso: iso })
+                        }}
                       />
                     </div>
                     <div>
@@ -534,6 +541,10 @@ export default function PatientSurgery() {
                         value={toDateInput(selected.endIso)}
                         onChange={(e) => {
                           const iso = toIsoFromLocal(e.target.value)
+                          if (iso) patchSelected({ endIso: iso })
+                        }}
+                        onInput={(e) => {
+                          const iso = toIsoFromLocal((e.target as HTMLInputElement).value)
                           if (iso) patchSelected({ endIso: iso })
                         }}
                       />
@@ -600,6 +611,8 @@ function TextArea({
           rows={3}
           value={value}
           onChange={(e) => onChange(e.target.value)}
+          onInput={(e) => onChange((e.target as HTMLTextAreaElement).value)}
+          onBlur={(e) => onChange(e.target.value)}
         />
       ) : (
         <div className="border rounded px-2 py-2 text-sm bg-slate-50">{value || "—"}</div>

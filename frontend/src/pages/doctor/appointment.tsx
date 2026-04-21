@@ -66,7 +66,7 @@ export default function DoctorAppointmentsPage() {
   const [acceptingId, setAcceptingId] = useState<number | null>(null)
   const [optionsMenuOpenId, setOptionsMenuOpenId] = useState<number | null>(null)
 
-  const { toast, isExiting, showSuccess, onMouseEnter, onMouseLeave } = usePauseableToast(2600)
+  const { toast, isExiting, showSuccess, showError, onMouseEnter, onMouseLeave } = usePauseableToast(2600)
   const { appointments, loading, refresh, confirm, cancelConfirmed } = useDoctorAppointments()
 
   useEffect(() => {
@@ -76,9 +76,10 @@ export default function DoctorAppointmentsPage() {
         setDoctorOptions(list || [])
       } catch (e) {
         console.error(e)
+        showError(e instanceof Error ? e.message : "Could not load doctor list")
       }
     })()
-  }, [])
+  }, [showError])
 
   const filteredAppointments = useMemo(() => {
     let filtered = [...appointments]
@@ -149,8 +150,9 @@ export default function DoctorAppointmentsPage() {
       setCoverReason("")
       setSelectedAppointmentIds([])
       refresh()
+      showSuccess("Cover doctor assigned successfully")
     } catch (e: unknown) {
-      window.alert(e instanceof Error ? e.message : "Could not assign cover doctor")
+      showError(e instanceof Error ? e.message : "Could not assign cover doctor")
     } finally {
       setCoverSaving(false)
     }
@@ -165,8 +167,9 @@ export default function DoctorAppointmentsPage() {
       setCancelOpen(false)
       setCancelTarget(null)
       setCancelReason("")
+      showSuccess("Visit cancelled successfully")
     } catch (e: unknown) {
-      window.alert(e instanceof Error ? e.message : "Could not cancel appointment")
+      showError(e instanceof Error ? e.message : "Could not cancel appointment")
     } finally {
       setCancelSaving(false)
     }
@@ -176,9 +179,9 @@ export default function DoctorAppointmentsPage() {
     setAcceptingId(a.id)
     try {
       await confirm(a.id)
-      showSuccess("Success")
+      showSuccess("Appointment accepted successfully")
     } catch (e: unknown) {
-      window.alert(e instanceof Error ? e.message : "Could not confirm appointment")
+      showError(e instanceof Error ? e.message : "Could not confirm appointment")
     } finally {
       setAcceptingId(null)
     }
@@ -191,11 +194,6 @@ export default function DoctorAppointmentsPage() {
           <h2 className="text-3xl font-bold bg-linear-to-r from-[#06b6d4] via-[#0891b2] to-[#06b6d4] bg-clip-text text-transparent mb-2">
             My Appointments
           </h2>
-          <p className="text-slate-600 text-lg">
-            Pending online bookings show <span className="font-medium text-slate-800">Accept</span> only. After you
-            accept, use the <span className="font-medium text-slate-800">⋮</span> menu on the card for cover or cancel
-            visit — a reason is required and the patient (and others) are notified.
-          </p>
         </div>
 
         <Card className="card-feature border-slate-200/60">
@@ -443,6 +441,7 @@ export default function DoctorAppointmentsPage() {
                   id="cover-reason"
                   value={coverReason}
                   onChange={(e) => setCoverReason(e.target.value)}
+                  onInput={(e) => setCoverReason((e.target as HTMLTextAreaElement).value)}
                   placeholder="Required - shared with the patient in the notification"
                   rows={3}
                   className="resize-none"
@@ -478,6 +477,7 @@ export default function DoctorAppointmentsPage() {
                   id="cover-reason-bulk"
                   value={coverReason}
                   onChange={(e) => setCoverReason(e.target.value)}
+                  onInput={(e) => setCoverReason((e.target as HTMLTextAreaElement).value)}
                   placeholder="Required — applied to each selected booking"
                   rows={3}
                   className="resize-none"
@@ -490,6 +490,7 @@ export default function DoctorAppointmentsPage() {
               Cancel
             </Button>
             <Button
+              id="ok-cover-appointments"
               type="button"
               className="btn-gradient"
               disabled={!coverDoctorId || !coverReason.trim() || coverSaving}
@@ -521,6 +522,7 @@ export default function DoctorAppointmentsPage() {
                 id="cancel-visit-reason"
                 value={cancelReason}
                 onChange={(e) => setCancelReason(e.target.value)}
+                onInput={(e) => setCancelReason((e.target as HTMLTextAreaElement).value)}
                 rows={4}
                 className="resize-none"
                 placeholder="Required"
@@ -532,6 +534,7 @@ export default function DoctorAppointmentsPage() {
               Back
             </Button>
             <Button
+              id="ok-cancel-visit"
               type="button"
               className="!bg-red-600 hover:bg-red-700 text-white"
               disabled={!cancelReason.trim() || cancelSaving}

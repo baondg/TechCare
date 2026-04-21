@@ -33,11 +33,16 @@ export default function LoginPage() {
 
   // };
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
 
-    const result = await login(username, password);
+    const formData = new FormData(e.currentTarget);
+    // Fallback to DOM values so automation tools that don't fire React input events still work.
+    const submittedUsername = String(formData.get("username") ?? "").trim() || username.trim();
+    const submittedPassword = String(formData.get("password") ?? "") || password;
+
+    const result = await login(submittedUsername, submittedPassword);
 
     if (!result.success) {
       setError(result.error ?? "Login failed. Please check your credentials.");
@@ -128,6 +133,7 @@ export default function LoginPage() {
                 </Label>
                 <Input
                   id="username"
+                  name="username"
                   type="text"
                   placeholder="Enter username"
                   required
@@ -143,6 +149,7 @@ export default function LoginPage() {
                 <div className="relative"> 
                   <Input 
                     id="password" 
+                    name="password"
                     type={showPassword ? "text" : "password"} 
                     placeholder="Enter password" 
                     required 
@@ -150,12 +157,14 @@ export default function LoginPage() {
                     value={password}
                     onChange={e => setPassword(e.target.value)}
                   />
-                  <div
+                  <button
+                    type="button"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute inset-y-0 right-0 flex items-center bg-none border-none pr-3 text-gray-500 hover:text-gray-700 focus:outline-none"
                   >
                     {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                  </div>
+                  </button>
                 </div>
               </div>
               <div className="flex items-center justify-between text-sm">
@@ -176,15 +185,16 @@ export default function LoginPage() {
 
             <div className="mt-6 text-center text-sm">
               <span className="text-muted-foreground">Don't have an account? </span>
-              <a
-                href="/register"
+              <Link
+                to="/register"
+                aria-label="Register as patient"
                 className="group/item relative inline-block text-sm font-medium text-linear-to-r from-[#06b6d4] to-[#0891b2] hover:text-cyan-600 transition-all duration-400">
                 Register as patient
                 <span 
                   className="absolute inset-x-0 bottom-0 mx-auto h-0.5 w-0 bg-linear-to-r from-[#06b6d4] to-[#0891b2] rounded-full 
                             transition-all duration-500 ease-out origin-center
                             group-hover/item:w-full"/>
-              </a>
+              </Link>
             </div>
           </CardContent>
         </Card>

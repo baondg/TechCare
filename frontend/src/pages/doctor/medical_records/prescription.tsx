@@ -224,6 +224,7 @@ function MedicineNameCombobox({
             value={value}
             disabled={disabled}
             onChange={(e) => onChange(e.target.value)}
+            onInput={(e) => onChange((e.target as HTMLInputElement).value)}
             onFocus={() => setOpen(true)}
             onBlur={() => {
               if (blurResolveTimerRef.current) clearTimeout(blurResolveTimerRef.current)
@@ -380,6 +381,7 @@ function UsageTypeaheadInput({
         placeholder={suggestion ? "" : "Usage"}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
+        onInput={(e) => onChange((e.target as HTMLInputElement).value)}
         onKeyDown={onKeyDown}
         title={suggestion ? `Press Enter to insert: ${suggestion.trimEnd()}` : undefined}
         spellCheck={false}
@@ -962,6 +964,8 @@ export default function PatientPrescription() {
                             placeholder="Qty"
                             disabled={!mutationsAllowed}
                             onChange={(e) => updateMedication(index, "quantity", e.target.value)}
+                            onInput={(e) => updateMedication(index, "quantity", (e.target as HTMLInputElement).value)}
+                            onBlur={(e) => updateMedication(index, "quantity", e.target.value)}
                           />
                         </TableCell>
                         <TableCell className="p-0.5 align-middle">
@@ -983,6 +987,8 @@ export default function PatientPrescription() {
                             title="Số ngày dùng thuốc"
                             disabled={!mutationsAllowed}
                             onChange={(e) => updateMedication(index, "duration", e.target.value)}
+                            onInput={(e) => updateMedication(index, "duration", (e.target as HTMLInputElement).value)}
+                            onBlur={(e) => updateMedication(index, "duration", e.target.value)}
                           />
                         </TableCell>
                         <TableCell className="p-0.5 align-middle">
@@ -1002,6 +1008,8 @@ export default function PatientPrescription() {
                             placeholder="Note"
                             disabled={!mutationsAllowed}
                             onChange={(e) => updateMedication(index, "note", e.target.value)}
+                            onInput={(e) => updateMedication(index, "note", (e.target as HTMLInputElement).value)}
+                            onBlur={(e) => updateMedication(index, "note", e.target.value)}
                           />
                         </TableCell>
                         <TableCell className="w-7 p-0.5 text-center align-middle">

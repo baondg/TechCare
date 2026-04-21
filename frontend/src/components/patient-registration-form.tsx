@@ -10,7 +10,7 @@ import { Activity, CircleUserRound, CalendarIcon, Phone, KeyRound, IdCard, Check
 import { Link } from "react-router-dom";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { format } from "date-fns"
+import { format, isValid, parse } from "date-fns"
 import { Select, SelectTrigger, SelectValue, SelectItem, SelectContent } from "@/components/ui/select";
 import type { RegisterData } from "@/contexts/AuthContext";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -59,8 +59,10 @@ export function PatientRegistrationForm({
     const [lastName, setLastName] = useState("");
     
     const [dob, setDob] = useState<Date | undefined>();
+    const [dobInputValue, setDobInputValue] = useState("");
     const age = dob ? calculateAge(dob) : "";
     const [dobRelative, setDobRelative] = useState<Date | undefined>();
+    const [dobRelativeInputValue, setDobRelativeInputValue] = useState("");
     const ageRelative = dobRelative ? calculateAge(dobRelative) : "";
     const [nationalId, setNationalId] = useState("");
     const accountUsername = useMemo(() => nationalId.trim(), [nationalId]);
@@ -79,6 +81,7 @@ export function PatientRegistrationForm({
     const [insuranceId, setInsuranceId] = useState("");
     const [insuranceProvider, setInsuranceProvider] = useState("");
     const [insuranceExpiry, setInsuranceExpiry] = useState<Date | undefined>();
+    const [insuranceExpiryInputValue, setInsuranceExpiryInputValue] = useState("");
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
     // check length of password
@@ -91,13 +94,34 @@ export function PatientRegistrationForm({
     const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+/.test(password);
     const passwordsMatch = password === confirmPassword && password.length > 0;
     const [showPassword, setShowPassword] = useState(false);
+
+    const syncNationalId = (value: string) => {
+      setNationalId(value);
+    };
+    const syncFirstName = (value: string) => {
+      setFirstName(value);
+    };
+    const syncLastName = (value: string) => {
+      setLastName(value);
+    };
+    const syncPhone = (value: string) => {
+      setPhone(value);
+    };
+    const syncPassword = (value: string) => {
+      setPassword(value);
+    };
+    const syncConfirmPassword = (value: string) => {
+      setConfirmPassword(value);
+    };
     
     const resetFormFields = () => {
       setEmail("");
       setFirstName("");
       setLastName("");
       setDob(undefined);
+      setDobInputValue("");
       setDobRelative(undefined);
+      setDobRelativeInputValue("");
       setNationalId("");
       setPhone("");
       setSex("male");
@@ -110,8 +134,25 @@ export function PatientRegistrationForm({
       setInsuranceId("");
       setInsuranceProvider("");
       setInsuranceExpiry(undefined);
+      setInsuranceExpiryInputValue("");
       setPassword("");
       setConfirmPassword("");
+    };
+
+    const formatDateInput = (raw: string) => {
+      const digits = raw.replace(/\D/g, "").slice(0, 8);
+      if (digits.length <= 2) return digits;
+      if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+      return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+    };
+
+    const parseDateInput = (value: string) => {
+      if (!value) return undefined;
+      const parsedDate = parse(value, "dd/MM/yyyy", new Date());
+      if (!isValid(parsedDate)) return undefined;
+      // Prevent partial/overflow dates from being accepted.
+      if (format(parsedDate, "dd/MM/yyyy") !== value) return undefined;
+      return parsedDate;
     };
 
     const handleRegister = async (e: React.FormEvent) => {
@@ -238,12 +279,17 @@ export function PatientRegistrationForm({
           <CardContent className="grid grid-cols-2 md:grid-cols-2 gap-4">
 
             <div>
-              <Label>
+              <Label htmlFor="national-id">
                 National ID / passport <span className="text-red-500">*</span>
               </Label>
               <Input 
+                id="national-id"
+                name="nationalId"
+                aria-label="National ID"
                 value={nationalId}
-                onChange={(e) => setNationalId(e.target.value)}
+                onChange={(e) => syncNationalId(e.target.value)}
+                onInput={(e) => syncNationalId((e.target as HTMLInputElement).value)}
+                onBlur={(e) => syncNationalId(e.target.value)}
                 className="custom-input"
                 required
                 maxLength={12}
@@ -253,8 +299,11 @@ export function PatientRegistrationForm({
             </div>
 
             <div>
-              <Label>Username (for login)</Label>
+              <Label htmlFor="username">Username (for login)</Label>
               <Input 
+                id="username"
+                name="username"
+                aria-label="Username (for login)"
                 placeholder="Matches National ID / passport"
                 value={accountUsername}
                 disabled
@@ -268,72 +317,118 @@ export function PatientRegistrationForm({
 
             
             <div>
-              <Label>
+              <Label htmlFor="first-name">
                 First Name <span className="text-red-500">*</span>
               </Label>
               <Input 
+                id="first-name"
+                name="firstName"
+                aria-label="First Name"
                 value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
+                onChange={(e) => syncFirstName(e.target.value)}
+                onInput={(e) => syncFirstName((e.target as HTMLInputElement).value)}
+                onBlur={(e) => syncFirstName(e.target.value)}
                 required
               />
             </div>
 
             <div>
-              <Label>
+              <Label htmlFor="last-name">
                 Last Name <span className="text-red-500">*</span>
               </Label>
               <Input 
+                id="last-name"
+                name="lastName"
+                aria-label="Last Name"
                 value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
+                onChange={(e) => syncLastName(e.target.value)}
+                onInput={(e) => syncLastName((e.target as HTMLInputElement).value)}
+                onBlur={(e) => syncLastName(e.target.value)}
                 required
               />
             </div>
 
 
             <div>
-              <Label>
+              <Label htmlFor="dob-input">
                 Date of Birth <span className="text-red-500">*</span>
               </Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                <div
-                    className="custom-popover custom-popover-secondary
-                    w-full flex items-center justify-between 
-                    px-3 py-2 
-                    text-sm text-muted-foreground
-                    "
-                >
-                    <span className={dob ? "text-foreground" : "text-muted-foreground"}>
-                    {dob ? format(dob, "dd/MM/yyyy") : "dd/mm/yyyy"}
-                    </span>
-
-                    <CalendarIcon className="h-5 w-5 opacity-60" />
-                </div>
-                </PopoverTrigger>
-                <PopoverContent className="p-0">
-                  <Calendar 
-                    mode="single" 
-                    selected={dob} 
-                    onSelect={setDob} 
-                    captionLayout="dropdown"
+              <div className="flex items-center gap-2">
+                <Input
+                  id="dob-input"
+                  value={dobInputValue}
+                  onChange={(e) => {
+                    const formattedInput = formatDateInput(e.target.value);
+                    setDobInputValue(formattedInput);
+                    if (formattedInput.length === 10) {
+                      setDob(parseDateInput(formattedInput));
+                    }
+                  }}
+                  onInput={(e) => {
+                    const formattedInput = formatDateInput((e.target as HTMLInputElement).value);
+                    setDobInputValue(formattedInput);
+                    if (formattedInput.length === 10) {
+                      setDob(parseDateInput(formattedInput));
+                    }
+                  }}
+                  onBlur={(e) => {
+                    const parsedDate = parseDateInput(e.target.value);
+                    setDob(parsedDate);
+                    if (parsedDate) {
+                      setDobInputValue(format(parsedDate, "dd/MM/yyyy"));
+                    }
+                  }}
+                  placeholder="dd/mm/yyyy"
+                  inputMode="numeric"
+                  autoComplete="bday"
+                  className="custom-input"
+                  required
+                />
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      aria-label="Open date picker"
+                      className="shrink-0"
+                    >
+                      <CalendarIcon className="h-5 w-5 opacity-70" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="p-0">
+                    <Calendar
+                      mode="single"
+                      selected={dob}
+                      onSelect={(selectedDate) => {
+                        setDob(selectedDate);
+                        setDobInputValue(selectedDate ? format(selectedDate, "dd/MM/yyyy") : "");
+                      }}
+                      captionLayout="dropdown"
                     />
-                </PopoverContent>
-              </Popover>
+                  </PopoverContent>
+                </Popover>
+              </div>
             </div>
 
             <div>
-              <Label>Age</Label>
-              <Input value={age} disabled placeholder="Age" className="rounded-2xl ring-1 ring-gray-200"/>
+              <Label htmlFor="age">Age</Label>
+              <Input id="age" name="age" aria-label="Age" value={age} disabled placeholder="Age" className="rounded-2xl ring-1 ring-gray-200"/>
             </div>
 
             <div>
-              <Label>
+              <Label htmlFor="phone">
                 Phone Number <span className="text-red-500">*</span>
               </Label>
               <Input 
+                id="phone"
+                name="phone"
+                aria-label="Phone Number"
                 className="custom-input"
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                onChange={(e) => syncPhone(e.target.value)}
+                onInput={(e) => syncPhone((e.target as HTMLInputElement).value)}
+                onBlur={(e) => syncPhone(e.target.value)}
                 required
                 autoComplete="tel"
               />
@@ -341,11 +436,11 @@ export function PatientRegistrationForm({
 
 
             <div>
-              <Label>
+              <Label htmlFor="sex">
                 Sex <span className="text-red-500">*</span>
               </Label>
               <Select value={sex} onValueChange={(v) => setSex(v as any)}>
-                <SelectTrigger className="custom-select transition-all duration-100 rounded-2xl">
+                <SelectTrigger id="sex" aria-label="Sex" className="custom-select transition-all duration-100 rounded-2xl">
                   <div className="text-sm font-normal bg-background text-muted-foreground">
                     <SelectValue placeholder="Male" />
                   </div>
@@ -359,12 +454,17 @@ export function PatientRegistrationForm({
             </div>
 
             <div className="md:col-span-2">
-              <Label>Email (optional)</Label>
+              <Label htmlFor="email">Email (optional)</Label>
               <Input 
+                id="email"
+                name="email"
+                aria-label="Email"
                 placeholder="user@example.com" 
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                onInput={(e) => setEmail((e.target as HTMLInputElement).value)}
+                onBlur={(e) => setEmail(e.target.value)}
               />
             </div>
           </CardContent>
@@ -383,27 +483,37 @@ export function PatientRegistrationForm({
             
 
             <div>
-              <Label>National ID/passport</Label>
+              <Label htmlFor="relative-national-id">National ID/passport</Label>
               <Input 
+                id="relative-national-id"
+                name="relativeNationalId"
+                aria-label="Relative National ID/passport"
                 className="custom-input"
                 value={relativeNationalId}
                 onChange={(e) => setRelativeNationalId(e.target.value)}
+                onInput={(e) => setRelativeNationalId((e.target as HTMLInputElement).value)}
+                onBlur={(e) => setRelativeNationalId(e.target.value)}
               />
             </div>
 
             <div>
-              <Label>Name</Label>
+              <Label htmlFor="relative-name">Name</Label>
               <Input 
+                id="relative-name"
+                name="relativeName"
+                aria-label="Relative Name"
                 className="custom-input"
                 value={relativeName}
                 onChange={(e) => setRelativeName(e.target.value)}
+                onInput={(e) => setRelativeName((e.target as HTMLInputElement).value)}
+                onBlur={(e) => setRelativeName(e.target.value)}
               />
             </div>
 
             <div className="md:col-span-2">
-              <Label>Relationship</Label>
+              <Label htmlFor="relative-relationship">Relationship</Label>
               <Select value={relativeRelationship} onValueChange={setRelativeRelationship}>
-                <SelectTrigger className="custom-select transition-all duration-100 rounded-2xl">
+                <SelectTrigger id="relative-relationship" aria-label="Relationship" className="custom-select transition-all duration-100 rounded-2xl">
                   <div className="text-sm font-normal bg-background text-muted-foreground">
                     <SelectValue placeholder="Father" />
                   </div>
@@ -417,53 +527,90 @@ export function PatientRegistrationForm({
             </div>
 
             <div>
-              <Label>Date of Birth</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                <div
-                    className="custom-popover custom-popover-secondary
-                    w-full flex items-center justify-between 
-                    px-3 py-2 
-                    text-sm text-muted-foreground 
-                    "
-                >
-                    <span className={dobRelative ? "text-foreground" : "text-muted-foreground"}>
-                    {dobRelative ? format(dobRelative, "dd/MM/yyyy") : "dd/mm/yyyy"}
-                    </span>
-
-                    <CalendarIcon className="h-5 w-5 opacity-60" />
-                </div>
-                </PopoverTrigger>
-                <PopoverContent className="p-0 ">
-                  <Calendar 
-                    mode="single" 
-                    selected={dobRelative} 
-                    onSelect={setDobRelative} 
-                    captionLayout="dropdown"
+              <Label htmlFor="relative-dob-trigger">Date of Birth</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="relative-dob-trigger"
+                  name="relativeDob"
+                  aria-label="Relative Date of Birth"
+                  value={dobRelativeInputValue}
+                  onChange={(e) => {
+                    const formattedInput = formatDateInput(e.target.value);
+                    setDobRelativeInputValue(formattedInput);
+                    if (formattedInput.length === 10) {
+                      setDobRelative(parseDateInput(formattedInput));
+                    }
+                  }}
+                  onInput={(e) => {
+                    const formattedInput = formatDateInput((e.target as HTMLInputElement).value);
+                    setDobRelativeInputValue(formattedInput);
+                    if (formattedInput.length === 10) {
+                      setDobRelative(parseDateInput(formattedInput));
+                    }
+                  }}
+                  onBlur={(e) => {
+                    const parsedDate = parseDateInput(e.target.value);
+                    setDobRelative(parsedDate);
+                    if (parsedDate) {
+                      setDobRelativeInputValue(format(parsedDate, "dd/MM/yyyy"));
+                    }
+                  }}
+                  placeholder="dd/mm/yyyy"
+                  inputMode="numeric"
+                  autoComplete="bday"
+                  className="custom-input"
+                />
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      aria-label="Open relative date picker"
+                      className="shrink-0"
+                    >
+                      <CalendarIcon className="h-5 w-5 opacity-70" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="p-0 ">
+                    <Calendar
+                      mode="single"
+                      selected={dobRelative}
+                      onSelect={(selectedDate) => {
+                        setDobRelative(selectedDate);
+                        setDobRelativeInputValue(selectedDate ? format(selectedDate, "dd/MM/yyyy") : "");
+                      }}
+                      captionLayout="dropdown"
                     />
-                </PopoverContent>
-              </Popover>
+                  </PopoverContent>
+                </Popover>
+              </div>
             </div>
 
             <div>
-              <Label >Age</Label>
-              <Input value={ageRelative} disabled placeholder="Age" className="rounded-2xl ring-1 ring-gray-200"/>
+              <Label htmlFor="relative-age">Age</Label>
+              <Input id="relative-age" name="relativeAge" aria-label="Relative Age" value={ageRelative} disabled placeholder="Age" className="rounded-2xl ring-1 ring-gray-200"/>
             </div>
 
             <div>
-              <Label>Phone Number</Label>
+              <Label htmlFor="relative-phone">Phone Number</Label>
               <Input 
+                id="relative-phone"
+                name="relativePhone"
+                aria-label="Relative Phone Number"
                 className="custom-input"
                 value={relativePhone}
                 onChange={(e) => setRelativePhone(e.target.value)}
+                onInput={(e) => setRelativePhone((e.target as HTMLInputElement).value)}
+                onBlur={(e) => setRelativePhone(e.target.value)}
               />
             </div>
 
 
             <div>
-              <Label>Sex</Label>
+              <Label htmlFor="relative-sex">Sex</Label>
               <Select value={relativeSex} onValueChange={(v) => setRelativeSex(v as any)}>
-                <SelectTrigger className="custom-select transition-all duration-100 rounded-2xl">
+                <SelectTrigger id="relative-sex" aria-label="Relative Sex" className="custom-select transition-all duration-100 rounded-2xl">
                   <div className="text-sm font-normal bg-background text-muted-foreground">
                     <SelectValue placeholder="Male" />
                   </div>
@@ -477,12 +624,17 @@ export function PatientRegistrationForm({
             </div>
 
             <div className="md:col-span-2">
-              <Label>Email</Label>
+              <Label htmlFor="relative-email">Email</Label>
               <Input 
+                id="relative-email"
+                name="relativeEmail"
+                aria-label="Relative Email"
                 placeholder="user@example.com" 
                 className="custom-input"
                 value={relativeEmail}
                 onChange={(e) => setRelativeEmail(e.target.value)}
+                onInput={(e) => setRelativeEmail((e.target as HTMLInputElement).value)}
+                onBlur={(e) => setRelativeEmail(e.target.value)}
               />
             </div>
 
@@ -500,14 +652,19 @@ export function PatientRegistrationForm({
           <CardContent className="grid grid-cols-2 md:grid-cols-2 gap-4">
           <div className="col-span-1 md:col-span-3 flex flex-col gap-1 mt-2">
             <div>
-              <Label>
+              <Label htmlFor="password">
                 Password <span className="text-red-500">*</span>
               </Label>
               <div className="relative">
                 <Input
+                  id="password"
+                  name="password"
+                  aria-label="Password"
                   type={showPassword ? "text" : "password"}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => syncPassword(e.target.value)}
+                  onInput={(e) => syncPassword((e.target as HTMLInputElement).value)}
+                  onBlur={(e) => syncPassword(e.target.value)}
                   className="pr-10"
                   required
                 />
@@ -522,14 +679,19 @@ export function PatientRegistrationForm({
             </div>
 
             <div>
-              <Label>
+              <Label htmlFor="confirm-password">
                 Re-enter password <span className="text-red-500">*</span>
               </Label>
               <div className="relative">
               <Input 
+                    id="confirm-password"
+                    name="confirmPassword"
+                    aria-label="Re-enter password"
                     type={showPassword2 ? "text" : "password"}
                     value={confirmPassword} 
-                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    onChange={(e) => syncConfirmPassword(e.target.value)}
+                    onInput={(e) => syncConfirmPassword((e.target as HTMLInputElement).value)}
+                    onBlur={(e) => syncConfirmPassword(e.target.value)}
                     className="pr-10"
                     required
                 />
@@ -570,19 +732,24 @@ export function PatientRegistrationForm({
           <CardContent className="grid grid-cols-1 md:grid-cols-1 gap-4">
 
             <div>
-              <Label>Insurance ID</Label>
+              <Label htmlFor="insurance-id">Insurance ID</Label>
               <Input 
+                id="insurance-id"
+                name="insuranceId"
+                aria-label="Insurance ID"
                 placeholder="VN123456789" 
                 className="custom-input"
                 value={insuranceId}
                 onChange={(e) => setInsuranceId(e.target.value)}
+                onInput={(e) => setInsuranceId((e.target as HTMLInputElement).value)}
+                onBlur={(e) => setInsuranceId(e.target.value)}
               />
             </div>
 
             <div>
-              <Label>Insurance Provider</Label>
+              <Label htmlFor="insurance-provider">Insurance Provider</Label>
               <Select value={insuranceProvider} onValueChange={setInsuranceProvider}>
-                <SelectTrigger className="custom-select transition-all duration-100 rounded-2xl">
+                <SelectTrigger id="insurance-provider" aria-label="Insurance Provider" className="custom-select transition-all duration-100 rounded-2xl">
                   <div className="text-sm font-normal bg-background text-muted-foreground">
                     <SelectValue placeholder="Vietnam Social Security" />
                   </div>
@@ -594,34 +761,61 @@ export function PatientRegistrationForm({
             </div>
 
             <div>
-              <Label>Expiry Date</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                <div
-                    className="custom-popover custom-popover-secondary
-                    w-full flex items-center justify-between 
-                    rounded-xl border border-input 
-                    bg-background px-3 py-2 
-                    text-sm text-muted-foreground
-                    cursor-pointer
-                    "
-                >
-                    <span className={insuranceExpiry ? "text-foreground" : "text-muted-foreground"}>
-                    {insuranceExpiry ? format(insuranceExpiry, "dd/MM/yyyy") : "dd/mm/yyyy"}
-                    </span>
-
-                    <CalendarIcon className="h-5 w-5 opacity-60" />
-                </div>
-                </PopoverTrigger>
-                <PopoverContent className="p-0">
-                  <Calendar 
-                    mode="single" 
-                    selected={insuranceExpiry} 
-                    onSelect={setInsuranceExpiry} 
-                    captionLayout="dropdown"
-                  />
-                </PopoverContent>
-              </Popover>
+              <Label htmlFor="insurance-expiry-trigger">Expiry Date</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="insurance-expiry-trigger"
+                  name="insuranceExpiry"
+                  aria-label="Insurance Expiry Date"
+                  value={insuranceExpiryInputValue}
+                  onChange={(e) => {
+                    const formattedInput = formatDateInput(e.target.value);
+                    setInsuranceExpiryInputValue(formattedInput);
+                    if (formattedInput.length === 10) {
+                      setInsuranceExpiry(parseDateInput(formattedInput));
+                    }
+                  }}
+                  onInput={(e) => {
+                    const formattedInput = formatDateInput((e.target as HTMLInputElement).value);
+                    setInsuranceExpiryInputValue(formattedInput);
+                  }}
+                  onBlur={(e) => {
+                    const parsedDate = parseDateInput(e.target.value);
+                    setInsuranceExpiry(parsedDate);
+                    if (parsedDate) {
+                      setInsuranceExpiryInputValue(format(parsedDate, "dd/MM/yyyy"));
+                    }
+                  }}
+                  placeholder="dd/mm/yyyy"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  className="custom-input"
+                />
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      aria-label="Open insurance expiry date picker"
+                      className="shrink-0"
+                    >
+                      <CalendarIcon className="h-5 w-5 opacity-70" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="p-0">
+                    <Calendar
+                      mode="single"
+                      selected={insuranceExpiry}
+                      onSelect={(selectedDate) => {
+                        setInsuranceExpiry(selectedDate);
+                        setInsuranceExpiryInputValue(selectedDate ? format(selectedDate, "dd/MM/yyyy") : "");
+                      }}
+                      captionLayout="dropdown"
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
             </div>
 
             <p className="text-sm text-gray-500">

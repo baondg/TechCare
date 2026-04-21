@@ -434,10 +434,13 @@ export default function PatientLab() {
               <div>
                 <label className="text-sm text-slate-600">Doctor&apos;s note</label>
                 <textarea
+                  id="note"
                   className={`w-full border rounded px-3 py-2 ${editMode && mutationsAllowed ? "" : "bg-muted/40"}`}
                   rows={3}
                   value={selected.note}
                   onChange={(e) => updateField("note", e.target.value)}
+                  onInput={(e) => updateField("note", (e.target as HTMLTextAreaElement).value)}
+                  onBlur={(e) => updateField("note", e.target.value)}
                   readOnly={!editMode || !mutationsAllowed}
                 />
               </div>

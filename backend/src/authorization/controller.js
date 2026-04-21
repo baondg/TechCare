@@ -149,7 +149,15 @@ exports.login = async (req, res) => {
     if (!user) {
       return res.status(401).json({ 
         success: false, 
-        error: 'Invalid username or password' 
+        error: 'Invalid email or password' 
+      });
+    }
+
+    // Disabled accounts (ACCOUNT.status = 0) should behave like non-existent accounts.
+    if (String(user.status ?? '').trim() === '0') {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid email or password',
       });
     }
     
@@ -384,7 +392,7 @@ exports.refreshToken = async (req, res) => {
     }
     
     // Get user details
-    const user = await Account.findByPk(decoded.userId);
+    const user = await Account.findOne({ where: { user_id: decoded.userId } });
     if (!user) {
       return res.status(404).json({
         success: false,

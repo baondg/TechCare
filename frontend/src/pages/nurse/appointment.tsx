@@ -150,8 +150,6 @@ export default function NurseAppointmentsPage() {
 
   const [draftRows, setDraftRows] = useState<SlotDraftRow[]>(() => [newDraftRow(format(new Date(), "yyyy-MM-dd"))])
 
-  const [draftRows, setDraftRows] = useState<SlotDraftRow[]>(() => [newDraftRow(format(new Date(), "yyyy-MM-dd"))])
-
   const [viewDate, setViewDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState(new Date())
 
@@ -280,7 +278,6 @@ export default function NurseAppointmentsPage() {
 
     setSaving(true)
     setMessage("")
-    let created = 0
     try {
       if (isBulk) {
         const selected = slots.filter((s) => targetIds.includes(s.id))
@@ -308,10 +305,15 @@ export default function NurseAppointmentsPage() {
           )
         }
       } else {
+        const startTime = normalizedStart
+        if (!startTime) {
+          setMessage("Please select date and time.")
+          return
+        }
         for (const id of targetIds) {
           await appointmentService.updateOpenSlot(id, {
             date: slotDate,
-            time: normalizedStart,
+            time: startTime,
             roomId: selectedRoomId ? Number(selectedRoomId) : undefined,
             doctorId: selectedDoctorId ? Number(selectedDoctorId) : undefined,
           })
@@ -614,7 +616,7 @@ export default function NurseAppointmentsPage() {
               <>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6 xl:items-end">
                   <div className="col-span-2 sm:col-span-1 xl:col-span-1">
-                    <label className="text-xs text-slate-600 mb-0.5 block">Department</label>
+                    <label htmlFor="edit-department" className="text-xs text-slate-600 mb-0.5 block">Department</label>
                     <Select
                       disabled={isEditingSlots}
                       value={createDepartment || undefined}
@@ -629,7 +631,7 @@ export default function NurseAppointmentsPage() {
                         }
                       }}
                     >
-                      <SelectTrigger className="h-9 text-sm">
+                      <SelectTrigger id="edit-department" name="department" aria-label="Department" className="h-9 text-sm">
                         <SelectValue placeholder="Select" />
                       </SelectTrigger>
                       <SelectContent>
@@ -642,9 +644,9 @@ export default function NurseAppointmentsPage() {
                     </Select>
                   </div>
                   <div className="col-span-2 sm:col-span-2 xl:col-span-1">
-                    <label className="text-xs text-slate-600 mb-0.5 block">Doctor</label>
+                    <label htmlFor="edit-doctor" className="text-xs text-slate-600 mb-0.5 block">Doctor</label>
                     <Select value={selectedDoctorId} onValueChange={setSelectedDoctorId}>
-                      <SelectTrigger className="h-9 text-sm">
+                      <SelectTrigger id="edit-doctor" name="doctor" aria-label="Doctor" className="h-9 text-sm">
                         <SelectValue placeholder="Select doctor" />
                       </SelectTrigger>
                       <SelectContent>
@@ -660,19 +662,23 @@ export default function NurseAppointmentsPage() {
                     </Select>
                   </div>
                   <div>
-                    <label className="text-xs text-slate-600 mb-0.5 block">Date</label>
+                    <label htmlFor="edit-date" className="text-xs text-slate-600 mb-0.5 block">Date</label>
                     <Input
+                      id="edit-date"
+                      name="date"
+                      aria-label="Date"
                       type="date"
                       value={slotDate}
                       onChange={(e) => setSlotDate(e.target.value)}
+                      onInput={(e) => setSlotDate((e.target as HTMLInputElement).value)}
                       className="h-9 text-sm"
                       disabled={isEditingSlots}
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-slate-600 mb-0.5 block">Room</label>
+                    <label htmlFor="edit-room" className="text-xs text-slate-600 mb-0.5 block">Room</label>
                     <Select disabled={isEditingSlots} value={selectedRoomId || undefined} onValueChange={setSelectedRoomId}>
-                      <SelectTrigger className="h-9 text-sm">
+                      <SelectTrigger id="edit-room" name="room" aria-label="Room" className="h-9 text-sm">
                         <SelectValue placeholder="Room" />
                       </SelectTrigger>
                       <SelectContent>
@@ -685,14 +691,18 @@ export default function NurseAppointmentsPage() {
                     </Select>
                   </div>
                   <div>
-                    <label className="text-xs text-slate-600 mb-0.5 block">Start</label>
+                    <label htmlFor="edit-start-time" className="text-xs text-slate-600 mb-0.5 block">Start</label>
                     <Input
+                      id="edit-start-time"
+                      name="startTime"
+                      aria-label="Start time"
                       type="text"
                       inputMode="numeric"
                       placeholder="HH:mm"
                       list="nurse-start-time-options"
                       value={slotStartTime}
                       onChange={(e) => setSlotStartTime(formatTimeMask(e.target.value))}
+                      onInput={(e) => setSlotStartTime(formatTimeMask((e.target as HTMLInputElement).value))}
                       onBlur={() => handleTimeFieldBlur("start")}
                       className="h-9 text-sm"
                       disabled={isEditingSlots}
@@ -704,14 +714,18 @@ export default function NurseAppointmentsPage() {
                     </datalist>
                   </div>
                   <div>
-                    <label className="text-xs text-slate-600 mb-0.5 block">End</label>
+                    <label htmlFor="edit-end-time" className="text-xs text-slate-600 mb-0.5 block">End</label>
                     <Input
+                      id="edit-end-time"
+                      name="endTime"
+                      aria-label="End time"
                       type="text"
                       inputMode="numeric"
                       placeholder="HH:mm"
                       list="nurse-end-time-options"
                       value={slotEndTime}
                       onChange={(e) => setSlotEndTime(formatTimeMask(e.target.value))}
+                      onInput={(e) => setSlotEndTime(formatTimeMask((e.target as HTMLInputElement).value))}
                       onBlur={() => handleTimeFieldBlur("end")}
                       className="h-9 text-sm"
                       disabled={isEditingSlots}
@@ -785,7 +799,11 @@ export default function NurseAppointmentsPage() {
 
                 <div className="space-y-3 rounded-lg border border-slate-200/80 bg-slate-50/40 p-3">
                   <Label className="text-xs font-semibold text-slate-700">Slot rows</Label>
-                  {draftRows.map((row) => (
+                  {draftRows.map((row, rowIndex) => {
+                    const isFirstRow = rowIndex === 0
+                    const fieldId = (field: "department" | "doctor" | "date" | "room" | "start" | "end") =>
+                      isFirstRow ? `draft-${field}-first` : `draft-${field}-${row.id}`
+                    return (
                     <div
                       key={row.id}
                       className="grid grid-cols-1 gap-2 rounded-md border border-slate-200 bg-white p-2 sm:grid-cols-2 lg:grid-cols-12 lg:items-end"
@@ -798,7 +816,7 @@ export default function NurseAppointmentsPage() {
                             updateDraftRow(row.id, { department: v, doctorId: "" })
                           }}
                         >
-                          <SelectTrigger className="h-9 text-sm">
+                          <SelectTrigger id={fieldId("department")} name={isFirstRow ? "draftDepartmentFirst" : `draftDepartment-${row.id}`} aria-label={isFirstRow ? "Draft department first row" : `Draft department ${row.id}`} className="h-9 text-sm">
                             <SelectValue placeholder="Department" />
                           </SelectTrigger>
                           <SelectContent>
@@ -816,7 +834,7 @@ export default function NurseAppointmentsPage() {
                           value={row.doctorId || undefined}
                           onValueChange={(id) => updateDraftRow(row.id, { doctorId: id })}
                         >
-                          <SelectTrigger className="h-9 text-sm">
+                          <SelectTrigger id={fieldId("doctor")} name={isFirstRow ? "draftDoctorFirst" : `draftDoctor-${row.id}`} aria-label={isFirstRow ? "Draft doctor first row" : `Draft doctor ${row.id}`} className="h-9 text-sm">
                             <SelectValue placeholder="Doctor" />
                           </SelectTrigger>
                           <SelectContent>
@@ -834,10 +852,14 @@ export default function NurseAppointmentsPage() {
                       <div className="lg:col-span-2">
                         <span className="mb-0.5 block text-[10px] font-medium text-slate-500">Date</span>
                         <Input
+                          id={fieldId("date")}
+                          name={isFirstRow ? "draftDateFirst" : `draftDate-${row.id}`}
+                          aria-label={isFirstRow ? "Draft date first row" : `Draft date ${row.id}`}
                           type="date"
                           className="h-9 text-sm"
                           value={row.date}
                           onChange={(e) => updateDraftRow(row.id, { date: e.target.value })}
+                          onInput={(e) => updateDraftRow(row.id, { date: (e.target as HTMLInputElement).value })}
                         />
                       </div>
                       <div className="lg:col-span-2">
@@ -846,7 +868,7 @@ export default function NurseAppointmentsPage() {
                           value={row.roomId || undefined}
                           onValueChange={(v) => updateDraftRow(row.id, { roomId: v })}
                         >
-                          <SelectTrigger className="h-9 text-sm">
+                          <SelectTrigger id={fieldId("room")} name={isFirstRow ? "draftRoomFirst" : `draftRoom-${row.id}`} aria-label={isFirstRow ? "Draft room first row" : `Draft room ${row.id}`} className="h-9 text-sm">
                             <SelectValue placeholder="Room" />
                           </SelectTrigger>
                           <SelectContent>
@@ -861,10 +883,14 @@ export default function NurseAppointmentsPage() {
                       <div className="lg:col-span-1">
                         <span className="mb-0.5 block text-[10px] font-medium text-slate-500">Start</span>
                         <Input
+                          id={fieldId("start")}
+                          name={isFirstRow ? "draftStartFirst" : `draftStart-${row.id}`}
+                          aria-label={isFirstRow ? "Draft start time first row" : `Draft start time ${row.id}`}
                           className="h-9 text-sm"
                           placeholder="HH:mm"
                           value={row.start}
                           onChange={(e) => updateDraftRow(row.id, { start: formatTimeMask(e.target.value) })}
+                          onInput={(e) => updateDraftRow(row.id, { start: formatTimeMask((e.target as HTMLInputElement).value) })}
                           onBlur={() => {
                             const n = normalizeHalfHourTime(row.start)
                             if (n) updateDraftRow(row.id, { start: n })
@@ -880,10 +906,14 @@ export default function NurseAppointmentsPage() {
                       <div className="lg:col-span-1">
                         <span className="mb-0.5 block text-[10px] font-medium text-slate-500">End</span>
                         <Input
+                          id={fieldId("end")}
+                          name={isFirstRow ? "draftEndFirst" : `draftEnd-${row.id}`}
+                          aria-label={isFirstRow ? "Draft end time first row" : `Draft end time ${row.id}`}
                           className="h-9 text-sm"
                           placeholder="HH:mm"
                           value={row.end}
                           onChange={(e) => updateDraftRow(row.id, { end: formatTimeMask(e.target.value) })}
+                          onInput={(e) => updateDraftRow(row.id, { end: formatTimeMask((e.target as HTMLInputElement).value) })}
                           onBlur={() => {
                             const n = normalizeHalfHourTime(row.end)
                             if (n) updateDraftRow(row.id, { end: n })
@@ -908,7 +938,8 @@ export default function NurseAppointmentsPage() {
                         </button>
                       </div>
                     </div>
-                  ))}
+                    )
+                  })}
                   <Button
                     type="button"
                     variant="outline"
@@ -995,9 +1026,9 @@ export default function NurseAppointmentsPage() {
                 <h3 className="text-xl font-bold text-slate-900 shrink-0">Slots on {format(selectedDate, "MMMM d, yyyy")}</h3>
                 <div className="flex flex-wrap items-end gap-2 sm:justify-end">
                   <div className="min-w-[140px]">
-                    <label className="mb-0.5 block text-xs text-slate-600">Department</label>
+                    <label htmlFor="list-department-filter" className="mb-0.5 block text-xs text-slate-600">Department</label>
                     <Select value={listDepartmentFilter} onValueChange={setListDepartmentFilter}>
-                      <SelectTrigger className="h-9 text-sm">
+                      <SelectTrigger id="list-department-filter" name="listDepartmentFilter" aria-label="Department filter" className="h-9 text-sm">
                         <SelectValue placeholder="All" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1011,9 +1042,9 @@ export default function NurseAppointmentsPage() {
                     </Select>
                   </div>
                   <div className="min-w-[180px]">
-                    <label className="mb-0.5 block text-xs text-slate-600">Doctor</label>
+                    <label htmlFor="list-doctor-filter" className="mb-0.5 block text-xs text-slate-600">Doctor</label>
                     <Select value={listDoctorFilter} onValueChange={setListDoctorFilter}>
-                      <SelectTrigger className="h-9 text-sm">
+                      <SelectTrigger id="list-doctor-filter" name="listDoctorFilter" aria-label="Doctor filter" className="h-9 text-sm">
                         <SelectValue placeholder="All" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1128,12 +1159,30 @@ export default function NurseAppointmentsPage() {
           </DialogHeader>
           <div className="grid gap-3 py-2">
             <div className="grid gap-1.5">
-              <label className="text-xs font-medium text-slate-600">Start date</label>
-              <Input type="date" value={shiftRangeStart} onChange={(e) => setShiftRangeStart(e.target.value)} className="h-9" />
+              <label htmlFor="shift-range-start" className="text-xs font-medium text-slate-600">Start date</label>
+              <Input
+                id="shift-range-start"
+                name="shiftRangeStart"
+                aria-label="Shift range start date"
+                type="date"
+                value={shiftRangeStart}
+                onChange={(e) => setShiftRangeStart(e.target.value)}
+                onInput={(e) => setShiftRangeStart((e.target as HTMLInputElement).value)}
+                className="h-9"
+              />
             </div>
             <div className="grid gap-1.5">
-              <label className="text-xs font-medium text-slate-600">End date</label>
-              <Input type="date" value={shiftRangeEnd} onChange={(e) => setShiftRangeEnd(e.target.value)} className="h-9" />
+              <label htmlFor="shift-range-end" className="text-xs font-medium text-slate-600">End date</label>
+              <Input
+                id="shift-range-end"
+                name="shiftRangeEnd"
+                aria-label="Shift range end date"
+                type="date"
+                value={shiftRangeEnd}
+                onChange={(e) => setShiftRangeEnd(e.target.value)}
+                onInput={(e) => setShiftRangeEnd((e.target as HTMLInputElement).value)}
+                className="h-9"
+              />
             </div>
           </div>
           <DialogFooter className="gap-2">

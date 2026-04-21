@@ -38,9 +38,10 @@ function parseDepartmentIdsCsv(csv) {
 }
 
 function mapAccountRow(r) {
+  const uid = Number(r.userId);
   return {
-    id: Number(r.id),
-    userId: Number(r.userId),
+    id: uid,
+    userId: uid,
     username: r.username || '',
     roleCode: r.type || '',
     role: ACCOUNT_ROLE_LABEL[r.type] || r.type || '',
@@ -62,7 +63,6 @@ function mapAccountRow(r) {
 
 const ACCOUNT_SELECT_SQL = `
        SELECT
-         a.id,
          a.user_id AS userId,
          a.username,
          a.type,
@@ -190,7 +190,7 @@ exports.getAccounts = async (req, res) => {
 
     const rows = await sequelize.query(
       `${ACCOUNT_SELECT_SQL}
-       ORDER BY a.created_time DESC, a.id DESC`,
+       ORDER BY a.created_time DESC, a.user_id DESC`,
       { type: QueryTypes.SELECT }
     );
 
@@ -223,13 +223,13 @@ exports.getDashboardSummary = async (req, res) => {
 
     const recentRows = await sequelize.query(
       `SELECT
-         a.id,
+         a.user_id AS id,
          a.username,
          a.type,
          a.status,
          a.created_time AS createdTime
        FROM ACCOUNT a
-       ORDER BY a.created_time DESC, a.id DESC
+       ORDER BY a.created_time DESC, a.user_id DESC
        LIMIT 6`,
       { type: QueryTypes.SELECT }
     );
@@ -285,7 +285,7 @@ exports.createAccount = async (req, res) => {
     const hashedPassword = await bcrypt.hash('123456', 12);
 
     const [existingUsername] = await sequelize.query(
-      'SELECT id FROM ACCOUNT WHERE username = :username LIMIT 1',
+      'SELECT user_id AS userId FROM ACCOUNT WHERE username = :username LIMIT 1',
       { replacements: { username }, type: QueryTypes.SELECT, transaction: tx }
     );
     if (existingUsername) {
@@ -352,8 +352,8 @@ exports.createAccount = async (req, res) => {
 exports.updateAccount = async (req, res) => {
   const tx = await sequelize.transaction();
   try {
-    const id = Number(req.params.id);
-    if (!Number.isFinite(id)) {
+    const userId = Number(req.params.id);
+    if (!Number.isFinite(userId)) {
       await tx.rollback();
       return res.status(400).json({ success: false, message: 'Invalid account id' });
     }
@@ -367,8 +367,8 @@ exports.updateAccount = async (req, res) => {
     const { firstName, lastName } = splitName(name);
 
     const [existing] = await sequelize.query(
-      'SELECT id, user_id AS userId FROM ACCOUNT WHERE id = :id LIMIT 1',
-      { replacements: { id }, type: QueryTypes.SELECT, transaction: tx }
+      'SELECT user_id AS userId FROM ACCOUNT WHERE user_id = :userId LIMIT 1',
+      { replacements: { userId }, type: QueryTypes.SELECT, transaction: tx }
     );
     if (!existing) {
       await tx.rollback();
@@ -376,8 +376,8 @@ exports.updateAccount = async (req, res) => {
     }
 
     const [usernameConflict] = await sequelize.query(
-      'SELECT id FROM ACCOUNT WHERE username = :username AND id <> :id LIMIT 1',
-      { replacements: { username, id }, type: QueryTypes.SELECT, transaction: tx }
+      'SELECT user_id AS userId FROM ACCOUNT WHERE username = :username AND user_id <> :userId LIMIT 1',
+      { replacements: { username, userId }, type: QueryTypes.SELECT, transaction: tx }
     );
     if (usernameConflict) {
       await tx.rollback();
@@ -387,9 +387,9 @@ exports.updateAccount = async (req, res) => {
     await sequelize.query(
       `UPDATE ACCOUNT
        SET username = :username, type = :type, status = :status
-       WHERE id = :id`,
+       WHERE user_id = :userId`,
       {
-        replacements: { id, username, type: roleCode, status: enabled ? 1 : 0 },
+        replacements: { userId, username, type: roleCode, status: enabled ? 1 : 0 },
         type: QueryTypes.UPDATE,
         transaction: tx,
       }
@@ -420,9 +420,9 @@ exports.updateAccount = async (req, res) => {
 
     const [updated] = await sequelize.query(
       `${ACCOUNT_SELECT_SQL}
-       WHERE a.id = :id
+       WHERE a.user_id = :userId
        LIMIT 1`,
-      { replacements: { id }, type: QueryTypes.SELECT, transaction: tx }
+      { replacements: { userId }, type: QueryTypes.SELECT, transaction: tx }
     );
 
     await tx.commit();
@@ -440,26 +440,26 @@ exports.updateAccountStatus = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Forbidden' });
     }
 
-    const id = Number(req.params.id);
-    if (!Number.isFinite(id)) {
+    const userId = Number(req.params.id);
+    if (!Number.isFinite(userId)) {
       return res.status(400).json({ success: false, message: 'Invalid account id' });
     }
 
     const next = req.body?.status ? 1 : 0;
     const exists = await sequelize.query(
-      'SELECT id FROM ACCOUNT WHERE id = :id LIMIT 1',
-      { replacements: { id }, type: QueryTypes.SELECT }
+      'SELECT user_id AS userId FROM ACCOUNT WHERE user_id = :userId LIMIT 1',
+      { replacements: { userId }, type: QueryTypes.SELECT }
     );
     if (!exists[0]) {
       return res.status(404).json({ success: false, message: 'Account not found' });
     }
 
     await sequelize.query(
-      'UPDATE ACCOUNT SET status = :status WHERE id = :id',
-      { replacements: { id, status: next }, type: QueryTypes.UPDATE }
+      'UPDATE ACCOUNT SET status = :status WHERE user_id = :userId',
+      { replacements: { userId, status: next }, type: QueryTypes.UPDATE }
     );
 
-    res.json({ success: true, id, status: !!next });
+    res.json({ success: true, id: userId, status: !!next });
   } catch (error) {
     console.error('Update account status error:', error);
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });

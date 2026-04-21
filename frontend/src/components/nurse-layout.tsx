@@ -7,7 +7,7 @@ import { Activity, Users, Calendar, CalendarClock, FileText, UserPlus } from 'lu
 const navigation: NavItem[] = [
   { name: 'Dashboard',             href: '/nurse/dashboard',             icon: Activity },
   { name: 'Patient Registration', href: '/nurse/patient-registration', icon: UserPlus },
-  { name: 'Patient check-in',      href: '/nurse/patients',              icon: Users },
+  { name: 'Patient Check-in',      href: '/nurse/patients',              icon: Users },
   { name: 'Appointments', href: '/nurse/appointments', icon: Calendar },
   { name: 'Work shifts',  href: '/nurse/work-shifts',  icon: CalendarClock },
   { name: 'Feedback',     href: '/nurse/feedback',     icon: FileText },

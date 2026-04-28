@@ -300,13 +300,16 @@ export default function ChatbotPage() {
 
             <div className="flex gap-2 mt-4 pt-4 border-t">
               <Input
+                id="input"
                 placeholder="Type your question..."
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
+                onInput={(e) => setInput((e.target as HTMLInputElement).value)}
+                onBlur={(e) => setInput(e.target.value)}
                 onKeyPress={(e) => e.key === "Enter" && !isLoading && handleSend()}
                 disabled={isLoading}
               />
-              <Button className="btn-gradient" onClick={handleSend} disabled={isLoading || !input.trim()}>
+              <Button id="send" className="btn-gradient" onClick={handleSend} disabled={isLoading || !input.trim()}>
                 <Send className="h-4 w-4 mt-0.5 mr-0.5" />
               </Button>
             </div>

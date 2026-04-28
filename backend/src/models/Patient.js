@@ -16,11 +16,6 @@ const Patient = sequelize.define('Patient', {
     type: DataTypes.ENUM('A+', 'B+', 'AB+', 'O+', 'A-', 'B-', 'AB-', 'O-'),
     allowNull: true, // DB: DEFAULT NULL; filled later in profile / EMR
   },
-  in_dept: {
-    type: DataTypes.INTEGER,
-    allowNull: true,
-  },
-
   allergic_info: {
     type: DataTypes.JSON,
     allowNull: true,

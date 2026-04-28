@@ -81,7 +81,7 @@ export default function HealthInfoPage() {
   const [respiratoryRate, setRespiratoryRate] = useState("")
   const [temperature, setTemperature] = useState("")
   const [spo2, setSpo2] = useState("")
-  const [bloodType, setBloodType] = useState(PATIENT_BLOOD_TYPE_UNSET)
+  const [bloodType, setBloodType] = useState<string>(PATIENT_BLOOD_TYPE_UNSET)
   const [symptoms, setSymptoms] = useState("")
 
   // for filters
@@ -565,6 +565,8 @@ export default function HealthInfoPage() {
                 value={v}
                 disabled={disabled}
                 onChange={(e) => updateValue(i, e.target.value)}
+                onInput={(e) => updateValue(i, (e.target as HTMLInputElement).value)}
+                onBlur={(e) => updateValue(i, e.target.value)}
                 className="flex-1"
               />
 
@@ -676,6 +678,7 @@ export default function HealthInfoPage() {
                         className="h-8 text-xs"
                         value={filters.date}
                         onChange={(e) => setFilters({ ...filters, date: e.target.value })}
+                        onInput={(e) => setFilters({ ...filters, date: (e.target as HTMLInputElement).value })}
                       />
                     </TableHead>
 
@@ -686,6 +689,7 @@ export default function HealthInfoPage() {
                           className="h-8 text-xs text-center pr-8"
                           value={filters.height}
                           onChange={(e) => setFilters({ ...filters, height: e.target.value })}
+                          onInput={(e) => setFilters({ ...filters, height: (e.target as HTMLInputElement).value })}
                         />
                         <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                       </div>
@@ -697,6 +701,7 @@ export default function HealthInfoPage() {
                           className="h-8 text-xs text-center pr-8"
                           value={filters.weight}
                           onChange={(e) => setFilters({ ...filters, weight: e.target.value })}
+                          onInput={(e) => setFilters({ ...filters, weight: (e.target as HTMLInputElement).value })}
                         />
                         <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                       </div>
@@ -710,6 +715,7 @@ export default function HealthInfoPage() {
                           className="h-8 text-xs text-center"
                           value={filters.bmi}
                           onChange={(e) => setFilters({ ...filters, bmi: e.target.value })}
+                          onInput={(e) => setFilters({ ...filters, bmi: (e.target as HTMLInputElement).value })}
                         />
                       </div>
                     </TableHead>
@@ -722,6 +728,7 @@ export default function HealthInfoPage() {
                           className="h-8 text-xs text-center"
                           value={filters.bloodPressure}
                           onChange={(e) => setFilters({ ...filters, bloodPressure: e.target.value })}
+                          onInput={(e) => setFilters({ ...filters, bloodPressure: (e.target as HTMLInputElement).value })}
                         />
                       </div>
                     </TableHead>
@@ -734,6 +741,7 @@ export default function HealthInfoPage() {
                           className="h-8 text-xs text-center"
                           value={filters.heartRate}
                           onChange={(e) => setFilters({ ...filters, heartRate: e.target.value })}
+                          onInput={(e) => setFilters({ ...filters, heartRate: (e.target as HTMLInputElement).value })}
                         />
                       </div>
                     </TableHead>
@@ -746,6 +754,7 @@ export default function HealthInfoPage() {
                           className="h-8 text-xs text-center"
                           value={filters.respiratoryRate}
                           onChange={(e) => setFilters({ ...filters, respiratoryRate: e.target.value })}
+                          onInput={(e) => setFilters({ ...filters, respiratoryRate: (e.target as HTMLInputElement).value })}
                         />
                       </div>
                     </TableHead>
@@ -758,6 +767,7 @@ export default function HealthInfoPage() {
                           className="h-8 text-xs text-center"
                           value={filters.temperature}
                           onChange={(e) => setFilters({ ...filters, temperature: e.target.value })}
+                          onInput={(e) => setFilters({ ...filters, temperature: (e.target as HTMLInputElement).value })}
                         />
                       </div>
                     </TableHead>
@@ -770,6 +780,7 @@ export default function HealthInfoPage() {
                           className="h-8 text-xs text-center"
                           value={filters.spo2}
                           onChange={(e) => setFilters({ ...filters, spo2: e.target.value })}
+                          onInput={(e) => setFilters({ ...filters, spo2: (e.target as HTMLInputElement).value })}
                         />
                       </div>
                     </TableHead>
@@ -782,6 +793,7 @@ export default function HealthInfoPage() {
                           className="h-8 text-xs"
                           value={filters.symptoms}
                           onChange={(e) => setFilters({ ...filters, symptoms: e.target.value })}
+                          onInput={(e) => setFilters({ ...filters, symptoms: (e.target as HTMLInputElement).value })}
                         />
                       </div>
                     </TableHead>
@@ -851,6 +863,8 @@ export default function HealthInfoPage() {
                               className="h-8 text-center w-full"
                               value={height}
                               onChange={(e) => setHeight(e.target.value)}
+                              onInput={(e) => setHeight((e.target as HTMLInputElement).value)}
+                              onBlur={(e) => setHeight(e.target.value)}
                             />
                             <VitalWarningTable message={vitalNumericError("height", height)} />
                           </div>
@@ -863,6 +877,8 @@ export default function HealthInfoPage() {
                               className="h-8 text-center w-full"
                               value={weight}
                               onChange={(e) => setWeight(e.target.value)}
+                              onInput={(e) => setWeight((e.target as HTMLInputElement).value)}
+                              onBlur={(e) => setWeight(e.target.value)}
                             />
                             <VitalWarningTable message={vitalNumericError("weight", weight)} />
                           </div>
@@ -895,6 +911,17 @@ export default function HealthInfoPage() {
                                   setBpDia(v.slice(idx + 1).trim())
                                 }
                               }}
+                              onInput={(e) => {
+                                const v = (e.target as HTMLInputElement).value
+                                const idx = v.indexOf("/")
+                                if (idx === -1) {
+                                  setBpSys(v.trim())
+                                  setBpDia("")
+                                } else {
+                                  setBpSys(v.slice(0, idx).trim())
+                                  setBpDia(v.slice(idx + 1).trim())
+                                }
+                              }}
                             />
                             <VitalWarningTable message={vitalNumericError("bpSys", bpSys)} />
                             <VitalWarningTable message={vitalNumericError("bpDia", bpDia)} />
@@ -908,6 +935,8 @@ export default function HealthInfoPage() {
                               className="h-8 text-center w-full"
                               value={heartRate}
                               onChange={(e) => setHeartRate(e.target.value)}
+                              onInput={(e) => setHeartRate((e.target as HTMLInputElement).value)}
+                              onBlur={(e) => setHeartRate(e.target.value)}
                             />
                             <VitalWarningTable message={vitalNumericError("heartRate", heartRate)} />
                           </div>
@@ -920,6 +949,8 @@ export default function HealthInfoPage() {
                               className="h-8 text-center w-full"
                               value={respiratoryRate}
                               onChange={(e) => setRespiratoryRate(e.target.value)}
+                              onInput={(e) => setRespiratoryRate((e.target as HTMLInputElement).value)}
+                              onBlur={(e) => setRespiratoryRate(e.target.value)}
                             />
                             <VitalWarningTable message={vitalNumericError("respiratoryRate", respiratoryRate)} />
                           </div>
@@ -932,6 +963,8 @@ export default function HealthInfoPage() {
                               className="h-8 text-center w-full"
                               value={temperature}
                               onChange={(e) => setTemperature(e.target.value)}
+                              onInput={(e) => setTemperature((e.target as HTMLInputElement).value)}
+                              onBlur={(e) => setTemperature(e.target.value)}
                             />
                             <VitalWarningTable message={vitalNumericError("temperature", temperature)} />
                           </div>
@@ -944,6 +977,8 @@ export default function HealthInfoPage() {
                               className="h-8 text-center w-full"
                               value={spo2}
                               onChange={(e) => setSpo2(e.target.value)}
+                              onInput={(e) => setSpo2((e.target as HTMLInputElement).value)}
+                              onBlur={(e) => setSpo2(e.target.value)}
                             />
                             <VitalWarningTable message={vitalNumericError("spo2", spo2)} />
                           </div>
@@ -959,6 +994,8 @@ export default function HealthInfoPage() {
                             className="h-8"
                             value={symptoms}
                             onChange={(e) => setSymptoms(e.target.value)}
+                            onInput={(e) => setSymptoms((e.target as HTMLInputElement).value)}
+                            onBlur={(e) => setSymptoms(e.target.value)}
                           />
                         ) : (r.symptoms || "-")}
                       </TableCell>
@@ -1184,14 +1221,14 @@ export default function HealthInfoPage() {
               </Button>
 
               {/* Inherit */}
-              <Button
+              {/* <Button
                 onClick={handleCopyRecord}
                 disabled={!selectedRecord}
                 className="btn-outline text-lg px-6 py-4 flex items-center gap-2"
               >
                 <Copy className="h-4 w-4" />
                 Inherit
-              </Button>
+              </Button> */}
 
               <Button
                 onClick={handleDeleteRecords}
@@ -1202,14 +1239,14 @@ export default function HealthInfoPage() {
                 Delete
               </Button>
 
-              {/* Save Changes */}
+              {/* Save */}
               <Button
                 onClick={handleSave}
                 disabled={!isEditing && !inlineEditingId} // chỉ enable khi đang edit/add
                 className="btn-gradient text-lg px-6 py-4 flex items-center gap-2"
               >
                 <Save className="h-4 w-4" />
-                Save Changes
+                Save
               </Button>
 
               {/* Clear All */}
@@ -1253,16 +1290,22 @@ export default function HealthInfoPage() {
               <div className="flex gap-2 text-sm font-normal bg-background text-muted-foreground">
                 <div className="flex-1 min-w-0 space-y-0">
                   <Input
+                    id="bpSys"
                     value={bpSys}
                     onChange={(e) => setBpSys(e.target.value)}
+                    onInput={(e) => setBpSys((e.target as HTMLInputElement).value)}
+                    onBlur={(e) => setBpSys(e.target.value)}
                     disabled={!isEditing}
                   />
                   <VitalWarning message={vitalNumericError("bpSys", bpSys)} />
                 </div>
                 <div className="flex-1 min-w-0 space-y-0">
                   <Input
+                    id="bpDia"
                     value={bpDia}
                     onChange={(e) => setBpDia(e.target.value)}
+                    onInput={(e) => setBpDia((e.target as HTMLInputElement).value)}
+                    onBlur={(e) => setBpDia(e.target.value)}
                     disabled={!isEditing}
                   />
                   <VitalWarning message={vitalNumericError("bpDia", bpDia)} />
@@ -1277,6 +1320,8 @@ export default function HealthInfoPage() {
                 id="oxygen"
                 value={spo2}
                 onChange={(e) => setSpo2(e.target.value)}
+                onInput={(e) => setSpo2((e.target as HTMLInputElement).value)}
+                onBlur={(e) => setSpo2(e.target.value)}
                 disabled={!isEditing}
               />
               <VitalWarning message={vitalNumericError("spo2", spo2)} />
@@ -1289,6 +1334,8 @@ export default function HealthInfoPage() {
                 id="temperature"
                 value={temperature}
                 onChange={(e) => setTemperature(e.target.value)}
+                onInput={(e) => setTemperature((e.target as HTMLInputElement).value)}
+                onBlur={(e) => setTemperature(e.target.value)}
                 disabled={!isEditing}
               />
               <VitalWarning message={vitalNumericError("temperature", temperature)} />
@@ -1301,6 +1348,8 @@ export default function HealthInfoPage() {
                 id="height" 
                 value={height}
                 onChange={(e) => setHeight(e.target.value)}
+                onInput={(e) => setHeight((e.target as HTMLInputElement).value)}
+                onBlur={(e) => setHeight(e.target.value)}
                 disabled={!isEditing}
                 type="number" />
               <VitalWarning message={vitalNumericError("height", height)} />
@@ -1313,6 +1362,8 @@ export default function HealthInfoPage() {
                 id="respiratory"
                 value={respiratoryRate}
                 onChange={(e) => setRespiratoryRate(e.target.value)}
+                onInput={(e) => setRespiratoryRate((e.target as HTMLInputElement).value)}
+                onBlur={(e) => setRespiratoryRate(e.target.value)}
                 disabled={!isEditing}
               />
               <VitalWarning message={vitalNumericError("respiratoryRate", respiratoryRate)} />
@@ -1325,6 +1376,8 @@ export default function HealthInfoPage() {
                 value={weight}
                 disabled={!isEditing}
                 onChange={(e) => setWeight(e.target.value)}
+                onInput={(e) => setWeight((e.target as HTMLInputElement).value)}
+                onBlur={(e) => setWeight(e.target.value)}
                 type="number" />
               <VitalWarning message={vitalNumericError("weight", weight)} />
             </div>
@@ -1336,6 +1389,8 @@ export default function HealthInfoPage() {
                 id="heart-rate"
                 value={heartRate}
                 onChange={(e) => setHeartRate(e.target.value)}
+                onInput={(e) => setHeartRate((e.target as HTMLInputElement).value)}
+                onBlur={(e) => setHeartRate(e.target.value)}
                 disabled={!isEditing}
               />
               <VitalWarning message={vitalNumericError("heartRate", heartRate)} />
@@ -1414,8 +1469,11 @@ export default function HealthInfoPage() {
           <div className="space-y-2">
             <Label>Symptoms</Label>
             <Textarea
+              id="symptoms"
               value={symptoms}
               onChange={(e) => setSymptoms(e.target.value)}
+              onInput={(e) => setSymptoms((e.target as HTMLTextAreaElement).value)}
+              onBlur={(e) => setSymptoms(e.target.value)}
               disabled={!isEditing}
               rows={4}
               placeholder="Describe any current symptoms you are experiencing..."

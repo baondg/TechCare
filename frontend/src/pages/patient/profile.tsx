@@ -266,6 +266,8 @@ export default function ProfilePage() {
                     className="custom-input"
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
+                    onInput={(e) => setFirstName((e.target as HTMLInputElement).value)}
+                    onBlur={(e) => setFirstName(e.target.value)}
                     disabled={!isEditing}
                   />
                 </div>
@@ -279,6 +281,8 @@ export default function ProfilePage() {
                     className="custom-input"
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
+                    onInput={(e) => setLastName((e.target as HTMLInputElement).value)}
+                    onBlur={(e) => setLastName(e.target.value)}
                     disabled={!isEditing}
                   />
                 </div>
@@ -352,6 +356,8 @@ export default function ProfilePage() {
                     className="custom-input"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
+                    onInput={(e) => setPhone((e.target as HTMLInputElement).value)}
+                    onBlur={(e) => setPhone(e.target.value)}
                     disabled={!isEditing}
                   />
                 </div>
@@ -366,6 +372,8 @@ export default function ProfilePage() {
                     className="custom-input"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    onInput={(e) => setEmail((e.target as HTMLInputElement).value)}
+                    onBlur={(e) => setEmail(e.target.value)}
                     disabled={!isEditing}
                   />
                 </div>
@@ -382,6 +390,8 @@ export default function ProfilePage() {
                   className="custom-input"
                   value={nationalId}
                   onChange={(e) => setNationalId(e.target.value)}
+                  onInput={(e) => setNationalId((e.target as HTMLInputElement).value)}
+                  onBlur={(e) => setNationalId(e.target.value)}
                   disabled={!isEditing}
                 />
               </div>
@@ -412,6 +422,8 @@ export default function ProfilePage() {
                   className="custom-input"
                   value={relativeName}
                   onChange={(e) => setRelativeName(e.target.value)}
+                  onInput={(e) => setRelativeName((e.target as HTMLInputElement).value)}
+                  onBlur={(e) => setRelativeName(e.target.value)}
                   disabled={!isEditing}
                 />
               </div>
@@ -497,6 +509,8 @@ export default function ProfilePage() {
                     className="custom-input"
                     value={rePhone}
                     onChange={(e) => setRePhone(e.target.value)}
+                    onInput={(e) => setRePhone((e.target as HTMLInputElement).value)}
+                    onBlur={(e) => setRePhone(e.target.value)}
                     disabled={!isEditing}
                   />
                 </div>
@@ -510,6 +524,8 @@ export default function ProfilePage() {
                     className="custom-input"
                     value={reEmail}
                     onChange={(e) => setReEmail(e.target.value)}
+                    onInput={(e) => setReEmail((e.target as HTMLInputElement).value)}
+                    onBlur={(e) => setReEmail(e.target.value)}
                     disabled={!isEditing}
                   />
                 </div>
@@ -525,6 +541,8 @@ export default function ProfilePage() {
                   className="custom-input"
                   value={reNationalId}
                   onChange={(e) => setReNationalId(e.target.value)}
+                  onInput={(e) => setReNationalId((e.target as HTMLInputElement).value)}
+                  onBlur={(e) => setReNationalId(e.target.value)}
                   disabled={!isEditing}
                 />
               </div>

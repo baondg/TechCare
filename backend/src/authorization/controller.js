@@ -149,7 +149,7 @@ exports.login = async (req, res) => {
     if (!user) {
       return res.status(401).json({ 
         success: false, 
-        error: 'Invalid email or password' 
+        error: 'Invalid username or password' 
       });
     }
 
@@ -157,7 +157,7 @@ exports.login = async (req, res) => {
     if (String(user.status ?? '').trim() === '0') {
       return res.status(401).json({
         success: false,
-        error: 'Invalid email or password',
+        error: 'Invalid username or password',
       });
     }
     

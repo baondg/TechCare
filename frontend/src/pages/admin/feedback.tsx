@@ -391,6 +391,8 @@ export default function FeedbackManagement() {
                                     placeholder="Type your response here..."
                                     value={responseText}
                                     onChange={(e) => setResponseText(e.target.value)}
+                                    onInput={(e) => setResponseText((e.target as HTMLTextAreaElement).value)}
+                                    onBlur={(e) => setResponseText(e.target.value)}
                                     className="min-h-24"
                                   />
                                 </div>

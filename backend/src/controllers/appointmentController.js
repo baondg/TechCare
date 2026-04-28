@@ -51,27 +51,9 @@ function assertNurseOrAdmin(req, res) {
   return true;
 }
 
-/** Set PATIENT.in_dept from the appointment room's DEPARTMENT (nurse check-in). */
+/** Compatibility shim after PATIENT.in_dept removal. */
 async function syncPatientInDeptFromAppointmentRoom(patientId, appointmentId, transaction) {
-  const qOpts = { replacements: { appointmentId }, type: QueryTypes.SELECT, ...(transaction ? { transaction } : {}) };
-  const [apptRoom] = await sequelize.query(
-    `SELECT cr.department_id AS departmentId
-     FROM APPOINTMENT a
-     JOIN CLINIC_ROOM cr ON cr.id = a.room_id
-     WHERE a.id = :appointmentId
-     LIMIT 1`,
-    qOpts
-  );
-  const deptId = apptRoom?.departmentId != null ? Number(apptRoom.departmentId) : null;
-  const updOpts = {
-    replacements: {
-      patientId,
-      deptId: Number.isFinite(deptId) ? deptId : null,
-    },
-    type: QueryTypes.UPDATE,
-    ...(transaction ? { transaction } : {}),
-  };
-  await sequelize.query(`UPDATE PATIENT SET in_dept = :deptId WHERE patient_id = :patientId`, updOpts);
+  return { patientId, appointmentId, transaction, synced: false };
 }
 
 function mapNurseCheckInRow(r) {
@@ -353,11 +335,30 @@ exports.getPortalPatients = async (req, res) => {
          u.last_name AS lastName,
          u.sex AS gender,
          u.dob AS dob,
-         dep.name AS inDepartment
+         COALESCE(
+           (
+             SELECT dep_t.name
+             FROM TREATMENT t
+             JOIN REGIMEN r ON r.id = t.regimen_id
+             LEFT JOIN DEPARTMENT dep_t ON dep_t.id = t.dept_id
+             WHERE r.patient_id = pt.patient_id
+               AND t.dept_id IS NOT NULL
+             ORDER BY t.time DESC, t.id DESC
+             LIMIT 1
+           ),
+           (
+             SELECT dep_a.name
+             FROM APPOINTMENT a2
+             JOIN CLINIC_ROOM cr2 ON cr2.id = a2.room_id
+             LEFT JOIN DEPARTMENT dep_a ON dep_a.id = cr2.department_id
+             WHERE a2.patient_id = pt.patient_id
+             ORDER BY a2.time DESC, a2.id DESC
+             LIMIT 1
+           )
+         ) AS inDepartment
        FROM PATIENT pt
        LEFT JOIN USER u ON u.id = pt.user_id
        LEFT JOIN ACCOUNT a ON a.user_id = u.id
-       LEFT JOIN DEPARTMENT dep ON dep.id = pt.in_dept
        WHERE (a.type = 'PAT' OR a.user_id IS NULL)
        ORDER BY pt.patient_id DESC`,
       { type: QueryTypes.SELECT }

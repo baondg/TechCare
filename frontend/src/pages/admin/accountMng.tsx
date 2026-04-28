@@ -71,6 +71,15 @@ const EMPTY_PATIENT_DRAFT: Patient = {
 
 type FormMode = "view" | "add" | "edit"
 
+function normalizeDobForStorage(value: string): string {
+  const s = String(value || "").trim()
+  if (!s) return ""
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s
+  const dmy = s.match(/^(\d{2})-(\d{2})-(\d{4})$/)
+  if (dmy) return `${dmy[3]}-${dmy[2]}-${dmy[1]}`
+  return s
+}
+
 function mapAccountToPatientRow(a: AdminAccountRow): Patient {
   const createdByDisplay =
     a.createdBy === null || a.createdBy === undefined ? "System" : String(a.createdBy)
@@ -310,6 +319,9 @@ export default function UserManagement() {
               onChange={e =>
                 setFilters(f => ({ ...f, userId: e.target.value }))
               }
+              onInput={e =>
+                setFilters(f => ({ ...f, userId: (e.target as HTMLInputElement).value }))
+              }
               className="h-8 text-xs pr-8"
             />
           </div>
@@ -324,6 +336,9 @@ export default function UserManagement() {
               onChange={e =>
                 setFilters(f => ({ ...f, name: e.target.value }))
               }
+              onInput={e =>
+                setFilters(f => ({ ...f, name: (e.target as HTMLInputElement).value }))
+              }
               className="h-8 text-xs pr-8"
             />
           </div>
@@ -337,6 +352,9 @@ export default function UserManagement() {
               value={filters.username}
               onChange={e =>
                 setFilters(f => ({ ...f, username: e.target.value }))
+              }
+              onInput={e =>
+                setFilters(f => ({ ...f, username: (e.target as HTMLInputElement).value }))
               }
               className="h-8 text-xs pr-8"
             />
@@ -393,6 +411,9 @@ export default function UserManagement() {
               onChange={e =>
                 setFilters(f => ({ ...f, dob: e.target.value }))
               }
+              onInput={e =>
+                setFilters(f => ({ ...f, dob: (e.target as HTMLInputElement).value }))
+              }
               className="h-8 text-xs pr-8"
             />
           </div>
@@ -407,6 +428,9 @@ export default function UserManagement() {
               onChange={e =>
                 setFilters(f => ({ ...f, phone: e.target.value }))
               }
+              onInput={e =>
+                setFilters(f => ({ ...f, phone: (e.target as HTMLInputElement).value }))
+              }
               className="h-8 text-xs pr-8"
             />
           </div>
@@ -420,6 +444,9 @@ export default function UserManagement() {
               value={filters.email}
               onChange={e =>
                 setFilters(f => ({ ...f, email: e.target.value }))
+              }
+              onInput={e =>
+                setFilters(f => ({ ...f, email: (e.target as HTMLInputElement).value }))
               }
               className="h-8 text-xs pr-8"
             />
@@ -507,7 +534,7 @@ export default function UserManagement() {
         roleCode: (draftPatient.roleCode || "PAT") as "ADM" | "PAT" | "DOC" | "NUR" | "TEC",
         name: draftPatient.name.trim(),
         sex: draftPatient.sex,
-        dob: draftPatient.dob,
+        dob: normalizeDobForStorage(draftPatient.dob),
         phone: draftPatient.phone.trim(),
         email: draftPatient.email.trim(),
         enabled: !!draftPatient.enabled,
@@ -843,10 +870,13 @@ export default function UserManagement() {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
                     <Input
+                      id="name"
                       value={activePatient.name}
                       disabled={!canEditFields}
                       className="bg-gray-50"
                       onChange={(e) => updateDraftField("name", e.target.value)}
+                      onInput={(e) => updateDraftField("name", (e.target as HTMLInputElement).value)}
+                      onBlur={(e) => updateDraftField("name", e.target.value)}
                     />
                   </div>
                   <div>
@@ -893,15 +923,18 @@ export default function UserManagement() {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Username</label>
                     <Input
+                      id="username"
                       value={activePatient.username}
                       disabled={!canEditFields}
                       className="bg-gray-50"
                       onChange={(e) => updateDraftField("username", e.target.value)}
+                      onInput={(e) => updateDraftField("username", (e.target as HTMLInputElement).value)}
+                      onBlur={(e) => updateDraftField("username", e.target.value)}
                     />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
-                    <Input type="password" value="********" disabled className="bg-gray-50" />
+                    <Input id="password" type="password" value="********" disabled className="bg-gray-50" />
                   </div>
                 </div>
 
@@ -931,10 +964,18 @@ export default function UserManagement() {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Date of Birth</label>
                     <Input
-                      value={activePatient.dob}
+                      id="dob-picker"
+                      type="date"
                       disabled={!canEditFields}
-                      className="bg-gray-50"
+                      className="w-full bg-gray-50"
+                      value={
+                        /^\d{4}-\d{2}-\d{2}$/.test(normalizeDobForStorage(activePatient.dob))
+                          ? normalizeDobForStorage(activePatient.dob)
+                          : ""
+                      }
                       onChange={(e) => updateDraftField("dob", e.target.value)}
+                      onInput={(e) => updateDraftField("dob", (e.target as HTMLInputElement).value)}
+                      onBlur={(e) => updateDraftField("dob", e.target.value)}
                     />
                   </div>
                 </div>
@@ -943,19 +984,25 @@ export default function UserManagement() {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
                     <Input
+                      id="phone"
                       value={activePatient.phone}
                       disabled={!canEditFields}
                       className="bg-gray-50"
                       onChange={(e) => updateDraftField("phone", e.target.value)}
+                      onInput={(e) => updateDraftField("phone", (e.target as HTMLInputElement).value)}
+                      onBlur={(e) => updateDraftField("phone", e.target.value)}
                     />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
                     <Input
+                      id="email"
                       value={activePatient.email}
                       disabled={!canEditFields}
                       className="bg-gray-50"
                       onChange={(e) => updateDraftField("email", e.target.value)}
+                      onInput={(e) => updateDraftField("email", (e.target as HTMLInputElement).value)}
+                      onBlur={(e) => updateDraftField("email", e.target.value)}
                     />
                   </div>
                 </div>
@@ -976,6 +1023,8 @@ export default function UserManagement() {
                         className="bg-gray-50 min-h-[72px]"
                         placeholder="e.g. Cardiology, interventional procedures"
                         onChange={(e) => updateDraftField("doctorSpecifications", e.target.value)}
+                        onInput={(e) => updateDraftField("doctorSpecifications", (e.target as HTMLTextAreaElement).value)}
+                        onBlur={(e) => updateDraftField("doctorSpecifications", e.target.value)}
                       />
                     </div>
                     <div>
@@ -986,6 +1035,8 @@ export default function UserManagement() {
                         className="bg-gray-50 min-h-[72px]"
                         placeholder="e.g. MD, board certifications"
                         onChange={(e) => updateDraftField("doctorQualifications", e.target.value)}
+                        onInput={(e) => updateDraftField("doctorQualifications", (e.target as HTMLTextAreaElement).value)}
+                        onBlur={(e) => updateDraftField("doctorQualifications", e.target.value)}
                       />
                     </div>
                     <div>

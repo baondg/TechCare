@@ -387,22 +387,69 @@ async function getOpenRegimenIdForPatient(patientId, transaction) {
   return rows[0]?.id != null ? Number(rows[0].id) : null;
 }
 
+async function resolveDeptIdForTreatment(patientId, doctorId, transaction) {
+  const queryOpts = {
+    type: QueryTypes.SELECT,
+    ...(transaction ? { transaction } : {}),
+  };
+
+  // 1) Most recent appointment room department for this patient.
+  const [apptRow] = await sequelize.query(
+    `SELECT cr.department_id AS deptId
+     FROM APPOINTMENT a
+     JOIN CLINIC_ROOM cr ON cr.id = a.room_id
+     WHERE a.patient_id = :patientId
+       AND cr.department_id IS NOT NULL
+     ORDER BY a.time DESC, a.id DESC
+     LIMIT 1`,
+    { ...queryOpts, replacements: { patientId } }
+  );
+  const apptDeptId = apptRow?.deptId != null ? Number(apptRow.deptId) : null;
+  if (Number.isFinite(apptDeptId) && apptDeptId > 0) return apptDeptId;
+
+  // 2) Doctor's current room department.
+  const [doctorRoomRow] = await sequelize.query(
+    `SELECT cr.department_id AS deptId
+     FROM DOCTOR d
+     LEFT JOIN CLINIC_ROOM cr ON cr.id = d.room_id
+     WHERE d.doctor_id = :doctorId
+     LIMIT 1`,
+    { ...queryOpts, replacements: { doctorId } }
+  );
+  const roomDeptId = doctorRoomRow?.deptId != null ? Number(doctorRoomRow.deptId) : null;
+  if (Number.isFinite(roomDeptId) && roomDeptId > 0) return roomDeptId;
+
+  // 3) First mapped department of doctor (fallback).
+  const [doctorDeptRow] = await sequelize.query(
+    `SELECT dd.department_id AS deptId
+     FROM DOCTOR_DEPARTMENT dd
+     WHERE dd.doctor_id = :doctorId
+     ORDER BY dd.department_id ASC
+     LIMIT 1`,
+    { ...queryOpts, replacements: { doctorId } }
+  );
+  const mappedDeptId = doctorDeptRow?.deptId != null ? Number(doctorDeptRow.deptId) : null;
+  return Number.isFinite(mappedDeptId) && mappedDeptId > 0 ? mappedDeptId : null;
+}
+
 async function createTreatmentForPatient({ patientId, doctorId, complaint, department, diseaseId, transaction }) {
   let regimenId = await getOpenRegimenIdForPatient(patientId, transaction);
   if (!regimenId) {
     regimenId = await ensureRegimen(patientId, diseaseId, transaction);
   }
+  const deptId = await resolveDeptIdForTreatment(patientId, doctorId, transaction);
   const repl = {
     complaint: complaint || 'General follow-up',
     type: department || 'General',
     regimenId,
     doctorId,
     diseaseId: diseaseId != null ? diseaseId : null,
+    deptId,
   };
   try {
     const [ins] = await sequelize.query(
-      `INSERT INTO TREATMENT (time, \`condition\`, type, regimen_id, doctor_id, room_id, disease_id)
-       VALUES (NOW(), :complaint, :type, :regimenId, :doctorId, NULL, :diseaseId)`,
+      `INSERT INTO TREATMENT (time, \`condition\`, type, regimen_id, doctor_id, room_id, disease_id, dept_id)
+       VALUES (NOW(), :complaint, :type, :regimenId, :doctorId, NULL, :diseaseId, :deptId)`,
       { replacements: repl, type: QueryTypes.INSERT, transaction }
     );
     const tid = mysqlInsertId(ins);
@@ -545,9 +592,30 @@ exports.getPatients = async (req, res) => {
     if (userIds.length > 0) {
       const placeholders = userIds.map(() => '?').join(',');
       const deptRows = await sequelize.query(
-        `SELECT pt.user_id AS userId, dep.name AS inDepartment
+        `SELECT
+           pt.user_id AS userId,
+           COALESCE(
+             (
+               SELECT dep_t.name
+               FROM TREATMENT t
+               JOIN REGIMEN r ON r.id = t.regimen_id
+               LEFT JOIN DEPARTMENT dep_t ON dep_t.id = t.dept_id
+               WHERE r.patient_id = pt.patient_id
+                 AND t.dept_id IS NOT NULL
+               ORDER BY t.time DESC, t.id DESC
+               LIMIT 1
+             ),
+             (
+               SELECT dep_a.name
+               FROM APPOINTMENT a2
+               JOIN CLINIC_ROOM cr2 ON cr2.id = a2.room_id
+               LEFT JOIN DEPARTMENT dep_a ON dep_a.id = cr2.department_id
+               WHERE a2.patient_id = pt.patient_id
+               ORDER BY a2.time DESC, a2.id DESC
+               LIMIT 1
+             )
+           ) AS inDepartment
          FROM PATIENT pt
-         LEFT JOIN DEPARTMENT dep ON dep.id = pt.in_dept
          WHERE pt.user_id IN (${placeholders})`,
         { replacements: userIds, type: QueryTypes.SELECT }
       );
@@ -655,9 +723,38 @@ exports.getPatient = async (req, res) => {
       }
 
     const patDeptRows = await sequelize.query(
-      `SELECT dep.name AS inDepartment, pt.in_dept AS inDeptId
+      `SELECT
+         COALESCE(
+           (
+             SELECT dep_t.name
+             FROM TREATMENT t
+             JOIN REGIMEN r ON r.id = t.regimen_id
+             LEFT JOIN DEPARTMENT dep_t ON dep_t.id = t.dept_id
+             WHERE r.patient_id = pt.patient_id
+               AND t.dept_id IS NOT NULL
+             ORDER BY t.time DESC, t.id DESC
+             LIMIT 1
+           ),
+           (
+             SELECT dep_a.name
+             FROM APPOINTMENT a2
+             JOIN CLINIC_ROOM cr2 ON cr2.id = a2.room_id
+             LEFT JOIN DEPARTMENT dep_a ON dep_a.id = cr2.department_id
+             WHERE a2.patient_id = pt.patient_id
+             ORDER BY a2.time DESC, a2.id DESC
+             LIMIT 1
+           )
+         ) AS inDepartment,
+         (
+           SELECT t2.dept_id
+           FROM TREATMENT t2
+           JOIN REGIMEN r2 ON r2.id = t2.regimen_id
+           WHERE r2.patient_id = pt.patient_id
+             AND t2.dept_id IS NOT NULL
+           ORDER BY t2.time DESC, t2.id DESC
+           LIMIT 1
+         ) AS inDeptId
        FROM PATIENT pt
-       LEFT JOIN DEPARTMENT dep ON dep.id = pt.in_dept
        WHERE pt.user_id = :uid
        LIMIT 1`,
       { replacements: { uid: p.id }, type: QueryTypes.SELECT }
@@ -705,7 +802,7 @@ exports.getPatient = async (req, res) => {
           department: latestDiagnosis.department || '',
           doctorName: latestDiagnosis.doctorName || ''
         } : null,
-        /** PATIENT.in_dept → DEPARTMENT.name */
+        /** Derived from latest TREATMENT.dept_id, fallback APPOINTMENT room department */
         inDepartment: inDepartment || null,
         inDeptId: deptRow?.inDeptId != null ? Number(deptRow.inDeptId) : null,
         bmi: bmi,
@@ -4815,19 +4912,9 @@ async function resolvePatientPkFromRouteParam(patientIdParam, transaction) {
   return rows[0]?.patient_id ?? null;
 }
 
-/** Align PATIENT.in_dept with CLINIC_ROOM.department_id (same idea as nurse check-in sync). */
+/** Keep compatibility after dropping PATIENT.in_dept. */
 async function syncPatientInDeptFromClinicRoom(patientPk, roomId, transaction) {
-  const [row] = await sequelize.query(
-    'SELECT department_id AS departmentId FROM CLINIC_ROOM WHERE id = :roomId LIMIT 1',
-    { replacements: { roomId }, type: QueryTypes.SELECT, transaction }
-  );
-  const raw = row?.departmentId != null ? Number(row.departmentId) : null;
-  const deptId = Number.isFinite(raw) ? raw : null;
-  await sequelize.query('UPDATE PATIENT SET in_dept = :deptId WHERE patient_id = :patientPk', {
-    replacements: { patientPk, deptId },
-    type: QueryTypes.UPDATE,
-    transaction,
-  });
+  return { patientPk, roomId, transaction, synced: false };
 }
 
 /**

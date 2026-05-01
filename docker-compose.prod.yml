@@ -1,27 +1,27 @@
 services:
   mysql:
     image: mysql:8.0
-    container_name: techcare-mysql
+    container_name: techcare-mysql-prod
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: techcare
-      MYSQL_USER: techcare
-      MYSQL_PASSWORD: techcare
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-techcare}
+      MYSQL_USER: ${MYSQL_USER:-techcare}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-techcare}
     volumes:
-      - mysql_data:/var/lib/mysql
+      - mysql_data_prod:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -proot"]
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$${MYSQL_ROOT_PASSWORD}"]
       interval: 10s
       timeout: 5s
       retries: 12
 
   redis:
     image: redis:7-alpine
-    container_name: techcare-redis
+    container_name: techcare-redis-prod
     restart: unless-stopped
     volumes:
-      - redis_data:/data
+      - redis_data_prod:/data
     healthcheck:
       test: ["CMD-SHELL", "redis-cli ping"]
       interval: 10s
@@ -31,25 +31,21 @@ services:
   backend:
     build:
       context: ./backend
-      dockerfile: Dockerfile
-    container_name: techcare-backend
+      dockerfile: Dockerfile.prod
+    container_name: techcare-backend-prod
     restart: unless-stopped
     env_file:
       - ./backend/.env
     environment:
-      NODE_ENV: development
-      CHOKIDAR_USEPOLLING: "true"
-    ports:
-      - "5000:3000"
-    volumes:
-      - ./backend:/app
-      - /app/node_modules
-    command: npm run dev
+      NODE_ENV: production
+      PORT: ${PORT:-3000}
     depends_on:
       mysql:
         condition: service_healthy
       redis:
         condition: service_healthy
+    ports:
+      - "5000:3000"
     healthcheck:
       test:
         [
@@ -65,27 +61,22 @@ services:
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile
-    container_name: techcare-frontend
+      dockerfile: Dockerfile.prod
+      args:
+        VITE_API_BASE_URL: /api
+    container_name: techcare-frontend-prod
     restart: unless-stopped
-    env_file:
-      - ./frontend/.env
-    environment:
-      CHOKIDAR_USEPOLLING: "true"
-      VITE_API_BASE_URL: http://localhost:5000
-    ports:
-      - "5173:5173"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    command:
-      - sh
-      - -c
-      - npm install; npm run dev -- --host 0.0.0.0 --port 5173
     depends_on:
       backend:
         condition: service_healthy
+    ports:
+      - "80:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://127.0.0.1/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
 
 volumes:
-  mysql_data:
-  redis_data:
+  mysql_data_prod:
+  redis_data_prod:

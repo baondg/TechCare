@@ -18,8 +18,14 @@ dist-ssr/
 build/
 *.tsbuildinfo
 
-# Environment variables
+# Environment variables (any directory; keep *.example committed)
+**/.env
 .env
+.env.*
+!.env.example
+!**/.env.example
+!.env.*.example
+!**/.env.*.example
 .env.local
 .env.development.local
 .env.test.local

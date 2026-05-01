@@ -55,9 +55,12 @@ export function AIFeatures() {
           </p>
         </div>
 
-        <div className="grid gap-8 md:grid-cols-2">
+        <div className="grid w-full min-w-0 gap-6 sm:gap-8 md:grid-cols-2">
           {aiFeatures.map((feature) => (
-            <Card key={feature.title} className="card-feature card-feature-hover w-150 border-r border-white/40 sticky bg-white/80 backdrop-blur-xl shadow-[4px_0_20px_rgba(0,0,0,0.05)] z-40">
+            <Card
+              key={feature.title}
+              className="card-feature card-feature-hover min-w-0 w-full border-r border-white/40 bg-white/80 backdrop-blur-xl shadow-[4px_0_20px_rgba(0,0,0,0.05)]"
+            >
               <CardContent className="pt-6">
                 <div className={`mb-4 inline-flex h-14 w-14 items-center justify-center rounded-lg ${feature.color}`}>
                   <feature.icon className="h-7 w-7" />

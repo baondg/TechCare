@@ -1,5 +1,9 @@
 import { Router, Request, Response } from 'express';
 const router = Router();
+const sequelize = require('../common/database');
+const defineSystemConfig = require('../models/SystemConfig');
+const SystemConfig = defineSystemConfig(sequelize);
+const { aiChatRateLimit, aiSymptomRateLimit } = require('../middleware/rateLimitMiddleware');
 
 // ============================================================
 // AI Provider Configuration
@@ -99,12 +103,12 @@ Rules:
 // ============================================================
 // Helper: call Groq API
 // ============================================================
-async function callGroqAPI(messages: ChatMessage[], systemPrompt?: string): Promise<string> {
+async function callGroqAPI(messages: ChatMessage[], systemPrompt?: string, overrideModel?: string): Promise<string> {
   const config = getGroqConfig();
   const url = `${config.baseUrl}/chat/completions`;
 
   const body = {
-    model: config.model,
+    model: overrideModel || config.model,
     messages: [
       { role: 'system', content: systemPrompt || SYSTEM_PROMPT },
       ...messages.filter(m => m.role !== 'system'),
@@ -143,12 +147,12 @@ async function callGroqAPI(messages: ChatMessage[], systemPrompt?: string): Prom
 // ============================================================
 // Helper: call local LLM via OpenAI-compatible /v1/chat/completions
 // ============================================================
-async function callLocalLLM(messages: ChatMessage[], systemPrompt?: string): Promise<string> {
+async function callLocalLLM(messages: ChatMessage[], systemPrompt?: string, overrideModel?: string): Promise<string> {
   const { baseUrl, model, apiKey } = getLocalLLMConfig();
   const url = `${baseUrl.replace(/\/$/, '')}/v1/chat/completions`;
 
   const body = {
-    model,
+    model: overrideModel || model,
     messages: [
       { role: 'system', content: systemPrompt || SYSTEM_PROMPT },
       ...messages.filter(m => m.role !== 'system'),
@@ -187,12 +191,56 @@ async function callLocalLLM(messages: ChatMessage[], systemPrompt?: string): Pro
 // ============================================================
 // Unified AI call — auto-selects provider
 // ============================================================
-async function callAI(messages: ChatMessage[], systemPrompt?: string): Promise<string> {
-  const provider = getActiveProvider();
-  if (provider === 'groq') {
-    return callGroqAPI(messages, systemPrompt);
+const loadAiModelRegistry = async () => {
+  const modelConfig = await SystemConfig.findOne({ where: { key: 'aiModels' } });
+  const defaultsConfig = await SystemConfig.findOne({ where: { key: 'aiDefaultModelByFeature' } });
+
+  let models: Array<{ provider: string; modelId: string; featureScope: string; enabled: boolean }> = [];
+  let defaults: Record<string, { provider: string; modelId: string }> = {};
+  try {
+    models = modelConfig?.value ? JSON.parse(modelConfig.value) : [];
+  } catch (_error) {
+    models = [];
   }
-  return callLocalLLM(messages, systemPrompt);
+  try {
+    defaults = defaultsConfig?.value ? JSON.parse(defaultsConfig.value) : {};
+  } catch (_error) {
+    defaults = {};
+  }
+  return { models: Array.isArray(models) ? models : [], defaults: defaults || {} };
+};
+
+const resolveProviderAndModel = async (feature: string) => {
+  const fallbackProvider = getActiveProvider();
+  const fallbackModel = fallbackProvider === 'groq' ? getGroqConfig().model : getLocalLLMConfig().model;
+  const { models, defaults } = await loadAiModelRegistry();
+
+  const defaultCandidate = defaults?.[feature];
+  if (defaultCandidate?.provider && defaultCandidate?.modelId) {
+    const match = models.find(
+      (m) =>
+        m.provider === defaultCandidate.provider &&
+        m.modelId === defaultCandidate.modelId &&
+        m.featureScope === feature &&
+        m.enabled === true
+    );
+    if (match) return { provider: match.provider as 'groq' | 'local', model: match.modelId };
+  }
+
+  const firstEnabled = models.find((m) => m.featureScope === feature && m.enabled === true);
+  if (firstEnabled) {
+    return { provider: firstEnabled.provider as 'groq' | 'local', model: firstEnabled.modelId };
+  }
+
+  return { provider: fallbackProvider, model: fallbackModel };
+};
+
+async function callAI(messages: ChatMessage[], feature: string, systemPrompt?: string): Promise<string> {
+  const { provider, model } = await resolveProviderAndModel(feature);
+  if (provider === 'groq') {
+    return callGroqAPI(messages, systemPrompt, model);
+  }
+  return callLocalLLM(messages, systemPrompt, model);
 }
 
 // ============================================================
@@ -227,7 +275,7 @@ router.get('/chat', (_req: Request, res: Response) => {
 /**
  * POST /api/ai/chat — Chat with AI
  */
-router.post('/chat', async (req: Request, res: Response) => {
+router.post('/chat', aiChatRateLimit, async (req: Request, res: Response) => {
   try {
     const { messages, systemPrompt } = req.body as ChatRequest;
 
@@ -237,12 +285,14 @@ router.post('/chat', async (req: Request, res: Response) => {
       });
     }
 
-    const reply = await callAI(messages, systemPrompt);
+    const resolved = await resolveProviderAndModel('chat');
+    const reply = await callAI(messages, 'chat', systemPrompt);
 
     return res.json({
       message: reply,
       timestamp: new Date().toISOString(),
-      provider: getActiveProvider(),
+      provider: resolved.provider,
+      model: resolved.model,
     });
   } catch (error: any) {
     console.error('[AI] Error:', error?.message);
@@ -268,7 +318,7 @@ router.post('/chat', async (req: Request, res: Response) => {
  * Used by appointmentController (patient symptom checker). No auth — only call from same backend.
  * Body: { symptoms: Array<{ name, severity, duration }> }
  */
-router.post('/symptom-analysis', async (req: Request, res: Response) => {
+router.post('/symptom-analysis', aiSymptomRateLimit, async (req: Request, res: Response) => {
   try {
     const symptoms = req.body?.symptoms;
     if (!Array.isArray(symptoms) || symptoms.length === 0) {
@@ -276,7 +326,8 @@ router.post('/symptom-analysis', async (req: Request, res: Response) => {
     }
 
     const userContent = `Patient-reported symptoms (JSON):\n${JSON.stringify(symptoms, null, 2)}\n\nReturn only the JSON object as specified.`;
-    const reply = await callAI([{ role: 'user', content: userContent }], SYMPTOM_ANALYSIS_PROMPT);
+    const resolved = await resolveProviderAndModel('symptom-analysis');
+    const reply = await callAI([{ role: 'user', content: userContent }], 'symptom-analysis', SYMPTOM_ANALYSIS_PROMPT);
 
     let parsed: Record<string, unknown> = {};
     try {
@@ -305,7 +356,8 @@ router.post('/symptom-analysis', async (req: Request, res: Response) => {
       possible_conditions,
       recommended_action,
       suggested_medication_type,
-      provider: getActiveProvider(),
+      provider: resolved.provider,
+      model: resolved.model,
     });
   } catch (error: any) {
     console.error('[AI] symptom-analysis error:', error?.message);
@@ -345,6 +397,7 @@ Based on the above, suggest appropriate medications.`;
 
     const reply = await callAI(
       [{ role: 'user', content: userMessage }],
+      'suggest-medicine',
       MEDICINE_SUGGEST_PROMPT
     );
 
@@ -364,7 +417,7 @@ Based on the above, suggest appropriate medications.`;
       success: true,
       suggestions,
       raw: reply,
-      provider: getActiveProvider(),
+      provider: (await resolveProviderAndModel('suggest-medicine')).provider,
     });
   } catch (error: any) {
     console.error('[AI] suggest-medicine error:', error?.message);
@@ -422,6 +475,7 @@ Respond with a JSON object:
 
     const reply = await callAI(
       [{ role: 'user', content: prompt }],
+      'recommend-doctor',
       'You are a hospital scheduling AI. You return structured JSON only.'
     );
 
@@ -437,7 +491,7 @@ Respond with a JSON object:
       success: true,
       ...parsed,
       raw: reply,
-      provider: getActiveProvider(),
+      provider: (await resolveProviderAndModel('recommend-doctor')).provider,
     });
   } catch (error: any) {
     console.error('[AI] recommend-doctor error:', error?.message);

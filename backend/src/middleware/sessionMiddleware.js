@@ -1,6 +1,9 @@
 const jwt = require('jsonwebtoken');
 const sequelize = require('../common/database');
 const Session = require('../models/Session');
+const defineSystemConfig = require('../models/SystemConfig');
+const SystemConfig = defineSystemConfig(sequelize);
+const { Op } = require('sequelize');
 
 
 
@@ -10,13 +13,21 @@ const cleanupExpiredSessions = async () => {
     await Session.destroy({
       where: {
         expiresAt: {
-          [require('sequelize').Op.lt]: new Date()
+          [Op.lt]: new Date()
         }
       }
     });
   } catch (error) {
     console.error('Error cleaning up expired sessions:', error);
   }
+};
+
+const getNumericConfig = async (key, fallback) => {
+  const config = await SystemConfig.findOne({ where: { key } });
+  if (!config) return fallback;
+
+  const parsed = Number.parseInt(String(config.value), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 };
 
 // Kiểm tra và làm sạch session định kỳ (mỗi 5 phút)
@@ -74,21 +85,18 @@ exports.checkConcurrentUsers = async (req, res, next) => {
     // Làm sạch session hết hạn trước
     await cleanupExpiredSessions();
     
-    const config = await SystemConfig.findOne({ 
-      where: { key: 'maxConcurrentUsers' } 
-    });
-    const maxUsers = config ? parseInt(config.value) : 500;
+    const maxUsers = await getNumericConfig('maxConcurrentUsers', 500);
     
     const activeSessions = await Session.count({
       where: {
         expiresAt: {
-          [require('sequelize').Op.gt]: new Date()
+          [Op.gt]: new Date()
         }
       }
     });
     
     if (activeSessions >= maxUsers) {
-      return res.status(503).json({
+      return res.status(429).json({
         success: false,
         error: `Maximum concurrent users (${maxUsers}) reached. Please try again later.`
       });

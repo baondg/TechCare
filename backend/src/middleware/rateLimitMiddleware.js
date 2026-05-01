@@ -1,6 +1,7 @@
 const sequelize = require('../common/database');
 const defineSystemConfig = require('../models/SystemConfig');
 const SystemConfig = defineSystemConfig(sequelize);
+const jwt = require('jsonwebtoken');
 
 // In-memory rate limit store
 const rateLimitStore = new Map();
@@ -40,147 +41,128 @@ const incrementRateLimit = (key, ttlSeconds) => {
   }
 };
 
-// Middleware rate limiting (in-memory)
-exports.rateLimit = async (req, res, next) => {
+const parseBoolean = (value, fallback = true) => {
+  if (value === undefined || value === null) return fallback;
+  const normalized = String(value).toLowerCase();
+  if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
+  if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
+  return fallback;
+};
+
+const parsePositiveInt = (value, fallback) => {
+  const parsed = Number.parseInt(String(value), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+const getIdentifier = (req, ipBasedLimit) => {
+  if (ipBasedLimit) {
+    return req.ip || req.connection.remoteAddress || 'unknown';
+  }
+
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return req.ip || req.connection.remoteAddress || 'unknown';
+
   try {
-    // Lấy cấu hình rate limit từ database
-    const rateLimitConfig = await SystemConfig.findOne({ 
-      where: { key: 'rateLimitRequests' } 
-    });
-    const windowConfig = await SystemConfig.findOne({ 
-      where: { key: 'rateLimitWindowMinutes' } 
-    });
-    
-    const maxRequests = rateLimitConfig ? parseInt(rateLimitConfig.value) : 100;
-    const windowMinutes = windowConfig ? parseInt(windowConfig.value) : 15;
-    const windowSeconds = windowMinutes * 60;
-    const windowMs = windowMinutes * 60 * 1000;
-    
-    // Tạo key dựa trên IP và user ID (nếu có)
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    let identifier = req.ip || req.connection.remoteAddress || 'unknown';
-    
-    if (token) {
-      try {
-        const jwt = require('jsonwebtoken');
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
-        identifier = `user_${decoded.userId}`;
-      } catch (error) {
-        // Token không hợp lệ, dùng IP
-      }
-    }
-    
-    const key = `ratelimit:${req.path}:${identifier}`;
-    const now = Date.now();
-    
-    // Kiểm tra record hiện tại
-    const record = getRateLimitInfo(key);
-    
-    if (!record || now > record.resetTime) {
-      // Tạo record mới hoặc reset
-      const count = incrementRateLimit(key, windowSeconds);
-      const resetTime = now + windowMs;
-      
-      res.setHeader('X-RateLimit-Limit', maxRequests);
-      res.setHeader('X-RateLimit-Remaining', maxRequests - count);
-      res.setHeader('X-RateLimit-Reset', new Date(resetTime).toISOString());
-      return next();
-    }
-    
-    // Tăng counter
-    const count = incrementRateLimit(key, windowSeconds);
-    
-    if (count > maxRequests) {
-      const retryAfter = Math.ceil((record.resetTime - now) / 1000);
-      return res.status(429).json({
-        success: false,
-        error: 'Too many requests. Please try again later.',
-        retryAfter: retryAfter,
-        limit: maxRequests,
-        windowMinutes: windowMinutes
-      });
-    }
-    
-    // Thêm headers thông tin rate limit
-    res.setHeader('X-RateLimit-Limit', maxRequests);
-    res.setHeader('X-RateLimit-Remaining', Math.max(0, maxRequests - count));
-    res.setHeader('X-RateLimit-Reset', new Date(record.resetTime).toISOString());
-    
-    next();
-  } catch (error) {
-    console.error('Rate limit error:', error);
-    // Nếu có lỗi, cho phép request đi qua (fail open)
-    next();
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+    return decoded?.userId ? `user_${decoded.userId}` : req.ip || req.connection.remoteAddress || 'unknown';
+  } catch (_error) {
+    return req.ip || req.connection.remoteAddress || 'unknown';
   }
 };
 
-// Rate limit cho API endpoints (in-memory)
-exports.apiRateLimit = async (req, res, next) => {
+const loadRateLimitPolicy = async (scope, defaults) => {
+  const keys = [
+    'rateLimitEnabled',
+    'rateLimitIpBased',
+    `${scope}RateLimitRequests`,
+    `${scope}RateLimitWindowSeconds`,
+  ];
+
+  const configs = await SystemConfig.findAll({ where: { key: keys } });
+  const map = {};
+  configs.forEach((item) => {
+    map[item.key] = item.value;
+  });
+
+  return {
+    enabled: parseBoolean(map.rateLimitEnabled, true),
+    ipBasedLimit: parseBoolean(map.rateLimitIpBased, true),
+    maxRequests: parsePositiveInt(map[`${scope}RateLimitRequests`], defaults.maxRequests),
+    windowSeconds: parsePositiveInt(map[`${scope}RateLimitWindowSeconds`], defaults.windowSeconds),
+  };
+};
+
+const buildRateLimiter = (scope, defaults, message) => async (req, res, next) => {
   try {
-    // Lấy cấu hình riêng cho API endpoints
-    const apiRateLimitConfig = await SystemConfig.findOne({ 
-      where: { key: 'apiRateLimitRequests' } 
-    });
-    const apiWindowConfig = await SystemConfig.findOne({ 
-      where: { key: 'apiRateLimitWindowMinutes' } 
-    });
-    
-    const maxRequests = apiRateLimitConfig ? parseInt(apiRateLimitConfig.value) : 60;
-    const windowMinutes = apiWindowConfig ? parseInt(apiWindowConfig.value) : 1;
-    const windowSeconds = windowMinutes * 60;
-    const windowMs = windowMinutes * 60 * 1000;
-    
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    let identifier = req.ip || req.connection.remoteAddress || 'unknown';
-    
-    if (token) {
-      try {
-        const jwt = require('jsonwebtoken');
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
-        identifier = `user_${decoded.userId}`;
-      } catch (error) {
-        // Token không hợp lệ, dùng IP
-      }
-    }
-    
-    const key = `apiratelimit:${req.path}:${identifier}`;
+    const policy = await loadRateLimitPolicy(scope, defaults);
+    if (!policy.enabled) return next();
+
+    const identifier = getIdentifier(req, policy.ipBasedLimit);
+    const key = `${scope}:ratelimit:${req.path}:${identifier}`;
     const now = Date.now();
-    
+    const windowMs = policy.windowSeconds * 1000;
     const record = getRateLimitInfo(key);
-    
+
     if (!record || now > record.resetTime) {
-      // Tạo record mới hoặc reset
-      const count = incrementRateLimit(key, windowSeconds);
+      const count = incrementRateLimit(key, policy.windowSeconds);
       const resetTime = now + windowMs;
-      
-      res.setHeader('X-RateLimit-Limit', maxRequests);
-      res.setHeader('X-RateLimit-Remaining', maxRequests - count);
+      res.setHeader('X-RateLimit-Limit', policy.maxRequests);
+      res.setHeader('X-RateLimit-Remaining', Math.max(0, policy.maxRequests - count));
       res.setHeader('X-RateLimit-Reset', new Date(resetTime).toISOString());
       return next();
     }
-    
-    const count = incrementRateLimit(key, windowSeconds);
-    
-    if (count > maxRequests) {
+
+    const count = incrementRateLimit(key, policy.windowSeconds);
+    if (count > policy.maxRequests) {
       const retryAfter = Math.ceil((record.resetTime - now) / 1000);
       return res.status(429).json({
         success: false,
-        error: 'API rate limit exceeded. Please slow down your requests.',
-        retryAfter: retryAfter,
-        limit: maxRequests,
-        windowMinutes: windowMinutes
+        error: message,
+        retryAfter,
+        limit: policy.maxRequests,
+        windowSeconds: policy.windowSeconds,
       });
     }
-    
-    res.setHeader('X-RateLimit-Limit', maxRequests);
-    res.setHeader('X-RateLimit-Remaining', Math.max(0, maxRequests - count));
+
+    res.setHeader('X-RateLimit-Limit', policy.maxRequests);
+    res.setHeader('X-RateLimit-Remaining', Math.max(0, policy.maxRequests - count));
     res.setHeader('X-RateLimit-Reset', new Date(record.resetTime).toISOString());
-    
-    next();
+    return next();
   } catch (error) {
-    console.error('API rate limit error:', error);
-    next();
+    console.error('Rate limit error:', error);
+    return next();
   }
 };
+
+exports.globalRateLimit = buildRateLimiter(
+  'global',
+  { maxRequests: 100, windowSeconds: 60 },
+  'Too many requests. Please try again later.'
+);
+exports.authLoginRateLimit = buildRateLimiter(
+  'login',
+  { maxRequests: 100, windowSeconds: 15 * 60 },
+  'Too many login attempts. Please try again later.'
+);
+exports.authRegistrationRateLimit = buildRateLimiter(
+  'registration',
+  { maxRequests: 20, windowSeconds: 60 * 60 },
+  'Too many registration attempts. Please try again later.'
+);
+exports.aiChatRateLimit = buildRateLimiter(
+  'chatbot',
+  { maxRequests: 20, windowSeconds: 60 },
+  'Too many chatbot requests. Please slow down.'
+);
+exports.aiSymptomRateLimit = buildRateLimiter(
+  'aiSymptom',
+  { maxRequests: 10, windowSeconds: 60 },
+  'Too many symptom analysis requests. Please try again later.'
+);
+exports.appointmentRateLimit = buildRateLimiter(
+  'appointment',
+  { maxRequests: 10, windowSeconds: 5 * 60 },
+  'Too many appointment requests. Please try again later.'
+);
 
 // Middleware quản lý rate limiting: giới hạn số lượng request trong một khoảng thời gian (in-memory store)

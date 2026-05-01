@@ -1,7 +1,8 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const sequelize = require('../common/database');
-const defineSystemConfig = require('../models/systemconfig');
+const defineSystemConfig = require('../models/SystemConfig');
+const { Op } = require('sequelize');
 
 const Account = require('../models/Account');
 const Session = require('../models/Session');
@@ -28,6 +29,18 @@ const generateAccessToken = (username, userId, role) =>
 
 const generateRefreshToken = (username, userId) =>
   jwt.sign({ username, userId, type: 'refresh' }, process.env.JWT_SECRET || 'your-secret-key', { expiresIn: REFRESH_TOKEN_EXPIRY });
+
+const getNumericConfig = async (key, fallback) => {
+  try {
+    const config = await SystemConfig.findOne({ where: { key } });
+    if (!config) return fallback;
+    const parsed = Number.parseInt(String(config.value), 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+  } catch (error) {
+    // Fail open for auth flow when optional config storage is unavailable.
+    return fallback;
+  }
+};
 
 exports.register = async (req, res) => {
   try {
@@ -220,7 +233,7 @@ exports.login = async (req, res) => {
     await Session.destroy({
       where: {
         expiresAt: {
-          [require('sequelize').Op.lt]: new Date()
+          [Op.lt]: new Date()
         }
       }
     });
@@ -247,7 +260,7 @@ exports.login = async (req, res) => {
     // });
     // const timeoutMinutes = timeoutConfig ? parseInt(timeoutConfig.value) : 1440; // Default 24 hours
 
-    const timeoutMinutes = 1440; // 24 hours
+    const timeoutMinutes = await getNumericConfig('sessionTimeoutMinutes', 30);
     
     // Xóa session cũ của user này nếu không có rememberMe hoặc là single session mode
     // In production, you might want to keep multiple sessions

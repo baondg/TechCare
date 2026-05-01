@@ -18,6 +18,7 @@ const adminRoutes = require('./routes/adminRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const workShiftRoutes = require('./routes/workShiftRoutes');
 const sessionMiddleware = require('./middleware/sessionMiddleware');
+const { globalRateLimit, appointmentRateLimit } = require('./middleware/rateLimitMiddleware');
 const sequelize = require('./common/database');
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { startMedicationReminderScheduler } = require('./services/medicationReminderNotifications');
@@ -26,6 +27,7 @@ const { startMedicationReminderScheduler } = require('./services/medicationRemin
 require('./models/Appointment');
 require('./models/Diagnosis');
 require('./models/Prescription');
+const Session = require('./models/Session');
 const Account = require('./models/Account');
 const User = require('./models/Users');
 const MedicalRecord = require('./models/MedicalRecord');
@@ -62,12 +64,13 @@ app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 // Session middleware for checking timeout
 app.use(sessionMiddleware.checkSessionTimeout);
+app.use('/api', globalRateLimit);
 
 // Routes
 app.use('/api/ai', aiRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/system-config', systemConfigRoutes);
-app.use('/api/appointments', appointmentRoutes);
+app.use('/api/appointments', appointmentRateLimit, appointmentRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/health-info', healthInfoRoutes);
 app.use('/api/doctor', doctorRoutes);
@@ -115,7 +118,21 @@ app.use((err: Error, req: Request, res: Response, next: Function) => {
 // Initialize database and start server
 async function startServer() {
   try {
+    await sequelize.authenticate();
     console.log('✅ Database connection ready');
+
+    const shouldAutoSync =
+      process.env.AUTO_SYNC_DB === '1' ||
+      process.env.AUTO_SYNC_DB === 'true';
+
+    if (shouldAutoSync) {
+      // Dev convenience: bootstrap only auth/session tables required for login.
+      await User.sync({ alter: true });
+      await Account.sync({ alter: true });
+      await Session.sync({ alter: true });
+      console.log('✅ Core auth tables synchronized');
+    }
+
     startMedicationReminderScheduler(sequelize);
 
     app.listen(PORT, () => {

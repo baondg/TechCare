@@ -127,10 +127,3 @@ Please open an issue or submit a pull request with a clear description of your c
 
 ## 📄 License
 This project is MIT licensed.
-
----
-
-## 💡 Pro-Tips for Success
-- **Add a Table of Contents:** If this README grows, include anchor links for faster navigation.
-- **Keep Setup Steps Current:** Update commands and env instructions whenever deployment or Docker flow changes.
-- **Add CI Status Badges:** Show build/test health from GitHub Actions to increase contributor confidence.

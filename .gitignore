@@ -18,13 +18,22 @@ dist-ssr/
 build/
 *.tsbuildinfo
 
-# Environment variables (any directory; keep *.example committed)
-**/.env
+# Environment variables — repo root, frontend/, backend/ (and other subdirs).
+# Commit only *.example templates, not real .env files.
 .env
+frontend/.env
+backend/.env
+**/.env
 .env.*
+frontend/.env.*
+backend/.env.*
 !.env.example
+!frontend/.env.example
+!backend/.env.example
 !**/.env.example
 !.env.*.example
+!frontend/.env.*.example
+!backend/.env.*.example
 !**/.env.*.example
 .env.local
 .env.development.local

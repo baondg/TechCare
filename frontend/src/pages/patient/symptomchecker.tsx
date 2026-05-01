@@ -255,6 +255,8 @@ export default function SymptomChecker() {
                   <input
                     value={otherSymptomText}
                     onChange={(e) => setOtherSymptomText(e.target.value)}
+                    onInput={(e) => setOtherSymptomText((e.target as HTMLInputElement).value)}
+                    onBlur={(e) => setOtherSymptomText(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         e.preventDefault()

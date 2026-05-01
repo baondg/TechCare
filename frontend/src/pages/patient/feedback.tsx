@@ -209,6 +209,7 @@ export default function FeedbackPage() {
         {/* Tab navigation */}
         <div className="flex gap-2 p-1 bg-slate-100 rounded-xl w-fit">
           <button
+            id="submit-feedback"
             onClick={() => setActiveTab("feedback")}
             className={`px-6 py-2.5 rounded-lg font-medium transition-all duration-300 ${
               activeTab === "feedback"
@@ -295,6 +296,8 @@ export default function FeedbackPage() {
                       placeholder="Enter custom feedback category..."
                       value={customCategory}
                       onChange={(e) => setCustomCategory(e.target.value)}
+                      onInput={(e) => setCustomCategory((e.target as HTMLTextAreaElement).value)}
+                      onBlur={(e) => setCustomCategory(e.target.value)}
                       className="min-h-16 resize-none custom-input"
                     />
                   </div>
@@ -347,6 +350,8 @@ export default function FeedbackPage() {
                   placeholder="Tell us about your experience, what went well, and what could be improved..."
                   value={feedbackText}
                   onChange={(e) => setFeedbackText(e.target.value)}
+                  onInput={(e) => setFeedbackText((e.target as HTMLTextAreaElement).value)}
+                  onBlur={(e) => setFeedbackText(e.target.value)}
                   className="min-h-40 resize-none custom-input"
                 />
                 <Button 

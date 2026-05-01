@@ -47,6 +47,8 @@ import { generateBloodTestPdfBlob } from "@/lib/export-blood-test-pdf"
 import { generateHospitalTransferPdfBlob } from "@/lib/export-hospital-transfer-pdf"
 import { generateHealthInfoTrackingPdfBlob } from "@/lib/export-health-info-tracking-pdf"
 import { buildSigningTimeLine, signingLineFromIso, stampPdfWithExportFooter } from "@/lib/pdf-export-stamp"
+import { usePauseableToast } from "@/hooks/usePauseableToast"
+import { PauseableCornerToastPortal } from "@/components/pauseable-corner-toast"
 import { Loader2, ArrowRightLeft, AlertCircle, FileDown, Printer, Plus, Minus } from "lucide-react"
 
 const tabs = [
@@ -58,6 +60,16 @@ const tabs = [
   { label: "Prescription", value: "prescription" },
   { label: "History", value: "history" },
 ]
+
+const TRANSFER_HOSPITAL_OPTIONS = [
+  "Bệnh viện Chợ Rẫy",
+  "Bệnh viện Nhi đồng 2",
+  "Bệnh viện Nhiệt đới Trung ương",
+  "Bệnh viện Tâm Anh",
+  "Bệnh viện Quân y 175",
+  "Bệnh viện Thống Nhất",
+  "Bệnh viện 115",
+] as const
 
 function routePatientNumericId(patientId: string | undefined): number | null {
   if (!patientId) return null
@@ -117,6 +129,7 @@ function parseFollowMinuteInputValue(s: string): number {
 }
 
 export function DoctorLayout2() {
+  const { toast, isExiting, showSuccess, showError, onMouseEnter, onMouseLeave } = usePauseableToast(2600)
   const navigate = useNavigate()
   const { tab = "dashboard", patientId } = useParams()
 
@@ -206,9 +219,9 @@ export function DoctorLayout2() {
       URL.revokeObjectURL(url)
     } catch (e) {
       console.error(e)
-      window.alert(e instanceof Error ? e.message : "Download failed")
+      showError(e instanceof Error ? e.message : "Download failed")
     }
-  }, [pdfPreviewUrl, pdfPreviewFilename])
+  }, [pdfPreviewUrl, pdfPreviewFilename, showError])
 
   useEffect(() => {
     return () => {
@@ -557,7 +570,7 @@ export function DoctorLayout2() {
 
   const submitTransfer = async () => {
     if (!patientId || !transferReason.trim()) {
-      window.alert("Reason is required.")
+      showError("Reason is required.")
       return
     }
     setTransferSubmitting(true)
@@ -566,15 +579,13 @@ export function DoctorLayout2() {
         const fromR = checkInRoom != null ? Number(checkInRoom.id) : Number(fromRoomId)
         const toR = Number(toRoomId)
         if (!Number.isFinite(fromR) || fromR <= 0) {
-          window.alert(
+          showError(
             "Could not determine the check-in room for this visit. Ask the nurse to confirm today’s appointment / check-in.",
           )
-          setTransferSubmitting(false)
           return
         }
         if (!Number.isFinite(toR) || toR <= 0) {
-          window.alert("Select a destination room.")
-          setTransferSubmitting(false)
+          showError("Select a destination room.")
           return
         }
         await doctorService.createPatientTransfer(patientId, {
@@ -586,8 +597,7 @@ export function DoctorLayout2() {
         })
       } else {
         if (!toHospitalName.trim()) {
-          window.alert("Destination hospital name is required.")
-          setTransferSubmitting(false)
+          showError("Destination hospital name is required.")
           return
         }
         await doctorService.createPatientTransfer(patientId, {
@@ -612,7 +622,7 @@ export function DoctorLayout2() {
           },
         })
       }
-      window.alert("Transfer recorded.")
+      showSuccess("Transfer recorded.")
       setTransferOpen(false)
       setTransferReason("")
       setTransferNote("")
@@ -627,7 +637,7 @@ export function DoctorLayout2() {
       setTransferObjective("")
       setEscortInfo("")
     } catch (e) {
-      window.alert(e instanceof Error ? e.message : "Could not record transfer.")
+      showError(e instanceof Error ? e.message : "Could not record transfer.")
     } finally {
       setTransferSubmitting(false)
     }
@@ -659,7 +669,7 @@ export function DoctorLayout2() {
       if (finishWizardChoice === "followup") {
         const timeCommitted = commitFollowTimeFromInputs()
         if (!numericRouteId || !followDate || !timeCommitted.trim() || !followDepartment.trim()) {
-          window.alert("Please fill date, time, and department.")
+          showError("Please fill date, time, and department.")
           return
         }
         await doctorService.createAppointment({
@@ -677,10 +687,10 @@ export function DoctorLayout2() {
           }
         } catch (slipErr) {
           console.error(slipErr)
-          window.alert(
+          showError(
             slipErr instanceof Error
-              ? `${slipErr.message}\n\nThe appointment was saved, but the follow-up slip could not be stored for the patient export PDF.`
-              : 'The appointment was saved, but the follow-up slip could not be stored for the patient export PDF.',
+              ? `${slipErr.message} — The appointment was saved, but the follow-up slip could not be stored for the patient export PDF.`
+              : "The appointment was saved, but the follow-up slip could not be stored for the patient export PDF.",
           )
         }
         setFinishWizardSaved({
@@ -689,11 +699,11 @@ export function DoctorLayout2() {
         })
       } else {
         if (!transferReason.trim()) {
-          window.alert("Reason is required.")
+          showError("Reason is required.")
           return
         }
         if (!toHospitalName.trim()) {
-          window.alert("Destination hospital name is required.")
+          showError("Destination hospital name is required.")
           return
         }
         await doctorService.createPatientTransfer(patientId, {
@@ -724,7 +734,7 @@ export function DoctorLayout2() {
       }
       setFinishWizardStep(2)
     } catch (e) {
-      window.alert(e instanceof Error ? e.message : "Could not save.")
+      showError(e instanceof Error ? e.message : "Could not save.")
     } finally {
       setFinishWizardSaving(false)
     }
@@ -735,11 +745,11 @@ export function DoctorLayout2() {
     setFinishSubmitting(true)
     try {
       await doctorService.closeOpenVisitRegimen(patientId)
-      window.alert("Visit closed")
+      showSuccess("Visit closed.")
       setFinishWizardOpen(false)
       await loadVisitState()
     } catch (e) {
-      window.alert(e instanceof Error ? e.message : "Could not close visit.")
+      showError(e instanceof Error ? e.message : "Could not close visit.")
     } finally {
       setFinishSubmitting(false)
     }
@@ -982,53 +992,137 @@ export function DoctorLayout2() {
                       <Label htmlFor="tr-reason">
                         Reason <span className="text-red-500">*</span>
                       </Label>
-                      <Textarea id="tr-reason" value={transferReason} onChange={(e) => setTransferReason(e.target.value)} rows={2} />
+                      <Textarea
+                        id="tr-reason"
+                        value={transferReason}
+                        onChange={(e) => setTransferReason(e.target.value)}
+                        onInput={(e) => setTransferReason((e.target as HTMLTextAreaElement).value)}
+                        onBlur={(e) => setTransferReason(e.target.value)}
+                        rows={2}
+                      />
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="tr-note">Clinical note (optional)</Label>
-                      <Textarea id="tr-note" value={transferNote} onChange={(e) => setTransferNote(e.target.value)} rows={2} />
+                      <Textarea
+                        id="tr-note"
+                        value={transferNote}
+                        onChange={(e) => setTransferNote(e.target.value)}
+                        onInput={(e) => setTransferNote((e.target as HTMLTextAreaElement).value)}
+                        onBlur={(e) => setTransferNote(e.target.value)}
+                        rows={2}
+                      />
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="h-name">
                         Hospital name <span className="text-red-500">*</span>
                       </Label>
-                      <Input id="h-name" value={toHospitalName} onChange={(e) => setToHospitalName(e.target.value)} placeholder="Receiving facility" />
+                      <Select value={toHospitalName} onValueChange={setToHospitalName}>
+                        <SelectTrigger id="h-name" aria-required="true">
+                          <SelectValue placeholder="Select receiving hospital" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {TRANSFER_HOSPITAL_OPTIONS.map((hospital) => (
+                            <SelectItem key={hospital} value={hospital}>
+                              {hospital}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="h-id">Hospital / referral ID (optional)</Label>
-                      <Input id="h-id" value={toHospitalId} onChange={(e) => setToHospitalId(e.target.value)} />
+                      <Input
+                        id="h-id"
+                        value={toHospitalId}
+                        onChange={(e) => setToHospitalId(e.target.value)}
+                        onInput={(e) => setToHospitalId((e.target as HTMLInputElement).value)}
+                        onBlur={(e) => setToHospitalId(e.target.value)}
+                      />
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="h-transport">Transport (optional)</Label>
-                      <Input id="h-transport" value={transport} onChange={(e) => setTransport(e.target.value)} placeholder="e.g. ambulance" />
+                      <Input
+                        id="h-transport"
+                        value={transport}
+                        onChange={(e) => setTransport(e.target.value)}
+                        onInput={(e) => setTransport((e.target as HTMLInputElement).value)}
+                        onBlur={(e) => setTransport(e.target.value)}
+                        placeholder="e.g. ambulance"
+                      />
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="h-transfer-objective">Transfer objective (optional)</Label>
-                      <Input id="h-transfer-objective" value={transferObjective} onChange={(e) => setTransferObjective(e.target.value)} />
+                      <Input
+                        id="h-transfer-objective"
+                        value={transferObjective}
+                        onChange={(e) => setTransferObjective(e.target.value)}
+                        onInput={(e) => setTransferObjective((e.target as HTMLInputElement).value)}
+                        onBlur={(e) => setTransferObjective(e.target.value)}
+                      />
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="h-condition">Patient condition at transfer (optional)</Label>
-                      <Input id="h-condition" value={conditionAtTransfer} onChange={(e) => setConditionAtTransfer(e.target.value)} />
+                      <Input
+                        id="h-condition"
+                        value={conditionAtTransfer}
+                        onChange={(e) => setConditionAtTransfer(e.target.value)}
+                        onInput={(e) => setConditionAtTransfer((e.target as HTMLInputElement).value)}
+                        onBlur={(e) => setConditionAtTransfer(e.target.value)}
+                      />
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="h-summary">Clinical summary (optional)</Label>
-                      <Textarea id="h-summary" value={clinicalSummary} onChange={(e) => setClinicalSummary(e.target.value)} rows={2} />
+                      <Textarea
+                        id="h-summary"
+                        value={clinicalSummary}
+                        onChange={(e) => setClinicalSummary(e.target.value)}
+                        onInput={(e) => setClinicalSummary((e.target as HTMLTextAreaElement).value)}
+                        onBlur={(e) => setClinicalSummary(e.target.value)}
+                        rows={2}
+                      />
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="h-findings">Key findings (optional)</Label>
-                      <Textarea id="h-findings" value={keyFindings} onChange={(e) => setKeyFindings(e.target.value)} rows={2} />
+                      <Textarea
+                        id="h-findings"
+                        value={keyFindings}
+                        onChange={(e) => setKeyFindings(e.target.value)}
+                        onInput={(e) => setKeyFindings((e.target as HTMLTextAreaElement).value)}
+                        onBlur={(e) => setKeyFindings(e.target.value)}
+                        rows={2}
+                      />
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="h-tests">Key tests and results (optional)</Label>
-                      <Textarea id="h-tests" value={keyTestsSummary} onChange={(e) => setKeyTestsSummary(e.target.value)} rows={2} />
+                      <Textarea
+                        id="h-tests"
+                        value={keyTestsSummary}
+                        onChange={(e) => setKeyTestsSummary(e.target.value)}
+                        onInput={(e) => setKeyTestsSummary((e.target as HTMLTextAreaElement).value)}
+                        onBlur={(e) => setKeyTestsSummary(e.target.value)}
+                        rows={2}
+                      />
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="h-treatments">Treatments provided (optional)</Label>
-                      <Textarea id="h-treatments" value={treatmentsProvided} onChange={(e) => setTreatmentsProvided(e.target.value)} rows={2} />
+                      <Textarea
+                        id="h-treatments"
+                        value={treatmentsProvided}
+                        onChange={(e) => setTreatmentsProvided(e.target.value)}
+                        onInput={(e) => setTreatmentsProvided((e.target as HTMLTextAreaElement).value)}
+                        onBlur={(e) => setTreatmentsProvided(e.target.value)}
+                        rows={2}
+                      />
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="h-escort">Escort / handover contact (optional)</Label>
-                      <Input id="h-escort" value={escortInfo} onChange={(e) => setEscortInfo(e.target.value)} />
+                      <Input
+                        id="h-escort"
+                        value={escortInfo}
+                        onChange={(e) => setEscortInfo(e.target.value)}
+                        onInput={(e) => setEscortInfo((e.target as HTMLInputElement).value)}
+                        onBlur={(e) => setEscortInfo(e.target.value)}
+                      />
                     </div>
                   </div>
                 ) : null}
@@ -1174,7 +1268,7 @@ export function DoctorLayout2() {
                                     })
                                     openPdfPreview(blob, filename, `Prescription #${rx.id} (PDF)`)
                                   } catch (e) {
-                                    window.alert(e instanceof Error ? e.message : "Failed to generate PDF")
+                                    showError(e instanceof Error ? e.message : "Failed to generate PDF")
                                   } finally {
                                     setPdfGeneratingKey(null)
                                   }
@@ -1234,7 +1328,7 @@ export function DoctorLayout2() {
                                     })
                                     openPdfPreview(blob, filename, `Surgery #${s.id} (PDF)`)
                                   } catch (e) {
-                                    window.alert(e instanceof Error ? e.message : "Failed to generate PDF")
+                                    showError(e instanceof Error ? e.message : "Failed to generate PDF")
                                   } finally {
                                     setPdfGeneratingKey(null)
                                   }
@@ -1292,7 +1386,7 @@ export function DoctorLayout2() {
                                     })
                                     openPdfPreview(blob, filename, `Lab #${t.id} (PDF)`)
                                   } catch (e) {
-                                    window.alert(e instanceof Error ? e.message : "Failed to generate PDF")
+                                    showError(e instanceof Error ? e.message : "Failed to generate PDF")
                                   } finally {
                                     setPdfGeneratingKey(null)
                                   }
@@ -1355,7 +1449,7 @@ export function DoctorLayout2() {
                                     })
                                     openPdfPreview(blob, filename, `Hospital transfer #${ht.orderId} (PDF)`)
                                   } catch (e) {
-                                    window.alert(e instanceof Error ? e.message : "Failed to generate PDF")
+                                    showError(e instanceof Error ? e.message : "Failed to generate PDF")
                                   } finally {
                                     setPdfGeneratingKey(null)
                                   }
@@ -1419,7 +1513,7 @@ export function DoctorLayout2() {
                                     })
                                     openPdfPreview(blob, filename, `Health tracking slip #${slip.orderId} (PDF)`)
                                   } catch (e) {
-                                    window.alert(e instanceof Error ? e.message : "Failed to generate PDF")
+                                    showError(e instanceof Error ? e.message : "Failed to generate PDF")
                                   } finally {
                                     setPdfGeneratingKey(null)
                                   }
@@ -1468,7 +1562,7 @@ export function DoctorLayout2() {
                         })
                         openPdfPreview(blob, filename, "Follow-up appointment slip (PDF)")
                       } catch (e) {
-                        window.alert(e instanceof Error ? e.message : "Failed to generate PDF")
+                        showError(e instanceof Error ? e.message : "Failed to generate PDF")
                       } finally {
                         setPdfGeneratingKey(null)
                       }
@@ -1551,13 +1645,22 @@ export function DoctorLayout2() {
                 id="tr-reason"
                 value={transferReason}
                 onChange={(e) => setTransferReason(e.target.value)}
+                onInput={(e) => setTransferReason((e.target as HTMLTextAreaElement).value)}
+                onBlur={(e) => setTransferReason(e.target.value)}
                 rows={2}
                 required
               />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="tr-note">Clinical note (optional)</Label>
-              <Textarea id="tr-note" value={transferNote} onChange={(e) => setTransferNote(e.target.value)} rows={2} />
+              <Textarea
+                id="tr-note"
+                value={transferNote}
+                onChange={(e) => setTransferNote(e.target.value)}
+                onInput={(e) => setTransferNote((e.target as HTMLTextAreaElement).value)}
+                onBlur={(e) => setTransferNote(e.target.value)}
+                rows={2}
+              />
             </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="grid gap-2">
@@ -1713,6 +1816,12 @@ export function DoctorLayout2() {
           {tab === "history" && <DoctorPatientHistoryPage />}
         </div>
       </div>
+      <PauseableCornerToastPortal
+        toast={toast}
+        isExiting={isExiting}
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
+      />
     </DoctorLayout>
     </EmrSessionProvider>
   )

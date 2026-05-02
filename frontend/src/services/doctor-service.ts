@@ -189,7 +189,6 @@ export interface LabTestDetail {
   no: number
   itemIndex: string
   result: string
-  numericValue: number | null
   unit: string | null
 }
 

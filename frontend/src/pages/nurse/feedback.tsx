@@ -439,7 +439,7 @@ export default function NurseFeedback() {
               aiRecommendations.map((rec) => (
                 <Card key={rec.id} className="card-feature-group border-l-4 border-l-cyan-500 hover:shadow-lg transition-all duration-300">
                   <CardHeader className="pb-4">
-                    <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-4">
                       <div className="flex items-start gap-4 flex-1">
                         <div className="icon-feature-card">
                           <div className={`flex h-14 w-14 items-center justify-center rounded-xl ${
@@ -456,11 +456,6 @@ export default function NurseFeedback() {
                           <CardTitle className="text-xl text-slate-900 mb-1">{rec.title}</CardTitle>
                           <CardDescription className="text-slate-600">{rec.description}</CardDescription>
                           <p className="text-xs text-slate-400 mt-2">{rec.timestamp}</p>
-                        </div>
-                      </div>
-                      <div className="shrink-0">
-                        <div className="inline-flex items-center px-4 py-2 bg-linear-to-r from-cyan-500 to-blue-500 text-white rounded-full text-sm font-bold shadow-md">
-                          {rec.confidence}% relevance
                         </div>
                       </div>
                     </div>

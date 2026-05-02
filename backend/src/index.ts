@@ -22,32 +22,12 @@ const sequelize = require('./common/database');
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { startMedicationReminderScheduler } = require('./services/medicationReminderNotifications');
 
-// Import models so they sync (order matters - define users table first)
-require('./models/Appointment');
-require('./models/Diagnosis');
-require('./models/Prescription');
-const Account = require('./models/Account');
-const User = require('./models/Users');
-const MedicalRecord = require('./models/MedicalRecord');
-const Patient = require('./models/Patient');
-const Relative = require('./models/Relative');
-const HealthInsurance = require('./models/HealthInsurance');
+/* Sequelize — one entry point for model wiring (see models/associate.js + database_description.sql). */
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { applySequelizeAssociations } = require('./models/associate');
+applySequelizeAssociations();
 
-// Define associations
-Account.hasOne(User, { foreignKey: 'id', sourceKey: 'user_id' });
-User.belongsTo(Account, { foreignKey: 'id', targetKey: 'user_id' });
-Patient.hasOne(Relative, { foreignKey: 'patient_id', sourceKey: 'patient_id' });
-Relative.belongsTo(Patient, { foreignKey: 'patient_id', targetKey: 'patient_id' });
-User.hasOne(Patient, { foreignKey: 'user_id', sourceKey: 'id', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
-Patient.belongsTo(User, { foreignKey: 'user_id', targetKey: 'id', onDelete: 'CASCADE', onUpdate: 'CASCADE' });
-Patient.hasOne(HealthInsurance, {  foreignKey: 'patient_id',  as: 'insurance'});
-HealthInsurance.belongsTo(Patient, {  foreignKey: 'patient_id',  as: 'patient'});
-Patient.hasMany(MedicalRecord, { foreignKey: 'patient_id', as: 'medicalRecords' });
-MedicalRecord.belongsTo(Patient, { foreignKey: 'patient_id', as: 'patient' });
-
-
-
-// Initialize factory models (Session is already initialized in Session.js)
+/** Factory model (callable with sequelize instance). */
 const defineSystemConfig = require('./models/SystemConfig');
 defineSystemConfig(sequelize);
 

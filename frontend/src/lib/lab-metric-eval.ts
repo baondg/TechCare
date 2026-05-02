@@ -60,13 +60,9 @@ function parseFirstNumeric(raw: string): number | null {
   return Number.isFinite(n) ? n : null
 }
 
-/** Prefer a number parsed from `result` (what the user sees); fall back to `numericValue`. */
+/** Parses a number from textual `TEST_DETAIL.result` (no DB numeric column). */
 export function parseLabNumericValue(detail: LabTestDetail): number | null {
-  const fromResult = parseFirstNumeric(detail.result ?? "")
-  if (fromResult !== null) return fromResult
-  const nv = detail.numericValue
-  if (nv !== null && nv !== undefined && Number.isFinite(Number(nv))) return Number(nv)
-  return null
+  return parseFirstNumeric(detail.result ?? "")
 }
 
 export function getLabReferenceRange(indexName: string, ctx: LabMetricEvalContext): RefRange | null {

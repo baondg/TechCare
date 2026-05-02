@@ -8,7 +8,6 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "perf:lighthouse": "lighthouse http://127.0.0.1:4173/ --only-categories=performance --preset=desktop --output=json --output-path=./lighthouse-home.json --quiet --chrome-flags=\"--headless=new --no-sandbox\"",
     "tailwind:init": "tailwindcss init -p",
     "test": "vitest",
     "test:run": "vitest run",

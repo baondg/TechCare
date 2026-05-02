@@ -412,7 +412,7 @@ exports.getPortalPatients = async (req, res) => {
              COALESCE(NULLIF(TRIM(CONCAT(COALESCE(du.first_name, ''), ' ', COALESCE(du.last_name, ''))), ''), da.username, CONCAT('doctor#', d.user_id)) AS doctorName
            FROM TREATMENT t
            JOIN REGIMEN r ON r.id = t.regimen_id
-           LEFT JOIN DISEASE dis ON dis.id = COALESCE(t.disease_id, r.disease_id)
+           LEFT JOIN DISEASE dis ON dis.id = r.disease_id
            LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id
            LEFT JOIN USER du ON du.id = d.user_id
            LEFT JOIN ACCOUNT da ON da.user_id = d.user_id
@@ -1231,13 +1231,13 @@ exports.deleteOpenSlot = async (req, res) => {
 
 exports.createAppointment = async (req, res) => {
   const {
-    doctor,
-    department,
-    date,
-    time,
-    room,
-    symptoms,
-    notes,
+      doctor,
+      department,
+      date,
+      time,
+      room,
+      symptoms,
+      notes,
     rescheduleFromAppointmentId,
     rescheduleFromId,
   } = req.body;
@@ -2385,7 +2385,6 @@ exports.getPatientLabTestDetails = async (req, res) => {
          no,
          \`index\` AS itemIndex,
          result,
-         numeric_value AS numericValue,
          unit
        FROM TEST_DETAIL
        WHERE test_id = :testId

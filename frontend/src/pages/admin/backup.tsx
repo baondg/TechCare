@@ -136,9 +136,14 @@ export default function BackupManagement() {
                 <p className="text-sm text-gray-600">Schedule regular automated backups</p>
               </div>
               <Button
+                type="button"
                 variant={config.autoBackup ? "default" : "outline"}
                 onClick={() => setConfig({ ...config, autoBackup: !config.autoBackup })}
-                className={config.autoBackup ? "bg-green-600 hover:bg-green-700" : ""}
+                className={
+                  config.autoBackup
+                    ? "bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white shadow-sm"
+                    : "border-slate-300 bg-white text-slate-800 shadow-sm hover:bg-slate-50"
+                }
               >
                 {config.autoBackup ? "Enabled" : "Disabled"}
               </Button>

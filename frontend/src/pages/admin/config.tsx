@@ -7,8 +7,51 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { AdminLayout } from "@/components/admin-layout"
-import { Save, Settings, Loader2, CheckCircle2, AlertCircle } from "lucide-react"
+import { Save, Settings, Loader2, CheckCircle2, AlertCircle, Trash2 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000"
+
+/** Model lists for admin UI; backend still accepts any modelId string via API. */
+const GROQ_MODEL_OPTIONS = [
+  { value: "llama-3.1-8b-instant", label: "Llama 3.1 8B Instant" },
+  { value: "llama-3.3-70b-versatile", label: "Llama 3.3 70B Versatile" },
+  { value: "llama-3.3-8b-instant", label: "Llama 3.3 8B Instant" },
+  { value: "mixtral-8x7b-32768", label: "Mixtral 8x7B" },
+  { value: "gemma2-9b-it", label: "Gemma2 9B IT" },
+] as const
+
+const LOCAL_MODEL_OPTIONS = [
+  { value: "llama3", label: "llama3" },
+  { value: "llama3.2", label: "llama3.2" },
+  { value: "meditron:latest", label: "meditron:latest" },
+  { value: "mistral", label: "mistral" },
+  { value: "phi3", label: "phi3" },
+] as const
+
+/** Preset feature keys — fills the draft input; admins can type any key for new AI routes. */
+const FEATURE_KEY_PRESETS = [
+  { value: "chat", label: "chat" },
+  { value: "symptom-analysis", label: "symptom-analysis" },
+  { value: "suggest-medicine", label: "suggest-medicine" },
+  { value: "recommend-doctor", label: "recommend-doctor" },
+] as const
 
 type FeatureFlag = {
   id: number
@@ -18,12 +61,28 @@ type FeatureFlag = {
   systemId: number
 }
 
+type AdminSession = {
+  id: number
+  userId: number
+  lastActivity: string
+  expiresAt: string
+  ipAddress?: string | null
+  userAgent?: string | null
+}
+
+type AiModel = {
+  provider: string
+  modelId: string
+  featureScope: string
+  enabled: boolean
+}
+
 const isFeatureEnabled = (status: FeatureFlag["status"]) =>
   status === true || status === 1 || status === "1" || String(status).toLowerCase() === "true"
 
 export default function SystemConfig() {
   const [config, setConfig] = useState({
-    apiKey: "****-****-****-****",
+    apiKey: "",
     emailServer: "smtp.hospital.com",
     aiModel: "gpt-4-turbo",
     maxUsers: "500",
@@ -40,13 +99,25 @@ export default function SystemConfig() {
   const [features, setFeatures] = useState<FeatureFlag[]>([])
   const [featureSavingId, setFeatureSavingId] = useState<number | null>(null)
   const [featureStats, setFeatureStats] = useState({ total: 0, enabled: 0, disabled: 0 })
+  const [sessions, setSessions] = useState<AdminSession[]>([])
+  const [sessionsLoading, setSessionsLoading] = useState(false)
+  const [sessionActionLoading, setSessionActionLoading] = useState(false)
+  const [aiModels, setAiModels] = useState<AiModel[]>([])
+  const [aiDefaults, setAiDefaults] = useState<Record<string, { provider: string; modelId: string }>>({})
+  const [aiSaving, setAiSaving] = useState(false)
+  const [draftRow, setDraftRow] = useState({
+    featureKey: "",
+    provider: "groq",
+    modelId: GROQ_MODEL_OPTIONS[0].value,
+    enabled: true,
+  })
 
   const token = localStorage.getItem('authToken')
 
   const loadFeatures = async () => {
     setFeaturesLoading(true)
     try {
-      const response = await fetch('http://localhost:3000/api/system-config/features', {
+      const response = await fetch(`${API_BASE}/api/system-config/features`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       if (!response.ok) throw new Error("Failed to load features")
@@ -63,11 +134,41 @@ export default function SystemConfig() {
     }
   }
 
+  const loadSessions = async () => {
+    setSessionsLoading(true)
+    try {
+      const response = await fetch(`${API_BASE}/api/system-config/sessions`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await response.json()
+      if (!response.ok || !data.success) throw new Error(data.error || "Failed to load sessions")
+      setSessions(data.sessions || [])
+    } catch (error) {
+      setMessage({ type: "error", text: error instanceof Error ? error.message : "Could not load sessions." })
+    } finally {
+      setSessionsLoading(false)
+    }
+  }
+
+  const loadAiModels = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/system-config/ai-models`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await response.json()
+      if (!response.ok || !data.success) throw new Error(data.error || "Failed to load AI models")
+      setAiModels(data.models || [])
+      setAiDefaults(data.defaults || {})
+    } catch (error) {
+      setMessage({ type: "error", text: error instanceof Error ? error.message : "Could not load AI models." })
+    }
+  }
+
   // Load configuration from API
   useEffect(() => {
     const loadConfig = async () => {
       try {
-        const response = await fetch('http://localhost:3000/api/system-config', {
+        const response = await fetch(`${API_BASE}/api/system-config`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -92,11 +193,156 @@ export default function SystemConfig() {
 
     loadConfig();
     void loadFeatures();
+    void loadSessions();
+    void loadAiModels();
   }, []);
 
   const handleChange = (field: string, value: string) => {
     setConfig((prev) => ({ ...prev, [field]: value }))
     setMessage(null);
+  }
+
+  const revokeSession = async (id: number) => {
+    setSessionActionLoading(true)
+    setMessage(null)
+    try {
+      const response = await fetch(`${API_BASE}/api/system-config/sessions/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await response.json()
+      if (!response.ok || !data.success) throw new Error(data.error || "Failed to revoke session")
+      setSessions((prev) => prev.filter((s) => s.id !== id))
+      setMessage({ type: "success", text: "Session revoked successfully." })
+    } catch (error) {
+      setMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to revoke session." })
+    } finally {
+      setSessionActionLoading(false)
+    }
+  }
+
+  const revokeAllSessions = async () => {
+    setSessionActionLoading(true)
+    setMessage(null)
+    try {
+      const response = await fetch(`${API_BASE}/api/system-config/sessions/revoke-all`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({}),
+      })
+      const data = await response.json()
+      if (!response.ok || !data.success) throw new Error(data.error || "Failed to revoke sessions")
+      setSessions([])
+      setMessage({ type: "success", text: `Revoked ${data.revokedCount || 0} sessions.` })
+    } catch (error) {
+      setMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to revoke sessions." })
+    } finally {
+      setSessionActionLoading(false)
+    }
+  }
+
+  const addDraftAiModel = async () => {
+    const featureScope = draftRow.featureKey.trim().toLowerCase()
+    if (!featureScope) {
+      setMessage({ type: "error", text: "Enter a feature key (e.g. chat, symptom-analysis)." })
+      return
+    }
+    setAiSaving(true)
+    setMessage(null)
+    try {
+      const response = await fetch(`${API_BASE}/api/system-config/ai-models`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          provider: draftRow.provider,
+          modelId: draftRow.modelId,
+          featureScope,
+          enabled: draftRow.enabled,
+        }),
+      })
+      const data = await response.json()
+      if (!response.ok || !data.success) throw new Error(data.error || "Failed to add AI model")
+      setMessage({ type: "success", text: "AI model configuration added." })
+      setDraftRow({
+        featureKey: "",
+        provider: "groq",
+        modelId: GROQ_MODEL_OPTIONS[0].value,
+        enabled: true,
+      })
+      await loadAiModels()
+    } catch (error) {
+      setMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to add AI model." })
+    } finally {
+      setAiSaving(false)
+    }
+  }
+
+  const updateAiModelEnabled = async (model: AiModel, enabled: boolean) => {
+    setAiSaving(true)
+    setMessage(null)
+    try {
+      const response = await fetch(`${API_BASE}/api/system-config/ai-models`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          provider: model.provider,
+          modelId: model.modelId,
+          featureScope: model.featureScope,
+          enabled,
+        }),
+      })
+      const data = await response.json()
+      if (!response.ok || !data.success) throw new Error(data.error || "Failed to update AI model")
+      await loadAiModels()
+    } catch (error) {
+      setMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to update AI model." })
+    } finally {
+      setAiSaving(false)
+    }
+  }
+
+  const deleteAiModelRow = async (model: AiModel) => {
+    setAiSaving(true)
+    setMessage(null)
+    try {
+      const response = await fetch(`${API_BASE}/api/system-config/ai-models`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          provider: model.provider,
+          modelId: model.modelId,
+          featureScope: model.featureScope,
+        }),
+      })
+      const data = await response.json()
+      if (!response.ok || !data.success) throw new Error(data.error || "Failed to remove AI model")
+      setMessage({ type: "success", text: "AI model configuration removed." })
+      await loadAiModels()
+    } catch (error) {
+      setMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to remove AI model." })
+    } finally {
+      setAiSaving(false)
+    }
+  }
+
+  const setDefaultAiModel = async (model: AiModel) => {
+    setAiSaving(true)
+    setMessage(null)
+    try {
+      const response = await fetch(`${API_BASE}/api/system-config/ai-models/default`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ feature: model.featureScope, provider: model.provider, modelId: model.modelId }),
+      })
+      const data = await response.json()
+      if (!response.ok || !data.success) throw new Error(data.error || "Failed to set default model")
+      setAiDefaults(data.defaults || {})
+      setMessage({ type: "success", text: "Default AI model updated." })
+    } catch (error) {
+      setMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to set default model." })
+    } finally {
+      setAiSaving(false)
+    }
   }
 
   const handleSaveSystemConfig = async () => {
@@ -105,7 +351,7 @@ export default function SystemConfig() {
     
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch('http://localhost:3000/api/system-config', {
+      const response = await fetch(`${API_BASE}/api/system-config`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -137,7 +383,7 @@ export default function SystemConfig() {
     setMessage(null)
     const nextStatus = isFeatureEnabled(feature.status) ? 0 : 1
     try {
-      const response = await fetch(`http://localhost:3000/api/system-config/features/${feature.id}/status`, {
+      const response = await fetch(`${API_BASE}/api/system-config/features/${feature.id}/status`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -239,10 +485,16 @@ export default function SystemConfig() {
               <Settings className="h-5 w-5" />
               AI Provider Configuration
             </CardTitle>
-            <CardDescription>Configure AI chatbot, medicine suggestions, and doctor recommendation providers</CardDescription>
+            <CardDescription>
+              Configure providers and models per feature.{" "}
+              <span className="font-medium text-foreground">
+                Feature key must match the string used in backend routes
+              </span>{" "}
+              (e.g. <code className="rounded bg-muted px-1">chat</code>,{" "}
+              <code className="rounded bg-muted px-1">symptom-analysis</code>). New keys can be added without changing this UI.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Provider info */}
             <div className="rounded-xl bg-gradient-to-r from-cyan-50 to-blue-50 border border-cyan-100 p-4">
               <p className="text-sm text-slate-700">
                 <span className="font-semibold">How it works:</span> If a Groq API key is set (in backend <code className="bg-white/60 px-1 rounded">.env</code>), all AI features use Groq Cloud.
@@ -254,61 +506,198 @@ export default function SystemConfig() {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="groqApiKey">Groq API Key</Label>
-                <Input
-                  id="groqApiKey"
-                  type="password"
-                  placeholder="gsk_..."
-                  value={config.apiKey}
-                  onChange={(e) => handleChange("apiKey", e.target.value)}
-                  className="custom-input"
-                />
-                <p className="text-xs text-slate-500">Get your key from <a href="https://console.groq.com" target="_blank" rel="noopener noreferrer" className="text-cyan-600 underline">console.groq.com</a></p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="aiModel">AI Model</Label>
-                <Input id="aiModel" value={config.aiModel} onChange={(e) => handleChange("aiModel", e.target.value)} className="custom-input" placeholder="llama-3.1-8b-instant" />
-                <p className="text-xs text-slate-500">Model name for Groq or Ollama (e.g., llama3, meditron)</p>
+            <div className="rounded-lg border border-border bg-card p-4 space-y-4">
+              <h3 className="text-sm font-semibold text-foreground">Add configuration</h3>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="ai-feature-key">Feature key</Label>
+                  <div className="space-y-2">
+                    <Input
+                      id="ai-feature-key"
+                      className="custom-input max-w-xl"
+                      placeholder="e.g. chat, symptom-analysis, or your-backend feature key"
+                      value={draftRow.featureKey}
+                      onChange={(e) => setDraftRow((prev) => ({ ...prev, featureKey: e.target.value }))}
+                    />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs text-muted-foreground">Presets:</span>
+                      {FEATURE_KEY_PRESETS.map((opt) => (
+                        <Button
+                          key={opt.value}
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={() => setDraftRow((prev) => ({ ...prev, featureKey: opt.value }))}
+                        >
+                          {opt.label}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Provider</Label>
+                  <Select
+                    value={draftRow.provider}
+                    onValueChange={(v) => {
+                      const provider = v.toLowerCase()
+                      const options = provider === "groq" ? GROQ_MODEL_OPTIONS : LOCAL_MODEL_OPTIONS
+                      setDraftRow((prev) => ({
+                        ...prev,
+                        provider,
+                        modelId: options[0]?.value ?? "",
+                      }))
+                    }}
+                  >
+                    <SelectTrigger className="custom-input w-full">
+                      <SelectValue placeholder="Provider" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="groq">Groq</SelectItem>
+                      <SelectItem value="local">Local (Ollama / OpenAI-compatible)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Model</Label>
+                  <Select
+                    value={draftRow.modelId}
+                    onValueChange={(modelId) => setDraftRow((prev) => ({ ...prev, modelId }))}
+                  >
+                    <SelectTrigger className="custom-input w-full">
+                      <SelectValue placeholder="Model" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(draftRow.provider === "groq" ? GROQ_MODEL_OPTIONS : LOCAL_MODEL_OPTIONS).map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-4 md:col-span-2">
+                  <div className="flex items-center gap-3">
+                    <Switch
+                      id="draft-ai-enabled"
+                      checked={draftRow.enabled}
+                      onCheckedChange={(checked) => setDraftRow((prev) => ({ ...prev, enabled: checked }))}
+                      disabled={aiSaving}
+                    />
+                    <Label htmlFor="draft-ai-enabled" className="cursor-pointer text-sm font-normal">
+                      Enabled for new row
+                    </Label>
+                  </div>
+                  <Button
+                    type="button"
+                    className="gap-2 btn-gradient"
+                    onClick={() => void addDraftAiModel()}
+                    disabled={aiSaving || !draftRow.modelId.trim()}
+                  >
+                    <Save size={20} />
+                    Add row
+                  </Button>
+                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="localLlmUrl">Local LLM URL (Ollama)</Label>
-                <Input id="localLlmUrl" value="http://localhost:11434" disabled className="custom-input bg-slate-50" />
-                <p className="text-xs text-slate-500">Set via <code className="bg-slate-100 px-1 rounded">LOCAL_LLM_BASE_URL</code> env var</p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="localModel">Local Model Name</Label>
-                <Input id="localModel" value="llama3" disabled className="custom-input bg-slate-50" />
-                <p className="text-xs text-slate-500">Set via <code className="bg-slate-100 px-1 rounded">LOCAL_LLM_MODEL</code> env var</p>
-              </div>
+            <div className="rounded-lg border border-border overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow className="cursor-default hover:bg-muted/40">
+                    <TableHead className="w-[22%]">Feature key</TableHead>
+                    <TableHead className="w-[12%]">Provider</TableHead>
+                    <TableHead className="w-[26%]">Model</TableHead>
+                    <TableHead className="w-[12%] text-center">Enabled</TableHead>
+                    <TableHead className="w-[14%] text-center">Default</TableHead>
+                    <TableHead className="w-[14%] text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {aiModels.length === 0 ? (
+                    <TableRow className="cursor-default hover:bg-transparent">
+                      <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
+                        No AI model records yet. Use &quot;Add row&quot; above.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    aiModels.map((model) => {
+                      const rowKey = `${model.provider}-${model.featureScope}-${model.modelId}`
+                      const isDefault =
+                        aiDefaults?.[model.featureScope]?.provider === model.provider &&
+                        aiDefaults?.[model.featureScope]?.modelId === model.modelId
+                      return (
+                        <TableRow key={rowKey} className="cursor-default hover:bg-muted/30">
+                          <TableCell className="font-mono text-xs sm:text-sm">{model.featureScope}</TableCell>
+                          <TableCell className="uppercase text-xs">{model.provider}</TableCell>
+                          <TableCell className="font-medium">{model.modelId}</TableCell>
+                          <TableCell className="text-center">
+                            <div className="flex justify-center">
+                              <Switch
+                                checked={!!model.enabled}
+                                onCheckedChange={(checked) => void updateAiModelEnabled(model, checked)}
+                                disabled={aiSaving}
+                                aria-label={`Enable ${model.featureScope}`}
+                              />
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {isDefault ? (
+                              <span className="text-xs font-medium text-emerald-700">Default</span>
+                            ) : (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="text-xs"
+                                disabled={!model.enabled || aiSaving}
+                                onClick={() => void setDefaultAiModel(model)}
+                              >
+                                Set default
+                              </Button>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="gap-1 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              disabled={aiSaving}
+                              onClick={() => void deleteAiModelRow(model)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              Remove
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })
+                  )}
+                </TableBody>
+              </Table>
             </div>
 
-            <div className="flex items-center gap-4 pt-2">
-              <Button className="gap-2 btn-gradient">
-                <Save size={20} />
-                Save AI Config
-              </Button>
+            <div className="flex flex-wrap items-center gap-3">
               <Button
+                type="button"
                 variant="outline"
-                className="gap-2"
+                className="gap-2 border-slate-300 bg-white text-slate-800 shadow-sm hover:bg-slate-50"
                 onClick={async () => {
                   try {
-                    const token = localStorage.getItem('authToken');
-                    const res = await fetch('http://localhost:3000/api/ai/chat', {
-                      headers: { 'Authorization': `Bearer ${token}` },
-                    });
-                    const data = await res.json();
+                    const token = localStorage.getItem("authToken")
+                    const res = await fetch(`${API_BASE}/api/ai/chat`, {
+                      headers: { Authorization: `Bearer ${token}` },
+                    })
+                    const data = await res.json()
                     setMessage({
-                      type: 'success',
-                      text: `AI is online! Provider: ${data.provider || 'unknown'}, Model: ${data.model || 'unknown'}`
-                    });
-                    setTimeout(() => setMessage(null), 5000);
+                      type: "success",
+                      text: `AI is online! Provider: ${data.provider || "unknown"}, Model: ${data.model || "unknown"}`,
+                    })
+                    setTimeout(() => setMessage(null), 5000)
                   } catch {
-                    setMessage({ type: 'error', text: 'Cannot reach AI service. Check backend server.' });
+                    setMessage({ type: "error", text: "Cannot reach AI service. Check backend server." })
                   }
                 }}
               >
@@ -430,6 +819,52 @@ export default function SystemConfig() {
                     </div>
                   )
                 })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Sessions */}
+        <Card className="card-feature-group">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Settings className="h-5 w-5" />
+              Active Sessions
+            </CardTitle>
+            <CardDescription>Inspect and revoke currently active user sessions</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => void loadSessions()} disabled={sessionsLoading || sessionActionLoading}>
+                {sessionsLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                Refresh
+              </Button>
+              <Button variant="destructive" onClick={() => void revokeAllSessions()} disabled={sessionActionLoading}>
+                Revoke All
+              </Button>
+            </div>
+            {sessionsLoading ? (
+              <div className="text-sm text-muted-foreground">Loading sessions...</div>
+            ) : sessions.length === 0 ? (
+              <div className="text-sm text-muted-foreground">No active sessions.</div>
+            ) : (
+              <div className="space-y-2">
+                {sessions.map((session) => (
+                  <div key={session.id} className="flex items-center justify-between rounded border p-3">
+                    <div className="text-sm">
+                      <div className="font-medium">Session #{session.id} · User {session.userId}</div>
+                      <div className="text-muted-foreground">
+                        Last activity: {new Date(session.lastActivity).toLocaleString()} · Expires: {new Date(session.expiresAt).toLocaleString()}
+                      </div>
+                      <div className="text-muted-foreground">
+                        IP: {session.ipAddress || "n/a"} · Agent: {session.userAgent || "n/a"}
+                      </div>
+                    </div>
+                    <Button size="sm" variant="outline" disabled={sessionActionLoading} onClick={() => void revokeSession(session.id)}>
+                      Revoke
+                    </Button>
+                  </div>
+                ))}
               </div>
             )}
           </CardContent>

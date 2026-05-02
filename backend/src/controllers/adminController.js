@@ -282,7 +282,15 @@ exports.createAccount = async (req, res) => {
     const { username, roleCode, name, dob, phone, email, enabled, sexCode, doctor } = normalized.data;
     const { firstName, lastName } = splitName(name);
     const idcard = String(Date.now()).slice(-12).padStart(12, '0');
-    const hashedPassword = await bcrypt.hash('123456', 12);
+    const initialPassword = process.env.DEFAULT_ACCOUNT_PASSWORD;
+    if (!initialPassword) {
+      await tx.rollback();
+      return res.status(500).json({
+        success: false,
+        message: 'DEFAULT_ACCOUNT_PASSWORD is not configured',
+      });
+    }
+    const hashedPassword = await bcrypt.hash(initialPassword, 12);
 
     const [existingUsername] = await sequelize.query(
       'SELECT user_id AS userId FROM ACCOUNT WHERE username = :username LIMIT 1',

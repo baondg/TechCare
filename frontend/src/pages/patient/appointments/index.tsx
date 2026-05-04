@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
-import { Calendar, Search, Clock, User, Plus } from "lucide-react"
+import { Calendar as CalendarIcon, Search, Clock, User, Plus } from "lucide-react"
 import { PatientLayout } from "@/components/patient-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -16,14 +16,34 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
+import { Calendar } from "@/components/ui/calendar"
 import { useAppointments } from "@/hooks/useAppointments"
-import { format, parseISO } from "date-fns"
+import { format, parseISO, parse, isValid } from "date-fns"
 
 export default function AppointmentsPage() {
   const navigate = useNavigate()
   const [startDate, setStartDate] = useState("")
+  const [startDateValue, setStartDateValue] = useState<Date | undefined>()
   const [endDate, setEndDate] = useState("")
+  const [endDateValue, setEndDateValue] = useState<Date | undefined>()
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
+
+  const formatDateInput = (value: string) => {
+    const digits = value.replace(/\D/g, "").slice(0, 8)
+    if (digits.length <= 2) return digits
+    if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`
+    return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`
+  }
+
+  const parseDateInput = (value: string) => {
+    if (!value) return undefined
+    const parsedDate = parse(value, "dd/MM/yyyy", new Date())
+    if (!isValid(parsedDate)) return undefined
+    if (format(parsedDate, "dd/MM/yyyy") !== value) return undefined
+    return parsedDate
+  }
+
   const [cancelTargetId, setCancelTargetId] = useState<number | null>(null)
   const [cancelReason, setCancelReason] = useState("")
   const [cancelSaving, setCancelSaving] = useState(false)
@@ -105,23 +125,81 @@ export default function AppointmentsPage() {
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
               <div className="relative flex-1 max-w-xs">
-                <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400"
+                      aria-label="Open start date calendar"
+                    >
+                      <CalendarIcon className="w-5 h-5" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="p-0">
+                    <Calendar
+                      mode="single"
+                      selected={startDateValue}
+                      onSelect={(selectedDate) => {
+                        setStartDateValue(selectedDate)
+                        setStartDate(selectedDate ? format(selectedDate, "dd/MM/yyyy") : "")
+                      }}
+                      captionLayout="dropdown"
+                    />
+                  </PopoverContent>
+                </Popover>
                 <Input
                   type="text"
                   placeholder="dd/mm/yyyy"
                   value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
+                  onChange={(e) => {
+                    const formattedInput = formatDateInput(e.target.value)
+                    setStartDate(formattedInput)
+                    if (formattedInput.length === 10) {
+                      setStartDateValue(parseDateInput(formattedInput))
+                    }
+                  }}
                   className="pl-10 h-12 text-base"
                 />
               </div>
               <span className="text-slate-400">to</span>
               <div className="relative flex-1 max-w-xs">
-                <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400"
+                      aria-label="Open end date calendar"
+                    >
+                      <CalendarIcon className="w-5 h-5" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="p-0">
+                    <Calendar
+                      mode="single"
+                      selected={endDateValue}
+                      onSelect={(selectedDate) => {
+                        setEndDateValue(selectedDate)
+                        setEndDate(selectedDate ? format(selectedDate, "dd/MM/yyyy") : "")
+                      }}
+                      captionLayout="dropdown"
+                    />
+                  </PopoverContent>
+                </Popover>
                 <Input
                   type="text"
                   placeholder="dd/mm/yyyy"
                   value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
+                  onChange={(e) => {
+                    const formattedInput = formatDateInput(e.target.value)
+                    setEndDate(formattedInput)
+                    if (formattedInput.length === 10) {
+                      setEndDateValue(parseDateInput(formattedInput))
+                    }
+                  }}
                   className="pl-10 h-12 text-base"
                 />
               </div>

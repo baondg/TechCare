@@ -713,7 +713,7 @@ export default function NurseAppointmentsPage() {
                       ))}
                     </datalist>
                   </div>
-                  <div>
+          <div>
                     <label htmlFor="edit-end-time" className="text-xs text-slate-600 mb-0.5 block">End</label>
                     <Input
                       id="edit-end-time"
@@ -745,20 +745,20 @@ export default function NurseAppointmentsPage() {
                 <div className="flex flex-wrap items-center gap-2">
                   <Button className="btn-gradient h-9 px-4 text-sm" onClick={handleCreateOrUpdate} disabled={saving}>
                     {selectedSlotIds.length > 1 ? `Edit selected (${selectedSlotIds.length})` : pickedSlotStatus === "booked" ? "Save changes" : "Reschedule"}
-                  </Button>
+            </Button>
                   <Button variant="outline" className="h-9 px-4 text-sm" onClick={resetForm} disabled={saving}>
                     <RefreshCcw className="mr-1.5 h-4 w-4" />
                     Clear
-                  </Button>
-                  <Button
-                    variant="outline"
+            </Button>
+            <Button
+              variant="outline"
                     className="h-9 border-red-200 px-4 text-sm text-red-700 hover:bg-red-50"
                     onClick={handleDelete}
                     disabled={saving || !selectedSlotId || pickedSlotStatus === "booked"}
-                  >
+            >
                     <X className="mr-1.5 h-4 w-4" />
                     Cancel slot
-                  </Button>
+            </Button>
                   <span className="text-[11px] text-slate-500 xl:ml-1">
                     Edit mode: only doctor can be changed (doctors in this department). Times stay fixed.
                   </span>
@@ -774,7 +774,7 @@ export default function NurseAppointmentsPage() {
                           {s.date} | {s.start}-{s.end} | {s.department || "—"} | {s.doctorName || "—"} | {s.status}
                         </div>
                       ))}
-                    </div>
+          </div>
                   </div>
                 ) : null}
               </>
@@ -795,7 +795,7 @@ export default function NurseAppointmentsPage() {
                     Choose a date range; each shift in your <span className="font-medium">WORK_SHIFT</span> becomes one row per day. Review
                     then <span className="font-medium">Create all</span>.
                   </p>
-                </div>
+        </div>
 
                 <div className="space-y-3 rounded-lg border border-slate-200/80 bg-slate-50/40 p-3">
                   <Label className="text-xs font-semibold text-slate-700">Slot rows</Label>
@@ -851,7 +851,7 @@ export default function NurseAppointmentsPage() {
                       </div>
                       <div className="lg:col-span-2">
                         <span className="mb-0.5 block text-[10px] font-medium text-slate-500">Date</span>
-                        <Input
+                <Input
                           id={fieldId("date")}
                           name={isFirstRow ? "draftDateFirst" : `draftDate-${row.id}`}
                           aria-label={isFirstRow ? "Draft date first row" : `Draft date ${row.id}`}
@@ -860,8 +860,8 @@ export default function NurseAppointmentsPage() {
                           value={row.date}
                           onChange={(e) => updateDraftRow(row.id, { date: e.target.value })}
                           onInput={(e) => updateDraftRow(row.id, { date: (e.target as HTMLInputElement).value })}
-                        />
-                      </div>
+                />
+              </div>
                       <div className="lg:col-span-2">
                         <span className="mb-0.5 block text-[10px] font-medium text-slate-500">Room</span>
                         <Select
@@ -905,7 +905,7 @@ export default function NurseAppointmentsPage() {
                       </div>
                       <div className="lg:col-span-1">
                         <span className="mb-0.5 block text-[10px] font-medium text-slate-500">End</span>
-                        <Input
+                <Input
                           id={fieldId("end")}
                           name={isFirstRow ? "draftEndFirst" : `draftEnd-${row.id}`}
                           aria-label={isFirstRow ? "Draft end time first row" : `Draft end time ${row.id}`}
@@ -937,20 +937,20 @@ export default function NurseAppointmentsPage() {
                           <X className="h-4 w-4" />
                         </button>
                       </div>
-                    </div>
+              </div>
                     )
                   })}
-                  <Button
+              <Button
                     type="button"
-                    variant="outline"
+                variant="outline"
                     size="sm"
                     className="mt-1 gap-2"
                     onClick={() => setDraftRows((r) => [...r, newDraftRow(format(selectedDate, "yyyy-MM-dd"))])}
-                  >
+              >
                     <Plus className="h-4 w-4" />
                     Add row
-                  </Button>
-                </div>
+              </Button>
+            </div>
 
                 <div className="flex flex-wrap items-center gap-2">
                   <Button className="btn-gradient h-9 px-4 text-sm" onClick={() => void handleCreateAllDrafts()} disabled={saving}>
@@ -972,17 +972,17 @@ export default function NurseAppointmentsPage() {
 
         <div className="grid gap-6 lg:grid-cols-5">
           <Card className="card-feature lg:col-span-2 p-6">
-            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center justify-between mb-6">
               <h3 className="text-2xl font-bold text-slate-900">{monthName}</h3>
               <div className="flex items-center gap-2">
                 <Button variant="ghost" size="icon" onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1))} className="hover:bg-cyan-50">
                   <ChevronLeft className="w-5 h-5" />
-                </Button>
+                  </Button>
                 <Button variant="ghost" size="icon" onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1))} className="hover:bg-cyan-50">
                   <ChevronRight className="w-5 h-5" />
-                </Button>
+                  </Button>
+                </div>
               </div>
-            </div>
 
             <div>
               <div className="grid grid-cols-7 gap-2 mb-3">
@@ -1015,8 +1015,8 @@ export default function NurseAppointmentsPage() {
                       </button>
                     )
                   })}
-                </div>
-              ))}
+                      </div>
+                    ))}
             </div>
           </Card>
 
@@ -1126,7 +1126,7 @@ export default function NurseAppointmentsPage() {
                             ) : slot.patientName ? (
                               <span className="inline-flex items-center gap-2"><UserRound className="w-4 h-4 text-slate-400" />{slot.patientName}</span>
                             ) : "-"}
-                          </td>
+                        </td>
                           <td className="p-3 text-sm">
                             <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                               slot.status === "open"
@@ -1138,7 +1138,7 @@ export default function NurseAppointmentsPage() {
                               {slot.status === "open" ? "Open" : slot.status === "booked" ? "Booked" : "Cancelled"}
                             </span>
                           </td>
-                        </tr>
+                      </tr>
                       ))
                     )}
                   </tbody>

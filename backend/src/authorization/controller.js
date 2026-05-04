@@ -181,6 +181,14 @@ exports.login = async (req, res) => {
         error: 'Invalid username or password',
       });
     }
+
+    // Disabled accounts (ACCOUNT.status = 0) should behave like non-existent accounts.
+    if (String(user.status ?? '').trim() === '0') {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid username or password',
+      });
+    }
     
     // Check if account is locked
     if (user.lockUntil && user.lockUntil > new Date()) {

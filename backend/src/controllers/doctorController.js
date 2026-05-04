@@ -387,6 +387,36 @@ async function getOpenRegimenIdForPatient(patientId, transaction) {
   return rows[0]?.id != null ? Number(rows[0].id) : null;
 }
 
+/** One open REGIMEN per (patient, disease); disease_id only on REGIMEN. */
+async function ensureOpenRegimenForDisease(patientId, diseaseId, transaction) {
+  const qOpts = {
+    replacements: { patientId, diseaseId },
+    type: QueryTypes.SELECT,
+    ...(transaction ? { transaction } : {}),
+  };
+  const rows = await sequelize.query(
+    `SELECT id FROM REGIMEN
+     WHERE patient_id = :patientId AND disease_id = :diseaseId AND \`end\` IS NULL
+     ORDER BY id DESC
+     LIMIT 1`,
+    qOpts
+  );
+  if (rows[0]?.id != null) return Number(rows[0].id);
+
+  const [ins] = await sequelize.query(
+    `INSERT INTO REGIMEN (\`start\`, \`end\`, patient_id, disease_id)
+     VALUES (NOW(), NULL, :patientId, :diseaseId)`,
+    {
+      replacements: { patientId, diseaseId },
+      type: QueryTypes.INSERT,
+      ...(transaction ? { transaction } : {}),
+    }
+  );
+  const id = mysqlInsertId(ins);
+  if (id == null) throw new Error('Failed to insert open REGIMEN row');
+  return Number(id);
+}
+
 async function resolveDeptIdForTreatment(patientId, doctorId, transaction) {
   const queryOpts = {
     type: QueryTypes.SELECT,
@@ -433,48 +463,55 @@ async function resolveDeptIdForTreatment(patientId, doctorId, transaction) {
 }
 
 async function createTreatmentForPatient({ patientId, doctorId, complaint, department, diseaseId, transaction }) {
-  let regimenId = await getOpenRegimenIdForPatient(patientId, transaction);
-  if (!regimenId) {
-    regimenId = await ensureRegimen(patientId, diseaseId, transaction);
+  let regimenId;
+  if (diseaseId != null && Number.isFinite(Number(diseaseId))) {
+    regimenId = await ensureOpenRegimenForDisease(patientId, Number(diseaseId), transaction);
+  } else {
+    regimenId = await getOpenRegimenIdForPatient(patientId, transaction);
+    if (!regimenId) {
+      const zId = await ensureDisease('Z00.0', 'General examination', transaction);
+      regimenId = await ensureOpenRegimenForDisease(patientId, zId, transaction);
+    }
   }
   const deptId = await resolveDeptIdForTreatment(patientId, doctorId, transaction);
-  const repl = {
+  const baseRepl = {
     complaint: complaint || 'General follow-up',
     type: department || 'General',
     regimenId,
     doctorId,
-    diseaseId: diseaseId != null ? diseaseId : null,
     deptId,
   };
+
   try {
     const [ins] = await sequelize.query(
-      `INSERT INTO TREATMENT (time, \`condition\`, type, regimen_id, doctor_id, room_id, disease_id, dept_id)
-       VALUES (NOW(), :complaint, :type, :regimenId, :doctorId, NULL, :diseaseId, :deptId)`,
-      { replacements: repl, type: QueryTypes.INSERT, transaction }
+      `INSERT INTO TREATMENT (time, \`condition\`, type, regimen_id, doctor_id, room_id, dept_id)
+       VALUES (NOW(), :complaint, :type, :regimenId, :doctorId, NULL, :deptId)`,
+      { replacements: baseRepl, type: QueryTypes.INSERT, transaction }
     );
     const tid = mysqlInsertId(ins);
     if (tid == null) throw new Error('Failed to insert TREATMENT row');
     return tid;
   } catch (e) {
     if (!isUnknownColumnError(e)) throw e;
-    const [ins] = await sequelize.query(
-      `INSERT INTO TREATMENT (time, \`condition\`, type, regimen_id, doctor_id, room_id)
-       VALUES (NOW(), :complaint, :type, :regimenId, :doctorId, NULL)`,
-      {
-        replacements: {
-          complaint: repl.complaint,
-          type: repl.type,
-          regimenId: repl.regimenId,
-          doctorId: repl.doctorId,
-        },
-        type: QueryTypes.INSERT,
-        transaction,
-      }
-    );
-    const tid = mysqlInsertId(ins);
-    if (tid == null) throw new Error('Failed to insert TREATMENT row');
-    return tid;
   }
+
+  const [ins] = await sequelize.query(
+    `INSERT INTO TREATMENT (time, \`condition\`, type, regimen_id, doctor_id, room_id)
+     VALUES (NOW(), :complaint, :type, :regimenId, :doctorId, NULL)`,
+    {
+      replacements: {
+        complaint: baseRepl.complaint,
+        type: baseRepl.type,
+        regimenId: baseRepl.regimenId,
+        doctorId: baseRepl.doctorId,
+      },
+      type: QueryTypes.INSERT,
+      transaction,
+    }
+  );
+  const tid = mysqlInsertId(ins);
+  if (tid == null) throw new Error('Failed to insert TREATMENT row');
+  return tid;
 }
 
 /**
@@ -499,7 +536,7 @@ async function getLatestDiagnosisByPatientId(userOrPatientPk) {
        COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username, CONCAT('doctor#', d.user_id)) AS doctorName
      FROM TREATMENT t
      JOIN REGIMEN r ON r.id = t.regimen_id
-     LEFT JOIN DISEASE dis ON dis.id = COALESCE(t.disease_id, r.disease_id)
+     LEFT JOIN DISEASE dis ON dis.id = r.disease_id
      LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id
      LEFT JOIN USER u ON u.id = d.user_id
      LEFT JOIN ACCOUNT a ON a.user_id = d.user_id
@@ -1203,7 +1240,7 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
            cr.name AS roomName
          FROM TREATMENT t
          JOIN REGIMEN r ON r.id = t.regimen_id
-         LEFT JOIN DISEASE dis ON dis.id = COALESCE(t.disease_id, r.disease_id)
+         LEFT JOIN DISEASE dis ON dis.id = r.disease_id
          LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id
          LEFT JOIN \`USER\` u ON u.id = d.user_id
          LEFT JOIN ACCOUNT acc ON acc.user_id = d.user_id
@@ -1548,7 +1585,7 @@ exports.getPatientMedicalRegimensForDoctor = async (req, res) => {
            cr.name AS roomName
          FROM TREATMENT t
          JOIN REGIMEN r ON r.id = t.regimen_id
-         LEFT JOIN DISEASE dis ON dis.id = COALESCE(t.disease_id, r.disease_id)
+         LEFT JOIN DISEASE dis ON dis.id = r.disease_id
          LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id
          LEFT JOIN \`USER\` u ON u.id = d.user_id
          LEFT JOIN ACCOUNT acc ON acc.user_id = d.user_id
@@ -2047,7 +2084,7 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
            cr.name AS roomName
          FROM TREATMENT t
          JOIN REGIMEN r ON r.id = t.regimen_id
-         LEFT JOIN DISEASE dis ON dis.id = COALESCE(t.disease_id, r.disease_id)
+         LEFT JOIN DISEASE dis ON dis.id = r.disease_id
          LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id
          LEFT JOIN \`USER\` u ON u.id = d.user_id
          LEFT JOIN ACCOUNT acc ON acc.user_id = d.user_id
@@ -2421,7 +2458,7 @@ exports.getPatientMedicalRegimensForDoctor = async (req, res) => {
            cr.name AS roomName
          FROM TREATMENT t
          JOIN REGIMEN r ON r.id = t.regimen_id
-         LEFT JOIN DISEASE dis ON dis.id = COALESCE(t.disease_id, r.disease_id)
+         LEFT JOIN DISEASE dis ON dis.id = r.disease_id
          LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id
          LEFT JOIN \`USER\` u ON u.id = d.user_id
          LEFT JOIN ACCOUNT acc ON acc.user_id = d.user_id
@@ -3513,7 +3550,7 @@ exports.getDiagnoses = async (req, res) => {
          t.time AS updatedAt
        FROM TREATMENT t
        JOIN REGIMEN r ON r.id = t.regimen_id
-       LEFT JOIN DISEASE dis ON dis.id = COALESCE(t.disease_id, r.disease_id)
+       LEFT JOIN DISEASE dis ON dis.id = r.disease_id
        LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id
        LEFT JOIN USER u ON u.id = d.user_id
        LEFT JOIN ACCOUNT a ON a.user_id = d.user_id
@@ -3617,8 +3654,7 @@ exports.updateDiagnosis = async (req, res) => {
     }
 
     const row = await sequelize.query(
-      `SELECT t.id, t.regimen_id, r.patient_id,
-              COALESCE(t.disease_id, r.disease_id) AS effective_disease_id
+      `SELECT t.id, t.regimen_id, r.patient_id, r.disease_id AS regimen_disease_id
        FROM TREATMENT t
        JOIN REGIMEN r ON r.id = t.regimen_id
        WHERE t.id = :treatmentId AND r.patient_id = :patientId
@@ -3630,32 +3666,28 @@ exports.updateDiagnosis = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Diagnosis not found' });
     }
 
-    const { regimen_id: regimenId, effective_disease_id: oldEffective } = row[0];
+    const { regimen_disease_id: oldRegimenDiseaseId } = row[0];
     const newDiseaseId = await ensureDisease(icd10, interpretation, transaction);
-    const oldEff = oldEffective != null ? Number(oldEffective) : NaN;
-    const newEff = Number(newDiseaseId);
+    const oldD =
+      oldRegimenDiseaseId != null && Number.isFinite(Number(oldRegimenDiseaseId))
+        ? Number(oldRegimenDiseaseId)
+        : null;
+    const newD = Number(newDiseaseId);
+    const sameDisease = oldD !== null && oldD === newD;
 
-    const [regRow] = await sequelize.query(
-      `SELECT \`end\` AS ended FROM REGIMEN WHERE id = :id LIMIT 1`,
-      { replacements: { id: regimenId }, type: QueryTypes.SELECT, transaction }
-    );
-    const regOpen = regRow && (regRow.ended == null || regRow.ended === '');
-
-    if (Number.isFinite(oldEff) && oldEff !== newEff && !regOpen) {
-      const newRegimenId = await ensureRegimen(patientPk, newDiseaseId, transaction);
+    if (!sameDisease) {
+      const newRegimenId = await ensureOpenRegimenForDisease(patientPk, newDiseaseId, transaction);
       await sequelize.query(
         `UPDATE TREATMENT
          SET regimen_id = :newRegimenId,
              \`condition\` = :complaint,
-             type = :type,
-             disease_id = :diseaseId
+             type = :type
          WHERE id = :treatmentId`,
         {
           replacements: {
             newRegimenId,
             complaint: complaint.trim(),
             type: department || 'General',
-            diseaseId: newDiseaseId,
             treatmentId,
           },
           type: QueryTypes.UPDATE,
@@ -3666,14 +3698,12 @@ exports.updateDiagnosis = async (req, res) => {
       await sequelize.query(
         `UPDATE TREATMENT
          SET \`condition\` = :complaint,
-             type = :type,
-             disease_id = :diseaseId
+             type = :type
          WHERE id = :treatmentId`,
         {
           replacements: {
             complaint: complaint.trim(),
             type: department || 'General',
-            diseaseId: newDiseaseId,
             treatmentId,
           },
           type: QueryTypes.UPDATE,
@@ -4381,7 +4411,6 @@ exports.getLabTestDetails = async (req, res) => {
          no,
          \`index\` AS itemIndex,
          result,
-         numeric_value AS numericValue,
          unit
        FROM TEST_DETAIL
        WHERE test_id = :testId

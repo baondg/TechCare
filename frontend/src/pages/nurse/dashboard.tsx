@@ -4,82 +4,19 @@ import { useEffect, useMemo, useState } from "react"
 import { format } from "date-fns"
 import { Link } from "react-router-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { NurseLayout } from "@/components/nurse-layout"
 import { appointmentService, type NurseOpenSlot } from "@/services/appointment-service"
+import {
+  rangeForScheduleTab,
+  ScheduleDashboardTabs,
+  ScheduleDayPickerField,
+  ScheduleMonthPickerField,
+  ScheduleWeekPickerField,
+  type ScheduleTab,
+  startOfWeekMonday,
+  toLocalIsoDate,
+} from "@/components/schedule-dashboard-controls"
 import { CalendarDays, Clock3, FolderKanban, Stethoscope, UserRound } from "lucide-react"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Calendar as CalendarPicker } from "@/components/ui/calendar"
-import { enUS } from "date-fns/locale"
-
-type ScheduleTab = "day" | "week" | "month"
-
-function toLocalIsoDate(d: Date): string {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, "0")
-  const day = String(d.getDate()).padStart(2, "0")
-  return `${y}-${m}-${day}`
-}
-
-function parseIsoDateLocal(iso: string): Date {
-  const [y, m, d] = iso.split("-").map(Number)
-  return new Date(y, m - 1, d)
-}
-
-/** Monday as first day of week (ISO-style week). */
-function startOfWeekMonday(d: Date): Date {
-  const date = new Date(d.getFullYear(), d.getMonth(), d.getDate())
-  const day = date.getDay()
-  const diff = day === 0 ? -6 : 1 - day
-  date.setDate(date.getDate() + diff)
-  return date
-}
-
-function endOfWeekFromMonday(monday: Date): Date {
-  return new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6)
-}
-
-function rangeForScheduleTab(
-  tab: ScheduleTab,
-  dayKey: string,
-  weekStartKey: string,
-  monthKey: string
-): { startDate: string; endDate: string } {
-  if (tab === "day") {
-    return { startDate: dayKey, endDate: dayKey }
-  }
-  if (tab === "week") {
-    const mon = parseIsoDateLocal(weekStartKey)
-    return { startDate: weekStartKey, endDate: toLocalIsoDate(endOfWeekFromMonday(mon)) }
-  }
-  const [y, m] = monthKey.split("-").map(Number)
-  const first = new Date(y, m - 1, 1)
-  const last = new Date(y, m, 0)
-  return { startDate: toLocalIsoDate(first), endDate: toLocalIsoDate(last) }
-}
-
-function formatDayButtonLabel(iso: string) {
-  return parseIsoDateLocal(iso).toLocaleDateString("en-US", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  })
-}
-
-function formatWeekButtonLabel(weekStartIso: string) {
-  const start = parseIsoDateLocal(weekStartIso)
-  const end = endOfWeekFromMonday(start)
-  const opt = { month: "short" as const, day: "numeric" as const, year: "numeric" as const }
-  return `${start.toLocaleDateString("en-US", opt)} – ${end.toLocaleDateString("en-US", opt)}`
-}
-
-function formatMonthButtonLabel(monthKeyStr: string) {
-  const [y, m] = monthKeyStr.split("-").map(Number)
-  if (!y || !m) return monthKeyStr
-  return new Date(y, m - 1, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" })
-}
 
 function badgeClass(status: NurseOpenSlot["status"]) {
   if (status === "open") return "bg-green-100 text-green-700"
@@ -103,14 +40,6 @@ export default function NurseDashboard() {
     const d = new Date()
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
   })
-  const [dayPickerOpen, setDayPickerOpen] = useState(false)
-  const [weekPickerOpen, setWeekPickerOpen] = useState(false)
-  const [monthPickerOpen, setMonthPickerOpen] = useState(false)
-
-  const monthViewDate = useMemo(() => {
-    const [y, m] = monthKey.split("-").map(Number)
-    return new Date(y, m - 1, 1)
-  }, [monthKey])
 
   useEffect(() => {
     const load = async () => {
@@ -254,97 +183,12 @@ export default function NurseDashboard() {
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Schedule</CardTitle>
             </CardHeader>
-            <CardContent className="p-6 pt-0">
-              <Tabs value={scheduleTab} onValueChange={(v) => setScheduleTab(v as ScheduleTab)} className="w-full">
-                <TabsList className="mb-3 grid w-full max-w-md grid-cols-3">
-                  <TabsTrigger value="day">Day</TabsTrigger>
-                  <TabsTrigger value="week">Week</TabsTrigger>
-                  <TabsTrigger value="month">Month</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="day" className="mt-0 space-y-3">
-                  <div className="max-w-sm">
-                    <Popover open={dayPickerOpen} onOpenChange={setDayPickerOpen}>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" className="w-full justify-start text-left font-normal">
-                          <CalendarDays className="mr-2 h-4 w-4" />
-                          {formatDayButtonLabel(dayKey)}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <CalendarPicker
-                          key={dayPickerOpen ? `day-${dayKey}` : "day-closed"}
-                          mode="single"
-                          locale={enUS}
-                          selected={parseIsoDateLocal(dayKey)}
-                          onSelect={(d) => {
-                            if (!d) return
-                            setDayKey(toLocalIsoDate(d))
-                            setDayPickerOpen(false)
-                          }}
-                          defaultMonth={parseIsoDateLocal(dayKey)}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="week" className="mt-0 space-y-3">
-                  <div className="max-w-sm">
-                    <Popover open={weekPickerOpen} onOpenChange={setWeekPickerOpen}>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" className="w-full justify-start text-left font-normal">
-                          <CalendarDays className="mr-2 h-4 w-4" />
-                          {formatWeekButtonLabel(weekStartKey)}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <CalendarPicker
-                          key={weekPickerOpen ? `week-${weekStartKey}` : "week-closed"}
-                          mode="single"
-                          locale={enUS}
-                          selected={parseIsoDateLocal(weekStartKey)}
-                          onSelect={(d) => {
-                            if (!d) return
-                            setWeekStartKey(toLocalIsoDate(startOfWeekMonday(d)))
-                            setWeekPickerOpen(false)
-                          }}
-                          defaultMonth={parseIsoDateLocal(weekStartKey)}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="month" className="mt-0 space-y-3">
-                  <div className="max-w-sm">
-                    <Popover open={monthPickerOpen} onOpenChange={setMonthPickerOpen}>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" className="w-full justify-start text-left font-normal">
-                          <CalendarDays className="mr-2 h-4 w-4" />
-                          {formatMonthButtonLabel(monthKey)}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <CalendarPicker
-                          mode="single"
-                          locale={enUS}
-                          month={monthViewDate}
-                          onMonthChange={(d) => {
-                            setMonthKey(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`)
-                          }}
-                          selected={monthViewDate}
-                          onSelect={(d) => {
-                            if (!d) return
-                            setMonthKey(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`)
-                            setMonthPickerOpen(false)
-                          }}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                </TabsContent>
-              </Tabs>
+            <CardContent className="space-y-4 p-6 pt-0">
+              <ScheduleDashboardTabs scheduleTab={scheduleTab} onScheduleTabChange={setScheduleTab}>
+                <ScheduleDayPickerField dayKey={dayKey} setDayKey={setDayKey} />
+                <ScheduleWeekPickerField weekStartKey={weekStartKey} setWeekStartKey={setWeekStartKey} />
+                <ScheduleMonthPickerField monthKey={monthKey} setMonthKey={setMonthKey} />
+              </ScheduleDashboardTabs>
 
               {loading ? (
                 <p className="text-sm text-slate-500">Loading schedule...</p>

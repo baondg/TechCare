@@ -124,6 +124,3 @@ Notes:
 ## 🤝 Contributing
 Contributions, issues, and feature requests are welcome.  
 Please open an issue or submit a pull request with a clear description of your change.
-
-## 📄 License
-This project is MIT licensed.

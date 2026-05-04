@@ -97,12 +97,8 @@ app.use((err: Error, req: Request, res: Response, next: Function) => {
 // Initialize database and start server
 async function startServer() {
   try {
-    // #region agent log
-    const _agentDbg = {
-      sessionId: 'd2aca7',
-      location: 'index.ts:startServer',
-      message: 'db env before sequelize.authenticate',
-      data: {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[startup]', {
         DB_HOST: process.env.DB_HOST ?? null,
         DB_PORT: process.env.DB_PORT ?? null,
         hasDB_NAME: Boolean(process.env.DB_NAME),
@@ -113,21 +109,8 @@ async function startServer() {
           process.env.INSTANCE_CONNECTION_NAME ??
           null,
         NODE_ENV: process.env.NODE_ENV ?? null,
-      },
-      timestamp: Date.now(),
-      hypothesisId: 'H1-H5',
-      runId: 'pre-fix',
-    };
-    console.log('[agent-debug]', JSON.stringify(_agentDbg));
-    fetch('http://127.0.0.1:7816/ingest/bfda5655-bb87-4a1e-8325-a85828e5c434', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Debug-Session-Id': 'd2aca7',
-      },
-      body: JSON.stringify(_agentDbg),
-    }).catch(() => {});
-    // #endregion
+      });
+    }
     await sequelize.authenticate();
     console.log('✅ Database connection ready');
 
@@ -137,6 +120,12 @@ async function startServer() {
 
     if (shouldAutoSync) {
       // Dev convenience: bootstrap only auth/session tables required for login.
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const User = require('./models/Users');
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const Account = require('./models/Account');
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const Session = require('./models/Session');
       await User.sync({ alter: true });
       await Account.sync({ alter: true });
       await Session.sync({ alter: true });

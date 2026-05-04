@@ -1,0 +1,15 @@
+# Build backend from repo root: gcloud builds submit . --config gcp/cloudbuild-api.yaml --substitutions=_IMAGE=REGION-docker.pkg.dev/PROJECT/REPO/techcare-api:TAG
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - Dockerfile.prod
+      - -t
+      - ${_IMAGE}
+      - .
+    dir: backend
+images:
+  - ${_IMAGE}
+substitutions:
+  _IMAGE: us-central1-docker.pkg.dev/PROJECT/REPO/techcare-api:latest

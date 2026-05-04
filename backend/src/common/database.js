@@ -10,26 +10,12 @@ const instanceConnectionName =
 
 const useCloudSqlSocket = Boolean(instanceConnectionName);
 
-// #region agent log
-const _dbMode = {
-  sessionId: 'd2aca7',
-  location: 'common/database.js',
-  message: 'sequelize connection mode',
-  data: {
+if (process.env.NODE_ENV !== 'production') {
+  console.log('[db]', {
     useCloudSqlSocket,
     hasInstanceName: Boolean(instanceConnectionName),
-  },
-  timestamp: Date.now(),
-  hypothesisId: 'H2',
-  runId: 'pre-fix',
-};
-console.log('[agent-debug]', JSON.stringify(_dbMode));
-fetch('http://127.0.0.1:7816/ingest/bfda5655-bb87-4a1e-8325-a85828e5c434', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'd2aca7' },
-  body: JSON.stringify(_dbMode),
-}).catch(() => {});
-// #endregion
+  });
+}
 
 const pool = {
   max: 5,

@@ -41,6 +41,9 @@ backend/.env.*
 .env.production.local
 .env*.local
 
+# k6 Grafana Cloud secrets — k6/.env.grafana.local is ignored by *.local below; explicit for clarity
+k6/.env.grafana.local
+
 # Logs
 logs/
 *.log

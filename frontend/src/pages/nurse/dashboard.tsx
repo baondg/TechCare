@@ -140,7 +140,10 @@ export default function NurseDashboard() {
               </div>
               <p className="text-xs text-slate-500 mt-1">
                 {nextBookedSlot?.patientUserId != null ? (
-                  <Link to={`/nurse/patients/${nextBookedSlot.patientUserId}/profile`} className="text-cyan-700 hover:underline">
+                  <Link
+                    to={`/nurse/medical_records/OP${String(nextBookedSlot.patientUserId).padStart(9, "0")}/profile`}
+                    className="text-cyan-700 hover:underline"
+                  >
                     {nextBookedSlot.patientName || `Patient #${nextBookedSlot.patientUserId}`}
                   </Link>
                 ) : nextBookedSlot ? (
@@ -208,7 +211,10 @@ export default function NurseDashboard() {
                         <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
                           <UserRound className="h-3.5 w-3.5" />
                           {slot.patientUserId != null ? (
-                            <Link to={`/nurse/patients/${slot.patientUserId}/profile`} className="text-cyan-700 hover:underline">
+                            <Link
+                              to={`/nurse/medical_records/OP${String(slot.patientUserId).padStart(9, "0")}/profile`}
+                              className="text-cyan-700 hover:underline"
+                            >
                               {slot.patientName || `Patient #${slot.patientUserId}`}
                             </Link>
                           ) : (

@@ -64,7 +64,11 @@ export function useProfile(userId: number | undefined): UseProfileReturn {
       setSuccess('Profile saved successfully!')
       void load()           // refresh to get server-side values (e.g. updatedAt)
     } catch (err) {
-      setError('Failed to save profile. Please try again.')
+      const msg =
+        err instanceof Error && err.message?.trim()
+          ? err.message
+          : 'Failed to save profile. Please try again.'
+      setError(msg)
       console.error(err)
     } finally {
       setSaving(false)

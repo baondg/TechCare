@@ -264,15 +264,6 @@ export function DoctorLayout2() {
     void loadVisitState()
   }, [loadVisitState])
 
-  const emrSessionValue = useMemo(
-    () => ({
-      visitLoading,
-      visitActive,
-      mutationsAllowed: !visitLoading && visitActive,
-    }),
-    [visitLoading, visitActive]
-  )
-
   const loadPatient = useCallback(async () => {
     if (!patientId) return
     try {
@@ -295,6 +286,20 @@ export function DoctorLayout2() {
       setLoading(false)
     }
   }, [patientId])
+
+  const refreshPatientBanner = useCallback(() => {
+    void loadPatient()
+  }, [loadPatient])
+
+  const emrSessionValue = useMemo(
+    () => ({
+      visitLoading,
+      visitActive,
+      mutationsAllowed: !visitLoading && visitActive,
+      refreshPatientBanner,
+    }),
+    [visitLoading, visitActive, refreshPatientBanner]
+  )
 
   useEffect(() => {
     void loadPatient()
@@ -405,7 +410,10 @@ export function DoctorLayout2() {
     if (!patientData) return "Patient not found"
     const { firstName, lastName, age, gender, bmi, latestDiagnosis } = patientData
 
-    const dept = patientData.inDepartment ?? null
+    const deptLabel =
+      patientData.inDepartment?.trim() ||
+      latestDiagnosis?.department?.trim() ||
+      null
 
     return (
       <div>
@@ -417,7 +425,7 @@ export function DoctorLayout2() {
             Diagnosis: {latestDiagnosis.icd10 || "—"} - {latestDiagnosis.interpretation || "—"}
           </p>
         )}
-        <p className="text-sm text-slate-500">Department: {dept || "—"}</p>
+        <p className="text-sm text-slate-500">Department: {deptLabel || "—"}</p>
       </div>
     )
   }
@@ -623,6 +631,8 @@ export function DoctorLayout2() {
         })
       }
       showSuccess("Transfer recorded.")
+      refreshPatientBanner()
+      await loadVisitState()
       setTransferOpen(false)
       setTransferReason("")
       setTransferNote("")
@@ -672,30 +682,17 @@ export function DoctorLayout2() {
           showError("Please fill date, time, and department.")
           return
         }
-        await doctorService.createAppointment({
-          patientId: numericRouteId,
-          department: followDepartment.trim(),
-          date: followDate,
-          time: timeCommitted.length <= 5 ? `${timeCommitted}:00` : timeCommitted,
-          symptoms: followSymptoms.trim() || undefined,
-          notes: followSymptoms.trim() || undefined,
-        })
-        try {
-          const slipInputs = buildFollowUpReexamSlipInputs()
-          if (slipInputs) {
-            await doctorService.createFollowUpReexamSlip(patientId, slipInputs as unknown as Record<string, unknown>)
-          }
-        } catch (slipErr) {
-          console.error(slipErr)
-          showError(
-            slipErr instanceof Error
-              ? `${slipErr.message} — The appointment was saved, but the follow-up slip could not be stored for the patient export PDF.`
-              : "The appointment was saved, but the follow-up slip could not be stored for the patient export PDF.",
-          )
+        const slipInputs = buildFollowUpReexamSlipInputs()
+        if (!slipInputs?.patientName?.trim()) {
+          showError("Patient data is not loaded; refresh the page and try again.")
+          return
         }
+        await doctorService.createFollowUpReexamSlip(patientId, slipInputs as unknown as Record<string, unknown>)
+        refreshPatientBanner()
+        await loadVisitState()
         setFinishWizardSaved({
           type: "followup",
-          summary: `Follow-up scheduled: ${followDate} ${timeCommitted} — ${followDepartment.trim()}`,
+          summary: `Follow-up slip saved: ${followDate} ${timeCommitted} — ${followDepartment.trim()}`,
         })
       } else {
         if (!transferReason.trim()) {
@@ -727,6 +724,8 @@ export function DoctorLayout2() {
             escortInfo: escortInfo.trim() || undefined,
           },
         })
+        refreshPatientBanner()
+        await loadVisitState()
         setFinishWizardSaved({
           type: "hospital-transfer",
           summary: `Hospital transfer recorded: ${toHospitalName.trim()}`,
@@ -860,7 +859,7 @@ export function DoctorLayout2() {
                       className={finishWizardChoice === "followup" ? "btn-gradient" : ""}
                       onClick={() => setFinishWizardChoice("followup")}
                     >
-                      Add follow-up appointment
+                      Add follow-up slip
                     </Button>
                     <Button
                       type="button"
@@ -1544,7 +1543,7 @@ export function DoctorLayout2() {
               )}
               {finishWizardSaved?.type === "followup" ? (
                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-white px-3 py-2">
-                  <div className="text-sm font-medium text-slate-800">Follow-up appointment slip</div>
+                  <div className="text-sm font-medium text-slate-800">Follow-up reexam slip</div>
                   <Button
                     type="button"
                     size="sm"
@@ -1560,7 +1559,7 @@ export function DoctorLayout2() {
                           signingTimeDisplay: buildSigningTimeLine(new Date()),
                           filename: `follow-up-${followDate || "date"}.pdf`,
                         })
-                        openPdfPreview(blob, filename, "Follow-up appointment slip (PDF)")
+                        openPdfPreview(blob, filename, "Follow-up slip (PDF)")
                       } catch (e) {
                         showError(e instanceof Error ? e.message : "Failed to generate PDF")
                       } finally {

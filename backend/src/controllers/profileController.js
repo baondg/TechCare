@@ -35,6 +35,14 @@ function ensureAuthorized(req, res, userId) {
   return true;
 }
 
+/** Self, admin, or medical staff (same gate as GET profile — e.g. nurse editing patient). */
+function ensureCanWriteProfile(req, res, targetUserId) {
+  if (isSelfOrAdmin(req, targetUserId)) return true;
+  if (isMedicalStaff(req)) return true;
+  res.status(403).json({ message: 'Forbidden' });
+  return false;
+}
+
 function splitFullName(fullName) {
   const s = String(fullName || '').trim();
   if (!s) return { first: '', last: '' };
@@ -42,12 +50,19 @@ function splitFullName(fullName) {
   return { first: parts[0] || '', last: parts.slice(1).join(' ') || '' };
 }
 
+/** Empty string fails RELATIVE.tel / RELATIVE.email Sequelize validators; use null instead. */
+function nullIfEmpty(value) {
+  if (value === undefined || value === null) return null;
+  const s = String(value).trim();
+  return s === '' ? null : s;
+}
+
 exports.getProfile = async (req, res) => {
   try {
     const userId = parseUserIdParam(req, res);
     if (userId == null) return;
 
-    // Allow medical staff to view patient profile; writes still require self/admin below.
+    // Allow medical staff to view patient profile; PUT uses ensureCanWriteProfile (staff may update patient).
     if (!(isSelfOrAdmin(req, userId) || isMedicalStaff(req))) {
       return res.status(403).json({ message: 'Forbidden' });
     }
@@ -143,7 +158,7 @@ exports.updateProfile = async (req, res) => {
     const userId = parseUserIdParam(req, res);
     if (userId == null) return;
 
-    if (!ensureAuthorized(req, res, userId)) return;
+    if (!ensureCanWriteProfile(req, res, userId)) return;
 
     const {
       firstName,
@@ -193,30 +208,38 @@ exports.updateProfile = async (req, res) => {
     });
 
     if (patient) {
+      const relNameIn = nullIfEmpty(relativeName);
+      const relTel = nullIfEmpty(relativePhone);
+      const relEmail = nullIfEmpty(relativeEmail);
+      const relNat = nullIfEmpty(relativeNationalId);
+      const relRelationship = nullIfEmpty(relativeRelationship) || 'Mother';
+      const relSex =
+        relativeSex === 'Male' ? 'M' : relativeSex === 'Female' ? 'F' : 'O';
+
       let relative = await Relative.findOne({
         where: { patient_id: patient.patient_id },
       });
 
       if (relative) {
         await relative.update({
-          name: relativeName,
-          relationship: relativeRelationship,
-          dob: relativeDateOfBirth,
-          sex: relativeSex === 'Male' ? 'M' : relativeSex === 'Female' ? 'F' : 'O',
-          tel: relativePhone,
-          email: relativeEmail,
-          idcard: relativeNationalId,
+          name: relNameIn || relative.name,
+          relationship: relRelationship,
+          dob: relativeDateOfBirth || null,
+          sex: relSex,
+          tel: relTel,
+          email: relEmail,
+          idcard: relNat,
         });
-      } else {
+      } else if (relNameIn) {
         await Relative.create({
           patient_id: patient.patient_id,
-          name: relativeName,
-          relationship: relativeRelationship,
-          dob: relativeDateOfBirth,
-          sex: relativeSex === 'Male' ? 'M' : relativeSex === 'Female' ? 'F' : 'O',
-          tel: relativePhone,
-          email: relativeEmail,
-          idcard: relativeNationalId,
+          name: relNameIn,
+          relationship: relRelationship,
+          dob: relativeDateOfBirth || null,
+          sex: relSex,
+          tel: relTel,
+          email: relEmail,
+          idcard: relNat,
         });
       }
     }

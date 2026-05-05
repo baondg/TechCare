@@ -54,7 +54,7 @@ export interface NurseOpenSlot {
   roomName: string;
   /** APPOINTMENT.patient_id — PATIENT.patient_id (PK), not USER.id */
   patientId: number | null;
-  /** USER.id — use for /nurse/patients/:id/profile and /api/profile */
+  /** USER.id — use for /nurse/medical_records/.../profile and /api/profile */
   patientUserId?: number | null;
   patientName: string;
   status: 'open' | 'booked' | 'cancelled';
@@ -88,6 +88,13 @@ export interface ClinicRoomOption {
   /** From CLINIC_ROOM.department_id + DEPARTMENT.name */
   departmentId?: number | null;
   departmentName?: string | null;
+}
+
+export interface ChatModelOption {
+  id: number;
+  name: string;
+  provider?: string;
+  status?: string;
 }
 
 export interface PatientDashboardSummary {
@@ -400,7 +407,8 @@ export const appointmentService = {
 
   async sendPatientChatMessage(
     messages: ChatMessage[],
-    userMessage: string
+    userMessage: string,
+    modelId?: number | null
   ): Promise<{
     message: string;
     recommendationId: number | null;
@@ -413,13 +421,25 @@ export const appointmentService = {
       recommendationId?: number;
       aiFallback?: boolean;
       aiHint?: string;
-    }>('/api/appointments/ai/chat', { messages, userMessage });
+    }>('/api/appointments/ai/chat', {
+      messages,
+      userMessage,
+      ...(Number.isFinite(Number(modelId)) ? { modelId: Number(modelId) } : {}),
+    });
     return {
       message: data.message || '',
       recommendationId: Number.isFinite(Number(data.recommendationId)) ? Number(data.recommendationId) : null,
       aiFallback: Boolean(data.aiFallback),
       aiHint: data.aiHint,
     };
+  },
+
+  async getPatientChatModels(): Promise<ChatModelOption[]> {
+    const data = await apiClient.get<{
+      success: boolean;
+      models?: ChatModelOption[];
+    }>('/api/appointments/ai/models');
+    return Array.isArray(data.models) ? data.models : [];
   },
 
   async analyzeSymptomsPersisted(symptoms: SymptomInput[]): Promise<SymptomAnalysisResponse> {

@@ -181,6 +181,19 @@ async function getActiveAiModel() {
   return fallback || null;
 }
 
+async function getAiModelById(id) {
+  const modelId = Number(id);
+  if (!Number.isFinite(modelId) || modelId <= 0) return null;
+  const [row] = await sequelize.query(
+    `SELECT id, name, provider
+     FROM AI_MODEL
+     WHERE id = :id
+     LIMIT 1`,
+    { replacements: { id: modelId }, type: QueryTypes.SELECT }
+  );
+  return row || null;
+}
+
 async function getLatestTreatmentIdByPatientId(patientId) {
   const [row] = await sequelize.query(
     `SELECT t.id
@@ -559,13 +572,27 @@ exports.chatWithAiAndSave = async (req, res) => {
       return res.status(400).json({ success: false, message: 'userMessage is required' });
     }
 
-    const model = await getActiveAiModel();
+    const selectedModelIdRaw = req.body?.modelId;
+    let model = null;
+    if (selectedModelIdRaw !== undefined && selectedModelIdRaw !== null && String(selectedModelIdRaw).trim() !== '') {
+      model = await getAiModelById(selectedModelIdRaw);
+      if (!model?.id) {
+        return res.status(400).json({ success: false, message: 'Selected AI model is invalid or unavailable' });
+      }
+    } else {
+      model = await getActiveAiModel();
+    }
     if (!model?.id) {
       return res.status(400).json({ success: false, message: 'No AI model configured in AI_MODEL table' });
     }
 
     const payload = {
       messages: [...messages.filter((m) => m && m.role && m.content), { role: 'user', content: userMessage }],
+      preferredModel: {
+        id: Number(model.id),
+        name: model.name || '',
+        provider: model.provider || '',
+      },
     };
 
     let aiResp;
@@ -642,6 +669,29 @@ exports.chatWithAiAndSave = async (req, res) => {
     });
   } catch (error) {
     console.error('chatWithAiAndSave error:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+  }
+};
+
+exports.getAiChatModels = async (req, res) => {
+  try {
+    const models = await sequelize.query(
+      `SELECT id, name, provider, status
+       FROM AI_MODEL
+       ORDER BY (status = 'active') DESC, release_date DESC, id DESC`,
+      { type: QueryTypes.SELECT }
+    );
+    return res.json({
+      success: true,
+      models: (models || []).map((m) => ({
+        id: Number(m.id),
+        name: m.name || `Model #${m.id}`,
+        provider: m.provider || '',
+        status: m.status || '',
+      })),
+    });
+  } catch (error) {
+    console.error('getAiChatModels error:', error);
     return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };

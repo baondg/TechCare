@@ -33,6 +33,7 @@ router.get('/feedback', appointmentController.getFeedbacks);
 router.get('/feedback/visible', appointmentController.getVisibleFeedbacks);
 router.post('/feedback', appointmentController.createFeedback);
 router.get('/ai-recommendations', appointmentController.getAiRecommendations);
+router.get('/ai/models', appointmentController.getAiChatModels);
 router.patch('/ai-recommendations/:id/feedback', appointmentController.updateAiRecommendationFeedback);
 router.post('/ai/chat', appointmentController.chatWithAiAndSave);
 router.post('/ai/symptom-analysis', appointmentController.analyzeSymptomsAndSave);

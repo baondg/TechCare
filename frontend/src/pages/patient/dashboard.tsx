@@ -81,9 +81,9 @@ export default function PatientDashboard() {
                   </div>
                   <ChevronRight className="h-5 w-5 text-slate-400 group-hover:text-cyan-500" />
                 </div>
-                <h3 className="text-sm font-medium text-slate-500 mb-1">Signed prescriptions</h3>
+                <h3 className="text-sm font-medium text-slate-500 mb-1">Prescriptions</h3>
                 <div className="text-xl font-bold text-slate-900 mb-1">{activePrescriptionCount}</div>
-                <p className="text-sm text-slate-600">Draft or unsigned orders are not shown</p>
+                <p className="text-sm text-slate-600">Available prescriptions</p>
               </CardContent>
             </Card>
           </Link>
@@ -108,7 +108,6 @@ export default function PatientDashboard() {
         <div className="grid gap-6 lg:grid-cols-2">
           <CollapsibleSection
             title="Active Medications"
-            description="Signed prescriptions only"
             icon={<Pill className="h-5 w-5" />}
             defaultOpen={true}
           >
@@ -138,7 +137,7 @@ export default function PatientDashboard() {
                           </p>
                           <p className="text-sm font-medium text-slate-800">{dateLabel}</p>
                           {rx.doctorName?.trim() ? (
-                            <p className="text-xs text-slate-500 mt-0.5">Signed by {rx.doctorName.trim()}</p>
+                            <p className="text-xs text-slate-500 mt-0.5">Prescribed by {rx.doctorName.trim()}</p>
                           ) : null}
                         </div>
                       </div>
@@ -179,7 +178,6 @@ export default function PatientDashboard() {
 
           <CollapsibleSection
             title="Recovery Progress"
-            description="AI-predicted recovery timeline"
             icon={<TrendingUp className="h-5 w-5" />}
             defaultOpen={true}
           >

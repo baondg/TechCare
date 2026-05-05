@@ -99,12 +99,19 @@ export const profileService = {
       });
 
       if (!response.ok) {
+        let detail = 'Failed to update profile';
+        try {
+          const errBody = (await response.json()) as { message?: string };
+          if (errBody?.message) detail = String(errBody.message);
+        } catch {
+          /* ignore */
+        }
         if (response.status === 401 || response.status === 403) {
           localStorage.removeItem('authToken');
           localStorage.removeItem('user');
           window.location.href = '/login';
         }
-        throw new Error('Failed to update profile');
+        throw new Error(detail);
       }
 
       const data = await response.json();

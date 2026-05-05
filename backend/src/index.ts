@@ -21,6 +21,8 @@ const sessionMiddleware = require('./middleware/sessionMiddleware');
 const sequelize = require('./common/database');
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { startMedicationReminderScheduler } = require('./services/medicationReminderNotifications');
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { startAppointmentReminderScheduler } = require('./services/appointmentReminderNotifications');
 
 /* Sequelize — one entry point for model wiring (see models/associate.js + database_description.sql). */
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -97,6 +99,7 @@ async function startServer() {
   try {
     console.log('✅ Database connection ready');
     startMedicationReminderScheduler(sequelize);
+    startAppointmentReminderScheduler(sequelize);
 
     app.listen(PORT, () => {
       console.log(`🚀 Server is running on http://localhost:${PORT}`);

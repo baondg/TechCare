@@ -18,6 +18,7 @@ function Calendar({
   buttonVariant = "ghost",
   formatters,
   components,
+  locale = enUS,
   ...props
 }: React.ComponentProps<typeof DayPicker> & {
   buttonVariant?: React.ComponentProps<typeof Button>["variant"]
@@ -26,8 +27,8 @@ function Calendar({
 
   return (
     <DayPicker
-      locale={enUS}
       showOutsideDays={showOutsideDays}
+      locale={locale}
       className={cn(
         "bg-background group/calendar p-3 [--cell-size:=1rem] [[data-slot=card-content]_&]:bg-transparent [[data-slot=popover-content]_&]:bg-transparent",
         String.raw`rtl:**:[.rdp-button\_next>svg]:rotate-180`,

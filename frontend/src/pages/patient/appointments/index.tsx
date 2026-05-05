@@ -239,9 +239,7 @@ export default function AppointmentsPage() {
                     <div className="flex-1 p-6">
                       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4">
                         <div>
-                          <h3 className="text-xl font-bold text-slate-800 mb-1">
-                            {appointment.department} Consultation
-                          </h3>
+                          <h3 className="text-xl font-bold text-slate-800 mb-1">{appointment.department}</h3>
                           <div className="flex items-center text-slate-500">
                             <User className="w-4 h-4 mr-2" />
                             {appointment.doctor}

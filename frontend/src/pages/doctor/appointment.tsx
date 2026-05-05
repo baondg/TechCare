@@ -442,6 +442,7 @@ export default function DoctorAppointmentsPage() {
                   value={coverReason}
                   onChange={(e) => setCoverReason(e.target.value)}
                   onInput={(e) => setCoverReason((e.target as HTMLTextAreaElement).value)}
+                  onBlur={(e) => setCoverReason(e.target.value)}
                   placeholder="Required - shared with the patient in the notification"
                   rows={3}
                   className="resize-none"
@@ -478,6 +479,7 @@ export default function DoctorAppointmentsPage() {
                   value={coverReason}
                   onChange={(e) => setCoverReason(e.target.value)}
                   onInput={(e) => setCoverReason((e.target as HTMLTextAreaElement).value)}
+                  onBlur={(e) => setCoverReason(e.target.value)}
                   placeholder="Required — applied to each selected booking"
                   rows={3}
                   className="resize-none"

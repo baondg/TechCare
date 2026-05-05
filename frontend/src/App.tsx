@@ -40,7 +40,7 @@ const NurseAppointment = lazy(() => import("./pages/nurse/appointment"))
 const NurseWorkShifts = lazy(() => import("./pages/nurse/work-shifts"))
 const NurseFeedback = lazy(() => import("./pages/nurse/feedback"))
 const NursePatientRegistration = lazy(() => import("./pages/nurse/patient-registration"))
-const NursePatientProfilePage = lazy(() => import("./pages/nurse/patient-profile"))
+const NursePatientProfilePage = lazy(() => import("./pages/nurse/medical_records/patient-profile"))
 const TechnicianDashboard = lazy(() => import("./pages/technician/dashboard"))
 const TechnicianPatients = lazy(() => import("./pages/technician/patients"))
 const TechnicianLayout2 = lazy(() =>

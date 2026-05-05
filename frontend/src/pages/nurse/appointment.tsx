@@ -14,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { YmdEnglishDatePicker } from "@/components/ymd-english-date-picker"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -663,16 +664,15 @@ export default function NurseAppointmentsPage() {
                   </div>
                   <div>
                     <label htmlFor="edit-date" className="text-xs text-slate-600 mb-0.5 block">Date</label>
-                    <Input
+                    <YmdEnglishDatePicker
                       id="edit-date"
                       name="date"
                       aria-label="Date"
-                      type="date"
                       value={slotDate}
-                      onChange={(e) => setSlotDate(e.target.value)}
-                      onInput={(e) => setSlotDate((e.target as HTMLInputElement).value)}
-                      className="h-9 text-sm"
+                      onChange={setSlotDate}
+                      className="h-9 w-full min-w-0"
                       disabled={isEditingSlots}
+                      placeholder="Pick date"
                     />
                   </div>
                   <div>
@@ -851,17 +851,16 @@ export default function NurseAppointmentsPage() {
                       </div>
                       <div className="lg:col-span-2">
                         <span className="mb-0.5 block text-[10px] font-medium text-slate-500">Date</span>
-                <Input
+                        <YmdEnglishDatePicker
                           id={fieldId("date")}
                           name={isFirstRow ? "draftDateFirst" : `draftDate-${row.id}`}
                           aria-label={isFirstRow ? "Draft date first row" : `Draft date ${row.id}`}
-                          type="date"
-                          className="h-9 text-sm"
                           value={row.date}
-                          onChange={(e) => updateDraftRow(row.id, { date: e.target.value })}
-                          onInput={(e) => updateDraftRow(row.id, { date: (e.target as HTMLInputElement).value })}
-                />
-              </div>
+                          onChange={(ymd) => updateDraftRow(row.id, { date: ymd })}
+                          className="h-9 w-full min-w-0"
+                          placeholder="Pick date"
+                        />
+                      </div>
                       <div className="lg:col-span-2">
                         <span className="mb-0.5 block text-[10px] font-medium text-slate-500">Room</span>
                         <Select
@@ -1119,7 +1118,10 @@ export default function NurseAppointmentsPage() {
                           <td className="p-3 text-sm">{slot.roomName || "-"}</td>
                           <td className="p-3 text-sm">
                             {slot.patientUserId != null ? (
-                              <Link to={`/nurse/patients/${slot.patientUserId}/profile`} className="inline-flex items-center gap-2 text-cyan-700 hover:underline">
+                              <Link
+                                to={`/nurse/medical_records/OP${String(slot.patientUserId).padStart(9, "0")}/profile`}
+                                className="inline-flex items-center gap-2 text-cyan-700 hover:underline"
+                              >
                                 <UserRound className="w-4 h-4 text-slate-400" />
                                 {slot.patientName || `Patient #${slot.patientUserId}`}
                               </Link>
@@ -1160,28 +1162,26 @@ export default function NurseAppointmentsPage() {
           <div className="grid gap-3 py-2">
             <div className="grid gap-1.5">
               <label htmlFor="shift-range-start" className="text-xs font-medium text-slate-600">Start date</label>
-              <Input
+              <YmdEnglishDatePicker
                 id="shift-range-start"
                 name="shiftRangeStart"
                 aria-label="Shift range start date"
-                type="date"
                 value={shiftRangeStart}
-                onChange={(e) => setShiftRangeStart(e.target.value)}
-                onInput={(e) => setShiftRangeStart((e.target as HTMLInputElement).value)}
-                className="h-9"
+                onChange={setShiftRangeStart}
+                className="h-9 w-full"
+                placeholder="Start date"
               />
             </div>
             <div className="grid gap-1.5">
               <label htmlFor="shift-range-end" className="text-xs font-medium text-slate-600">End date</label>
-              <Input
+              <YmdEnglishDatePicker
                 id="shift-range-end"
                 name="shiftRangeEnd"
                 aria-label="Shift range end date"
-                type="date"
                 value={shiftRangeEnd}
-                onChange={(e) => setShiftRangeEnd(e.target.value)}
-                onInput={(e) => setShiftRangeEnd((e.target as HTMLInputElement).value)}
-                className="h-9"
+                onChange={setShiftRangeEnd}
+                className="h-9 w-full"
+                placeholder="End date"
               />
             </div>
           </div>

@@ -99,6 +99,20 @@ app.use((err: Error, req: Request, res: Response, next: Function) => {
 // Initialize database and start server
 async function startServer() {
   try {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[startup]', {
+        DB_HOST: process.env.DB_HOST ?? null,
+        DB_PORT: process.env.DB_PORT ?? null,
+        hasDB_NAME: Boolean(process.env.DB_NAME),
+        hasDB_USER: Boolean(process.env.DB_USER),
+        hasDB_PASSWORD: Boolean(process.env.DB_PASSWORD),
+        INSTANCE_CONNECTION_NAME:
+          process.env.CLOUDSQL_INSTANCE_CONNECTION_NAME ??
+          process.env.INSTANCE_CONNECTION_NAME ??
+          null,
+        NODE_ENV: process.env.NODE_ENV ?? null,
+      });
+    }
     await sequelize.authenticate();
     console.log('✅ Database connection ready');
 
@@ -108,6 +122,12 @@ async function startServer() {
 
     if (shouldAutoSync) {
       // Dev convenience: bootstrap only auth/session tables required for login.
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const User = require('./models/Users');
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const Account = require('./models/Account');
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const Session = require('./models/Session');
       await User.sync({ alter: true });
       await Account.sync({ alter: true });
       await Session.sync({ alter: true });

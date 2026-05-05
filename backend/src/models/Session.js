@@ -28,6 +28,16 @@ const Session = sequelize.define (
     lastActivity: { 
       type: DataTypes.DATE, 
       defaultValue: DataTypes.NOW },
+
+    ipAddress: {
+      type: DataTypes.STRING(128),
+      allowNull: true,
+    },
+
+    userAgent: {
+      type: DataTypes.STRING(512),
+      allowNull: true,
+    },
     },
   {
     tableName: 'SESSION',

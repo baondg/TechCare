@@ -8,7 +8,6 @@ import { Label } from "@/components/ui/label"
 import { AdminLayout } from "@/components/admin-layout"
 import { Shield, Save, RefreshCw, AlertCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 export default function RateLimitConfig() {
   const [config, setConfig] = useState({
@@ -29,16 +28,75 @@ export default function RateLimitConfig() {
   })
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+  const token = localStorage.getItem("authToken")
+
+  useEffect(() => {
+    const loadConfig = async () => {
+      setLoading(true)
+      try {
+        const response = await fetch("http://localhost:3000/api/system-config", {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        const data = await response.json()
+        if (!response.ok || !data.success) throw new Error(data.error || "Failed to load rate limit config")
+        setConfig((prev) => ({
+          ...prev,
+          enabled: String(data.config.rateLimitEnabled).toLowerCase() === "true",
+          ipBasedLimit: String(data.config.rateLimitIpBased).toLowerCase() === "true",
+          apiRateLimit: data.config.globalRateLimitRequests || prev.apiRateLimit,
+          apiTimeWindow: data.config.globalRateLimitWindowSeconds || prev.apiTimeWindow,
+          chatbotRateLimit: data.config.chatbotRateLimitRequests || prev.chatbotRateLimit,
+          chatbotTimeWindow: data.config.chatbotRateLimitWindowSeconds || prev.chatbotTimeWindow,
+          aiSymptomRateLimit: data.config.aiSymptomRateLimitRequests || prev.aiSymptomRateLimit,
+          aiSymptomTimeWindow: data.config.aiSymptomRateLimitWindowSeconds || prev.aiSymptomTimeWindow,
+          appointmentRateLimit: data.config.appointmentRateLimitRequests || prev.appointmentRateLimit,
+          appointmentTimeWindow: data.config.appointmentRateLimitWindowSeconds || prev.appointmentTimeWindow,
+          loginRateLimit: data.config.loginRateLimitRequests || prev.loginRateLimit,
+          loginTimeWindow: data.config.loginRateLimitWindowSeconds || prev.loginTimeWindow,
+          registrationRateLimit: data.config.registrationRateLimitRequests || prev.registrationRateLimit,
+          registrationTimeWindow: data.config.registrationRateLimitWindowSeconds || prev.registrationTimeWindow,
+        }))
+      } catch (error) {
+        setMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to load settings." })
+      } finally {
+        setLoading(false)
+      }
+    }
+    void loadConfig()
+  }, [])
 
   const handleSave = async () => {
     setLoading(true)
     setMessage(null)
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      const response = await fetch("http://localhost:3000/api/system-config", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          rateLimitEnabled: config.enabled,
+          rateLimitIpBased: config.ipBasedLimit,
+          globalRateLimitRequests: Number(config.apiRateLimit),
+          globalRateLimitWindowSeconds: Number(config.apiTimeWindow),
+          chatbotRateLimitRequests: Number(config.chatbotRateLimit),
+          chatbotRateLimitWindowSeconds: Number(config.chatbotTimeWindow),
+          aiSymptomRateLimitRequests: Number(config.aiSymptomRateLimit),
+          aiSymptomRateLimitWindowSeconds: Number(config.aiSymptomTimeWindow),
+          appointmentRateLimitRequests: Number(config.appointmentRateLimit),
+          appointmentRateLimitWindowSeconds: Number(config.appointmentTimeWindow),
+          loginRateLimitRequests: Number(config.loginRateLimit),
+          loginRateLimitWindowSeconds: Number(config.loginTimeWindow),
+          registrationRateLimitRequests: Number(config.registrationRateLimit),
+          registrationRateLimitWindowSeconds: Number(config.registrationTimeWindow),
+        }),
+      })
+      const data = await response.json()
+      if (!response.ok || !data.success) throw new Error(data.error || "Failed to save settings")
       setMessage({ type: 'success', text: 'Rate limit settings saved successfully!' })
     } catch (error) {
-      setMessage({ type: 'error', text: 'Failed to save settings. Please try again.' })
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to save settings. Please try again.' })
     } finally {
       setLoading(false)
     }
@@ -74,13 +132,19 @@ export default function RateLimitConfig() {
             <p className="text-gray-600 mt-2">Configure rate limiting to protect your API from abuse</p>
           </div>
           <div className="flex gap-3">
-            <Button variant="outline" onClick={handleReset}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleReset}
+              className="border-slate-300 bg-white text-slate-800 shadow-sm hover:bg-slate-50 hover:text-slate-900"
+            >
               <RefreshCw className="w-4 h-4 mr-2" /> Reset to Defaults
             </Button>
-            <Button 
-              onClick={handleSave} 
+            <Button
+              type="button"
+              onClick={handleSave}
               disabled={loading}
-              className="bg-[#0086C4] hover:bg-[#06b6d4]"
+              className="bg-[#0086C4] text-white shadow-sm hover:bg-[#0078b0] hover:text-white border border-[#006a9e]"
             >
               {loading ? (
                 <>
@@ -121,9 +185,14 @@ export default function RateLimitConfig() {
                 <p className="text-sm text-gray-600">Turn rate limiting on or off globally</p>
               </div>
               <Button
+                type="button"
                 variant={config.enabled ? "default" : "outline"}
                 onClick={() => setConfig({ ...config, enabled: !config.enabled })}
-                className={config.enabled ? "bg-green-600 hover:bg-green-700" : ""}
+                className={
+                  config.enabled
+                    ? "bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white shadow-sm"
+                    : "border-slate-300 bg-white text-slate-800 shadow-sm hover:bg-slate-50"
+                }
               >
                 {config.enabled ? "Enabled" : "Disabled"}
               </Button>
@@ -135,9 +204,14 @@ export default function RateLimitConfig() {
                 <p className="text-sm text-gray-600">Track limits per IP address instead of per user</p>
               </div>
               <Button
+                type="button"
                 variant={config.ipBasedLimit ? "default" : "outline"}
                 onClick={() => setConfig({ ...config, ipBasedLimit: !config.ipBasedLimit })}
-                className={config.ipBasedLimit ? "bg-blue-600 hover:bg-blue-700" : ""}
+                className={
+                  config.ipBasedLimit
+                    ? "bg-sky-600 text-white hover:bg-sky-700 hover:text-white shadow-sm"
+                    : "border-slate-300 bg-white text-slate-800 shadow-sm hover:bg-slate-50"
+                }
               >
                 {config.ipBasedLimit ? "Enabled" : "Disabled"}
               </Button>
@@ -332,7 +406,7 @@ export default function RateLimitConfig() {
                 <p className="text-xs text-gray-500 mt-1">Failed login attempts allowed</p>
               </div>
               <div>
-                <Label htmlFor="loginTimeWindow">Lockout Duration (minutes)</Label>
+                <Label htmlFor="loginTimeWindow">Lockout Duration (seconds)</Label>
                 <Input
                   id="loginTimeWindow"
                   type="number"
@@ -345,7 +419,7 @@ export default function RateLimitConfig() {
             </div>
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-md">
               <p className="text-sm text-amber-800">
-                Current setting: <strong>{config.loginRateLimit} attempts, then {config.loginTimeWindow} minute lockout</strong>
+                Current setting: <strong>{config.loginRateLimit} attempts, then {config.loginTimeWindow} second lockout</strong>
               </p>
             </div>
           </CardContent>
@@ -373,7 +447,7 @@ export default function RateLimitConfig() {
                 <p className="text-xs text-gray-500 mt-1">Accounts per IP address</p>
               </div>
               <div>
-                <Label htmlFor="registrationTimeWindow">Time Window (minutes)</Label>
+                <Label htmlFor="registrationTimeWindow">Time Window (seconds)</Label>
                 <Input
                   id="registrationTimeWindow"
                   type="number"
@@ -386,7 +460,7 @@ export default function RateLimitConfig() {
             </div>
             <div className="p-3 bg-green-50 border border-green-200 rounded-md">
               <p className="text-sm text-green-800">
-                Current setting: <strong>{config.registrationRateLimit} registrations per {config.registrationTimeWindow} minutes</strong>
+                Current setting: <strong>{config.registrationRateLimit} registrations per {config.registrationTimeWindow} seconds</strong>
               </p>
             </div>
           </CardContent>

@@ -1,16 +1,24 @@
-import { useState, useEffect } from "react";
-import type { JSX } from "react";
+import { useCallback, useEffect, useState } from "react"
+import type { JSX } from "react"
+import { ChevronLeft, ChevronRight } from "lucide-react"
 
 export default function MainCarousel({ slides }: { slides: JSX.Element[] }) {
-  const [index, setIndex] = useState(0);
+  const [index, setIndex] = useState(0)
 
-  const next = () => setIndex((prev) => (prev + 1) % slides.length);
-  const prev = () =>
-    setIndex((prev) => (prev - 1 + slides.length) % slides.length);
+  const next = useCallback(() => {
+    setIndex((prev) => (prev + 1) % slides.length)
+  }, [slides.length])
+  const prev = useCallback(() => {
+    setIndex((prev) => (prev - 1 + slides.length) % slides.length)
+  }, [slides.length])
+
+  const previousIndex = (index - 1 + slides.length) % slides.length
+  const nextIndex = (index + 1) % slides.length
+
   useEffect(() => {
-    const timer = setInterval(() => next(), 10000);
-    return () => clearInterval(timer);
-  }, []);
+    const timer = setInterval(() => next(), 10000)
+    return () => clearInterval(timer)
+  }, [next])
 
   return (
     <div className="relative overflow-hidden w-full -top-48 min-h-screen">
@@ -24,25 +32,28 @@ export default function MainCarousel({ slides }: { slides: JSX.Element[] }) {
             key={i}
             className="w-full shrink-0 min-h-screen flex items-center justify-center"
           >
-            {Slide}
+            {i === index || i === previousIndex || i === nextIndex ? Slide : null}
           </div>
         ))}
       </div>
 
-      {/* Left Arrow */}
+      {/* Nav arrows: do NOT use btn-gradient — it applies text-9xl / huge padding in App.css */}
       <button
+        type="button"
         onClick={prev}
-        className="btn-gradient transition-transform duration-500 absolute left-6 top-1/2 -translate-y-1/2 bg-white/60 hover:bg-white hover:border-none shadow-md p-3 rounded-full backdrop-blur"
+        aria-label="Previous slide"
+        className="absolute left-2 top-1/2 z-30 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-600/20 bg-white/90 text-cyan-700 shadow-md backdrop-blur-sm transition hover:bg-cyan-50 hover:shadow-lg md:left-4 md:h-11 md:w-11"
       >
-        ←
+        <ChevronLeft className="h-5 w-5 md:h-6 md:w-6" strokeWidth={2.25} />
       </button>
 
-      {/* Right Arrow */}
       <button
+        type="button"
         onClick={next}
-        className="btn-gradient transition-transform duration-500 absolute right-6 top-1/2 -translate-y-1/2 bg-white/60 hover:bg-white hover:border-none shadow-md p-3 rounded-full backdrop-blur"
+        aria-label="Next slide"
+        className="absolute right-2 top-1/2 z-30 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-600/20 bg-white/90 text-cyan-700 shadow-md backdrop-blur-sm transition hover:bg-cyan-50 hover:shadow-lg md:right-4 md:h-11 md:w-11"
       >
-        →
+        <ChevronRight className="h-5 w-5 md:h-6 md:w-6" strokeWidth={2.25} />
       </button>
 
       {/* Dot indicators */}
@@ -54,9 +65,9 @@ export default function MainCarousel({ slides }: { slides: JSX.Element[] }) {
             className={`h-3 w-3 rounded-full cursor-pointer transition ${
               i === index ? "bg-cyan-500" : "bg-gray-300"
             }`}
-          ></div>
+          />
         ))}
       </div>
     </div>
-  );
+  )
 }

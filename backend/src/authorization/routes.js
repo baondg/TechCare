@@ -1,32 +1,15 @@
 const router = require('express').Router();
-const rateLimit = require('express-rate-limit');
 const AuthController = require('./controller');
 const authenticateToken = require('../middleware/authMiddleware');
-
-// Rate limiting for authentication endpoints
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // 100 attempts per 15 min (relaxed for development)
-  message: {
-    success: false,
-    error: 'Too many login attempts. Please try again after 15 minutes.'
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-const registerLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 20, // 20 registrations per hour (relaxed for development)
-  message: {
-    success: false,
-    error: 'Too many accounts created from this IP. Please try again after an hour.'
-  }
-});
+const sessionMiddleware = require('../middleware/sessionMiddleware');
+const {
+  authLoginRateLimit,
+  authRegistrationRateLimit,
+} = require('../middleware/rateLimitMiddleware');
 
 // Public routes (with rate limiting)
-router.post('/signup', registerLimiter, AuthController.register);
-router.post('/login', authLimiter, AuthController.login);
+router.post('/signup', authRegistrationRateLimit, AuthController.register);
+router.post('/login', authLoginRateLimit, sessionMiddleware.checkConcurrentUsers, AuthController.login);
 router.post('/refresh', AuthController.refreshToken);
 
 // Protected routes (require authentication)

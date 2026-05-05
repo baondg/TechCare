@@ -1,11 +1,11 @@
 import "./App.css"
 
 import { lazy, Suspense } from "react"
-import FadeTransition from "@/components/FadeTransition"
-import NetworkBackground from "@/components/NetworkBackground"
-import { Routes, Route } from "react-router-dom"
+import { Route, Routes, useLocation } from "react-router-dom"
 
 const LandingPage = lazy(() => import("./LandingPage"))
+const FadeTransition = lazy(() => import("@/components/FadeTransition"))
+const NetworkBackground = lazy(() => import("@/components/NetworkBackground"))
 const LoginPage = lazy(() => import("./authentication/login"))
 const RegisterPage = lazy(() => import("./authentication/register"))
 const DashBoardPage = lazy(() => import("./pages/patient/dashboard"))
@@ -19,6 +19,7 @@ const RecordsPage = lazy(() => import("./pages/patient/records"))
 const SymptomCheckerPage = lazy(() => import("./pages/patient/symptomchecker"))
 const AdminDashboardPage = lazy(() => import("./pages/admin/dashboard"))
 const SystemConfig = lazy(() => import("./pages/admin/config"))
+const RateLimitConfig = lazy(() => import("./pages/admin/ratelimit"))
 const UserManagement = lazy(() => import("./pages/admin/accountMng"))
 const FeedbackManagement = lazy(() => import("./pages/admin/feedback"))
 const DoctorDashboard = lazy(() => import("./pages/doctor/dashboard"))
@@ -78,74 +79,92 @@ function RouteFallback() {
 }
 
 function App() {
+  const location = useLocation()
+  const transitionRoutes = new Set(["/", "/login", "/register"])
+  const withTransition = transitionRoutes.has(location.pathname)
+
+  const routes = (
+    <Suspense fallback={<RouteFallback />}>
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+
+        {/* Protected Patient Routes */}
+        <Route path="/patient/dashboard" element={<DashBoardPage />} />
+        <Route path="/patient/feedback" element={<FeedBackPage />} />
+        <Route path="/patient/profile" element={<ProfilePage />} />
+        <Route path="/patient/chatbot" element={<ChatbotPage />} />
+        <Route path="/patient/appointments" element={<AppointmentsPage />} />
+        <Route path="/patient/appointments/book-appointment" element={<BookAppointmentPage />} />
+        <Route path="/patient/health-info" element={<HealthInfoPage />} />
+        <Route path="/patient/records" element={<RecordsPage />} />
+        <Route path="/patient/history" element={<RecordsPage />} />
+        <Route path="/patient/symptom-checker" element={<SymptomCheckerPage />} />
+        <Route path="/patient/notifications" element={<PatientPortalNotificationsPage />} />
+
+        {/* Protected Admin Routes */}
+        <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
+        <Route path="/admin/config" element={<SystemConfig />} />
+        <Route path="/admin/ratelimit" element={<RateLimitConfig />} />
+        <Route path="/admin/users" element={<UserManagement />} />
+        <Route path="/admin/feedback" element={<FeedbackManagement />} />
+
+        {/* Protected doctor Routes */}
+        <Route path="/doctor/dashboard" element={<DoctorDashboard />} />
+        <Route path="/doctor/patients" element={<DoctorPatients />} />
+        <Route path="/doctor/medical_records/:patientId/:tab" element={<DoctorLayout2 />}>
+          <Route index element={<Doctor_EMRManagement />} />
+        </Route>
+        <Route path="/doctor/appointments" element={<DoctorAppointment />} />
+        <Route path="/doctor/work-shifts" element={<DoctorWorkShifts />} />
+        <Route path="/doctor/patients/:patientId/profile" element={<NursePatientProfilePage />} />
+        <Route path="/doctor/feedback" element={<DoctorFeedback />} />
+        <Route path="/doctor/notifications" element={<DoctorPortalNotificationsPage />} />
+
+        {/* Protected nurse Routes */}
+        <Route path="/nurse/dashboard" element={<NurseDashboard />} />
+        <Route path="/nurse/patient-registration" element={<NursePatientRegistration />} />
+        <Route path="/nurse/patients" element={<NursePatients />} />
+        <Route path="/nurse/medical_records/:patientId/:tab" element={<NurseLayout2 />}>
+          <Route index element={<Nurse_EMRManagement />} />
+        </Route>
+        <Route path="/nurse/appointments" element={<NurseAppointment />} />
+        <Route path="/nurse/work-shifts" element={<NurseWorkShifts />} />
+        <Route path="/nurse/patients/:patientId/profile" element={<NursePatientProfilePage />} />
+        <Route path="/nurse/feedback" element={<NurseFeedback />} />
+        <Route path="/nurse/notifications" element={<NursePortalNotificationsPage />} />
+
+        {/* Protected technician Routes */}
+        <Route path="/technician/dashboard" element={<TechnicianDashboard />} />
+        <Route path="/technician/patients" element={<TechnicianPatients />} />
+        <Route path="/technician/medical_records/:patientId/:tab" element={<TechnicianLayout2 />}>
+          <Route index element={<Technician_EMRManagement />} />
+        </Route>
+        <Route path="/technician/work-shifts" element={<TechnicianWorkShifts />} />
+        <Route path="/technician/feedback" element={<TechnicianFeedback />} />
+        <Route path="/technician/notifications" element={<TechnicianPortalNotificationsPage />} />
+      </Routes>
+    </Suspense>
+  )
+
+  const routedContent = withTransition ? (
+    <Suspense fallback={routes}>
+      <FadeTransition>{routes}</FadeTransition>
+    </Suspense>
+  ) : (
+    routes
+  )
+
   return (
-    <FadeTransition>
-      <div className="inset-0 -z-50 pointer-events-none">
-        <NetworkBackground />
-      </div>
-
-      <Suspense fallback={<RouteFallback />}>
-        <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-
-          {/* Protected Patient Routes */}
-          <Route path="/patient/dashboard" element={<DashBoardPage />} />
-          <Route path="/patient/feedback" element={<FeedBackPage />} />
-          <Route path="/patient/profile" element={<ProfilePage />} />
-          <Route path="/patient/chatbot" element={<ChatbotPage />} />
-          <Route path="/patient/appointments" element={<AppointmentsPage />} />
-          <Route path="/patient/appointments/book-appointment" element={<BookAppointmentPage />} />
-          <Route path="/patient/health-info" element={<HealthInfoPage />} />
-          <Route path="/patient/records" element={<RecordsPage />} />
-          <Route path="/patient/history" element={<RecordsPage />} />
-          <Route path="/patient/symptom-checker" element={<SymptomCheckerPage />} />
-          <Route path="/patient/notifications" element={<PatientPortalNotificationsPage />} />
-
-          {/* Protected Admin Routes */}
-          <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
-          <Route path="/admin/config" element={<SystemConfig />} />
-          <Route path="/admin/users" element={<UserManagement />} />
-          <Route path="/admin/feedback" element={<FeedbackManagement />} />
-
-          {/* Protected doctor Routes */}
-          <Route path="/doctor/dashboard" element={<DoctorDashboard />} />
-          <Route path="/doctor/patients" element={<DoctorPatients />} />
-          <Route path="/doctor/medical_records/:patientId/:tab" element={<DoctorLayout2 />}>
-            <Route index element={<Doctor_EMRManagement />} />
-          </Route>
-          <Route path="/doctor/appointments" element={<DoctorAppointment />} />
-          <Route path="/doctor/work-shifts" element={<DoctorWorkShifts />} />
-          <Route path="/doctor/patients/:patientId/profile" element={<NursePatientProfilePage />} />
-          <Route path="/doctor/feedback" element={<DoctorFeedback />} />
-          <Route path="/doctor/notifications" element={<DoctorPortalNotificationsPage />} />
-
-          {/* Protected nurse Routes */}
-          <Route path="/nurse/dashboard" element={<NurseDashboard />} />
-          <Route path="/nurse/patient-registration" element={<NursePatientRegistration />} />
-          <Route path="/nurse/patients" element={<NursePatients />} />
-          <Route path="/nurse/medical_records/:patientId/:tab" element={<NurseLayout2 />}>
-            <Route index element={<Nurse_EMRManagement />} />
-          </Route>
-          <Route path="/nurse/appointments" element={<NurseAppointment />} />
-          <Route path="/nurse/work-shifts" element={<NurseWorkShifts />} />
-          <Route path="/nurse/patients/:patientId/profile" element={<NursePatientProfilePage />} />
-          <Route path="/nurse/feedback" element={<NurseFeedback />} />
-          <Route path="/nurse/notifications" element={<NursePortalNotificationsPage />} />
-
-          {/* Protected technician Routes */}
-          <Route path="/technician/dashboard" element={<TechnicianDashboard />} />
-          <Route path="/technician/patients" element={<TechnicianPatients />} />
-          <Route path="/technician/medical_records/:patientId/:tab" element={<TechnicianLayout2 />}>
-            <Route index element={<Technician_EMRManagement />} />
-          </Route>
-          <Route path="/technician/work-shifts" element={<TechnicianWorkShifts />} />
-          <Route path="/technician/feedback" element={<TechnicianFeedback />} />
-          <Route path="/technician/notifications" element={<TechnicianPortalNotificationsPage />} />
-        </Routes>
+    <>
+      <Suspense fallback={null}>
+        <div className="inset-0 -z-50 pointer-events-none">
+          <NetworkBackground />
+        </div>
       </Suspense>
-    </FadeTransition>
+      {routedContent}
+    </>
   )
 }
 

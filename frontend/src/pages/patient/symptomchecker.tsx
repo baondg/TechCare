@@ -190,17 +190,7 @@ export default function SymptomChecker() {
   return (
     <PatientLayout>
       <div className="w-full max-w-none space-y-6 min-h-[calc(100vh-110px)]">
-        {/* Header */}
-        <div className="flex flex-wrap items-center justify-between gap-3 w-full">
-          {/* Header Left */}
-          <div>
-            <h2 className="text-3xl font-bold text-gray-900">Symptom checker</h2>
-            <p className="text-muted-foreground mt-3 text-lg">
-              Tap on any symptom you're experiencing
-            </p>
-          </div>
-
-          {/* Buttons Right */}
+        <div className="flex flex-wrap items-center justify-end gap-3 w-full">
           <div className="flex gap-3">
             <Button
               size="lg"

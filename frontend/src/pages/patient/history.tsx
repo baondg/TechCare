@@ -802,11 +802,6 @@ export default function PatientHistoryPage() {
       </Dialog>
 
       <div className="space-y-6">
-        <div>
-          <h2 className="text-3xl font-bold">History</h2>
-          <p className="text-muted-foreground">Your health record and medications</p>
-        </div>
-
         <Tabs defaultValue={tab || "visits"} className="space-y-4">
           <TabsList className="flex flex-wrap h-auto gap-1">
             <TabsTrigger value="visits">History visits</TabsTrigger>

@@ -11,7 +11,12 @@
     "test:watch": "node --test --watch",
     "lint": "eslint src/**/*.ts",
     "clean": "rimraf dist",
-    "create-admin": "node scripts/create-admin.js"
+    "create-admin": "node scripts/create-admin.js",
+    "seed:demo": "node scripts/seed-demo.js",
+    "seed:demo:reset": "node scripts/seed-demo.js --reset-demo-only",
+    "db:backup": "node scripts/backup-restore.js backup",
+    "db:restore": "node scripts/backup-restore.js restore",
+    "db:indexes": "node scripts/ensure-performance-indexes.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
@@ -22,6 +27,7 @@
     "jsonwebtoken": "^9.0.3",
     "mysql2": "^3.15.3",
     "openai": "^6.10.0",
+    "redis": "^5.12.1",
     "sequelize": "^6.37.7",
     "sqlite3": "^5.1.7"
   },

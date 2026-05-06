@@ -3,19 +3,13 @@ const router = express.Router();
 const doctorController = require('../controllers/doctorController');
 const authenticateToken = require('../middleware/authMiddleware');
 const { requireActiveEmrVisitForDoctorTech } = require('../middleware/emrActiveVisitMiddleware');
+const { authorizeCapability } = require('../middleware/authorizeCapability');
 
 // All routes require authentication
 router.use(authenticateToken);
 
 // Middleware to check doctor role
-const requireDoctor = (req, res, next) => {
-  if (!['doctor', 'admin', 'nurse', 'technician'].includes(req.user.role)) {
-    return res.status(403).json({ success: false, message: 'Access denied. Medical staff role required.' });
-  }
-  next();
-};
-
-router.use(requireDoctor);
+router.use(authorizeCapability('doctor.emr.read'));
 router.use(requireActiveEmrVisitForDoctorTech);
 
 // ─── Dictionary / master data ───

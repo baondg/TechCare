@@ -17,7 +17,12 @@ function Invoke-Compose {
   )
 
   if ($Profile -eq "prod") {
-    & docker compose --env-file .env.prod -f docker-compose.prod.yml @ComposeArgs
+    if (Test-Path ".env.prod") {
+      & docker compose --env-file .env.prod -f docker-compose.prod.yml @ComposeArgs
+    }
+    else {
+      & docker compose -f docker-compose.prod.yml @ComposeArgs
+    }
   }
   else {
     & docker compose @ComposeArgs

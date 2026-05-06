@@ -1,0 +1,87 @@
+name: CD Cloud Run
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: cd-main-cloudrun
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    name: Deploy to Cloud Run
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOYER_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Verify gcloud auth
+        run: |
+          gcloud --version
+          gcloud auth list
+
+      - name: Deploy backend and frontend
+        shell: pwsh
+        run: |
+          $projectId = "${{ vars.GCP_PROJECT_ID }}"
+          if ([string]::IsNullOrWhiteSpace($projectId)) {
+            throw "Missing required repository variable: GCP_PROJECT_ID"
+          }
+
+          $region = "${{ vars.GCP_REGION }}"
+          if ([string]::IsNullOrWhiteSpace($region)) { $region = "asia-southeast1" }
+
+          $cloudSqlInstance = "${{ vars.CLOUDSQL_INSTANCE }}"
+          if ([string]::IsNullOrWhiteSpace($cloudSqlInstance)) { $cloudSqlInstance = "techcare-mysql" }
+
+          $dbName = "${{ vars.DB_NAME }}"
+          if ([string]::IsNullOrWhiteSpace($dbName)) { $dbName = "techcare" }
+
+          $redisHost = "${{ vars.REDIS_HOST }}"
+          if ([string]::IsNullOrWhiteSpace($redisHost)) {
+            throw "Missing required repository variable: REDIS_HOST"
+          }
+
+          $vpcConnectorName = "${{ vars.VPC_CONNECTOR_NAME }}"
+          if ([string]::IsNullOrWhiteSpace($vpcConnectorName)) { $vpcConnectorName = "techcare-vpc-connector" }
+
+          $apiDomain = "${{ vars.API_DOMAIN }}"
+          $webDomain = "${{ vars.WEB_DOMAIN }}"
+          $publicUnauthenticated = "${{ vars.PUBLIC_UNAUTHENTICATED }}"
+
+          $args = @(
+            "-ProjectId", $projectId,
+            "-Region", $region,
+            "-CloudSqlInstance", $cloudSqlInstance,
+            "-DbName", $dbName,
+            "-RedisHost", $redisHost,
+            "-VpcConnectorName", $vpcConnectorName
+          )
+
+          if (-not [string]::IsNullOrWhiteSpace($apiDomain)) {
+            $args += @("-ApiDomain", $apiDomain)
+          }
+          if (-not [string]::IsNullOrWhiteSpace($webDomain)) {
+            $args += @("-WebDomain", $webDomain)
+          }
+          if ($publicUnauthenticated -match "^(1|true|yes)$") {
+            $args += "-PublicUnauthenticated"
+          }
+
+          & "./infra/gcp/cloudrun/deploy.ps1" @args

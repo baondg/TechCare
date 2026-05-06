@@ -118,6 +118,14 @@ export default function BackupManagement() {
           </Alert>
         )}
 
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Operational baseline uses backend scripts: <code>npm run db:backup</code> and <code>npm run db:restore</code> in <code>backend/</code>.
+            This admin screen remains a UI surface and should be wired to those operations before production use.
+          </AlertDescription>
+        </Alert>
+
         {/* Backup Configuration */}
         <Card>
           <CardHeader>

@@ -1,10 +1,12 @@
 const sequelize = require('../common/database');
-const defineSystemConfig = require('../models/SystemConfig');
-const SystemConfig = defineSystemConfig(sequelize);
 const jwt = require('jsonwebtoken');
+const { createClient } = require('redis');
+const { getJwtSecret } = require('../security/jwtConfig');
 
 // In-memory rate limit store
 const rateLimitStore = new Map();
+let redisClient = null;
+let redisDisabled = false;
 
 // Clean up expired entries every minute
 setInterval(() => {
@@ -54,6 +56,53 @@ const parsePositiveInt = (value, fallback) => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 };
 
+const benchmarkBypassEnabled = () => parseBoolean(process.env.BENCHMARK_RATE_LIMIT_BYPASS, false);
+const hasBenchmarkBypassHeader = (req) => parseBoolean(req.headers['x-benchmark-run'], false);
+const POLICY_CACHE_TTL_MS = Number(process.env.RATE_LIMIT_POLICY_CACHE_MS || 30000);
+const policyCache = new Map();
+let systemConfigurationUnavailableUntil = 0;
+const distributedRateLimitEnabled = () => parseBoolean(process.env.ENABLE_DISTRIBUTED_RATE_LIMIT, false);
+
+async function getRedisClient() {
+  if (!distributedRateLimitEnabled() || redisDisabled) return null;
+  if (redisClient) return redisClient;
+  const url = process.env.REDIS_URL || 'redis://127.0.0.1:6379';
+  const client = createClient({ url });
+  client.on('error', (err) => {
+    console.warn('[rate-limit] redis error:', err?.message || err);
+  });
+  try {
+    await client.connect();
+    redisClient = client;
+    return redisClient;
+  } catch (error) {
+    console.warn('[rate-limit] redis unavailable, fallback to memory store');
+    redisDisabled = true;
+    return null;
+  }
+}
+
+async function incrementDistributedRateLimit(key, ttlSeconds) {
+  const client = await getRedisClient();
+  if (!client) return null;
+  const lua = `
+    local counter = redis.call("INCR", KEYS[1])
+    if counter == 1 then
+      redis.call("EXPIRE", KEYS[1], ARGV[1])
+    end
+    local ttl = redis.call("TTL", KEYS[1])
+    return {counter, ttl}
+  `;
+  const [count, ttl] = await client.eval(lua, {
+    keys: [key],
+    arguments: [String(ttlSeconds)],
+  });
+  return {
+    count: Number(count) || 1,
+    ttlSeconds: Number(ttl) > 0 ? Number(ttl) : ttlSeconds,
+  };
+}
+
 const getIdentifier = (req, ipBasedLimit) => {
   if (ipBasedLimit) {
     return req.ip || req.connection.remoteAddress || 'unknown';
@@ -63,7 +112,7 @@ const getIdentifier = (req, ipBasedLimit) => {
   if (!token) return req.ip || req.connection.remoteAddress || 'unknown';
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+    const decoded = jwt.verify(token, getJwtSecret());
     return decoded?.userId ? `user_${decoded.userId}` : req.ip || req.connection.remoteAddress || 'unknown';
   } catch (_error) {
     return req.ip || req.connection.remoteAddress || 'unknown';
@@ -71,29 +120,60 @@ const getIdentifier = (req, ipBasedLimit) => {
 };
 
 const loadRateLimitPolicy = async (scope, defaults) => {
-  const keys = [
-    'rateLimitEnabled',
-    'rateLimitIpBased',
-    `${scope}RateLimitRequests`,
-    `${scope}RateLimitWindowSeconds`,
-  ];
-
-  const configs = await SystemConfig.findAll({ where: { key: keys } });
-  const map = {};
-  configs.forEach((item) => {
-    map[item.key] = item.value;
-  });
-
-  return {
-    enabled: parseBoolean(map.rateLimitEnabled, true),
-    ipBasedLimit: parseBoolean(map.rateLimitIpBased, true),
-    maxRequests: parsePositiveInt(map[`${scope}RateLimitRequests`], defaults.maxRequests),
-    windowSeconds: parsePositiveInt(map[`${scope}RateLimitWindowSeconds`], defaults.windowSeconds),
-  };
+  const now = Date.now();
+  const cacheKey = `${scope}:${defaults.maxRequests}:${defaults.windowSeconds}`;
+  const cached = policyCache.get(cacheKey);
+  if (cached && cached.expiresAt > now) return cached.policy;
+  if (systemConfigurationUnavailableUntil > now) {
+    return {
+      enabled: true,
+      ipBasedLimit: true,
+      maxRequests: defaults.maxRequests,
+      windowSeconds: defaults.windowSeconds,
+    };
+  }
+  try {
+    const rows = await sequelize.query(
+      `SELECT rate_limit AS rateLimit, access_limit AS accessLimit
+       FROM SYSTEM_CONFIGURATION
+       ORDER BY time DESC, id DESC
+       LIMIT 1`,
+      { type: sequelize.QueryTypes.SELECT }
+    );
+    const row = rows[0] || null;
+    const derivedMax = row
+      ? parsePositiveInt(
+          scope === 'global' ? row.accessLimit ?? row.rateLimit : row.rateLimit,
+          defaults.maxRequests
+        )
+      : defaults.maxRequests;
+    const policy = {
+      enabled: true,
+      ipBasedLimit: true,
+      maxRequests: derivedMax,
+      windowSeconds: defaults.windowSeconds,
+    };
+    policyCache.set(cacheKey, { policy, expiresAt: now + POLICY_CACHE_TTL_MS });
+    return policy;
+  } catch (error) {
+    if (error?.original?.code === 'ER_NO_SUCH_TABLE' || error?.original?.code === 'ER_BAD_FIELD_ERROR') {
+      systemConfigurationUnavailableUntil = now + POLICY_CACHE_TTL_MS;
+      return {
+        enabled: true,
+        ipBasedLimit: true,
+        maxRequests: defaults.maxRequests,
+        windowSeconds: defaults.windowSeconds,
+      };
+    }
+    throw error;
+  }
 };
 
 const buildRateLimiter = (scope, defaults, message) => async (req, res, next) => {
   try {
+    if (benchmarkBypassEnabled() && hasBenchmarkBypassHeader(req)) {
+      return next();
+    }
     const policy = await loadRateLimitPolicy(scope, defaults);
     if (!policy.enabled) return next();
 
@@ -101,8 +181,26 @@ const buildRateLimiter = (scope, defaults, message) => async (req, res, next) =>
     const key = `${scope}:ratelimit:${req.path}:${identifier}`;
     const now = Date.now();
     const windowMs = policy.windowSeconds * 1000;
-    const record = getRateLimitInfo(key);
+    const distributed = await incrementDistributedRateLimit(key, policy.windowSeconds);
 
+    if (distributed) {
+      const resetTime = now + distributed.ttlSeconds * 1000;
+      if (distributed.count > policy.maxRequests) {
+        return res.status(429).json({
+          success: false,
+          error: message,
+          retryAfter: distributed.ttlSeconds,
+          limit: policy.maxRequests,
+          windowSeconds: policy.windowSeconds,
+        });
+      }
+      res.setHeader('X-RateLimit-Limit', policy.maxRequests);
+      res.setHeader('X-RateLimit-Remaining', Math.max(0, policy.maxRequests - distributed.count));
+      res.setHeader('X-RateLimit-Reset', new Date(resetTime).toISOString());
+      return next();
+    }
+
+    const record = getRateLimitInfo(key);
     if (!record || now > record.resetTime) {
       const count = incrementRateLimit(key, policy.windowSeconds);
       const resetTime = now + windowMs;

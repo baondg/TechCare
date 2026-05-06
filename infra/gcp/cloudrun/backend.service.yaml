@@ -1,0 +1,53 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: techcare-backend
+spec:
+  template:
+    metadata:
+      annotations:
+        run.googleapis.com/cloudsql-instances: PROJECT_ID:REGION:techcare-mysql
+        autoscaling.knative.dev/minScale: "2"
+        autoscaling.knative.dev/maxScale: "30"
+        run.googleapis.com/vpc-access-connector: projects/PROJECT_ID/locations/REGION/connectors/techcare-vpc-connector
+        run.googleapis.com/vpc-access-egress: private-ranges-only
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 120
+      serviceAccountName: techcare-runtime@PROJECT_ID.iam.gserviceaccount.com
+      containers:
+        - image: REGION-docker.pkg.dev/PROJECT_ID/techcare/techcare-backend:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: PORT
+              value: "8080"
+            - name: DB_NAME
+              value: techcare
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: techcare-backend-db-user
+                  key: latest
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: techcare-backend-db-password
+                  key: latest
+            - name: CLOUDSQL_INSTANCE_CONNECTION_NAME
+              value: PROJECT_ID:REGION:techcare-mysql
+            - name: REDIS_URL
+              value: redis://10.0.0.5:6379
+            - name: ENABLE_PATIENT_RECORD_CACHE
+              value: "1"
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: techcare-jwt-secret
+                  key: latest
+            - name: BENCHMARK_RATE_LIMIT_BYPASS
+              value: "1"
+            - name: AUTO_SYNC_DB
+              value: "0"

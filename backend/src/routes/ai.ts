@@ -31,6 +31,19 @@ function getActiveProvider(): 'groq' | 'local' {
   return process.env.GROQ_API_KEY ? 'groq' : 'local';
 }
 
+function getFeatureProviderOverride(feature: string): 'groq' | 'local' | null {
+  const key = `AI_PROVIDER_${feature.toUpperCase().replace(/[^A-Z0-9]/g, '_')}`;
+  const raw = String(process.env[key] || '').trim().toLowerCase();
+  if (raw === 'groq' || raw === 'local') return raw;
+  return null;
+}
+
+function getFeatureModelOverride(feature: string): string | null {
+  const key = `AI_MODEL_${feature.toUpperCase().replace(/[^A-Z0-9]/g, '_')}`;
+  const raw = String(process.env[key] || '').trim();
+  return raw || null;
+}
+
 // ============================================================
 // Types
 // ============================================================
@@ -192,8 +205,20 @@ async function callLocalLLM(messages: ChatMessage[], systemPrompt?: string, over
 // Unified AI call — auto-selects provider
 // ============================================================
 const loadAiModelRegistry = async () => {
-  const modelConfig = await SystemConfig.findOne({ where: { key: 'aiModels' } });
-  const defaultsConfig = await SystemConfig.findOne({ where: { key: 'aiDefaultModelByFeature' } });
+  let modelConfig: any = null;
+  let defaultsConfig: any = null;
+  try {
+    modelConfig = await SystemConfig.findOne({ where: { key: 'aiModels' } });
+    defaultsConfig = await SystemConfig.findOne({ where: { key: 'aiDefaultModelByFeature' } });
+  } catch (error: any) {
+    // Some deployments still use a legacy SYSTEM_CONFIGURATION schema without "key"/"value".
+    // Fallback to env-based model resolution instead of failing AI endpoints.
+    if (error?.original?.code === 'ER_BAD_FIELD_ERROR') {
+      console.warn('[AI] SYSTEM_CONFIGURATION key/value columns unavailable. Using env/default AI model config.');
+      return { models: [], defaults: {} };
+    }
+    throw error;
+  }
 
   let models: Array<{ provider: string; modelId: string; featureScope: string; enabled: boolean }> = [];
   let defaults: Record<string, { provider: string; modelId: string }> = {};
@@ -211,6 +236,16 @@ const loadAiModelRegistry = async () => {
 };
 
 const resolveProviderAndModel = async (feature: string) => {
+  const overrideProvider = getFeatureProviderOverride(feature);
+  const overrideModel = getFeatureModelOverride(feature);
+  if (overrideProvider) {
+    const providerModel =
+      overrideProvider === 'groq'
+        ? getGroqConfig().model
+        : getLocalLLMConfig().model;
+    return { provider: overrideProvider, model: overrideModel || providerModel };
+  }
+
   const fallbackProvider = getActiveProvider();
   const fallbackModel = fallbackProvider === 'groq' ? getGroqConfig().model : getLocalLLMConfig().model;
   const { models, defaults } = await loadAiModelRegistry();
@@ -319,6 +354,7 @@ router.post('/chat', aiChatRateLimit, async (req: Request, res: Response) => {
  * Body: { symptoms: Array<{ name, severity, duration }> }
  */
 router.post('/symptom-analysis', aiSymptomRateLimit, async (req: Request, res: Response) => {
+  let resolvedProvider: 'groq' | 'local' = getActiveProvider();
   try {
     const symptoms = req.body?.symptoms;
     if (!Array.isArray(symptoms) || symptoms.length === 0) {
@@ -327,6 +363,7 @@ router.post('/symptom-analysis', aiSymptomRateLimit, async (req: Request, res: R
 
     const userContent = `Patient-reported symptoms (JSON):\n${JSON.stringify(symptoms, null, 2)}\n\nReturn only the JSON object as specified.`;
     const resolved = await resolveProviderAndModel('symptom-analysis');
+    resolvedProvider = resolved.provider;
     const reply = await callAI([{ role: 'user', content: userContent }], 'symptom-analysis', SYMPTOM_ANALYSIS_PROMPT);
 
     let parsed: Record<string, unknown> = {};
@@ -364,7 +401,7 @@ router.post('/symptom-analysis', aiSymptomRateLimit, async (req: Request, res: R
     return res.status(503).json({
       error: error?.message || 'Symptom analysis failed',
       hint:
-        getActiveProvider() === 'groq'
+        resolvedProvider === 'groq'
           ? 'Check GROQ_API_KEY and quota.'
           : 'Start Ollama (or your local OpenAI-compatible server) or set GROQ_API_KEY in backend/.env',
     });

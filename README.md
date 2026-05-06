@@ -124,3 +124,9 @@ Notes:
 ## 🤝 Contributing
 Contributions, issues, and feature requests are welcome.  
 Please open an issue or submit a pull request with a clear description of your change.
+
+## GCP Cloud Run (NFR)
+
+- Deployment runbook: `docs/operations/gcp-cloudrun-nfr-runbook.md`
+- Production baseline: `docs/operations/cloudrun-production-baseline.md`
+- Infra scripts/specs: `infra/gcp/cloudrun/`

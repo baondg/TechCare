@@ -22,6 +22,7 @@ const { globalRateLimit, appointmentRateLimit } = require('./middleware/rateLimi
 const sequelize = require('./common/database');
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { startMedicationReminderScheduler } = require('./services/medicationReminderNotifications');
+const { getJwtSecret } = require('./security/jwtConfig');
 
 /* Sequelize — one entry point for model wiring (see models/associate.js + database_description.sql). */
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -34,9 +35,24 @@ defineSystemConfig(sequelize);
 
 const app: Express = express();
 const PORT = process.env.PORT || 3000;
+const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+const allowAnyOrigin = allowedOrigins.includes('*');
 
 // Middleware
-app.use(cors());
+app.set('trust proxy', 1);
+app.use(
+  cors(
+    allowedOrigins.length > 0
+      ? {
+          origin: allowAnyOrigin ? true : allowedOrigins,
+          credentials: !allowAnyOrigin,
+        }
+      : undefined
+  )
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
@@ -97,6 +113,7 @@ app.use((err: Error, req: Request, res: Response, next: Function) => {
 // Initialize database and start server
 async function startServer() {
   try {
+    getJwtSecret();
     if (process.env.NODE_ENV !== 'production') {
       console.log('[startup]', {
         DB_HOST: process.env.DB_HOST ?? null,

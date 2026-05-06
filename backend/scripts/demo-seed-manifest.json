@@ -1,0 +1,63 @@
+{
+  "startedAt": "2026-05-05T13:03:17.022Z",
+  "dbName": "defaultdb",
+  "personas": {
+    "admin": {
+      "username": "demo_admin",
+      "userId": 55
+    },
+    "nurse": {
+      "username": "demo_nurse",
+      "userId": 56
+    },
+    "technician": {
+      "username": "demo_technician",
+      "userId": 58,
+      "roleCode": "TEC"
+    },
+    "doctors": [
+      {
+        "username": "demo_doc_1",
+        "userId": 59,
+        "doctorId": 26
+      },
+      {
+        "username": "demo_doc_2",
+        "userId": 60,
+        "doctorId": 27
+      }
+    ],
+    "patients": [
+      {
+        "username": "900000000001",
+        "userId": 61,
+        "patientId": 34
+      },
+      {
+        "username": "900000000002",
+        "userId": 62,
+        "patientId": 35
+      },
+      {
+        "username": "900000000003",
+        "userId": 63,
+        "patientId": 36
+      }
+    ]
+  },
+  "workflow": {
+    "departmentId": 15,
+    "roomId": 504,
+    "diseaseId": 12248,
+    "activeRegimenId": 46,
+    "appointments": {
+      "openSlotId": 403,
+      "bookedAppointmentId": 404,
+      "cancelledAppointmentId": 405
+    }
+  },
+  "credentials": {
+    "password": "Demo12345A"
+  },
+  "completedAt": "2026-05-05T13:03:19.096Z"
+}

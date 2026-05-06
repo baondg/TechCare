@@ -4,6 +4,7 @@ const Session = require('../models/Session');
 const defineSystemConfig = require('../models/SystemConfig');
 const SystemConfig = defineSystemConfig(sequelize);
 const { Op } = require('sequelize');
+const { getJwtSecret } = require('../security/jwtConfig');
 
 
 
@@ -45,7 +46,7 @@ exports.checkSessionTimeout = async (req, res, next) => {
     }
     
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+      const decoded = jwt.verify(token, getJwtSecret());
       const session = await Session.findOne({ 
         where: { token, userId: decoded.userId } 
       });

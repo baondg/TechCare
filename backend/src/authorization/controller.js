@@ -8,6 +8,8 @@ const Account = require('../models/Account');
 const Session = require('../models/Session');
 const User = require('../models/Users');
 const { createPatientAccountRecords } = require('../services/patientRegistrationService');
+const { normalizeRoleFromCode } = require('../security/roleMapping');
+const { getJwtSecret } = require('../security/jwtConfig');
 
 
 const SystemConfig = defineSystemConfig(sequelize);
@@ -25,10 +27,10 @@ const verifyPassword = async (password, hash) => {
 
 // Generate tokens
 const generateAccessToken = (username, userId, role) =>
-  jwt.sign({ username, userId, role, type: 'access' }, process.env.JWT_SECRET || 'your-secret-key', { expiresIn: ACCESS_TOKEN_EXPIRY });
+  jwt.sign({ username, userId, role, type: 'access' }, getJwtSecret(), { expiresIn: ACCESS_TOKEN_EXPIRY });
 
 const generateRefreshToken = (username, userId) =>
-  jwt.sign({ username, userId, type: 'refresh' }, process.env.JWT_SECRET || 'your-secret-key', { expiresIn: REFRESH_TOKEN_EXPIRY });
+  jwt.sign({ username, userId, type: 'refresh' }, getJwtSecret(), { expiresIn: REFRESH_TOKEN_EXPIRY });
 
 const getNumericConfig = async (key, fallback) => {
   try {
@@ -170,22 +172,6 @@ exports.login = async (req, res) => {
     if (String(user.status ?? '').trim() === '0') {
       return res.status(401).json({
         success: false,
-        error: 'Invalid email or password',
-      });
-    }
-
-    // Disabled accounts (ACCOUNT.status = 0) should behave like non-existent accounts.
-    if (String(user.status ?? '').trim() === '0') {
-      return res.status(401).json({
-        success: false,
-        error: 'Invalid username or password',
-      });
-    }
-
-    // Disabled accounts (ACCOUNT.status = 0) should behave like non-existent accounts.
-    if (String(user.status ?? '').trim() === '0') {
-      return res.status(401).json({
-        success: false,
         error: 'Invalid username or password',
       });
     }
@@ -309,16 +295,8 @@ exports.login = async (req, res) => {
     
     // Update last login time
     await user.update({ lastLogin: new Date() });
-    // Map account type to frontend role
-    const roleMap = {
-      'ADM': 'admin',
-      'PAT': 'patient',
-      'DOC': 'doctor',
-      'NUR': 'nurse',
-      'TEC': 'technician',
-      'PHY': 'technician'
-    };
-    const role = roleMap[user.type] || 'patient';
+    // Normalize role names for RBAC capability checks.
+    const role = normalizeRoleFromCode(user.type) || 'patient';
     
     const profile = user.User || user.user;
     const firstName = (profile?.first_name || '').trim();
@@ -385,7 +363,7 @@ exports.refreshToken = async (req, res) => {
     // Verify refresh token
     let decoded;
     try {
-      decoded = jwt.verify(refreshToken, process.env.JWT_SECRET || 'your-secret-key');
+      decoded = jwt.verify(refreshToken, getJwtSecret());
       if (decoded.type !== 'refresh') {
         throw new Error('Invalid token type');
       }

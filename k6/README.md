@@ -127,11 +127,15 @@ That file is not a Grafana dashboard; use it for CI artifacts or custom reportin
 | `K6_USERNAME` / `K6_PASSWORD` | Primary account for authenticated scenarios. **Doctor** (or staff) recommended for dictionary + optional `K6_PATIENT_RECORD_ID` flows; **patient** for profile / health-info / appointments. |
 | `K6_PATIENT_RECORD_ID` | Optional. Patient route id for `GET /api/doctor/patients/:id` (numeric or `OP…` as in the app). |
 | `K6_APPOINTMENT_ID` | Optional. For **patient** login only: existing appointment id for `PUT /api/appointments/:id` (NFR `appointment_write` latency in `nfr-performance.js`). |
+| `K6_APPOINTMENT_IDS` | Comma-separated appointment ids for deterministic write sampling in NFR runs. |
+| `K6_WRITE_USERNAME` / `K6_WRITE_PASSWORD` | Optional dedicated **patient** account used only for `appointment_write` traffic when primary login is non-patient. |
 | `K6_PATIENT_USERNAME` / `K6_PATIENT_PASSWORD` | Optional. With a **staff** primary login, smoke test asserts patient receives `403` on `GET /api/doctor/diseases` (RBAC). |
 | `K6_STAGE_TARGET` | Peak VUs for `load.js` (default `10`). |
 | `K6_MAX_VUS` | Peak VUs for `nfr-performance.js` (default `30`, cap `300`). |
 | `K6_STRESS_PEAK_VUS` | Peak VUs for `stress.js` (default `80`). |
 | `K6_TIMEOUT_MS` | HTTP timeout (default `60000`). |
+| `K6_APPOINTMENT_WRITE_MIN_SAMPLES` | Minimum successful `appointment_write` samples required (default `100`). |
+| `K6_MAX_300VU_DELTA_MS` | Max allowed baseline-vs-300VU average latency delta for `patient_record` (default `3000`). |
 | `K6_CLOUD_STACK_ID` | **Grafana Cloud only (k6 v1.6+):** numeric **Stack ID** from Performance → Settings → Access. Required for `k6 cloud run` when using env auth. Same value as `scripts/k6.ps1 -CloudStack` (do not use `https://…` here). |
 | `K6_CLOUD_PROJECT_ID` | **Grafana Cloud only:** numeric **project** where this run is created. **Not** used for authentication (token/login does that). Needed when `K6_CLOUD_TOKEN` + `K6_CLOUD_STACK_ID` are set but k6 has no saved default project (e.g. no prior `k6 cloud login` on that host). |
 | `K6_CLOUD_TOKEN` | **Grafana Cloud only:** API token when not using interactive `k6 cloud login`. |
@@ -159,7 +163,8 @@ If `k6` is missing, the script runs `grafana/k6` in Docker and sets `BASE_URL=ht
 ## NFR alignment (thesis table)
 
 - **Patient record ≤ 5 s (80%)**: enforced on requests tagged `name:patient_record` in `nfr-performance.js` (`p(80)<=5000` ms).
-- **Appointment booking/update ≤ 7 s (75%)**: enforced on `name:appointment_write` when `K6_APPOINTMENT_ID` is set and the **patient** login issues `PUT` updates (`p(75)<=7000` ms). Use a patient `K6_USERNAME` plus `K6_APPOINTMENT_ID` so this submetric receives traffic; doctor-only runs never hit appointment writes.
+- **Appointment booking/update ≤ 7 s (75%)**: enforced on `name:appointment_write` when appointment ids are provided (`K6_APPOINTMENT_IDS`) and writes are generated deterministically (`K6_APPOINTMENT_WRITE_PROB=1`).
+- **Appointment write sample sufficiency**: enforced via `appointment_write_samples >= K6_APPOINTMENT_WRITE_MIN_SAMPLES`.
 - **300 concurrent users / +3 s vs baseline**: run `nfr-performance.js` twice—first with low `K6_MAX_VUS` (e.g. `5`), then with `K6_MAX_VUS=300`—and compare exported summaries:
 
 ```bash
@@ -167,7 +172,20 @@ k6 run --summary-export=k6/out/summary-baseline.json -e BASE_URL=http://localhos
 k6 run --summary-export=k6/out/summary-load.json -e K6_MAX_VUS=300 ...
 ```
 
-Compare `metrics.http_req_duration.values` (and tagged submetrics if you split them) manually or with a small script.
+Then enforce deterministic validation:
+
+```bash
+node k6/scripts/validate-nfr-results.js k6/out/summary-baseline.json k6/out/summary-load.json
+```
+
+PowerShell end-to-end helper:
+
+```powershell
+.\scripts\k6-nfr-gate.ps1 -BaseUrl http://localhost:5000 `
+  -Username <staff_user> -Password <staff_pass> `
+  -WriteUsername <patient_user> -WritePassword <patient_pass> `
+  -AppointmentIds "1001,1002,1003"
+```
 
 ## Commands (CLI)
 

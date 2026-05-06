@@ -1,14 +1,26 @@
 import http from 'k6/http';
 import { check } from 'k6';
+import { Counter } from 'k6/metrics';
 import { getTimeout } from './config.js';
 
+export const appointmentWriteSamples = new Counter('appointment_write_samples');
+
+function isBenchmarkRun() {
+  const raw = String(__ENV.K6_BENCHMARK_RUN || '').trim().toLowerCase();
+  return raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
+}
+
 export function authParams(token, nameTag) {
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    'Content-Type': 'application/json',
+  };
+  if (isBenchmarkRun()) {
+    headers['X-Benchmark-Run'] = '1';
+  }
   return {
     timeout: `${getTimeout()}ms`,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
+    headers,
     tags: { name: nameTag },
   };
 }
@@ -99,6 +111,9 @@ export function putAppointmentStatus(baseUrl, token, appointmentId, status) {
   check(res, {
     'appointment_write 2xx': (r) => r.status >= 200 && r.status < 300,
   });
+  if (res.status >= 200 && res.status < 300) {
+    appointmentWriteSamples.add(1);
+  }
   return res;
 }
 

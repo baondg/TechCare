@@ -1,0 +1,87 @@
+param(
+  [Parameter(Mandatory = $true)] [string]$ProjectId,
+  [string]$Region = "asia-southeast1",
+  [string]$ApiDomain = "",
+  [string]$WebDomain = "",
+  [string]$CloudSqlInstance = "techcare-mysql",
+  [string]$DbName = "techcare",
+  [string]$RedisHost = "10.0.0.5",
+  [string]$VpcConnectorName = "techcare-vpc-connector",
+  [switch]$PublicUnauthenticated
+)
+
+$ErrorActionPreference = "Stop"
+$repoRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
+Set-Location $repoRoot
+
+$registry = "$Region-docker.pkg.dev/$ProjectId/techcare"
+$backendImage = "$registry/techcare-backend:latest"
+$frontendImage = "$registry/techcare-frontend:latest"
+$instanceConn = "$ProjectId`:$Region`:$CloudSqlInstance"
+$corsOrigin = if ($WebDomain) { "https://$WebDomain" } else { "*" }
+$vpcConnector = "projects/$ProjectId/locations/$Region/connectors/$VpcConnectorName"
+
+gcloud config set project $ProjectId
+gcloud config set run/region $Region
+
+gcloud auth configure-docker "$Region-docker.pkg.dev" --quiet
+docker build -f ./backend/Dockerfile.cloudrun -t $backendImage ./backend
+docker push $backendImage
+
+$backendArgs = @(
+  "run", "deploy", "techcare-backend",
+  "--image", $backendImage,
+  "--region", $Region,
+  "--service-account", "techcare-runtime@$ProjectId.iam.gserviceaccount.com",
+  "--add-cloudsql-instances", $instanceConn,
+  "--vpc-connector", $vpcConnector,
+  "--vpc-egress", "private-ranges-only",
+  "--set-env-vars", "NODE_ENV=production,DB_NAME=$DbName,CLOUDSQL_INSTANCE_CONNECTION_NAME=$instanceConn,REDIS_URL=redis://$RedisHost:6379,ENABLE_PATIENT_RECORD_CACHE=1,ENABLE_DISTRIBUTED_RATE_LIMIT=1,BENCHMARK_RATE_LIMIT_BYPASS=1,AUTO_SYNC_DB=0,CORS_ALLOWED_ORIGINS=$corsOrigin",
+  "--set-secrets", "DB_USER=techcare-backend-db-user:latest",
+  "--set-secrets", "DB_PASSWORD=techcare-backend-db-password:latest",
+  "--set-secrets", "JWT_SECRET=techcare-jwt-secret:latest",
+  "--min-instances", "2",
+  "--max-instances", "30",
+  "--concurrency", "80",
+  "--timeout", "120"
+)
+
+if ($PublicUnauthenticated) {
+  $backendArgs += "--allow-unauthenticated"
+}
+
+& gcloud @backendArgs
+
+$backendPublicUrl = (
+  gcloud run services describe techcare-backend --region $Region --format="value(status.url)"
+).TrimEnd("/")
+
+docker build -f ./frontend/Dockerfile.cloudrun -t $frontendImage ./frontend `
+  --build-arg "VITE_API_BASE_URL=$backendPublicUrl"
+docker push $frontendImage
+
+$frontendArgs = @(
+  "run", "deploy", "techcare-frontend",
+  "--image", $frontendImage,
+  "--region", $Region,
+  "--service-account", "techcare-runtime@$ProjectId.iam.gserviceaccount.com",
+  "--min-instances", "1",
+  "--max-instances", "10",
+  "--concurrency", "100",
+  "--timeout", "60"
+)
+
+if ($PublicUnauthenticated) {
+  $frontendArgs += "--allow-unauthenticated"
+}
+
+& gcloud @frontendArgs
+
+if ($ApiDomain) {
+  Write-Host "Map API domain manually or via Terraform: $ApiDomain"
+}
+if ($WebDomain) {
+  Write-Host "Map web domain manually or via Terraform: $WebDomain"
+}
+
+Write-Host "Deployment complete."

@@ -1288,7 +1288,7 @@ const loadHealthHistory = async () => {
                 }}
                 disabled={isEditing || !allowHealthWrites}
                 variant="outline"
-                className="btn-outline text-lg px-6 py-4 flex items-center gap-2"
+                className="btn-outline flex items-center gap-2"
               >
                 <Plus className="h-4 w-4" />
                 Add
@@ -1302,7 +1302,7 @@ const loadHealthHistory = async () => {
                 }}
                 disabled={!canEditSelected || !allowHealthWrites}
                 variant="outline"
-                className="btn-outline text-lg px-6 py-4 flex items-center gap-2"
+                className="btn-outline flex items-center gap-2"
               >
                 <Edit className="h-4 w-4" />
                 Edit
@@ -1310,7 +1310,7 @@ const loadHealthHistory = async () => {
               <Button
                 onClick={handleCopyRecord}
                 disabled={!selectedRecord || !allowHealthWrites}
-                className="btn-outline text-lg px-6 py-4 flex items-center gap-2"
+                className="btn-outline flex items-center gap-2"
               >
                 <Copy className="h-4 w-4" />
                 Inherit
@@ -1318,7 +1318,7 @@ const loadHealthHistory = async () => {
               <Button
                 onClick={handleSave}
                 disabled={!isEditing || saving || !allowHealthWrites}
-                className="btn-gradient text-lg px-6 py-4 flex items-center gap-2"
+                className="btn-gradient flex items-center gap-2"
               >
                 <Save className="h-4 w-4" />
                 Save
@@ -1337,7 +1337,7 @@ const loadHealthHistory = async () => {
                   }
                 }}
                 disabled={!canConfirmSelected || !allowHealthWrites}
-                className="!bg-[#16a34a] hover:bg-green-700 text-white text-lg px-6 py-4"
+                className="!bg-[#16a34a] hover:bg-green-700 text-white"
               >
                 <CheckCircle2 className="h-4 w-4" />
                 Confirm
@@ -1350,7 +1350,7 @@ const loadHealthHistory = async () => {
                 }}
                 disabled={!isEditing}
                 variant="destructive"
-                className="btn-outline text-lg px-6 py-4 flex items-center gap-2"
+                className="btn-outline flex items-center gap-2"
               >
                 <X className="h-4 w-4" />
                 Cancel

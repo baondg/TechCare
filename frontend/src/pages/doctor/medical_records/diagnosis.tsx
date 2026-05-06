@@ -371,7 +371,7 @@ export default function PatientDiagnosis() {
             <div className="flex gap-2 flex-wrap justify-end">
               <Button
                 size="sm"
-                className="btn-gradient transition-transform duration-500 text-xl px-7 py-4"
+                className="btn-gradient transition-transform duration-500"
                 onClick={handleAddDiagnosis}
                 disabled={!canAdd}
               >
@@ -380,7 +380,7 @@ export default function PatientDiagnosis() {
               </Button>
               <Button
                 size="sm"
-                className="btn-outline transition-transform duration-500 text-xl px-7 py-4"
+                className="btn-outline transition-transform duration-500"
                 onClick={handleInheritDiagnosis}
                 disabled={!canInherit}
               >
@@ -389,7 +389,7 @@ export default function PatientDiagnosis() {
               </Button>
               <Button
                 size="sm"
-                className="btn-outline transition-transform duration-500 text-xl px-7 py-4"
+                className="btn-outline transition-transform duration-500"
                 onClick={handleSave}
                 disabled={!canSaveDraft || saving}
               >
@@ -398,7 +398,7 @@ export default function PatientDiagnosis() {
               </Button>
               <Button
                 size="sm"
-                className="btn-outline transition-transform duration-500 text-xl px-7 py-4"
+                className="btn-outline transition-transform duration-500"
                 onClick={handleCancel}
                 disabled={!canCancelDraft || saving}
               >
@@ -408,7 +408,7 @@ export default function PatientDiagnosis() {
 
               <Button
                 size="sm"
-                className="btn-outline transition-transform duration-500 text-xl px-7 py-4"
+                className="btn-outline transition-transform duration-500"
                 onClick={() => void handleExportPdf()}
                 disabled={!canExportPdf}
                 title="Export treatment follow-up slip"

@@ -866,7 +866,7 @@ export default function PatientPrescription() {
             <div className="flex gap-2 flex-wrap justify-end">
               <Button
                 size="sm"
-                className="btn-gradient transition-transform duration-500 text-xl px-7 py-4"
+                className="btn-gradient transition-transform duration-500"
                 onClick={handleAddPrescription}
                 disabled={!canAdd}
               >
@@ -888,7 +888,7 @@ export default function PatientPrescription() {
               )}
               <Button
                 size="sm"
-                className="btn-outline transition-transform duration-500 text-xl px-7 py-4"
+                className="btn-outline transition-transform duration-500"
                 onClick={handleInheritPrescription}
                 disabled={!canInherit}
               >
@@ -897,7 +897,7 @@ export default function PatientPrescription() {
               </Button>
               <Button
                 size="sm"
-                className="btn-outline transition-transform duration-500 text-xl px-7 py-4"
+                className="btn-outline transition-transform duration-500"
                 onClick={handleSave}
                 disabled={!canSaveRx || saving}
               >
@@ -906,7 +906,7 @@ export default function PatientPrescription() {
               </Button>
               <Button
                 size="sm"
-                className="btn-outline transition-transform duration-500 text-xl px-7 py-4"
+                className="btn-outline transition-transform duration-500"
                 onClick={handleCancel}
                 disabled={!canCancelEdit || saving}
               >

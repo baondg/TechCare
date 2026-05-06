@@ -25,6 +25,7 @@ const { startMedicationReminderScheduler } = require('./services/medicationRemin
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { startAppointmentReminderScheduler } = require('./services/appointmentReminderNotifications');
 
+const { getJwtSecret } = require('./security/jwtConfig');
 /* Sequelize — one entry point for model wiring (see models/associate.js + database_description.sql). */
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { applySequelizeAssociations } = require('./models/associate');

@@ -45,20 +45,20 @@ const Account = sequelize.define(
       //   allowNull: true
       // }
 
-      // loginAttempts: {
-      //   type: DataTypes.INTEGER,
-      //   defaultValue: 0
-      // },
+      loginAttempts: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0
+      },
 
-      // lockUntil: {
-      //   type: DataTypes.DATE,
-      //   allowNull: true
-      // },
+      lockUntil: {
+        type: DataTypes.DATE,
+        allowNull: true
+      },
 
-      // lastLogin: {
-      //   type: DataTypes.DATE,
-      //   allowNull: true
-      // }
+      lastLogin: {
+        type: DataTypes.DATE,
+        allowNull: true
+      }
     },
     {
       tableName: 'ACCOUNT',

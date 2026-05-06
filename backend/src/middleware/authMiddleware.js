@@ -1,13 +1,14 @@
 const jwt = require('jsonwebtoken');
 const Session = require('../models/Session');
 const Account = require('../models/Account');
+const { normalizeRoleFromCode } = require('../security/roleMapping');
+const { getJwtSecret } = require('../security/jwtConfig');
 
 const authenticateToken = async (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
   if (!token) {
-
     return res.status(401).json({ 
       success: false,
       error: 'Authentication required',
@@ -17,7 +18,7 @@ const authenticateToken = async (req, res, next) => {
 
   try {
     // Verify JWT token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+    const decoded = jwt.verify(token, getJwtSecret());
     
     // Check token type is access token
     if (decoded.type !== 'access') {
@@ -75,17 +76,9 @@ const authenticateToken = async (req, res, next) => {
     await session.update({ lastActivity: new Date() });
     
     // Attach user info to request
-    const roleMap = {
-    DOC: "doctor",
-    PAT: "patient",
-    ADM: "admin",
-    NUR: "nurse",
-    TEC: "technician"
-  };
-
   req.user = {
     ...decoded,
-    role: roleMap[decoded.role] || decoded.role
+    role: normalizeRoleFromCode(decoded.role),
   };
     req.session = session;
     next();

@@ -43,7 +43,6 @@ backend/.env.*
 
 # k6 Grafana Cloud secrets — k6/.env.grafana.local is ignored by *.local below; explicit for clarity
 k6/.env.grafana.local
-
 # Logs
 logs/
 *.log
@@ -90,6 +89,19 @@ Desktop.ini
 *.temp
 .cache/
 .temp/
+
+# Generated backup artifacts
+backend/backups/*.sql
+backend/backups/*.sql.gz
+backend/backups/*.sanitized.sql
+backend/backups/*.sanitized.sql.gz
+
+# Generated operations evidence (local/smoke runs)
+docs/operations/evidence/*-local/
+docs/operations/evidence/*-smoke.json
+docs/operations/evidence/*-smoke.txt
+docs/operations/evidence/tls-verification-*.txt
+docs/operations/evidence/tls-verification-latest.txt
 
 # Optional npm cache directory
 .npm

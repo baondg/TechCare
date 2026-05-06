@@ -2,8 +2,17 @@ const express = require('express');
 const router = express.Router();
 const adminController = require('../controllers/adminController');
 const authenticateToken = require('../middleware/authMiddleware');
+const { normalizeRoleFromCode } = require('../security/roleMapping');
+
+const requireAdmin = (req, res, next) => {
+  if (!req.user || normalizeRoleFromCode(req.user.role) !== 'admin') {
+    return res.status(403).json({ success: false, message: 'Admin access required' });
+  }
+  return next();
+};
 
 router.use(authenticateToken);
+router.use(requireAdmin);
 
 router.get('/dashboard-summary', adminController.getDashboardSummary);
 router.get('/departments', adminController.listDepartments);

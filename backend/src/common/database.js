@@ -18,10 +18,10 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 const pool = {
-  max: 5,
-  min: 0,
-  acquire: 30000,
-  idle: 10000,
+  max: Number(process.env.DB_POOL_MAX || 30),
+  min: Number(process.env.DB_POOL_MIN || 0),
+  acquire: Number(process.env.DB_POOL_ACQUIRE_MS || 60000),
+  idle: Number(process.env.DB_POOL_IDLE_MS || 10000),
 };
 
 const sequelize = useCloudSqlSocket

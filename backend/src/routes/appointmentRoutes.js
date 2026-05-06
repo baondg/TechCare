@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const appointmentController = require('../controllers/appointmentController');
 const authenticateToken = require('../middleware/authMiddleware');
+const { authorizeCapability } = require('../middleware/authorizeCapability');
 
 // Public-ish routes (still require auth)
 router.use(authenticateToken);
@@ -14,15 +15,15 @@ router.get('/patients', appointmentController.getPortalPatients);
 // Get already-booked slots for a date
 router.get('/booked-slots', appointmentController.getBookedSlots);
 router.get('/open-slots', appointmentController.getOpenSlots);
-router.post('/open-slots', appointmentController.createOpenSlot);
-router.put('/open-slots/:id', appointmentController.updateOpenSlot);
-router.delete('/open-slots/:id', appointmentController.deleteOpenSlot);
+router.post('/open-slots', authorizeCapability('appointments.manage.open_slots'), appointmentController.createOpenSlot);
+router.put('/open-slots/:id', authorizeCapability('appointments.manage.open_slots'), appointmentController.updateOpenSlot);
+router.delete('/open-slots/:id', authorizeCapability('appointments.manage.open_slots'), appointmentController.deleteOpenSlot);
 
-router.get('/nurse/check-in-options', appointmentController.getNurseCheckInOptions);
-router.post('/nurse/check-in-accept', appointmentController.postNurseCheckInAccept);
-router.post('/nurse/check-in-assign', appointmentController.postNurseCheckInAssign);
-router.post('/nurse/check-in-reschedule', appointmentController.postNurseCheckInReschedule);
-router.post('/nurse/regimen/checkout', appointmentController.postNurseRegimenCheckout);
+router.get('/nurse/check-in-options', authorizeCapability('appointments.nurse.checkin'), appointmentController.getNurseCheckInOptions);
+router.post('/nurse/check-in-accept', authorizeCapability('appointments.nurse.checkin'), appointmentController.postNurseCheckInAccept);
+router.post('/nurse/check-in-assign', authorizeCapability('appointments.nurse.checkin'), appointmentController.postNurseCheckInAssign);
+router.post('/nurse/check-in-reschedule', authorizeCapability('appointments.nurse.checkin'), appointmentController.postNurseCheckInReschedule);
+router.post('/nurse/regimen/checkout', authorizeCapability('appointments.nurse.checkin'), appointmentController.postNurseRegimenCheckout);
 
 router.get('/dashboard-summary', appointmentController.getPatientDashboardSummary);
 router.get('/medical-visits', appointmentController.getPatientMedicalVisits);
@@ -38,19 +39,16 @@ router.patch('/ai-recommendations/:id/feedback', appointmentController.updateAiR
 router.post('/ai/chat', appointmentController.chatWithAiAndSave);
 router.post('/ai/symptom-analysis', appointmentController.analyzeSymptomsAndSave);
 
-// Apply authentication middleware to all routes
-router.use(authenticateToken);
-
 // Create a new appointment
-router.post('/', appointmentController.createAppointment);
+router.post('/', authorizeCapability('appointments.write.self'), appointmentController.createAppointment);
 
 // Get all appointments for the logged-in user
-router.get('/', appointmentController.getAppointments);
+router.get('/', authorizeCapability('appointments.read.self'), appointmentController.getAppointments);
 
 // Update an appointment
-router.put('/:id', appointmentController.updateAppointment);
+router.put('/:id', authorizeCapability('appointments.write.self'), appointmentController.updateAppointment);
 
 // Delete an appointment
-router.delete('/:id', appointmentController.deleteAppointment);
+router.delete('/:id', authorizeCapability('appointments.write.self'), appointmentController.deleteAppointment);
 
 module.exports = router;

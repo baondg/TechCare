@@ -9,6 +9,9 @@ const {
   notifyDoctorsAfterPatientReschedule,
   notifyDoctorReceivedCoverAppointment,
 } = require('../services/appointmentNotifications');
+const cacheService = require('../services/cacheService');
+const APPOINTMENTS_LIST_CACHE_TTL_SECONDS = Number(process.env.APPOINTMENTS_LIST_CACHE_TTL_SECONDS || 5);
+const APPOINTMENTS_READMODEL_CACHE_TTL_SECONDS = Number(process.env.APPOINTMENTS_READMODEL_CACHE_TTL_SECONDS || 30);
 
 const normalizeDoctorInput = (value) => String(value || '').replace(/^Dr\.\s*/i, '').trim();
 
@@ -145,6 +148,75 @@ async function getPatientIdByUserId(userId) {
     { replacements: { userId }, type: QueryTypes.SELECT }
   );
   return rows[0]?.patient_id || null;
+}
+
+function getAppointmentsListCacheKey(patientPk) {
+  return `patient:appointments_list:v1:${patientPk}`;
+}
+
+function getDoctorReadModelCacheKey(doctorId) {
+  return `readmodel:doctor_profile:v1:${doctorId}`;
+}
+
+function getRoomReadModelCacheKey(roomId) {
+  return `readmodel:room_profile:v1:${roomId}`;
+}
+
+async function invalidatePatientCaches(patientPk) {
+  const pid = Number(patientPk);
+  if (!Number.isFinite(pid) || pid <= 0) return;
+  // Appointment status changes should not invalidate the doctor EMR patient summary cache.
+  // It causes high cache-miss rates during k6 load (patient writes) with no user-visible benefit.
+  await cacheService.del(getAppointmentsListCacheKey(pid));
+}
+
+async function getDoctorReadModel(doctorId) {
+  const did = Number(doctorId);
+  if (!Number.isFinite(did) || did <= 0) return { doctor: '', specialty: '' };
+  const key = getDoctorReadModelCacheKey(did);
+  const cached = await cacheService.getJson(key);
+  if (cached) return cached;
+  const [row] = await sequelize.query(
+    `SELECT
+       COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), acc.username) AS doctor,
+       COALESCE(NULLIF(TRIM(d.specifications), ''), '') AS specifications
+     FROM DOCTOR d
+     JOIN USER u ON u.id = d.user_id
+     JOIN ACCOUNT acc ON acc.user_id = d.user_id
+     WHERE d.doctor_id = :doctorId
+     LIMIT 1`,
+    { replacements: { doctorId: did }, type: QueryTypes.SELECT }
+  );
+  const payload = {
+    doctor: row?.doctor || '',
+    specialty: row?.specifications || '',
+  };
+  await cacheService.setJson(key, payload, APPOINTMENTS_READMODEL_CACHE_TTL_SECONDS);
+  return payload;
+}
+
+async function getRoomReadModel(roomId, fallbackDepartment = '') {
+  const rid = Number(roomId);
+  if (!Number.isFinite(rid) || rid <= 0) return { room: '', department: fallbackDepartment || '' };
+  const key = getRoomReadModelCacheKey(rid);
+  const cached = await cacheService.getJson(key);
+  if (cached) return cached;
+  const [row] = await sequelize.query(
+    `SELECT
+       COALESCE(cr.name, '') AS room,
+       COALESCE(NULLIF(TRIM(dep.name), ''), '') AS department
+     FROM CLINIC_ROOM cr
+     LEFT JOIN DEPARTMENT dep ON dep.id = cr.department_id
+     WHERE cr.id = :roomId
+     LIMIT 1`,
+    { replacements: { roomId: rid }, type: QueryTypes.SELECT }
+  );
+  const payload = {
+    room: row?.room || '',
+    department: row?.department || fallbackDepartment || '',
+  };
+  await cacheService.setJson(key, payload, APPOINTMENTS_READMODEL_CACHE_TTL_SECONDS);
+  return payload;
 }
 
 async function doctorsShareDepartment(doctorIdA, doctorIdB, transaction) {
@@ -1428,6 +1500,7 @@ exports.createAppointment = async (req, res) => {
     }
 
     await notifyDoctorPatientBooked(sequelize, id);
+    await invalidatePatientCaches(patientId);
     res.status(201).json({
       success: true,
       appointment: {
@@ -1453,9 +1526,19 @@ exports.createAppointment = async (req, res) => {
 exports.getAppointments = async (req, res) => {
   try {
     const userId = req.user.userId;
-    const patientId = await getPatientIdByUserId(userId);
-    if (!patientId) return res.status(200).json({ success: true, appointments: [] });
-
+    const [patientRow] = await sequelize.query(
+      'SELECT patient_id AS patientId FROM PATIENT WHERE user_id = :userId LIMIT 1',
+      { replacements: { userId }, type: QueryTypes.SELECT }
+    );
+    const patientId = Number(patientRow?.patientId);
+    if (!Number.isFinite(patientId) || patientId <= 0) {
+      return res.status(200).json({ success: true, appointments: [] });
+    }
+    const cacheKey = getAppointmentsListCacheKey(patientId);
+    const cachedPayload = await cacheService.getJson(cacheKey);
+    if (cachedPayload) {
+      return res.status(200).json(cachedPayload);
+    }
     const rows = await sequelize.query(
       `SELECT
          a.id,
@@ -1464,13 +1547,14 @@ exports.getAppointments = async (req, res) => {
          a.status,
          COALESCE(a.doctor_confirmed, 1) AS doctorConfirmed,
          a.\`condition\` AS symptoms,
-         COALESCE(NULLIF(TRIM(dep.name), ''), NULLIF(TRIM(d.specifications), ''), '') AS department,
-         cr.name AS room,
-         COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), acc.username) AS doctor
+         COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), acc.username, '') AS doctorName,
+         COALESCE(d.specifications, '') AS doctorSpecialty,
+         COALESCE(cr.name, '') AS roomName,
+         COALESCE(dep.name, '') AS roomDepartment
        FROM APPOINTMENT a
-       JOIN DOCTOR d ON d.doctor_id = a.doctor_id
-       JOIN ACCOUNT acc ON acc.user_id = d.user_id
-       JOIN USER u ON u.id = d.user_id
+       LEFT JOIN DOCTOR d ON d.doctor_id = a.doctor_id
+       LEFT JOIN USER u ON u.id = d.user_id
+       LEFT JOIN ACCOUNT acc ON acc.user_id = d.user_id
        LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id
        LEFT JOIN DEPARTMENT dep ON dep.id = cr.department_id
        WHERE a.patient_id = :patientId
@@ -1485,13 +1569,21 @@ exports.getAppointments = async (req, res) => {
       else if (!dc) status = 'Pending';
       else status = 'Upcoming';
       return {
-        ...r,
+        id: r.id,
+        date: r.date,
+        time: r.time,
+        symptoms: r.symptoms,
+        department: r.roomDepartment || r.doctorSpecialty || '',
+        room: r.roomName || '',
+        doctor: r.doctorName || '',
         status,
         awaitingDoctorConfirmation: r.status === 'scheduled' && !dc,
         notes: '',
       };
     });
-    res.status(200).json({ success: true, appointments });
+    const payload = { success: true, appointments };
+    await cacheService.setJson(cacheKey, payload, APPOINTMENTS_LIST_CACHE_TTL_SECONDS);
+    res.status(200).json(payload);
   } catch (error) {
     console.error('Get appointments error:', error);
     res.status(500).json({ message: 'Internal server error', error: error.message });
@@ -2453,15 +2545,20 @@ exports.updateAppointment = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.userId;
+    const apptIdNum = Number(id);
     const patientId = await getPatientIdByUserId(userId);
     if (!patientId) {
       return res.status(404).json({ message: 'Patient profile not found' });
     }
-    const own = await sequelize.query(
-      'SELECT id FROM APPOINTMENT WHERE id = :id AND patient_id = :patientId LIMIT 1',
-      { replacements: { id, patientId }, type: QueryTypes.SELECT }
+
+    const [apptRow] = await sequelize.query(
+      `SELECT id AS apptId, status AS apptStatus
+       FROM APPOINTMENT
+       WHERE id = :apptId AND patient_id = :patientId
+       LIMIT 1`,
+      { replacements: { apptId: apptIdNum, patientId }, type: QueryTypes.SELECT }
     );
-    if (!own[0]) {
+    if (!apptRow?.apptId) {
       return res.status(404).json({ message: 'Appointment not found or access denied' });
     }
     const statusMap = {
@@ -2478,24 +2575,28 @@ exports.updateAppointment = async (req, res) => {
       if (!cancellationReason) {
         return res.status(400).json({ message: 'Cancellation reason is required' });
       }
-      const [cur] = await sequelize.query(
-        'SELECT status FROM APPOINTMENT WHERE id = :id AND patient_id = :patientId LIMIT 1',
-        { replacements: { id, patientId }, type: QueryTypes.SELECT }
-      );
-      if (cur?.status && String(cur.status).toLowerCase() !== 'cancelled') {
+      const curStatus = apptRow.apptStatus;
+      if (curStatus && String(curStatus).toLowerCase() !== 'cancelled') {
         await notifyDoctorPatientCancelledAppointment(sequelize, id, cancellationReason);
       }
       await sequelize.query(
-        `UPDATE APPOINTMENT SET status = 'cancelled', cancellation_reason = :reason WHERE id = :id`,
-        { replacements: { id, reason: cancellationReason }, type: QueryTypes.UPDATE }
+        `UPDATE APPOINTMENT
+         SET status = 'cancelled', cancellation_reason = :reason
+         WHERE id = :id AND patient_id = :patientId`,
+        { replacements: { id, patientId, reason: cancellationReason }, type: QueryTypes.UPDATE }
       );
+      await invalidatePatientCaches(patientId);
       return res.status(200).json({ success: true, appointment: { id: Number(id), status: 'Cancelled' } });
     }
     if (nextStatus) {
+      if (String(apptRow.apptStatus || '').toLowerCase() === String(nextStatus).toLowerCase()) {
+        return res.status(200).json({ success: true, appointment: { id: Number(id), status: req.body.status || 'Upcoming' } });
+      }
       await sequelize.query(
-        'UPDATE APPOINTMENT SET status = :status WHERE id = :id',
-        { replacements: { id, status: nextStatus }, type: QueryTypes.UPDATE }
+        'UPDATE APPOINTMENT SET status = :status WHERE id = :id AND patient_id = :patientId AND status <> :status',
+        { replacements: { id, patientId, status: nextStatus }, type: QueryTypes.UPDATE }
       );
+      await invalidatePatientCaches(patientId);
     }
     res.status(200).json({ success: true, appointment: { id: Number(id), status: req.body.status || 'Upcoming' } });
   } catch (error) {
@@ -2531,6 +2632,7 @@ exports.deleteAppointment = async (req, res) => {
       "UPDATE APPOINTMENT SET status = 'cancelled', cancellation_reason = :reason WHERE id = :id",
       { replacements: { id, reason: cancellationReason }, type: QueryTypes.UPDATE }
     );
+    await invalidatePatientCaches(patientId);
     res.status(200).json({ success: true, message: 'Appointment deleted successfully' });
   } catch (error) {
     console.error('Delete appointment error:', error);

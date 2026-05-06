@@ -198,14 +198,6 @@ export default function FeedbackPage() {
   return (
     <PatientLayout>
       <div className="w-full space-y-6">
-        {/* Gradient header */}
-        <div>
-          <h2 className="h-12 text-4xl font-bold bg-linear-to-r from-[#06b6d4] via-[#0891b2] to-[#06b6d4] bg-clip-text text-transparent mb-2">
-            Feedback & AI Suggestions
-          </h2>
-          <p className="text-slate-600 text-lg">Share your experience and review AI recommendations</p>
-        </div>
-
         {/* Tab navigation */}
         <div className="flex gap-2 p-1 bg-slate-100 rounded-xl w-fit">
           <button

@@ -172,14 +172,6 @@ export default function ProfilePage() {
   return (
     <PatientLayout>
       <div className="space-y-8">
-        {/* Gradient header */}
-        <div>
-          <h2 className="h-12 text-4xl font-bold bg-linear-to-r from-[#06b6d4] via-[#0891b2] to-[#06b6d4] bg-clip-text text-transparent mb-2">
-            Profile Settings
-          </h2>
-          <p className="text-slate-600">Manage your personal information and preferences</p>
-        </div>
-
         {/* Personal & Relative Information Card */}
         <Card className="card-feature border-slate-200/60">
           <CardHeader className="bg-linear-to-r from-cyan-50/50 to-transparent">

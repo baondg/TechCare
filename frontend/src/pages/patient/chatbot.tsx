@@ -256,11 +256,6 @@ export default function ChatbotPage() {
   return (
     <PatientLayout>
       <div className="space-y-6">
-        <div>
-          <h2 className="text-3xl font-bold">AI Health Assistant</h2>
-          <p className="text-muted-foreground">24/7 support for your health questions</p>
-        </div>
-
         <Card className="h-[calc(100vh-16rem)]">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">

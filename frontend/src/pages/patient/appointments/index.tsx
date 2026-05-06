@@ -106,14 +106,7 @@ export default function AppointmentsPage() {
   return (
     <PatientLayout>
       <div className="space-y-8">
-        {/* Header Section */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="h-12 text-4xl font-bold bg-linear-to-r from-[#06b6d4] via-[#0891b2] to-[#06b6d4] bg-clip-text text-transparent mb-2">
-              My Appointments
-            </h2>
-            <p className="text-slate-600 text-lg">Manage your hospital visits and consultations</p>
-          </div>
+        <div className="flex items-center justify-end">
           <Button onClick={handleBookAppointment} className="btn-gradient hover:border-none h-14 px-8 text-base shadow-lg">
             <Plus className="h-5 w-5 mr-2" />
             Book Appointment

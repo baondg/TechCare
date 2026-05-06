@@ -859,8 +859,8 @@ export default function NurseAppointmentsPage() {
                           onChange={(ymd) => updateDraftRow(row.id, { date: ymd })}
                           className="h-9 w-full min-w-0"
                           placeholder="Pick date"
-                        />
-                      </div>
+                />
+              </div>
                       <div className="lg:col-span-2">
                         <span className="mb-0.5 block text-[10px] font-medium text-slate-500">Room</span>
                         <Select

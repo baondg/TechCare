@@ -10,7 +10,6 @@ import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@
 import { NurseLayout } from "@/components/nurse-layout"
 import { Popover,  PopoverContent,  PopoverTrigger} from "@/components/ui/popover"
 import { format } from "date-fns"
-import { vi } from "date-fns/locale"
 import { Calendar } from "@/components/ui/calendar"
 import { useNavigate } from "react-router-dom"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -459,7 +458,7 @@ export default function NursePatients() {
                                   >
                                     <CalendarIcon className="mr-2 h-4 w-4" />
                                     {filters.latestVisit
-                                      ? format(filters.latestVisit, "dd/MM/yyyy", { locale: vi })
+                                      ? format(filters.latestVisit, "dd/MM/yyyy")
                                       : "Select"}
                                   </Button>
                                 </PopoverTrigger>
@@ -470,7 +469,6 @@ export default function NursePatients() {
                                     onSelect={(date) =>
                                       setFilters({ ...filters, latestVisit: date ?? null })
                                     }
-                                    locale={vi}
                                   />
                                 </PopoverContent>
                               </Popover>

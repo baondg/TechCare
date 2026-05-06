@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
-import { Calendar as CalendarIcon, Search, Clock, User, Plus } from "lucide-react"
+import { Calendar as CalendarIcon, Clock, User, Plus } from "lucide-react"
 import { PatientLayout } from "@/components/patient-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -196,10 +196,6 @@ export default function AppointmentsPage() {
                   className="pl-10 h-12 text-base"
                 />
               </div>
-              <Button variant="outline" className="h-12 px-6 border-slate-200 text-slate-600 hover:bg-slate-50">
-                <Search className="w-5 h-5 mr-2" />
-                Filter
-              </Button>
             </div>
           </CardContent>
         </Card>

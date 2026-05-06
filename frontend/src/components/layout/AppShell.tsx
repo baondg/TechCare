@@ -228,7 +228,7 @@ export function AppShell({ children, navItems, portalLabel, headerEnd }: AppShel
               variant="outline"
               size="lg"
               onClick={logout}
-              className="text-destructive hover:bg-destructive"
+              className="text-destructive hover:bg-destructive hover:text-white"
             >
               <LogOut className="h-4 w-4 mr-2" />
               Logout

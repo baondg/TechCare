@@ -363,7 +363,7 @@ export default function PatientSurgery() {
             </div>
             <Button
               size="sm"
-              className="btn-outline transition-transform duration-500 text-xl px-4 py-2"
+              className="btn-outline transition-transform duration-500"
               onClick={() => void handleExportPdf()}
               disabled={loading || exportingPdf || !selected}
               title="Export surgical procedure record (PDF)"
@@ -422,7 +422,7 @@ export default function PatientSurgery() {
             <div className="flex flex-nowrap gap-2 justify-end min-w-max">
             <Button
               size="sm"
-              className="btn-gradient transition-transform duration-500 text-xl px-7 py-4"
+              className="btn-gradient transition-transform duration-500"
               onClick={handleAdd}
               disabled={!canAdd}
             >
@@ -431,7 +431,7 @@ export default function PatientSurgery() {
 
             <Button
               size="sm"
-              className="btn-outline transition-transform duration-500 text-xl px-7 py-4"
+              className="btn-outline transition-transform duration-500"
               onClick={handleInherit}
               disabled={!canInherit}
             >
@@ -440,7 +440,7 @@ export default function PatientSurgery() {
 
             <Button
               size="sm"
-              className="btn-outline transition-transform duration-500 text-xl px-7 py-4"
+              className="btn-outline transition-transform duration-500"
               onClick={handleSave}
               disabled={!canSaveDraft || saving}
             >
@@ -449,7 +449,7 @@ export default function PatientSurgery() {
 
             <Button
               size="sm"
-              className="btn-outline transition-transform duration-500 text-xl px-7 py-4"
+              className="btn-outline transition-transform duration-500"
               onClick={handleCancel}
               disabled={!canCancelDraft || saving}
             >

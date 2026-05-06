@@ -26,6 +26,11 @@ export type NotificationColumnFilters = {
 const TABLE_HEADER_GRADIENT =
   "linear-gradient(135deg, #06b6d4 0%, #0891b2 50%, #06b6d4 100%)"
 
+/** Strips backend-only dedupe suffixes so users do not see internal IDs. */
+function displayNotificationBody(content: string | undefined): string {
+  return String(content || "").replace(/\s*【appt:\d+】\s*$/u, "").trimEnd()
+}
+
 function formatNotifTime(iso: string): string {
   try {
     const d = new Date(iso)
@@ -267,7 +272,7 @@ export function NotificationTabbedList({
                             unread ? "font-medium text-slate-900 dark:text-slate-100" : "text-slate-700 dark:text-slate-300",
                           )}
                         >
-                          {n.content}
+                          {displayNotificationBody(n.content)}
                         </span>
                       </TableCell>
                     </TableRow>

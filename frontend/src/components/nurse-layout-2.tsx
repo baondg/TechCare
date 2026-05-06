@@ -9,6 +9,7 @@ import ViewingPatientDashboard from "@/pages/nurse/medical_records/dashboard"
 import ViewingPatientHealthInfo from "@/pages/nurse/medical_records/health-info"
 import { NurseCheckInDialog } from "@/components/nurse-check-in-dialog"
 import { doctorService } from "@/services/doctor-service"
+import { NursePatientProfilePanel } from "@/pages/nurse/medical_records/patient-profile"
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000"
 const VISIT_STORAGE_PREFIX = "nurseExamVisit:"
@@ -42,7 +43,7 @@ function writeStoredVisit(patientKey: string, visit: StoredVisit | null) {
 const tabs = [
   { label: "Dashboard", value: "dashboard" },
   { label: "Health info", value: "health-info" },
-  { label: "History", value: "history" },
+  { label: "Profile", value: "profile" },
 ]
 
 export function NurseLayout2() {
@@ -53,8 +54,16 @@ export function NurseLayout2() {
   const [checkInDialogOpen, setCheckInDialogOpen] = useState(false)
 
   const setActiveTab = (value: string) => {
+    if (!patientId) return
     navigate(`/nurse/medical_records/${patientId}/${value}`)
   }
+
+  /** Legacy URL /nurse/medical_records/:id/history → patient profile */
+  useEffect(() => {
+    if (tab === "history" && patientId) {
+      navigate(`/nurse/medical_records/${patientId}/profile`, { replace: true })
+    }
+  }, [tab, patientId, navigate])
 
   useEffect(() => {
     setVisitSession(readStoredVisit(patientId))
@@ -120,7 +129,7 @@ export function NurseLayout2() {
 
       <div className="space-y-6 w-full">
         {/* ===== Patient Info Header ===== */}
-        <Card className="p-4 flex items-center justify-between border-r border-white/40 sticky bg-white/80 backdrop-blur-xl shadow-[4px_0_20px_rgba(0,0,0,0.05)] z-40">
+        <Card className="p-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-r border-white/40 sticky bg-white/80 backdrop-blur-xl shadow-[4px_0_20px_rgba(0,0,0,0.05)] z-40">
           <div>
             {patientData ? (
               <>
@@ -164,7 +173,7 @@ export function NurseLayout2() {
           </div>
         </Card>
 
-        {/* ===== Tabs (GIỐNG LOGIN) ===== */}
+        {/* ===== Tabs (same pattern as doctor-layout-2: tabs then child page below) ===== */}
         <div className="sticky z-10 bg-white rounded-md w-fit">
           <Tabs value={tab} onValueChange={setActiveTab}>
             <TabsList className="inline-flex rounded-xl bg-tr p-1 gap-1">
@@ -187,6 +196,7 @@ export function NurseLayout2() {
         <div>
           {tab === "dashboard" && <ViewingPatientDashboard />}
           {tab === "health-info" && <ViewingPatientHealthInfo />}
+          {tab === "profile" && <NursePatientProfilePanel />}
         </div>
       </div>
     </NurseLayout>

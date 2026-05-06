@@ -467,7 +467,70 @@ async function resolveDeptIdForTreatment(patientId, doctorId, transaction) {
   return Number.isFinite(mappedDeptId) && mappedDeptId > 0 ? mappedDeptId : null;
 }
 
-async function createTreatmentForPatient({ patientId, doctorId, complaint, department, diseaseId, transaction }) {
+/** Stored in `TREATMENT.type` — clinical document / encounter category (not DEPARTMENT.name). */
+const ENCOUNTER_KIND = new Set([
+  'Clinic transfer',
+  'Hospital transfer',
+  'Prescription',
+  'Lab',
+  'Laboratory test',
+  'Surgery',
+  'Health info',
+  'Outpatient',
+  'Follow-up reexam slip',
+]);
+
+async function resolveDeptIdByLabel(label, transaction) {
+  const s = label != null ? String(label).trim() : '';
+  if (!s) return null;
+  const opts = {
+    replacements: { name: s, byId: s },
+    type: QueryTypes.SELECT,
+    ...(transaction ? { transaction } : {}),
+  };
+  const [rowByName] = await sequelize.query(
+    `SELECT id FROM DEPARTMENT WHERE TRIM(name) = TRIM(:name) LIMIT 1`,
+    opts
+  );
+  if (rowByName?.id != null) {
+    const id = Number(rowByName.id);
+    return Number.isFinite(id) && id > 0 ? id : null;
+  }
+  const n = Number(s);
+  if (Number.isFinite(n) && n > 0) {
+    const [rowByPk] = await sequelize.query(
+      `SELECT id FROM DEPARTMENT WHERE id = :byId LIMIT 1`,
+      opts
+    );
+    if (rowByPk?.id != null) return Number(rowByPk.id);
+  }
+  return null;
+}
+
+/**
+ * Normalize `department` legacy arg: ENCOUNTER_KIND string → structural type column;
+ * otherwise treat as human department label for dept_id lookup only / fallback.
+ */
+function resolveStructuralType(encounterType, department) {
+  const et =
+    encounterType != null && String(encounterType).trim() !== '' ? String(encounterType).trim() : '';
+  if (et && ENCOUNTER_KIND.has(et)) return et;
+  const d = department != null ? String(department).trim() : '';
+  if (d && ENCOUNTER_KIND.has(d)) return d;
+  return 'Outpatient';
+}
+
+async function createTreatmentForPatient({
+  patientId,
+  doctorId,
+  complaint,
+  department,
+  encounterType,
+  diseaseId,
+  deptId: explicitDeptId,
+  roomId: explicitRoomId,
+  transaction,
+}) {
   let regimenId;
   if (diseaseId != null && Number.isFinite(Number(diseaseId))) {
     regimenId = await ensureOpenRegimenForDisease(patientId, Number(diseaseId), transaction);
@@ -478,19 +541,39 @@ async function createTreatmentForPatient({ patientId, doctorId, complaint, depar
       regimenId = await ensureOpenRegimenForDisease(patientId, zId, transaction);
     }
   }
-  const deptId = await resolveDeptIdForTreatment(patientId, doctorId, transaction);
+
+  let deptId =
+    explicitDeptId != null && Number.isFinite(Number(explicitDeptId)) && Number(explicitDeptId) > 0
+      ? Number(explicitDeptId)
+      : null;
+
+  const labelHint = typeof department === 'string' ? department.trim() : '';
+  if (!deptId && labelHint && !ENCOUNTER_KIND.has(labelHint)) {
+    deptId = await resolveDeptIdByLabel(labelHint, transaction);
+  }
+  if (!deptId) {
+    deptId = await resolveDeptIdForTreatment(patientId, doctorId, transaction);
+  }
+
+  const structuralType = resolveStructuralType(encounterType, department);
+  const roomIdRepl =
+    explicitRoomId != null && Number.isFinite(Number(explicitRoomId)) && Number(explicitRoomId) > 0
+      ? Number(explicitRoomId)
+      : null;
+
   const baseRepl = {
     complaint: complaint || 'General follow-up',
-    type: department || 'General',
+    type: structuralType,
     regimenId,
     doctorId,
     deptId,
+    roomId: roomIdRepl,
   };
 
   try {
     const [ins] = await sequelize.query(
       `INSERT INTO TREATMENT (time, \`condition\`, type, regimen_id, doctor_id, room_id, dept_id)
-       VALUES (NOW(), :complaint, :type, :regimenId, :doctorId, NULL, :deptId)`,
+       VALUES (NOW(), :complaint, :type, :regimenId, :doctorId, :roomId, :deptId)`,
       { replacements: baseRepl, type: QueryTypes.INSERT, transaction }
     );
     const tid = mysqlInsertId(ins);
@@ -502,13 +585,14 @@ async function createTreatmentForPatient({ patientId, doctorId, complaint, depar
 
   const [ins] = await sequelize.query(
     `INSERT INTO TREATMENT (time, \`condition\`, type, regimen_id, doctor_id, room_id)
-     VALUES (NOW(), :complaint, :type, :regimenId, :doctorId, NULL)`,
+     VALUES (NOW(), :complaint, :type, :regimenId, :doctorId, :roomId)`,
     {
       replacements: {
         complaint: baseRepl.complaint,
         type: baseRepl.type,
         regimenId: baseRepl.regimenId,
         doctorId: baseRepl.doctorId,
+        roomId: roomIdRepl,
       },
       type: QueryTypes.INSERT,
       transaction,
@@ -534,13 +618,14 @@ async function getLatestDiagnosisByPatientId(userOrPatientPk) {
   const rows = await sequelize.query(
     `SELECT
        t.time AS visitTime,
-       t.type AS department,
+       COALESCE(NULLIF(TRIM(dep_sel.name), ''), '') AS department,
        t.\`condition\` AS complaint,
        dis.icd_code AS icd10,
        dis.description AS interpretation,
        COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username, CONCAT('doctor#', d.user_id)) AS doctorName
      FROM TREATMENT t
      JOIN REGIMEN r ON r.id = t.regimen_id
+     LEFT JOIN DEPARTMENT dep_sel ON dep_sel.id = t.dept_id
      LEFT JOIN DISEASE dis ON dis.id = r.disease_id
      LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id
      LEFT JOIN USER u ON u.id = d.user_id
@@ -1303,7 +1388,7 @@ exports.createHealthTrackingSlipForPatient = async (req, res) => {
       patientId: patientPk,
       doctorId,
       complaint: 'Health tracking slip',
-      department: 'Health info',
+      encounterType: 'Health info',
       diseaseId,
       transaction,
     });
@@ -2038,7 +2123,7 @@ exports.createHealthTrackingSlipForPatient = async (req, res) => {
       patientId: patientPk,
       doctorId,
       complaint: 'Health tracking slip',
-      department: 'Health info',
+      encounterType: 'Health info',
       diseaseId,
       transaction,
     });
@@ -2158,7 +2243,7 @@ exports.createFollowUpReexamSlipForPatient = async (req, res) => {
       patientId: patientPk,
       doctorId,
       complaint: 'Follow-up reexam slip',
-      department: 'Outpatient',
+      encounterType: 'Outpatient',
       diseaseId,
       transaction,
     });
@@ -3706,7 +3791,7 @@ exports.getDiagnoses = async (req, res) => {
          r.patient_id AS patientId,
          d.user_id AS doctorId,
          COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username, CONCAT('doctor#', d.user_id)) AS doctorName,
-         t.type AS department,
+         COALESCE(NULLIF(TRIM(dep_dx.name), ''), '') AS department,
          t.\`condition\` AS complaint,
          dis.icd_code AS icd10,
          dis.description AS interpretation,
@@ -3715,6 +3800,7 @@ exports.getDiagnoses = async (req, res) => {
          t.time AS updatedAt
        FROM TREATMENT t
        JOIN REGIMEN r ON r.id = t.regimen_id
+       LEFT JOIN DEPARTMENT dep_dx ON dep_dx.id = t.dept_id
        LEFT JOIN DISEASE dis ON dis.id = r.disease_id
        LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id
        LEFT JOIN USER u ON u.id = d.user_id
@@ -3852,7 +3938,7 @@ exports.updateDiagnosis = async (req, res) => {
           replacements: {
             newRegimenId,
             complaint: complaint.trim(),
-            type: department || 'General',
+            type: resolveStructuralType(undefined, department),
             treatmentId,
           },
           type: QueryTypes.UPDATE,
@@ -3868,7 +3954,7 @@ exports.updateDiagnosis = async (req, res) => {
         {
           replacements: {
             complaint: complaint.trim(),
-            type: department || 'General',
+            type: resolveStructuralType(undefined, department),
             treatmentId,
           },
           type: QueryTypes.UPDATE,
@@ -4055,6 +4141,7 @@ exports.createPrescription = async (req, res) => {
       patientId: patientPk,
       doctorId,
       complaint: 'Prescription',
+      encounterType: 'Prescription',
       department,
       diseaseId,
       transaction
@@ -4382,7 +4469,7 @@ exports.createLabTest = async (req, res) => {
       patientId: patientPk,
       doctorId,
       complaint: 'Laboratory test',
-      department: 'Lab',
+      encounterType: 'Lab',
       diseaseId,
       transaction
     });
@@ -4722,7 +4809,7 @@ exports.createSurgery = async (req, res) => {
       patientId: patientPk,
       doctorId,
       complaint: 'Surgery',
-      department: 'Surgery',
+      encounterType: 'Surgery',
       diseaseId,
       transaction
     });
@@ -5157,13 +5244,43 @@ exports.createPatientTransfer = async (req, res) => {
     }
 
     let clinicTransferToRoomId = null;
+    /** Target department (`CLINIC_ROOM.department_id`) — drives header + `inDepartment` after intra-clinic transfer. */
+    let transferDeptOverride;
+    let transferRoomOverride;
+    let clinicFromRoom;
+    let clinicToRoom;
+
+    if (k === 'clinic') {
+      clinicFromRoom = Number(fromRoomId);
+      clinicToRoom = Number(toRoomId);
+      if (!Number.isFinite(clinicFromRoom) || clinicFromRoom <= 0 || !Number.isFinite(clinicToRoom) || clinicToRoom <= 0) {
+        await transaction.rollback();
+        return res.status(400).json({ success: false, message: 'fromRoomId and toRoomId are required for clinic transfer' });
+      }
+      if (clinicFromRoom === clinicToRoom) {
+        await transaction.rollback();
+        return res.status(400).json({ success: false, message: 'From and to room must differ' });
+      }
+      transferRoomOverride = clinicToRoom;
+
+      const [crow] = await sequelize.query(
+        `SELECT department_id AS deptId FROM CLINIC_ROOM WHERE id = :rid LIMIT 1`,
+        { replacements: { rid: clinicToRoom }, type: QueryTypes.SELECT, transaction }
+      );
+      const destDept = crow?.deptId != null ? Number(crow.deptId) : null;
+      if (Number.isFinite(destDept) && destDept > 0) {
+        transferDeptOverride = destDept;
+      }
+    }
 
     const diseaseId = await ensureDisease('Z75.1', 'Patient transfer', transaction);
     const treatmentId = await createTreatmentForPatient({
       patientId: patientPk,
       doctorId,
       complaint: String(reason).trim(),
-      department: k === 'clinic' ? 'Clinic transfer' : 'Hospital transfer',
+      encounterType: k === 'clinic' ? 'Clinic transfer' : 'Hospital transfer',
+      deptId: transferDeptOverride,
+      roomId: transferRoomOverride,
       diseaseId,
       transaction,
     });
@@ -5197,27 +5314,21 @@ exports.createPatientTransfer = async (req, res) => {
     );
 
     if (k === 'clinic') {
-      const fromR = Number(fromRoomId);
-      const toR = Number(toRoomId);
-      if (!Number.isFinite(fromR) || fromR <= 0 || !Number.isFinite(toR) || toR <= 0) {
-        await transaction.rollback();
-        return res.status(400).json({ success: false, message: 'fromRoomId and toRoomId are required for clinic transfer' });
-      }
-      if (fromR === toR) {
-        await transaction.rollback();
-        return res.status(400).json({ success: false, message: 'From and to room must differ' });
-      }
       await sequelize.query(
         `INSERT INTO CLINIC_TRANSFERENCE (transference_id, from_room_id, to_room_id)
          VALUES (:orderId, :fromRoomId, :toRoomId)`,
         {
-          replacements: { orderId, fromRoomId: fromR, toRoomId: toR },
+          replacements: {
+            orderId,
+            fromRoomId: clinicFromRoom,
+            toRoomId: clinicToRoom,
+          },
           type: QueryTypes.INSERT,
           transaction,
         }
       );
-      await syncPatientInDeptFromClinicRoom(patientPk, toR, transaction);
-      clinicTransferToRoomId = toR;
+      await syncPatientInDeptFromClinicRoom(patientPk, clinicToRoom, transaction);
+      clinicTransferToRoomId = clinicToRoom;
     } else {
       const name = String(toHospitalName || '').trim();
       if (!name) {

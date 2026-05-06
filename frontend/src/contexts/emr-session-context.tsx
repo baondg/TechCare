@@ -6,6 +6,8 @@ export type EmrSessionState = {
   visitActive: boolean
   /** When false, EMR pages should not perform POST/PUT/PATCH/DELETE for this patient. */
   mutationsAllowed: boolean
+  /** After diagnosis / transfers / etc., refetch banner data without full page reload. */
+  refreshPatientBanner: () => void
 }
 
 const EmrSessionContext = createContext<EmrSessionState | null>(null)
@@ -24,7 +26,12 @@ export function EmrSessionProvider({
 export function useEmrSession(): EmrSessionState {
   const ctx = useContext(EmrSessionContext)
   if (!ctx) {
-    return { visitLoading: false, visitActive: true, mutationsAllowed: true }
+    return {
+      visitLoading: false,
+      visitActive: true,
+      mutationsAllowed: true,
+      refreshPatientBanner: () => {},
+    }
   }
   return ctx
 }

@@ -31,46 +31,34 @@ export function TechnicianLayout2() {
     }
   }, [patientId])
 
-  useEffect(() => {
-    const fetchPatient = async () => {
-      if (!patientId) return
-      try {
-        const res = await doctorService.getPatient(patientId)
-        if (res.success) setPatientData(res.patient)
-      } catch (err) {
-        console.error(err)
-      }
+  const loadPatientBanner = useCallback(async () => {
+    if (!patientId) return
+    try {
+      const res = await doctorService.getPatient(patientId)
+      if (res.success) setPatientData(res.patient)
+    } catch (err) {
+      console.error(err)
     }
-    void fetchPatient()
+  }, [patientId])
+
+  useEffect(() => {
+    void loadPatientBanner()
     void loadVisitState()
-  }, [patientId, loadVisitState])
+  }, [patientId, loadVisitState, loadPatientBanner])
+
+  const refreshPatientBanner = useCallback(() => {
+    void loadPatientBanner()
+  }, [loadPatientBanner])
 
   const emrSessionValue = useMemo(
     () => ({
       visitLoading,
       visitActive,
       mutationsAllowed: !visitLoading && visitActive,
+      refreshPatientBanner,
     }),
-    [visitLoading, visitActive]
+    [visitLoading, visitActive, refreshPatientBanner]
   )
-
-  useEffect(() => {
-    const fetchPatient = async () => {
-      if (!patientId) return
-      try {
-        const res = await fetch(`http://localhost:3000/api/doctor/patients/${patientId}`, {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("authToken")}`
-          }
-        })
-        const data = await res.json()
-        if (data.success) setPatientData(data.patient)
-      } catch (err) {
-        console.error(err)
-      }
-    }
-    void fetchPatient()
-  }, [patientId])
 
   return (
     <EmrSessionProvider value={emrSessionValue}>

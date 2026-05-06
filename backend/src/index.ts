@@ -22,6 +22,8 @@ const { globalRateLimit, appointmentRateLimit } = require('./middleware/rateLimi
 const sequelize = require('./common/database');
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { startMedicationReminderScheduler } = require('./services/medicationReminderNotifications');
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { startAppointmentReminderScheduler } = require('./services/appointmentReminderNotifications');
 const { getJwtSecret } = require('./security/jwtConfig');
 
 /* Sequelize — one entry point for model wiring (see models/associate.js + database_description.sql). */
@@ -150,6 +152,7 @@ async function startServer() {
     }
 
     startMedicationReminderScheduler(sequelize);
+    startAppointmentReminderScheduler(sequelize);
 
     app.listen(PORT, () => {
       console.log(`🚀 Server is running on http://localhost:${PORT}`);

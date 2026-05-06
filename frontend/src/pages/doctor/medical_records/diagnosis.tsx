@@ -73,7 +73,7 @@ function mapApiToUi(d: ApiDiagnosis): UiDiagnosis {
 
 export default function PatientDiagnosis() {
   const { patientId } = useParams<{ patientId: string }>()
-  const { mutationsAllowed } = useEmrSession()
+  const { mutationsAllowed, refreshPatientBanner } = useEmrSession()
   const [diagnoses, setDiagnoses] = useState<UiDiagnosis[]>([])
   const [selectedDx, setSelectedDx] = useState<UiDiagnosis | null>(null)
   const [viewDxBeforeEdit, setViewDxBeforeEdit] = useState<UiDiagnosis | null>(null)
@@ -189,6 +189,7 @@ export default function PatientDiagnosis() {
         department: selectedDx.department.trim() || undefined,
       }
       await doctorService.createDiagnosis(patientId, payload)
+      refreshPatientBanner()
       await load()
     } catch (e) {
       alert(e instanceof Error ? e.message : "Save failed")

@@ -1,0 +1,15 @@
+# Build frontend from repo root: gcloud builds submit . --config gcp/cloudbuild-web.yaml --substitutions=_IMAGE=REGION-docker.pkg.dev/PROJECT/REPO/techcare-web:TAG
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - Dockerfile.prod
+      - -t
+      - ${_IMAGE}
+      - .
+    dir: frontend
+images:
+  - ${_IMAGE}
+substitutions:
+  _IMAGE: us-central1-docker.pkg.dev/PROJECT/REPO/techcare-web:latest

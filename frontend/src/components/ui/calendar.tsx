@@ -27,6 +27,7 @@ function Calendar({
 
   return (
     <DayPicker
+      locale={enUS}
       showOutsideDays={showOutsideDays}
       locale={locale}
       className={cn(

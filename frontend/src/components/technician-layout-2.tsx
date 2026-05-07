@@ -79,7 +79,7 @@ export function TechnicianLayout2() {
               {patientData ? (
                 <>
                   <p className="font-semibold text-lg">
-                    {patientData.firstName} {patientData.lastName} | {patientData.age}{" "}
+                    {patientData.lastName} {patientData.firstName} | {patientData.age}{" "}
                     {patientData.gender === "M" ? "Male" : "Female"} | BMI: {patientData.bmi ?? "N/A"}
                   </p>
                   {patientData.latestDiagnosis && (

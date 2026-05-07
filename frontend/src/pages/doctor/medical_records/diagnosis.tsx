@@ -218,7 +218,7 @@ export default function PatientDiagnosis() {
       const p: PatientDetail | undefined = res.patient
       if (!p) throw new Error("Fail to load patient information")
 
-      const fullName = `${p.firstName || ""} ${p.lastName || ""}`.trim() || p.username || ""
+      const fullName = `${p.lastName || ""} ${p.firstName || ""}`.trim() || p.username || ""
       const age = p.age != null ? String(p.age) : ""
       const department = (p.inDepartment || (p as any).in_department || "").toString()
 

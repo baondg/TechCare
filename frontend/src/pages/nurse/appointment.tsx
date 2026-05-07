@@ -654,7 +654,7 @@ export default function NurseAppointmentsPage() {
                       </SelectTrigger>
                       <SelectContent>
                         {doctorsForCreate.map((d) => {
-                          const fullName = `${d.firstName || ""} ${d.lastName || ""}`.trim() || d.username
+                          const fullName = `${d.lastName || ""} ${d.firstName || ""}`.trim() || d.username
                           return (
                             <SelectItem key={d.id} value={String(d.id)}>
                               {`Dr. ${fullName}`}
@@ -675,6 +675,7 @@ export default function NurseAppointmentsPage() {
                       className="h-9 w-full min-w-0"
                       disabled={isEditingSlots}
                       placeholder="Pick date"
+                      allowTyping
                     />
                   </div>
                   <div>
@@ -841,7 +842,7 @@ export default function NurseAppointmentsPage() {
                           </SelectTrigger>
                           <SelectContent>
                             {doctorsForDraftRow(row.department).map((d) => {
-                              const fullName = `${d.firstName || ""} ${d.lastName || ""}`.trim() || d.username
+                              const fullName = `${d.lastName || ""} ${d.firstName || ""}`.trim() || d.username
                               return (
                                 <SelectItem key={`${row.id}-doc-${d.id}`} value={String(d.id)}>
                                   Dr. {fullName}
@@ -861,6 +862,7 @@ export default function NurseAppointmentsPage() {
                           onChange={(ymd) => updateDraftRow(row.id, { date: ymd })}
                           className="h-9 w-full min-w-0"
                           placeholder="Pick date"
+                          allowTyping
                 />
               </div>
                       <div className="lg:col-span-2">
@@ -1172,6 +1174,7 @@ export default function NurseAppointmentsPage() {
                 onChange={setShiftRangeStart}
                 className="h-9 w-full"
                 placeholder="Start date"
+                allowTyping
               />
             </div>
             <div className="grid gap-1.5">
@@ -1184,6 +1187,7 @@ export default function NurseAppointmentsPage() {
                 onChange={setShiftRangeEnd}
                 className="h-9 w-full"
                 placeholder="End date"
+                allowTyping
               />
             </div>
           </div>

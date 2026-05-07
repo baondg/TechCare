@@ -126,7 +126,7 @@ export default function NursePatients() {
           }
           return {
             id: "OP" + String(p.id).padStart(9, "0"),
-            name: `${p.firstName || ""} ${p.lastName || ""}`.trim() || String(p.username || "") || `Patient #${p.id}`,
+            name: `${p.lastName || ""} ${p.firstName || ""}`.trim() || String(p.username || "") || `Patient #${p.id}`,
             sex: (p.gender as Patient["sex"]) || null,
             age: String(p.age || ""),
             latestVisit: p.latestVisit ? new Date(String(p.latestVisit)).toLocaleDateString("vi-VN") : "",

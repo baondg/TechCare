@@ -4,9 +4,11 @@ import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "reac
 import { useParams } from "react-router-dom"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { History, FlaskConical, Upload, Pencil, Plus, FileDown, Loader2 } from "lucide-react"
+import { History, FlaskConical, Upload, Pencil, Plus, FileDown, Loader2, Calendar as CalendarIcon } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar } from "@/components/ui/calendar"
 import {
   Table,
   TableHeader,
@@ -25,6 +27,7 @@ import { generateBloodTestPdfBlob } from "@/lib/export-blood-test-pdf"
 import { signingLineFromIso, stampPdfWithExportFooter } from "@/lib/pdf-export-stamp"
 import { evaluateLabMetric } from "@/lib/lab-metric-eval"
 import { useEmrSession } from "@/contexts/emr-session-context"
+import { format, isValid, parse } from "date-fns"
 
 type Row = {
   id: number | "new"
@@ -46,22 +49,37 @@ type PatientContext = {
   diagnosis: string
 }
 
-function toDateInput(iso: string) {
-  if (!iso) return ""
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return ""
-  const pad = (n: number) => String(n).padStart(2, "0")
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(
-    d.getMinutes()
-  )}`
-}
-
 function formatDisplayDate(iso: string) {
   try {
-    return new Date(iso).toLocaleString("vi-VN")
+    const d = new Date(iso)
+    if (Number.isNaN(d.getTime())) return iso
+    return format(d, "dd/MM/yyyy HH:mm")
   } catch {
     return iso
   }
+}
+
+function maskDateTimeInput(raw: string) {
+  const digits = String(raw || "").replace(/\D/g, "").slice(0, 12)
+  if (digits.length <= 2) return digits
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`
+  if (digits.length <= 8) return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`
+  if (digits.length <= 10) return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4, 8)} ${digits.slice(8)}`
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4, 8)} ${digits.slice(8, 10)}:${digits.slice(10)}`
+}
+
+function parseDdMmYyyyHhMmToIso(v: string): string | null {
+  const s = String(v || "").trim()
+  if (!s) return ""
+  if (!/^\d{2}\/\d{2}\/\d{4}\s\d{2}:\d{2}$/.test(s)) return null
+  const d = parse(s, "dd/MM/yyyy HH:mm", new Date())
+  if (!isValid(d) || format(d, "dd/MM/yyyy HH:mm") !== s) return null
+  return d.toISOString()
+}
+
+function safeDateFromIso(iso: string): Date {
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime()) ? new Date() : d
 }
 
 function apiToRow(t: ApiLabTest): Row {
@@ -103,6 +121,8 @@ export default function PatientLab() {
   const [saving, setSaving] = useState(false)
   const [uploadingFile, setUploadingFile] = useState(false)
   const [editMode, setEditMode] = useState(false)
+  const [dateInputValue, setDateInputValue] = useState("")
+  const [datePickerOpen, setDatePickerOpen] = useState(false)
 
   const load = useCallback(async () => {
     if (!patientId) return
@@ -145,7 +165,7 @@ export default function PatientLab() {
       setPatientCtx({
         gender: res.patient?.gender ?? null,
         bmi: typeof res.patient?.bmi === "number" ? res.patient.bmi : null,
-        fullName: `${firstName} ${lastName}`.trim(),
+        fullName: `${lastName} ${firstName}`.trim(),
         age: res.patient?.age != null ? String(res.patient.age) : "",
         department: res.patient?.inDepartment || "",
         diagnosis: res.patient?.latestDiagnosis?.interpretation || "",
@@ -165,6 +185,10 @@ export default function PatientLab() {
   const updateField = <K extends keyof Row>(key: K, value: Row[K]) => {
     setSelected((prev) => (prev ? { ...prev, [key]: value } : prev))
   }
+
+  useEffect(() => {
+    setDateInputValue(selected?.testDateIso ? formatDisplayDate(selected.testDateIso) : "")
+  }, [selected?.id, selected?.testDateIso])
 
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -455,6 +479,17 @@ export default function PatientLab() {
               >
                 <Pencil size={14} /> Edit
               </Button>
+              <Button
+                size="sm"
+                className="btn-gradient"
+                onClick={handleSave}
+                disabled={saving || !formEditable}
+              >
+                Save
+              </Button>
+              <Button size="sm" className="btn-outline" onClick={handleCancel} disabled={saving}>
+                Cancel
+              </Button>
             </div>
           </div>
 
@@ -475,16 +510,106 @@ export default function PatientLab() {
 
                 <div>
                   <label className="text-sm text-slate-600">Date</label>
-                  <input
-                    type="datetime-local"
-                    className="w-full border rounded px-3 py-2"
-                    value={toDateInput(selected.testDateIso)}
-                    readOnly={!formEditable}
-                    onChange={(e) => {
-                      const v = e.target.value
-                      if (v) updateField("testDateIso", new Date(v).toISOString())
-                    }}
-                  />
+                  <div className="relative">
+                    <input
+                      className="w-full border rounded px-3 py-2 pr-10"
+                      value={dateInputValue}
+                      placeholder="dd/mm/yyyy hh:mm"
+                      readOnly={!formEditable}
+                      onChange={(e) => {
+                        const next = maskDateTimeInput(e.target.value)
+                        setDateInputValue(next)
+                        const iso = parseDdMmYyyyHhMmToIso(next)
+                        if (iso !== null) updateField("testDateIso", iso)
+                      }}
+                      onBlur={() => {
+                        const iso = parseDdMmYyyyHhMmToIso(dateInputValue)
+                        if (iso) {
+                          updateField("testDateIso", iso)
+                          setDateInputValue(formatDisplayDate(iso))
+                        }
+                      }}
+                    />
+                    <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2"
+                          disabled={!formEditable}
+                        >
+                          <CalendarIcon className="h-4 w-4 opacity-70" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-2" align="end">
+                        <Calendar
+                          mode="single"
+                          captionLayout="dropdown"
+                          selected={safeDateFromIso(selected.testDateIso)}
+                          onSelect={(d) => {
+                            if (!d) return
+                            const base = selected.testDateIso ? new Date(selected.testDateIso) : new Date()
+                            const merged = new Date(d)
+                            merged.setHours(base.getHours(), base.getMinutes(), 0, 0)
+                            const iso = merged.toISOString()
+                            updateField("testDateIso", iso)
+                            setDateInputValue(formatDisplayDate(iso))
+                            setDatePickerOpen(false)
+                          }}
+                        />
+                        <div className="mt-2 flex gap-2">
+                          <Select
+                            value={String(safeDateFromIso(selected.testDateIso).getHours()).padStart(2, "0")}
+                            onValueChange={(h) => {
+                              const base = selected.testDateIso ? new Date(selected.testDateIso) : new Date()
+                              base.setHours(Number(h))
+                              const iso = base.toISOString()
+                              updateField("testDateIso", iso)
+                              setDateInputValue(formatDisplayDate(iso))
+                            }}
+                          >
+                            <SelectTrigger className="h-8 w-20"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0")).map((h) => (
+                                <SelectItem key={`h-${h}`} value={h}>{h}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Select
+                            value={String(safeDateFromIso(selected.testDateIso).getMinutes()).padStart(2, "0")}
+                            onValueChange={(m) => {
+                              const base = selected.testDateIso ? new Date(selected.testDateIso) : new Date()
+                              base.setMinutes(Number(m))
+                              const iso = base.toISOString()
+                              updateField("testDateIso", iso)
+                              setDateInputValue(formatDisplayDate(iso))
+                            }}
+                          >
+                            <SelectTrigger className="h-8 w-20"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {Array.from({ length: 60 }, (_, i) => String(i).padStart(2, "0")).map((m) => (
+                                <SelectItem key={`m-${m}`} value={m}>{m}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="h-8 px-2 text-xs"
+                            onClick={() => {
+                              const now = new Date()
+                              const iso = now.toISOString()
+                              updateField("testDateIso", iso)
+                              setDateInputValue(formatDisplayDate(iso))
+                            }}
+                          >
+                            Now
+                          </Button>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
                 </div>
               </div>
 
@@ -572,19 +697,6 @@ export default function PatientLab() {
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-2">
-                <Button
-                  size="sm"
-                  className="btn-gradient"
-                  onClick={handleSave}
-                  disabled={saving || !formEditable}
-                >
-                  Save
-                </Button>
-                <Button size="sm" className="btn-outline" onClick={handleCancel} disabled={saving}>
-                  Cancel
-                </Button>
-              </div>
             </>
           )}
         </CardContent>

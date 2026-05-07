@@ -106,7 +106,7 @@ function computeAgeFromDob(dob?: string): number | null {
 }
 
 function patientDisplayName(profile: PatientProfile): string {
-  const n = `${profile.firstName || ""} ${profile.lastName || ""}`.trim()
+  const n = `${profile.lastName || ""} ${profile.firstName || ""}`.trim()
   return n || profile.fullName || "Patient"
 }
 
@@ -569,7 +569,7 @@ export default function PatientHistoryPage() {
     setExportingRegimenId(v.regimenId)
     try {
       const patient = await buildPatientDetailForVisitCard(v)
-      const name = `${patient.firstName || ""} ${patient.lastName || ""}`.trim() || patient.username
+      const name = `${patient.lastName || ""} ${patient.firstName || ""}`.trim() || patient.username
       const ageStr = patient.age != null ? String(patient.age) : "—"
       const latestDiagnosisText = [v.icd10, v.interpretation].filter(Boolean).join(" — ") || "—"
       const vitNote = formatVitalsNoteForVisitExport(v)

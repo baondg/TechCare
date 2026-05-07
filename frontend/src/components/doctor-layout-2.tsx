@@ -24,6 +24,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { YmdEnglishDatePicker } from "@/components/ymd-english-date-picker"
 import {
   Select,
   SelectContent,
@@ -82,7 +83,7 @@ function readSignedInDisplayName(): string {
     const raw = localStorage.getItem("user")
     if (!raw) return ""
     const u = JSON.parse(raw) as { firstName?: string; lastName?: string; username?: string; fullName?: string }
-    const n = `${u.firstName || ""} ${u.lastName || ""}`.trim()
+    const n = `${u.lastName || ""} ${u.firstName || ""}`.trim()
     return n || String(u.fullName || "").trim() || String(u.username || "").trim()
   } catch {
     return ""
@@ -162,7 +163,6 @@ export function DoctorLayout2() {
   const [treatmentsProvided, setTreatmentsProvided] = useState("")
   const [conditionAtTransfer, setConditionAtTransfer] = useState("")
   const [transferObjective, setTransferObjective] = useState("")
-  const [escortInfo, setEscortInfo] = useState("")
   const [clinicRooms, setClinicRooms] = useState<ClinicRoomOption[]>([])
   const [roomsLoading, setRoomsLoading] = useState(false)
   const [transferSubmitting, setTransferSubmitting] = useState(false)
@@ -418,7 +418,7 @@ export function DoctorLayout2() {
     return (
       <div>
         <p className="font-semibold text-lg">
-          {firstName} {lastName} | {age} {gender === "M" ? "Male" : "Female"} | BMI: {bmi ?? "N/A"}
+          {lastName} {firstName} | {age} {gender === "M" ? "Male" : "Female"} | BMI: {bmi ?? "N/A"}
         </p>
         {latestDiagnosis && (
           <p className="text-sm text-slate-600">
@@ -473,7 +473,7 @@ export function DoctorLayout2() {
 
   const followUpPreviewHtml = useMemo(() => {
     if (!finishWizardOpen || finishWizardChoice !== "followup" || !patientData) return ""
-    const patientName = `${patientData.firstName || ""} ${patientData.lastName || ""}`.trim() || "—"
+    const patientName = `${patientData.lastName || ""} ${patientData.firstName || ""}`.trim() || "—"
     const genderLabel =
       patientData.gender === "M" ? "Male" : patientData.gender === "F" ? "Female" : patientData.gender?.trim() || "—"
     const dx = patientData.latestDiagnosis
@@ -523,7 +523,7 @@ export function DoctorLayout2() {
       (finishWizardOpen && finishWizardChoice === "hospital-transfer")
     if (!shouldPreview || !patientData) return ""
     const t = (s: string) => s.trim()
-    const patientName = `${patientData.firstName || ""} ${patientData.lastName || ""}`.trim() || "—"
+    const patientName = `${patientData.lastName || ""} ${patientData.firstName || ""}`.trim() || "—"
     const patientSex =
       patientData.gender === "M" ? "Male" : patientData.gender === "F" ? "Female" : patientData.gender || "—"
 
@@ -537,7 +537,6 @@ export function DoctorLayout2() {
       ...(t(treatmentsProvided) ? { treatmentsProvided: t(treatmentsProvided) } : {}),
       ...(t(conditionAtTransfer) ? { conditionAtTransfer: t(conditionAtTransfer) } : {}),
       ...(t(transferObjective) ? { transferObjective: t(transferObjective) } : {}),
-      ...(t(escortInfo) ? { escortInfo: t(escortInfo) } : {}),
     }
 
     return buildHospitalTransferSlipHtmlDocument({
@@ -573,7 +572,6 @@ export function DoctorLayout2() {
     treatmentsProvided,
     conditionAtTransfer,
     transferObjective,
-    escortInfo,
   ])
 
   const submitTransfer = async () => {
@@ -626,7 +624,6 @@ export function DoctorLayout2() {
             treatmentsProvided: treatmentsProvided.trim() || undefined,
             conditionAtTransfer: conditionAtTransfer.trim() || undefined,
             transferObjective: transferObjective.trim() || undefined,
-            escortInfo: escortInfo.trim() || undefined,
           },
         })
       }
@@ -645,7 +642,6 @@ export function DoctorLayout2() {
       setTreatmentsProvided("")
       setConditionAtTransfer("")
       setTransferObjective("")
-      setEscortInfo("")
     } catch (e) {
       showError(e instanceof Error ? e.message : "Could not record transfer.")
     } finally {
@@ -721,7 +717,6 @@ export function DoctorLayout2() {
             treatmentsProvided: treatmentsProvided.trim() || undefined,
             conditionAtTransfer: conditionAtTransfer.trim() || undefined,
             transferObjective: transferObjective.trim() || undefined,
-            escortInfo: escortInfo.trim() || undefined,
           },
         })
         refreshPatientBanner()
@@ -756,7 +751,7 @@ export function DoctorLayout2() {
 
   const buildFollowUpReexamSlipInputs = useCallback(() => {
     if (!patientData) return null
-    const patientName = `${patientData.firstName || ""} ${patientData.lastName || ""}`.trim() || "—"
+    const patientName = `${patientData.lastName || ""} ${patientData.firstName || ""}`.trim() || "—"
     const genderLabel =
       patientData.gender === "M" ? "Nam" : patientData.gender === "F" ? "Nữ" : patientData.gender?.trim() || "—"
     const dx = patientData.latestDiagnosis
@@ -879,7 +874,12 @@ export function DoctorLayout2() {
                       <Label htmlFor="fu-date">
                         Date <span className="text-red-500">*</span>
                       </Label>
-                      <Input id="fu-date" type="date" value={followDate} onChange={(e) => setFollowDate(e.target.value)} />
+                      <YmdEnglishDatePicker
+                        id="fu-date"
+                        value={followDate}
+                        onChange={setFollowDate}
+                        placeholder="Pick date"
+                      />
                     </div>
                     <div className="grid gap-2">
                       <Label id="fu-time-label">
@@ -1028,101 +1028,6 @@ export function DoctorLayout2() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="h-id">Hospital / referral ID (optional)</Label>
-                      <Input
-                        id="h-id"
-                        value={toHospitalId}
-                        onChange={(e) => setToHospitalId(e.target.value)}
-                        onInput={(e) => setToHospitalId((e.target as HTMLInputElement).value)}
-                        onBlur={(e) => setToHospitalId(e.target.value)}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="h-transport">Transport (optional)</Label>
-                      <Input
-                        id="h-transport"
-                        value={transport}
-                        onChange={(e) => setTransport(e.target.value)}
-                        onInput={(e) => setTransport((e.target as HTMLInputElement).value)}
-                        onBlur={(e) => setTransport(e.target.value)}
-                        placeholder="e.g. ambulance"
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="h-transfer-objective">Transfer objective (optional)</Label>
-                      <Input
-                        id="h-transfer-objective"
-                        value={transferObjective}
-                        onChange={(e) => setTransferObjective(e.target.value)}
-                        onInput={(e) => setTransferObjective((e.target as HTMLInputElement).value)}
-                        onBlur={(e) => setTransferObjective(e.target.value)}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="h-condition">Patient condition at transfer (optional)</Label>
-                      <Input
-                        id="h-condition"
-                        value={conditionAtTransfer}
-                        onChange={(e) => setConditionAtTransfer(e.target.value)}
-                        onInput={(e) => setConditionAtTransfer((e.target as HTMLInputElement).value)}
-                        onBlur={(e) => setConditionAtTransfer(e.target.value)}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="h-summary">Clinical summary (optional)</Label>
-                      <Textarea
-                        id="h-summary"
-                        value={clinicalSummary}
-                        onChange={(e) => setClinicalSummary(e.target.value)}
-                        onInput={(e) => setClinicalSummary((e.target as HTMLTextAreaElement).value)}
-                        onBlur={(e) => setClinicalSummary(e.target.value)}
-                        rows={2}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="h-findings">Key findings (optional)</Label>
-                      <Textarea
-                        id="h-findings"
-                        value={keyFindings}
-                        onChange={(e) => setKeyFindings(e.target.value)}
-                        onInput={(e) => setKeyFindings((e.target as HTMLTextAreaElement).value)}
-                        onBlur={(e) => setKeyFindings(e.target.value)}
-                        rows={2}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="h-tests">Key tests and results (optional)</Label>
-                      <Textarea
-                        id="h-tests"
-                        value={keyTestsSummary}
-                        onChange={(e) => setKeyTestsSummary(e.target.value)}
-                        onInput={(e) => setKeyTestsSummary((e.target as HTMLTextAreaElement).value)}
-                        onBlur={(e) => setKeyTestsSummary(e.target.value)}
-                        rows={2}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="h-treatments">Treatments provided (optional)</Label>
-                      <Textarea
-                        id="h-treatments"
-                        value={treatmentsProvided}
-                        onChange={(e) => setTreatmentsProvided(e.target.value)}
-                        onInput={(e) => setTreatmentsProvided((e.target as HTMLTextAreaElement).value)}
-                        onBlur={(e) => setTreatmentsProvided(e.target.value)}
-                        rows={2}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="h-escort">Escort / handover contact (optional)</Label>
-                      <Input
-                        id="h-escort"
-                        value={escortInfo}
-                        onChange={(e) => setEscortInfo(e.target.value)}
-                        onInput={(e) => setEscortInfo((e.target as HTMLInputElement).value)}
-                        onBlur={(e) => setEscortInfo(e.target.value)}
-                      />
-                    </div>
                   </div>
                 ) : null}
               </div>
@@ -1212,6 +1117,10 @@ export function DoctorLayout2() {
                       <span className="font-medium">{finishWizardDocs.prescriptions?.length || 0}</span>
                     </div>
                     <div className="flex items-center justify-between">
+                      <span className="text-slate-700">Diagnoses</span>
+                      <span className="font-medium">{finishWizardDocs.diagnoses?.length || 0}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
                       <span className="text-slate-700">Lab tests</span>
                       <span className="font-medium">{finishWizardDocs.labTests?.length || 0}</span>
                     </div>
@@ -1222,6 +1131,10 @@ export function DoctorLayout2() {
                     <div className="flex items-center justify-between">
                       <span className="text-slate-700">Hospital transfers</span>
                       <span className="font-medium">{finishWizardDocs.hospitalTransfers?.length || 0}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-700">Follow-up reexam slips</span>
+                      <span className="font-medium">{finishWizardDocs.followUpReexamSlips?.length || 0}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-slate-700">Health tracking slips</span>
@@ -1237,7 +1150,7 @@ export function DoctorLayout2() {
                           return (
                             <div key={rx.id} className="flex items-center justify-between gap-2 rounded-md border bg-slate-50 px-3 py-2">
                               <div className="min-w-0">
-                                <div className="text-slate-800 font-medium truncate">Prescription #{rx.id}</div>
+                                <div className="text-slate-800 font-medium truncate">Prescription</div>
                                 <div className="text-xs text-slate-600">{formatDateTime(rx.prescribedAt)}</div>
                               </div>
                               <Button
@@ -1265,7 +1178,7 @@ export function DoctorLayout2() {
                                       filename: `prescription-${rx.id}.pdf`,
                                       signingTimeDisplay: signingLineFromIso(rx.prescribedAt),
                                     })
-                                    openPdfPreview(blob, filename, `Prescription #${rx.id} (PDF)`)
+                                    openPdfPreview(blob, filename, "Prescription (PDF)")
                                   } catch (e) {
                                     showError(e instanceof Error ? e.message : "Failed to generate PDF")
                                   } finally {
@@ -1285,12 +1198,31 @@ export function DoctorLayout2() {
                       </div>
                     ) : null}
 
+                    {finishWizardDocs.diagnoses?.length ? (
+                      <div className="space-y-1">
+                        <div className="text-xs font-semibold text-slate-600">Diagnoses</div>
+                        {finishWizardDocs.diagnoses.slice(0, 6).map((dx) => (
+                          <div key={dx.id} className="rounded-md border bg-slate-50 px-3 py-2">
+                            <div className="text-slate-800 font-medium truncate">
+                              {dx.icd10 || "—"}{dx.interpretation ? ` - ${dx.interpretation}` : ""}
+                            </div>
+                            <div className="text-xs text-slate-600">
+                              {formatDateTime(dx.diagnosedAt)}{dx.complaint ? ` · ${dx.complaint}` : ""}
+                            </div>
+                          </div>
+                        ))}
+                        {finishWizardDocs.diagnoses.length > 6 ? (
+                          <div className="text-xs text-muted-foreground">…and {finishWizardDocs.diagnoses.length - 6} more</div>
+                        ) : null}
+                      </div>
+                    ) : null}
+
                     {finishWizardDocs.surgeries?.length ? (
                       <div className="space-y-1">
                         <div className="text-xs font-semibold text-slate-600">Surgeries</div>
                         {finishWizardDocs.surgeries.slice(0, 6).map((s) => {
                           const key = `surgery-${s.id}`
-                          const patientLabel = patientData ? `${patientData.firstName || ""} ${patientData.lastName || ""}`.trim() || patientData.username : "—"
+                          const patientLabel = patientData ? `${patientData.lastName || ""} ${patientData.firstName || ""}`.trim() || patientData.username : "—"
                           const latestDiagnosisText = patientData?.latestDiagnosis
                             ? `${patientData.latestDiagnosis.icd10 || "—"} — ${patientData.latestDiagnosis.interpretation || "—"}`
                             : "—"
@@ -1325,7 +1257,7 @@ export function DoctorLayout2() {
                                       filename: `surgery-${s.id}.pdf`,
                                       signingTimeDisplay: signingLineFromIso(s.start),
                                     })
-                                    openPdfPreview(blob, filename, `Surgery #${s.id} (PDF)`)
+                                    openPdfPreview(blob, filename, "Surgery (PDF)")
                                   } catch (e) {
                                     showError(e instanceof Error ? e.message : "Failed to generate PDF")
                                   } finally {
@@ -1350,7 +1282,7 @@ export function DoctorLayout2() {
                         <div className="text-xs font-semibold text-slate-600">Lab tests</div>
                         {finishWizardDocs.labTests.slice(0, 6).map((t) => {
                           const key = `lab-${t.id}`
-                          const patientName = patientData ? `${patientData.firstName || ""} ${patientData.lastName || ""}`.trim() || patientData.username : "—"
+                          const patientName = patientData ? `${patientData.lastName || ""} ${patientData.firstName || ""}`.trim() || patientData.username : "—"
                           const ageStr = patientData?.age != null ? String(patientData.age) : "—"
                           const dxLine = patientData?.latestDiagnosis
                             ? `${patientData.latestDiagnosis.icd10 || "—"} — ${patientData.latestDiagnosis.interpretation || "—"}`
@@ -1383,7 +1315,7 @@ export function DoctorLayout2() {
                                       filename: `lab-${t.id}.pdf`,
                                       signingTimeDisplay: signingLineFromIso(t.testAt),
                                     })
-                                    openPdfPreview(blob, filename, `Lab #${t.id} (PDF)`)
+                                    openPdfPreview(blob, filename, "Lab (PDF)")
                                   } catch (e) {
                                     showError(e instanceof Error ? e.message : "Failed to generate PDF")
                                   } finally {
@@ -1408,7 +1340,7 @@ export function DoctorLayout2() {
                         <div className="text-xs font-semibold text-slate-600">Hospital transfers</div>
                         {finishWizardDocs.hospitalTransfers.slice(0, 6).map((ht) => {
                           const key = `ht-${ht.orderId}`
-                          const patientName = patientData ? `${patientData.firstName || ""} ${patientData.lastName || ""}`.trim() || patientData.username : "—"
+                          const patientName = patientData ? `${patientData.lastName || ""} ${patientData.firstName || ""}`.trim() || patientData.username : "—"
                           const patientSex =
                             patientData?.gender === "M" ? "M" : patientData?.gender === "F" ? "F" : patientData?.gender || undefined
                           return (
@@ -1446,7 +1378,7 @@ export function DoctorLayout2() {
                                       filename: `hospital-transfer-${ht.orderId}.pdf`,
                                       signingTimeDisplay: signingLineFromIso(ht.transferAt),
                                     })
-                                    openPdfPreview(blob, filename, `Hospital transfer #${ht.orderId} (PDF)`)
+                                    openPdfPreview(blob, filename, "Hospital transfer (PDF)")
                                   } catch (e) {
                                     showError(e instanceof Error ? e.message : "Failed to generate PDF")
                                   } finally {
@@ -1466,6 +1398,51 @@ export function DoctorLayout2() {
                       </div>
                     ) : null}
 
+                    {finishWizardDocs.followUpReexamSlips?.length ? (
+                      <div className="space-y-1">
+                        <div className="text-xs font-semibold text-slate-600">Follow-up reexam slips</div>
+                        {finishWizardDocs.followUpReexamSlips.slice(0, 6).map((slipRow) => {
+                          const key = `fup-${slipRow.orderId}`
+                          return (
+                            <div key={slipRow.orderId} className="flex items-center justify-between gap-2 rounded-md border bg-slate-50 px-3 py-2">
+                              <div className="min-w-0">
+                                <div className="text-slate-800 font-medium truncate">Follow-up Slip</div>
+                                <div className="text-xs text-slate-600">{formatDateTime(slipRow.createdAt)}</div>
+                              </div>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                disabled={pdfGeneratingKey === key}
+                                onClick={async () => {
+                                  setPdfGeneratingKey(key)
+                                  try {
+                                    const baseSlip = (slipRow.slip || {}) as Record<string, unknown>
+                                    const { blob, filename } = await generateFollowUpReexamPdfBlob({
+                                      ...(baseSlip as Parameters<typeof generateFollowUpReexamPdfBlob>[0]),
+                                      signingTimeDisplay: buildSigningTimeLine(new Date(slipRow.createdAt)),
+                                      filename: `follow-up-${slipRow.orderId}.pdf`,
+                                    })
+                                    openPdfPreview(blob, filename, "Follow-up slip (PDF)")
+                                  } catch (e) {
+                                    showError(e instanceof Error ? e.message : "Failed to generate PDF")
+                                  } finally {
+                                    setPdfGeneratingKey(null)
+                                  }
+                                }}
+                              >
+                                {pdfGeneratingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                                Preview PDF
+                              </Button>
+                            </div>
+                          )
+                        })}
+                        {finishWizardDocs.followUpReexamSlips.length > 6 ? (
+                          <div className="text-xs text-muted-foreground">…and {finishWizardDocs.followUpReexamSlips.length - 6} more</div>
+                        ) : null}
+                      </div>
+                    ) : null}
+
                     {finishWizardDocs.healthTrackingSlips?.length ? (
                       <div className="space-y-1">
                         <div className="text-xs font-semibold text-slate-600">Health tracking slips</div>
@@ -1474,7 +1451,7 @@ export function DoctorLayout2() {
                           return (
                             <div key={slip.orderId} className="flex items-center justify-between gap-2 rounded-md border bg-slate-50 px-3 py-2">
                               <div className="min-w-0">
-                                <div className="text-slate-800 font-medium truncate">Health Tracking Slip #{slip.orderId}</div>
+                                <div className="text-slate-800 font-medium truncate">Health Tracking Slip</div>
                                 <div className="text-xs text-slate-600">
                                   {formatDateTime(slip.createdAt)} · {slip.rows?.length || 0} row(s)
                                 </div>
@@ -1493,7 +1470,7 @@ export function DoctorLayout2() {
                                       ? `${patientData.latestDiagnosis.icd10 || ""}${patientData.latestDiagnosis.icd10 && patientData.latestDiagnosis.interpretation ? " - " : ""}${patientData.latestDiagnosis.interpretation || ""}`
                                       : ""
                                     const { blob, filename } = await generateHealthInfoTrackingPdfBlob({
-                                      patientName: `${patientData.firstName || ""} ${patientData.lastName || ""}`.trim() || patientData.username || "",
+                                      patientName: `${patientData.lastName || ""} ${patientData.firstName || ""}`.trim() || patientData.username || "",
                                       age: patientData.age == null ? "" : String(patientData.age),
                                       gender: patientData.gender === "M" ? "Male" : patientData.gender === "F" ? "Female" : "",
                                       diagnosis,
@@ -1510,7 +1487,7 @@ export function DoctorLayout2() {
                                       filename: `health-tracking-${slip.orderId}.pdf`,
                                       signingTimeDisplay: signingLineFromIso(slip.createdAt),
                                     })
-                                    openPdfPreview(blob, filename, `Health tracking slip #${slip.orderId} (PDF)`)
+                                    openPdfPreview(blob, filename, "Health tracking slip (PDF)")
                                   } catch (e) {
                                     showError(e instanceof Error ? e.message : "Failed to generate PDF")
                                   } finally {

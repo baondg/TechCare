@@ -11,10 +11,39 @@ const getAuthHeader = () => {
   };
 };
 
+const getSafeRouteByRole = (role?: string): string => {
+  switch ((role || '').toLowerCase()) {
+    case 'admin':
+      return '/admin/dashboard';
+    case 'doctor':
+      return '/doctor/dashboard';
+    case 'nurse':
+      return '/nurse/dashboard';
+    case 'technician':
+      return '/technician/dashboard';
+    case 'patient':
+      return '/patient/dashboard';
+    default:
+      return '/';
+  }
+};
+
 const handleUnauthorized = (status: number) => {
-  if (status === 401 || status === 403) {
+  if (status === 403) {
+    try {
+      const user = JSON.parse(localStorage.getItem('user') || 'null') as { role?: string } | null;
+      window.location.href = getSafeRouteByRole(user?.role);
+      return;
+    } catch {
+      window.location.href = '/';
+      return;
+    }
+  }
+
+  if (status === 401) {
     localStorage.removeItem('authToken');
     localStorage.removeItem('user');
+    localStorage.removeItem('sessionExpiresAt');
     window.location.href = '/login';
   }
 };

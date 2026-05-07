@@ -7,6 +7,23 @@ interface ProtectedRouteProps {
   requiredRole?: string;
 }
 
+const getSafeRedirectByRole = (role?: string): string => {
+  switch (role) {
+    case 'patient':
+      return '/patient/dashboard';
+    case 'doctor':
+      return '/doctor/dashboard';
+    case 'nurse':
+      return '/nurse/dashboard';
+    case 'technician':
+      return '/technician/dashboard';
+    case 'admin':
+      return '/admin/dashboard';
+    default:
+      return '/';
+  }
+};
+
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole }) => {
   const { isAuthenticated, isLoading, user } = useAuth();
   const location = useLocation();
@@ -29,12 +46,13 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requir
 
   // Check role if required
   if (requiredRole && user?.role !== requiredRole) {
-    // Redirect to appropriate dashboard based on user role
-    if (user?.role === 'patient') {
-      return <Navigate to="/patient/dashboard" replace />;
-    } else {
-      return <Navigate to="/admin/dashboard" replace />;
-    }
+    return (
+      <Navigate
+        to={getSafeRedirectByRole(user?.role)}
+        state={{ deniedFrom: location.pathname }}
+        replace
+      />
+    );
   }
 
   return <>{children}</>;

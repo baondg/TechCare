@@ -282,12 +282,15 @@ exports.createAccount = async (req, res) => {
     const { username, roleCode, name, dob, phone, email, enabled, sexCode, doctor } = normalized.data;
     const { firstName, lastName } = splitName(name);
     const idcard = String(Date.now()).slice(-12).padStart(12, '0');
-    const initialPassword = process.env.DEFAULT_ACCOUNT_PASSWORD;
+    const initialPassword =
+      process.env.DEFAULT_ACCOUNT_PASSWORD ||
+      process.env.DEMO_ACCOUNT_PASSWORD ||
+      'Test@1234';
     if (!initialPassword) {
       await tx.rollback();
       return res.status(500).json({
         success: false,
-        message: 'DEFAULT_ACCOUNT_PASSWORD is not configured',
+        message: 'No default account password is configured',
       });
     }
     const hashedPassword = await bcrypt.hash(initialPassword, 12);

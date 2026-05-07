@@ -3,6 +3,7 @@ const router = express.Router();
 const appointmentController = require('../controllers/appointmentController');
 const authenticateToken = require('../middleware/authMiddleware');
 const { authorizeCapability } = require('../middleware/authorizeCapability');
+const { aiRecoveryRateLimit } = require('../middleware/rateLimitMiddleware');
 
 // Public-ish routes (still require auth)
 router.use(authenticateToken);
@@ -38,6 +39,7 @@ router.get('/ai/models', appointmentController.getAiChatModels);
 router.patch('/ai-recommendations/:id/feedback', appointmentController.updateAiRecommendationFeedback);
 router.post('/ai/chat', appointmentController.chatWithAiAndSave);
 router.post('/ai/symptom-analysis', appointmentController.analyzeSymptomsAndSave);
+router.get('/ai/recovery-prediction', aiRecoveryRateLimit, appointmentController.getRecoveryPrediction);
 
 // Create a new appointment
 router.post('/', authorizeCapability('appointments.write.self'), appointmentController.createAppointment);

@@ -257,6 +257,11 @@ exports.aiSymptomRateLimit = buildRateLimiter(
   { maxRequests: 10, windowSeconds: 60 },
   'Too many symptom analysis requests. Please try again later.'
 );
+exports.aiRecoveryRateLimit = buildRateLimiter(
+  'aiRecovery',
+  { maxRequests: 8, windowSeconds: 60 },
+  'Too many recovery prediction requests. Please try again later.'
+);
 exports.appointmentRateLimit = buildRateLimiter(
   'appointment',
   { maxRequests: 10, windowSeconds: 5 * 60 },

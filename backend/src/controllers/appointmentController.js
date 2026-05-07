@@ -141,6 +141,8 @@ const MEDAI_CHAT_ENDPOINT =
   process.env.MEDAI_CHAT_ENDPOINT || `${INTERNAL_API_BASE}/api/ai/chat`;
 const MEDAI_SYMPTOM_ENDPOINT =
   process.env.MEDAI_SYMPTOM_ENDPOINT || `${INTERNAL_API_BASE}/api/ai/symptom-analysis`;
+const MEDAI_RECOVERY_ENDPOINT =
+  process.env.MEDAI_RECOVERY_ENDPOINT || `${INTERNAL_API_BASE}/api/ai/recovery-prediction`;
 
 async function getPatientIdByUserId(userId) {
   const rows = await sequelize.query(
@@ -148,6 +150,292 @@ async function getPatientIdByUserId(userId) {
     { replacements: { userId }, type: QueryTypes.SELECT }
   );
   return rows[0]?.patient_id || null;
+}
+
+/** Parse PATIENT JSON columns (Sequelize may return object or string). */
+function parsePatientJsonField(value) {
+  if (!value) return {};
+  if (typeof value === 'object') return value;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return typeof parsed === 'object' && parsed !== null ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+  return {};
+}
+
+function ageFromDobString(dobRaw) {
+  if (dobRaw == null || String(dobRaw).trim() === '') return null;
+  const s = String(dobRaw).trim();
+  const d = new Date(s.length === 10 ? `${s}T12:00:00` : s);
+  if (Number.isNaN(d.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - d.getFullYear();
+  const md = today.getMonth() - d.getMonth();
+  if (md < 0 || (md === 0 && today.getDate() < d.getDate())) age -= 1;
+  return age >= 0 && age < 130 ? age : null;
+}
+
+function compactPatientContext(obj) {
+  if (obj == null) return obj;
+  if (Array.isArray(obj)) {
+    const out = obj.map(compactPatientContext).filter((x) => x != null && x !== '');
+    return out.length ? out : undefined;
+  }
+  if (typeof obj !== 'object') return obj;
+  const out = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v === undefined || v === null || v === '') continue;
+    const c = compactPatientContext(v);
+    if (c !== undefined && c !== null && !(typeof c === 'object' && !Array.isArray(c) && Object.keys(c).length === 0)) {
+      out[k] = c;
+    }
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+/**
+ * Latest HealthInfo-style context for AI symptom analysis (demographics, vitals, history).
+ * @param {number} patientId PATIENT.patient_id
+ */
+async function buildPatientContextForSymptomAnalysis(patientId) {
+  const pid = Number(patientId);
+  if (!Number.isFinite(pid) || pid <= 0) return {};
+
+  const [pRow] = await sequelize.query(
+    `SELECT
+       p.patient_id AS patientId,
+       p.blood_type AS bloodType,
+       p.allergic_info AS allergicInfo,
+       p.medical_history AS medicalHistory,
+       u.sex AS sex,
+       u.dob AS dob
+     FROM PATIENT p
+     JOIN USER u ON u.id = p.user_id
+     WHERE p.patient_id = :pid
+     LIMIT 1`,
+    { replacements: { pid }, type: QueryTypes.SELECT }
+  );
+
+  const [mr] = await sequelize.query(
+    `SELECT id, time,
+            \`condition\` AS currentSymptoms,
+            blood_pressure AS bloodPressure,
+            heart_rate AS heartRate,
+            temperature,
+            weight,
+            height,
+            respiratory_rate AS respiratoryRate,
+            spo2
+     FROM MEDICAL_RECORD
+     WHERE patient_id = :pid
+     ORDER BY time DESC, id DESC
+     LIMIT 1`,
+    { replacements: { pid }, type: QueryTypes.SELECT }
+  );
+
+  let currentMedications = [];
+  try {
+    const medRows = await sequelize.query(
+      `SELECT DISTINCT TRIM(m.name) AS name
+       FROM MEDICAL_PRESCRIPTION rx
+       JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id
+       JOIN MEDICINE m ON m.id = pd.medicine_id
+       JOIN \`ORDER\` o ON o.id = rx.order_id
+       JOIN TREATMENT t ON t.id = o.treatment_id
+       JOIN REGIMEN r ON r.id = t.regimen_id
+       WHERE r.patient_id = :pid
+         AND CHAR_LENGTH(TRIM(COALESCE(m.name, ''))) > 0
+         AND DATE(rx.time) >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
+       ORDER BY rx.time DESC
+       LIMIT 25`,
+      { replacements: { pid }, type: QueryTypes.SELECT }
+    );
+    currentMedications = medRows.map((r) => String(r.name || '').trim()).filter(Boolean);
+    currentMedications = [...new Set(currentMedications)].slice(0, 15);
+  } catch (e) {
+    console.warn('buildPatientContextForSymptomAnalysis: currentMedications query skipped:', e?.message || e);
+  }
+
+  const allergies = parsePatientJsonField(pRow?.allergicInfo);
+  const history = parsePatientJsonField(pRow?.medicalHistory);
+
+  const height = mr?.height != null ? Number(mr.height) : null;
+  const weight = mr?.weight != null ? Number(mr.weight) : null;
+  const bmi =
+    height && weight && height > 0 ? +((weight / (height / 100) ** 2).toFixed(1)) : null;
+
+  const raw = {
+    demographics: {
+      sex: pRow?.sex != null ? String(pRow.sex) : null,
+      age: ageFromDobString(pRow?.dob),
+      bloodType: pRow?.bloodType != null ? String(pRow.bloodType) : null,
+    },
+    vitalsFromLatestRecord: mr
+      ? {
+          recordId: mr.id != null ? Number(mr.id) : null,
+          recordTime: mr.time || null,
+          heightCm: height,
+          weightKg: weight,
+          bmi,
+          bloodPressure: mr.bloodPressure != null ? String(mr.bloodPressure) : null,
+          heartRate: mr.heartRate != null ? Number(mr.heartRate) : null,
+          respiratoryRate: mr.respiratoryRate != null ? Number(mr.respiratoryRate) : null,
+          temperatureC: mr.temperature != null ? Number(mr.temperature) : null,
+          spo2Percent: mr.spo2 != null ? Number(mr.spo2) : null,
+          symptomsOrNotesInRecord: mr.currentSymptoms != null ? String(mr.currentSymptoms).slice(0, 2000) : null,
+        }
+      : undefined,
+    history: {
+      chronicConditions: Array.isArray(history.chronicConditions) ? history.chronicConditions : [],
+      pastSurgeries: Array.isArray(history.pastSurgeries) ? history.pastSurgeries : [],
+      familyHistory: Array.isArray(history.familyHistory) ? history.familyHistory : [],
+      pastIllnesses: Array.isArray(history.pastIllnesses) ? history.pastIllnesses : [],
+      vaccinations: Array.isArray(history.vaccinations) ? history.vaccinations : [],
+      substanceAbuse: Array.isArray(history.substanceAbuse) ? history.substanceAbuse : [],
+      drugAllergies: Array.isArray(allergies.drugAllergies) ? allergies.drugAllergies : [],
+      foodAllergies: Array.isArray(allergies.foodAllergies) ? allergies.foodAllergies : [],
+      otherAllergies: Array.isArray(allergies.otherAllergies) ? allergies.otherAllergies : [],
+    },
+    currentMedications,
+  };
+
+  return compactPatientContext(raw) || {};
+}
+
+function normalizeRecoveryPredictionPayload(src) {
+  if (!src || typeof src !== 'object') return null;
+  let min = Number(src.predicted_recovery_days_min);
+  let max = Number(src.predicted_recovery_days_max);
+  const single = Number(src.predicted_recovery_days);
+  if (!Number.isFinite(min) && Number.isFinite(single)) min = single;
+  if (!Number.isFinite(max) && Number.isFinite(single)) max = single;
+  if (!Number.isFinite(min)) return null;
+  if (!Number.isFinite(max)) max = min;
+  if (min > max) {
+    const t = min;
+    min = max;
+    max = t;
+  }
+  min = Math.max(1, Math.min(365, Math.round(min)));
+  max = Math.max(1, Math.min(365, Math.round(max)));
+  if (min > max) {
+    const t = min;
+    min = max;
+    max = t;
+  }
+  const c = String(src.confidence || 'low').toLowerCase();
+  const confidence = c === 'high' || c === 'medium' || c === 'low' ? c : 'low';
+  const defaultNote =
+    'This estimate uses limited information; recovery varies by individual. Follow your care team.';
+  const note = String(src.note || '').trim() || defaultNote;
+  const defaultDisclaimer =
+    'This is not medical advice. Always follow your doctor or nurse instructions.';
+  const disclaimer = String(src.disclaimer || '').trim() || defaultDisclaimer;
+  return { daysMin: min, daysMax: max, confidence, note, disclaimer };
+}
+
+/** Recovery AI only when there is a non–general-exam diagnosis and at least one prescribed medicine. */
+async function patientMeetsRecoveryPredictionCriteria(patientId) {
+  const pid = Number(patientId);
+  if (!Number.isFinite(pid) || pid <= 0) return false;
+
+  const summary = await buildClinicalSummaryForRecovery(pid);
+  const icd = String(summary.currentDiagnosis?.icd10 || '').trim().toUpperCase();
+  const interp = String(summary.currentDiagnosis?.interpretation || '').trim();
+  if (!icd && !interp) return false;
+  if (icd === 'Z00.0') return false;
+  const interpLower = interp.toLowerCase();
+  if (!icd && interpLower === 'general examination') return false;
+
+  const [row] = await sequelize.query(
+    `SELECT 1 AS ok
+     FROM MEDICAL_PRESCRIPTION rx
+     INNER JOIN \`ORDER\` o ON o.id = rx.order_id
+     INNER JOIN TREATMENT t ON t.id = o.treatment_id
+     INNER JOIN REGIMEN r ON r.id = t.regimen_id
+     INNER JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id
+     INNER JOIN MEDICINE m ON m.id = pd.medicine_id
+     WHERE r.patient_id = :pid
+       AND CHAR_LENGTH(TRIM(COALESCE(m.name, ''))) > 0
+     LIMIT 1`,
+    { replacements: { pid }, type: QueryTypes.SELECT }
+  );
+  return !!row?.ok;
+}
+
+async function buildClinicalSummaryForRecovery(patientId) {
+  const pid = Number(patientId);
+  if (!Number.isFinite(pid) || pid <= 0) return {};
+
+  const [diag] = await sequelize.query(
+    `SELECT dis.icd_code AS icd10, dis.description AS interpretation
+     FROM TREATMENT t
+     JOIN REGIMEN r ON r.id = t.regimen_id
+     LEFT JOIN DISEASE dis ON dis.id = r.disease_id
+     WHERE r.patient_id = :pid
+     ORDER BY t.time DESC, t.id DESC
+     LIMIT 1`,
+    { replacements: { pid }, type: QueryTypes.SELECT }
+  );
+
+  const [visit] = await sequelize.query(
+    `SELECT t.\`condition\` AS complaint
+     FROM TREATMENT t
+     JOIN REGIMEN r ON r.id = t.regimen_id
+     WHERE r.patient_id = :pid
+     ORDER BY t.time DESC, t.id DESC
+     LIMIT 1`,
+    { replacements: { pid }, type: QueryTypes.SELECT }
+  );
+
+  let recentPrescriptions = [];
+  try {
+    const rxRows = await sequelize.query(
+      `SELECT rx.time AS prescribedAt,
+              GROUP_CONCAT(DISTINCT NULLIF(TRIM(m.name), '') ORDER BY m.name SEPARATOR ', ') AS medicineNames
+       FROM MEDICAL_PRESCRIPTION rx
+       JOIN \`ORDER\` o ON o.id = rx.order_id
+       JOIN TREATMENT t ON t.id = o.treatment_id
+       JOIN REGIMEN r ON r.id = t.regimen_id
+       LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id
+       LEFT JOIN MEDICINE m ON m.id = pd.medicine_id
+       WHERE r.patient_id = :pid
+       GROUP BY rx.order_id, rx.time
+       ORDER BY rx.time DESC
+       LIMIT 3`,
+      { replacements: { pid }, type: QueryTypes.SELECT }
+    );
+    recentPrescriptions = (rxRows || [])
+      .map((row) => ({
+        prescribedAt: row.prescribedAt,
+        medicines: String(row.medicineNames || '')
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean),
+      }))
+      .filter((x) => x.medicines.length > 0);
+  } catch (e) {
+    console.warn('buildClinicalSummaryForRecovery: medications query skipped:', e?.message || e);
+  }
+
+  const out = {};
+  if (diag && (diag.icd10 != null || diag.interpretation != null)) {
+    out.currentDiagnosis = {
+      icd10: diag.icd10 != null ? String(diag.icd10) : '',
+      interpretation: diag.interpretation != null ? String(diag.interpretation) : '',
+    };
+  }
+  if (visit?.complaint && String(visit.complaint).trim()) {
+    out.latestComplaint = String(visit.complaint).trim().slice(0, 2000);
+  }
+  if (recentPrescriptions.length) {
+    out.recentPrescriptions = recentPrescriptions;
+  }
+  return out;
 }
 
 function getAppointmentsListCacheKey(patientPk) {
@@ -646,10 +934,12 @@ exports.chatWithAiAndSave = async (req, res) => {
 
     const selectedModelIdRaw = req.body?.modelId;
     let model = null;
+    let modelFallbackReason = '';
     if (selectedModelIdRaw !== undefined && selectedModelIdRaw !== null && String(selectedModelIdRaw).trim() !== '') {
       model = await getAiModelById(selectedModelIdRaw);
       if (!model?.id) {
-        return res.status(400).json({ success: false, message: 'Selected AI model is invalid or unavailable' });
+        modelFallbackReason = 'selected-model-invalid';
+        model = await getActiveAiModel();
       }
     } else {
       model = await getActiveAiModel();
@@ -738,6 +1028,7 @@ exports.chatWithAiAndSave = async (req, res) => {
       model: { id: Number(model.id), name: model.name || '', provider: model.provider || '' },
       aiFallback,
       aiHint: aiHint || undefined,
+      ...(modelFallbackReason ? { modelFallbackReason } : {}),
     });
   } catch (error) {
     console.error('chatWithAiAndSave error:', error);
@@ -784,12 +1075,14 @@ exports.analyzeSymptomsAndSave = async (req, res) => {
       return res.status(400).json({ success: false, message: 'No AI model configured in AI_MODEL table' });
     }
 
+    const patientContext = await buildPatientContextForSymptomAnalysis(patientId);
+
     let aiResp;
     try {
       aiResp = await fetch(MEDAI_SYMPTOM_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ symptoms }),
+        body: JSON.stringify({ symptoms, patientContext }),
       });
     } catch (upstreamError) {
       return res.status(502).json({
@@ -841,7 +1134,12 @@ exports.analyzeSymptomsAndSave = async (req, res) => {
           time: new Date(),
           modelId: model.id,
           type: 'symptomchecker',
-          content: JSON.stringify({ symptoms, possible_conditions: conditions, recommended_action: recommendedAction }),
+          content: JSON.stringify({
+            symptoms,
+            patientContext,
+            possible_conditions: conditions,
+            recommended_action: recommendedAction,
+          }),
           treatmentId,
           patientId,
         },
@@ -857,6 +1155,152 @@ exports.analyzeSymptomsAndSave = async (req, res) => {
     });
   } catch (error) {
     console.error('analyzeSymptomsAndSave error:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+  }
+};
+
+exports.getRecoveryPrediction = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const patientId = await getPatientIdByUserId(userId);
+    if (!patientId) {
+      return res.status(404).json({ success: false, message: 'Patient profile not found' });
+    }
+
+    const eligible = await patientMeetsRecoveryPredictionCriteria(patientId);
+    if (!eligible) {
+      return res.status(200).json({
+        success: false,
+        eligible: false,
+        message:
+          'Recovery estimates are available only with a recorded diagnosis (other than general check-up) and prescribed treatment.',
+      });
+    }
+
+    const refresh =
+      String(req.query?.refresh || '') === '1' || String(req.query?.refresh || '').toLowerCase() === 'true';
+    const cacheHours = Number(process.env.RECOVERY_PREDICTION_CACHE_HOURS || 24);
+    const cacheMs = Math.max(1, Math.min(168, cacheHours)) * 3600000;
+
+    if (!refresh) {
+      const [cached] = await sequelize.query(
+        `SELECT id, time, content
+         FROM AI_RECOMMENDATION
+         WHERE patient_id = :patientId AND \`Type\` = 'recoveryprediction'
+         ORDER BY time DESC, id DESC
+         LIMIT 1`,
+        { replacements: { patientId }, type: QueryTypes.SELECT }
+      );
+      if (cached?.content != null && cached?.time != null) {
+        const ageMs = Date.now() - new Date(cached.time).getTime();
+        let payload = null;
+        try {
+          payload = typeof cached.content === 'string' ? JSON.parse(cached.content) : cached.content;
+        } catch {
+          payload = null;
+        }
+        if (payload && ageMs >= 0 && ageMs < cacheMs) {
+          const prediction = normalizeRecoveryPredictionPayload(payload);
+          if (prediction) {
+            const meta = payload.aiMeta && typeof payload.aiMeta === 'object' ? payload.aiMeta : {};
+            return res.json({
+              success: true,
+              eligible: true,
+              cached: true,
+              recommendationId: Number(cached.id),
+              prediction,
+              model:
+                meta.model || meta.provider
+                  ? { id: null, name: String(meta.model || ''), provider: String(meta.provider || '') }
+                  : undefined,
+            });
+          }
+        }
+      }
+    }
+
+    const model = await getActiveAiModel();
+    if (!model?.id) {
+      return res.status(400).json({ success: false, message: 'No AI model configured in AI_MODEL table' });
+    }
+
+    const clinicalSummary = await buildClinicalSummaryForRecovery(patientId);
+    const patientContext = await buildPatientContextForSymptomAnalysis(patientId);
+
+    let aiResp;
+    try {
+      aiResp = await fetch(MEDAI_RECOVERY_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clinicalSummary, patientContext }),
+      });
+    } catch (upstreamError) {
+      return res.status(502).json({
+        success: false,
+        message: `Cannot reach recovery prediction service (${MEDAI_RECOVERY_ENDPOINT})`,
+        error: upstreamError?.message || 'Network error',
+      });
+    }
+
+    const aiData = await aiResp.json().catch(() => ({}));
+    if (!aiResp.ok) {
+      return res.status(502).json({
+        success: false,
+        message:
+          aiData?.error ||
+          aiData?.message ||
+          `Recovery prediction service error (${aiResp.status})`,
+        hint: aiData?.hint,
+      });
+    }
+
+    const prediction = normalizeRecoveryPredictionPayload(aiData);
+    if (!prediction) {
+      return res.status(502).json({
+        success: false,
+        message: 'Invalid recovery prediction from AI service',
+        raw: JSON.stringify(aiData).slice(0, 400),
+      });
+    }
+
+    const treatmentId = await getLatestTreatmentIdByPatientId(patientId);
+    const contentObj = {
+      clinicalSummary,
+      patientContext,
+      predicted_recovery_days_min: prediction.daysMin,
+      predicted_recovery_days_max: prediction.daysMax,
+      confidence: prediction.confidence,
+      note: prediction.note,
+      disclaimer: prediction.disclaimer,
+      aiMeta: { provider: aiData.provider || '', model: aiData.model || '' },
+    };
+
+    const [recommendationId] = await sequelize.query(
+      `INSERT INTO AI_RECOMMENDATION (time, model_id, \`Type\`, content, treatment_id, patient_id)
+       VALUES (:time, :modelId, :type, :content, :treatmentId, :patientId)`,
+      {
+        replacements: {
+          time: new Date(),
+          modelId: model.id,
+          type: 'recoveryprediction',
+          content: JSON.stringify(contentObj),
+          treatmentId,
+          patientId,
+        },
+        type: QueryTypes.INSERT,
+      }
+    );
+
+    return res.json({
+      success: true,
+      eligible: true,
+      cached: false,
+      recommendationId: Number(recommendationId),
+      prediction,
+      model: { id: Number(model.id), name: model.name || '', provider: model.provider || '' },
+    });
+  } catch (error) {
+    console.error('getRecoveryPrediction error:', error);
     return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };

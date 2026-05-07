@@ -4,17 +4,19 @@ import { Button } from "@/components/ui/button"
 import { PatientRegistrationForm } from "@/components/patient-registration-form"
 import { useAuth } from "@/contexts/AuthContext"
 import { Link, useNavigate } from "react-router-dom"
+import { useTranslation } from "react-i18next"
 
 export default function RegisterPage() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const { register } = useAuth()
 
   return (
     <PatientRegistrationForm
       showPublicBranding
-      submitButtonLabel="Register!"
-      submitLoadingLabel="Registering..."
-      successMessage="Registration successful! Redirecting..."
+      submitButtonLabel={t("auth.register")}
+      submitLoadingLabel={t("auth.registering")}
+      successMessage={t("auth.registerSuccess")}
       leftFooter={
         <Button
           size="default"
@@ -22,7 +24,7 @@ export default function RegisterPage() {
           asChild
           type="button"
         >
-          <Link to="/login">Back to Login</Link>
+          <Link to="/login">{t("auth.backToLogin")}</Link>
         </Button>
       }
       submitFn={register}

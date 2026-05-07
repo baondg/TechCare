@@ -2,6 +2,8 @@ import "./App.css"
 
 import { lazy, Suspense } from "react"
 import { Route, Routes, useLocation } from "react-router-dom"
+import { ProtectedRoute } from "@/components/ProtectedRoute"
+import { ErrorToastProvider } from "@/components/error-toast-provider"
 
 const LandingPage = lazy(() => import("./LandingPage"))
 const FadeTransition = lazy(() => import("@/components/FadeTransition"))
@@ -104,11 +106,46 @@ function App() {
         <Route path="/patient/notifications" element={<PatientPortalNotificationsPage />} />
 
         {/* Protected Admin Routes */}
-        <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
-        <Route path="/admin/config" element={<SystemConfig />} />
-        <Route path="/admin/ratelimit" element={<RateLimitConfig />} />
-        <Route path="/admin/users" element={<UserManagement />} />
-        <Route path="/admin/feedback" element={<FeedbackManagement />} />
+        <Route
+          path="/admin/dashboard"
+          element={
+            <ProtectedRoute requiredRole="admin">
+              <AdminDashboardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/config"
+          element={
+            <ProtectedRoute requiredRole="admin">
+              <SystemConfig />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/ratelimit"
+          element={
+            <ProtectedRoute requiredRole="admin">
+              <RateLimitConfig />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/users"
+          element={
+            <ProtectedRoute requiredRole="admin">
+              <UserManagement />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/feedback"
+          element={
+            <ProtectedRoute requiredRole="admin">
+              <FeedbackManagement />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Protected doctor Routes */}
         <Route path="/doctor/dashboard" element={<DoctorDashboard />} />
@@ -164,6 +201,7 @@ function App() {
         </div>
       </Suspense>
       {routedContent}
+      <ErrorToastProvider />
     </>
   )
 }

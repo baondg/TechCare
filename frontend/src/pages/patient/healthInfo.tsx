@@ -623,7 +623,7 @@ export default function HealthInfoPage() {
 
   return (
     <PatientLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 px-3 pt-2 md:px-4 md:pt-3 lg:px-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="text-xl font-semibold flex items-center gap-2">
@@ -644,8 +644,8 @@ export default function HealthInfoPage() {
 
           <TabsContent value="records" className="mt-4">
             {/* Data table */}
-            <Card className="flex flex-col h-fit">
-              <CardContent className="flex-1 p-0 overflow-hidden">
+            <Card className="flex flex-col h-fit overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
+              <CardContent className="flex-1 overflow-hidden p-0">
                 <div className="h-full overflow-auto">
                   <Table>
                 <TableHeader

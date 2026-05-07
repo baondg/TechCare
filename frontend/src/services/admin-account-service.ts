@@ -8,12 +8,50 @@ const getAuthHeader = () => {
   }
 }
 
+const getSafeRouteByRole = (role?: string): string => {
+  switch ((role || "").toLowerCase()) {
+    case "admin":
+      return "/admin/dashboard"
+    case "doctor":
+      return "/doctor/dashboard"
+    case "nurse":
+      return "/nurse/dashboard"
+    case "technician":
+      return "/technician/dashboard"
+    case "patient":
+      return "/patient/dashboard"
+    default:
+      return "/"
+  }
+}
+
+const handleAuthFailure = (status: number) => {
+  if (status === 403) {
+    try {
+      const user = JSON.parse(localStorage.getItem("user") || "null") as { role?: string } | null
+      window.location.href = getSafeRouteByRole(user?.role)
+      return
+    } catch {
+      window.location.href = "/"
+      return
+    }
+  }
+
+  localStorage.removeItem("authToken")
+  localStorage.removeItem("user")
+  localStorage.removeItem("sessionExpiresAt")
+  window.location.href = "/login"
+}
+
 async function apiRequest<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     ...options,
     headers: { ...getAuthHeader(), ...(options?.headers || {}) },
   })
   if (!res.ok) {
+    if (res.status === 401 || res.status === 403) {
+      handleAuthFailure(res.status)
+    }
     const err = await res.json().catch(() => ({ message: res.statusText }))
     throw new Error(err.message || "Request failed")
   }

@@ -21,7 +21,7 @@ export default function MainCarousel({ slides }: { slides: JSX.Element[] }) {
   }, [next])
 
   return (
-    <div className="relative overflow-hidden w-full -top-48 min-h-screen">
+    <div className="relative overflow-hidden w-full min-h-[calc(100vh-4rem)]">
       {/* Slide wrapper */}
       <div
         className="flex transition-transform duration-700 ease-out"
@@ -30,7 +30,7 @@ export default function MainCarousel({ slides }: { slides: JSX.Element[] }) {
         {slides.map((Slide, i) => (
           <div
             key={i}
-            className="w-full shrink-0 min-h-screen flex items-center justify-center"
+            className="w-full shrink-0 min-h-[calc(100vh-4rem)] flex items-start justify-center pt-4 md:pt-6"
           >
             {i === index || i === previousIndex || i === nextIndex ? Slide : null}
           </div>

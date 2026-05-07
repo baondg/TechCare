@@ -8,6 +8,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react'
 import type React from 'react'
+import i18n from '@/i18n'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
 
@@ -165,7 +166,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
       })
-      const data = await res.json() as { success?: boolean; token?: string; user?: User; expiresAt?: string; error?: string }
+      let data: { success?: boolean; token?: string; user?: User; expiresAt?: string; error?: string } = {}
+      const contentType = res.headers.get('content-type') || ''
+
+      if (contentType.includes('application/json')) {
+        data = (await res.json()) as {
+          success?: boolean
+          token?: string
+          user?: User
+          expiresAt?: string
+          error?: string
+        }
+      } else {
+        const text = await res.text()
+        data = {
+          success: false,
+          error: text?.trim() || `Unexpected server response (${res.status})`,
+        }
+      }
 
       if (res.ok && data.success && data.token && data.user) {
         localStorage.setItem('authToken', data.token)
@@ -174,9 +192,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(data.user)
         return { success: true }
       }
-      return { success: false, error: data.error ?? 'Login failed' }
+      const fallbackErrorByStatus: Record<number, string> = {
+        400: i18n.t('auth.loginFailed'),
+        401: i18n.t('auth.loginFailed'),
+        423: i18n.t('auth.loginFailed'),
+        429: i18n.t('auth.loginFailed'),
+      }
+      return { success: false, error: data.error ?? fallbackErrorByStatus[res.status] ?? i18n.t('auth.loginFailed') }
     } catch {
-      return { success: false, error: 'Network error. Please try again.' }
+      return { success: false, error: i18n.t('auth.unexpectedError') }
     } finally {
       setIsLoading(false)
     }
@@ -198,9 +222,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(data.user)
         return { success: true }
       }
-      return { success: false, error: data.error ?? 'Registration failed' }
+      return { success: false, error: data.error ?? i18n.t('auth.registrationFailed') }
     } catch {
-      return { success: false, error: 'Network error. Please try again.' }
+      return { success: false, error: i18n.t('auth.unexpectedError') }
     } finally {
       setIsLoading(false)
     }

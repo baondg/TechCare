@@ -19,14 +19,7 @@ import {
 } from "@/services/admin-account-service"
 import { cn } from "@/lib/utils"
 import { usePauseableToast, type PauseableToastEntry } from "@/hooks/usePauseableToast"
-
-const ROLE_FILTER_OPTIONS = [
-  { value: "ADM", label: "Admin" },
-  { value: "DOC", label: "Doctor" },
-  { value: "NUR", label: "Nurse" },
-  { value: "PAT", label: "Patient" },
-  { value: "TEC", label: "Technician" },
-]
+import { useTranslation } from "react-i18next"
 
 interface Patient {
   accountId: number
@@ -106,7 +99,15 @@ function mapAccountToPatientRow(a: AdminAccountRow): Patient {
 }
 
 export default function UserManagement() {
+  const { t } = useTranslation()
   const { toast, isExiting, showSuccess, showError, onMouseEnter, onMouseLeave } = usePauseableToast()
+  const ROLE_FILTER_OPTIONS = [
+    { value: "ADM", label: t("layout.adminPortal") },
+    { value: "DOC", label: t("layout.doctorPortal") },
+    { value: "NUR", label: t("layout.nursePortal") },
+    { value: "PAT", label: t("layout.patientPortal") },
+    { value: "TEC", label: t("layout.technicianPortal") },
+  ]
   const [patients, setPatients] = useState<Patient[]>([])
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null)
   const [formMode, setFormMode] = useState<FormMode>("view")
@@ -142,7 +143,7 @@ export default function UserManagement() {
         })
       } catch (e) {
         console.error("Load accounts failed:", e)
-        showError(e instanceof Error ? e.message : "Failed to load accounts")
+        showError(e instanceof Error ? e.message : t("admin.accounts.failedLoadAccounts"))
       }
     })()
     return () => {
@@ -200,16 +201,16 @@ export default function UserManagement() {
     key: ColumnKey
     label: string
   }[] = [
-    { key: "no", label: "No." },
-    { key: "role", label: "Role" },
-    { key: "userId", label: "User ID" },
-    { key: "name", label: "Name" },
-    { key: "username", label: "Username" },
-    { key: "sex", label: "Sex" },
-    { key: "dob", label: "DOB" },
-    { key: "phone", label: "Phone" },
-    { key: "email", label: "Email" },
-    { key: "enabled", label: "Active" },
+    { key: "no", label: t("admin.accounts.no") },
+    { key: "role", label: t("admin.accounts.role") },
+    { key: "userId", label: t("admin.accounts.userId") },
+    { key: "name", label: t("admin.accounts.name") },
+    { key: "username", label: t("admin.accounts.username") },
+    { key: "sex", label: t("admin.accounts.sex") },
+    { key: "dob", label: t("admin.accounts.dob") },
+    { key: "phone", label: t("admin.accounts.phone") },
+    { key: "email", label: t("admin.accounts.email") },
+    { key: "enabled", label: t("admin.accounts.active") },
   ]
 
   const allColumns = columns.map(c => c.key)

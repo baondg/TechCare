@@ -34,7 +34,7 @@ const aiFeatures = [
 
 export function AIFeatures() {
   return (
-    <section id="ai" className="py-24 md:py-32 relative bg-transparent">
+    <section id="ai" className="relative bg-transparent pt-8 pb-20 md:pt-10 md:pb-24">
       <div className="container px-4">
         <div className="mx-auto max-w-2xl text-center mb-16">
           <div className="group mb-8 inline-flex items-center gap-2 rounded-full  px-5 py-2.5 

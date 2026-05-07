@@ -983,6 +983,29 @@ exports.getClinicRooms = async (_req, res) => {
 };
 
 /**
+ * GET /api/appointments/departments
+ * Master list from DEPARTMENT (nurse slot UI, booking — same source as DOCTOR_DEPARTMENT / CLINIC_ROOM).
+ */
+exports.getDepartments = async (_req, res) => {
+  try {
+    const rows = await sequelize.query(
+      `SELECT id, name
+       FROM DEPARTMENT
+       ORDER BY name ASC`,
+      { type: QueryTypes.SELECT }
+    );
+    const departments = (rows || []).map((r) => ({
+      id: Number(r.id),
+      name: String(r.name || '').trim(),
+    }));
+    return res.json({ success: true, departments });
+  } catch (error) {
+    console.error('Get departments error:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+  }
+};
+
+/**
  * GET /api/appointments/booked-slots?date=YYYY-MM-DD
  * Return already-booked (time, doctor) pairs for a given date.
  */

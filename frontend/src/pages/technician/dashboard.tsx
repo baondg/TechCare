@@ -9,7 +9,6 @@ import {
   FlaskConical,
   AlertCircle,
   UserRound,
-  ArrowRight,
   Loader2,
 } from "lucide-react"
 import { TechnicianLayout } from "@/components/technician-layout"
@@ -47,19 +46,6 @@ export default function TechnicianDashboard() {
   return (
     <TechnicianLayout>
       <div className="space-y-8 max-w-6xl mx-auto">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex gap-2">
-            <Button size="sm" className="btn-gradient gap-1" asChild>
-              <Link to="/technician/patients">
-                Patient List <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
-            </Button>
-            <Button size="sm" variant="outline" asChild>
-              <Link to="/technician/feedback">Feedback</Link>
-            </Button>
-          </div>
-        </div>
-
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Card className="border-cyan-100 shadow-sm">
             <CardHeader className="pb-2">

@@ -21,6 +21,7 @@ import {
   TableCell,
 } from "@/components/ui/table"
 import { doctorService, type SurgeryRecord } from "@/services/doctor-service"
+import { appointmentService, type DoctorOption } from "@/services/appointment-service"
 import { generateSurgeryPdfBlob } from "@/lib/export-surgery-pdf"
 import { signingLineFromIso, stampPdfWithExportFooter } from "@/lib/pdf-export-stamp"
 import {
@@ -58,6 +59,7 @@ type UiSurgery = {
   startIso: string
   endIso: string
   surgeon: string
+  surgeonDoctorId: number | null
   result: string
   note?: string
   isDraft?: boolean
@@ -103,6 +105,7 @@ function mapApi(s: SurgeryRecord): UiSurgery {
     startIso,
     endIso,
     surgeon: s.surgeonName || "",
+    surgeonDoctorId: null,
     result: s.result || "",
     note: s.note || "",
     isDraft: false,
@@ -114,6 +117,7 @@ export default function PatientSurgery() {
   const { mutationsAllowed } = useEmrSession()
   const [surgeries, setSurgeries] = useState<UiSurgery[]>([])
   const [selected, setSelected] = useState<UiSurgery | null>(null)
+  const [doctorOptions, setDoctorOptions] = useState<DoctorOption[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [exportingPdf, setExportingPdf] = useState(false)
@@ -122,6 +126,11 @@ export default function PatientSurgery() {
   const [patientGender, setPatientGender] = useState<string | null>(null)
   const [healthInsuranceId, setHealthInsuranceId] = useState<string | null>(null)
   const [latestDiagnosisText, setLatestDiagnosisText] = useState<string>("—")
+
+  const doctorDisplayName = useCallback((d: DoctorOption) => {
+    const full = `${d.lastName || ""} ${d.firstName || ""}`.trim()
+    return full || d.username || `Doctor #${d.id}`
+  }, [])
 
   const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false)
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null)
@@ -161,7 +170,7 @@ export default function PatientSurgery() {
       ])
       if (patRes?.patient) {
         const p = patRes.patient
-        const name = `${p.firstName || ""} ${p.lastName || ""}`.trim() || p.username || "—"
+        const name = `${p.lastName || ""} ${p.firstName || ""}`.trim() || p.username || "—"
         setPatientLabel(name)
         setPatientAge(p.age ?? null)
         setPatientGender(p.gender ?? null)
@@ -186,9 +195,20 @@ export default function PatientSurgery() {
     }
   }, [patientId])
 
+  const loadDoctors = useCallback(async () => {
+    try {
+      const docs = await appointmentService.getDoctors()
+      setDoctorOptions(docs || [])
+    } catch (e) {
+      console.error(e)
+      setDoctorOptions([])
+    }
+  }, [])
+
   useEffect(() => {
+    loadDoctors()
     load()
-  }, [load])
+  }, [load, loadDoctors])
 
   const patchSelected = (patch: Partial<UiSurgery>) => {
     if (!selected) return
@@ -205,7 +225,8 @@ export default function PatientSurgery() {
       urgency: "MEDIUM",
       startIso: now.toISOString(),
       endIso: end.toISOString(),
-      surgeon: "",
+      surgeon: doctorOptions[0] ? doctorDisplayName(doctorOptions[0]) : "",
+      surgeonDoctorId: doctorOptions[0]?.id ?? null,
       result: "",
       note: "",
       isDraft: true,
@@ -250,6 +271,7 @@ export default function PatientSurgery() {
         type: normalizeSurgeryType(selected.type),
         start: selected.startIso,
         end: selected.endIso,
+        doctorId: selected.surgeonDoctorId ?? undefined,
         surgeonName: selected.surgeon.trim() || null,
         urgency: normalizeUrgency(selected.urgency),
         result: selected.result.trim() || null,
@@ -470,14 +492,28 @@ export default function PatientSurgery() {
                 {canEditFields ? (
                   <div>
                     <label className="text-xs text-slate-500">Surgeon</label>
-                    <input
+                    <select
                       id="surgeon"
-                      className="w-full border rounded px-2 py-1 text-sm"
-                      value={selected.surgeon}
-                      onChange={(e) => patchSelected({ surgeon: e.target.value })}
-                      onInput={(e) => patchSelected({ surgeon: (e.target as HTMLInputElement).value })}
-                      onBlur={(e) => patchSelected({ surgeon: e.target.value })}
-                    />
+                      className="w-full border rounded px-2 py-1 text-sm bg-white"
+                      value={selected.surgeonDoctorId != null ? String(selected.surgeonDoctorId) : ""}
+                      onChange={(e) => {
+                        const did = Number(e.target.value)
+                        const doc = doctorOptions.find((d) => Number(d.id) === did)
+                        patchSelected({
+                          surgeonDoctorId: Number.isFinite(did) ? did : null,
+                          surgeon: doc ? doctorDisplayName(doc) : "",
+                        })
+                      }}
+                    >
+                      <option value="" disabled>
+                        Select doctor
+                      </option>
+                      {doctorOptions.map((d) => (
+                        <option key={d.id} value={String(d.id)}>
+                          {doctorDisplayName(d)}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 ) : (
                   <Field label="Surgeon" value={selected.surgeon} />

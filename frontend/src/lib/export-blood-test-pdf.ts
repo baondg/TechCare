@@ -41,7 +41,8 @@ function escapeHtml(s: string): string {
 }
 
 function slugFilenamePart(s: string): string {
-  return s
+  const safe = String(s ?? "")
+  return safe
     .replace(/[^\w\u00C0-\u024f]+/gi, "-")
     .replace(/^-|-$/g, "")
     .toLowerCase() || "patient"

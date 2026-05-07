@@ -12,8 +12,9 @@ export type FollowUpReexamPdfInputs = FollowUpReexamSlipInputs & {
 }
 
 function slugFilenamePart(s: string): string {
+  const safe = String(s ?? "")
   return (
-    s
+    safe
       .replace(/[^\w\u00C0-\u024f]+/gi, "-")
       .replace(/^-|-$/g, "")
       .toLowerCase() || "patient"

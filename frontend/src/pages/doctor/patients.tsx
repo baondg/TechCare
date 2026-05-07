@@ -72,7 +72,7 @@ export default function DoctorPatients() {
           if (data.success) {
             const mapped = data.patients.map((p: any) => ({
               id: "OP" + String(p.id).padStart(9, "0"),
-              name: `${p.firstName || ""} ${p.lastName || ""}`.trim() || p.username,
+              name: `${p.lastName || ""} ${p.firstName || ""}`.trim() || p.username,
               sex: p.gender,
               age: p.age || 0,
               latestVisit: p.latestVisit

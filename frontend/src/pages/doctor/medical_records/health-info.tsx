@@ -171,8 +171,33 @@ export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps)
   const canAddToMedicalRecord = mode === "doctor" && selectedRecords.length > 0 && !exportingPdf && !addingTrackingSlip
 
   const toArray = (value: unknown): string[] => {
-    if (Array.isArray(value)) return value.filter((item): item is string => typeof item === "string")
-    if (typeof value === "string" && value.trim()) return [value]
+    if (Array.isArray(value)) return value.filter((item): item is string => typeof item === "string").map((s) => s.trim()).filter(Boolean)
+    if (typeof value === "string" && value.trim()) {
+      const raw = value.trim()
+      // Support JSON-array strings stored in DB blobs, e.g. '["A","B"]'
+      if (raw.startsWith("[") && raw.endsWith("]")) {
+        try {
+          const parsed = JSON.parse(raw)
+          if (Array.isArray(parsed)) {
+            return parsed
+              .filter((item): item is string => typeof item === "string")
+              .map((s) => s.trim())
+              .filter(Boolean)
+          }
+        } catch {
+          // fallback below
+        }
+      }
+      return [raw]
+    }
+    return []
+  }
+
+  const pickArrayField = (obj: Record<string, unknown>, ...keys: string[]): string[] => {
+    for (const key of keys) {
+      const list = toArray(obj[key])
+      if (list.length) return list
+    }
     return []
   }
 
@@ -285,7 +310,7 @@ export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps)
         : ""
       const rows = [...selectedRecords].sort((a, b) => a.updatedAt.getTime() - b.updatedAt.getTime())
       const { blob, filename } = await generateHealthInfoTrackingPdfBlob({
-        patientName: `${p.firstName || ""} ${p.lastName || ""}`.trim() || p.username || "",
+        patientName: `${p.lastName || ""} ${p.firstName || ""}`.trim() || p.username || "",
         age: p.age == null ? "" : String(p.age),
         gender: p.gender === "M" ? "Male" : p.gender === "F" ? "Female" : "",
         diagnosis,
@@ -375,17 +400,80 @@ export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps)
     
     try {
       const result = await doctorService.getHealthInfo(patientId)
-      // #region agent log
-      fetch('http://127.0.0.1:7313/ingest/0fad1357-b396-4ed7-94eb-d59495bf0e42',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'73987d'},body:JSON.stringify({sessionId:'73987d',runId:'doctor-healthinfo-initial',hypothesisId:'H3',location:'doctor/medical_records/health-info.tsx:loadHealthInfo',message:'loadHealthInfo result snapshot',data:{success:result?.success,hasHealthInfo:!!result?.healthInfo,keys:result?.healthInfo?Object.keys(result.healthInfo as any):[]},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
-      if (result.success && result.healthInfo) {
-        const info = result.healthInfo as any
-        const patientInfo = (result as any).patientInfo || {}
+
+      if (!result.success) {
+        showError((result as { message?: string }).message || "Failed to load health information")
+        return
+      }
+
+      const patientInfo = (result as { patientInfo?: Record<string, unknown> }).patientInfo || {}
+
+      const patientAllergicInfo = (() => {
+        try {
+          return typeof patientInfo.allergic_info === "string"
+            ? JSON.parse(patientInfo.allergic_info)
+            : ((patientInfo.allergic_info as Record<string, unknown>) || {})
+        } catch {
+          return {}
+        }
+      })()
+
+      const patientMedicalHistory = (() => {
+        try {
+          return typeof patientInfo.medical_history === "string"
+            ? JSON.parse(patientInfo.medical_history)
+            : ((patientInfo.medical_history as Record<string, unknown>) || {})
+        } catch {
+          return {}
+        }
+      })()
+
+      const defaults = {
+        bloodType: normalizePatientBloodTypeForSelect(String(patientInfo.blood_type ?? "")),
+        drugAllergies: pickArrayField(patientAllergicInfo, "drugAllergies", "drug_allergies"),
+        foodAllergies: pickArrayField(patientAllergicInfo, "foodAllergies", "food_allergies"),
+        otherAllergies: pickArrayField(patientAllergicInfo, "otherAllergies", "other_allergies"),
+        chronicConditions: pickArrayField(patientMedicalHistory, "chronicConditions", "chronic_conditions"),
+        pastSurgeries: pickArrayField(patientMedicalHistory, "pastSurgeries", "past_surgeries"),
+        familyHistory: pickArrayField(patientMedicalHistory, "familyHistory", "family_history"),
+        pastIllnesses: pickArrayField(patientMedicalHistory, "pastIllnesses", "past_illnesses"),
+        vaccinations: pickArrayField(patientMedicalHistory, "vaccinations"),
+        substanceAbuse: pickArrayField(patientMedicalHistory, "substanceAbuse", "substance_abuse"),
+      }
+      setPatientInfoDefaults(defaults)
+
+      if (!result.healthInfo) {
+        setCurrentHealthInfoId(null)
+        setSelectedRecord(null)
+        setHeight("")
+        setWeight("")
+        setBpSys("")
+        setBpDia("")
+        setHeartRate("")
+        setRespiratoryRate("")
+        setTemperature("")
+        setSpo2("")
+        setSymptoms("")
+        setBloodType(defaults.bloodType || PATIENT_BLOOD_TYPE_UNSET)
+        setDrugAllergies(defaults.drugAllergies)
+        setFoodAllergies(defaults.foodAllergies)
+        setOtherAllergies(defaults.otherAllergies)
+        setChronicConditions(defaults.chronicConditions)
+        setPastSurgeries(defaults.pastSurgeries)
+        setFamilyHistory(defaults.familyHistory)
+        setPastIllnesses(defaults.pastIllnesses)
+        setVaccinations(defaults.vaccinations)
+        setSubstanceAbuse(defaults.substanceAbuse)
+        return
+      }
+
+      {
+        const info = result.healthInfo as Record<string, unknown>
         const allergicInfo = (() => {
           try {
             return typeof info.allergic_info === "string"
               ? JSON.parse(info.allergic_info)
-              : (info.allergic_info || info.allergicInfo || {})
+              : ((info.allergic_info as Record<string, unknown>) || (info.allergicInfo as Record<string, unknown>) || {})
           } catch {
             return {}
           }
@@ -395,47 +483,13 @@ export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps)
           try {
             return typeof info.medical_history === "string"
               ? JSON.parse(info.medical_history)
-              : (info.medical_history || info.medicalHistory || {})
+              : ((info.medical_history as Record<string, unknown>) || (info.medicalHistory as Record<string, unknown>) || {})
           } catch {
             return {}
           }
         })()
 
-        const patientAllergicInfo = (() => {
-          try {
-            return typeof patientInfo.allergic_info === "string"
-              ? JSON.parse(patientInfo.allergic_info)
-              : (patientInfo.allergic_info || {})
-          } catch {
-            return {}
-          }
-        })()
-
-        const patientMedicalHistory = (() => {
-          try {
-            return typeof patientInfo.medical_history === "string"
-              ? JSON.parse(patientInfo.medical_history)
-              : (patientInfo.medical_history || {})
-          } catch {
-            return {}
-          }
-        })()
-
-        const defaults = {
-          bloodType: normalizePatientBloodTypeForSelect(patientInfo.blood_type ?? ""),
-          drugAllergies: toArray(patientAllergicInfo.drugAllergies),
-          foodAllergies: toArray(patientAllergicInfo.foodAllergies),
-          otherAllergies: toArray(patientAllergicInfo.otherAllergies),
-          chronicConditions: toArray(patientMedicalHistory.chronicConditions),
-          pastSurgeries: toArray(patientMedicalHistory.pastSurgeries),
-          familyHistory: toArray(patientMedicalHistory.familyHistory),
-          pastIllnesses: toArray(patientMedicalHistory.pastIllnesses),
-          vaccinations: toArray(patientMedicalHistory.vaccinations),
-          substanceAbuse: toArray(patientMedicalHistory.substanceAbuse),
-        }
-        setPatientInfoDefaults(defaults)
-
-        setCurrentHealthInfoId(info.id)
+        setCurrentHealthInfoId(Number(info.id))
         setHeight(info.height?.toString() || "")
         setWeight(info.weight?.toString() || "")
         const [sys, dia] = (info.blood_pressure || "0/0").split("/")
@@ -448,25 +502,86 @@ export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps)
         setSymptoms(info.currentSymptoms ?? info.condition ?? "")
         
         // Set allergies (supports both flat fields and allergic_info object)
-        setDrugAllergies(chooseNonEmpty(toArray(info.drugAllergies ?? allergicInfo.drugAllergies), defaults.drugAllergies))
-        setFoodAllergies(chooseNonEmpty(toArray(info.foodAllergies ?? allergicInfo.foodAllergies), defaults.foodAllergies))
-        setOtherAllergies(chooseNonEmpty(toArray(info.otherAllergies ?? allergicInfo.otherAllergies), defaults.otherAllergies))
+        setDrugAllergies(
+          chooseNonEmpty(
+            pickArrayField(info as Record<string, unknown>, "drugAllergies", "drug_allergies").length
+              ? pickArrayField(info as Record<string, unknown>, "drugAllergies", "drug_allergies")
+              : pickArrayField(allergicInfo, "drugAllergies", "drug_allergies"),
+            defaults.drugAllergies,
+          ),
+        )
+        setFoodAllergies(
+          chooseNonEmpty(
+            pickArrayField(info as Record<string, unknown>, "foodAllergies", "food_allergies").length
+              ? pickArrayField(info as Record<string, unknown>, "foodAllergies", "food_allergies")
+              : pickArrayField(allergicInfo, "foodAllergies", "food_allergies"),
+            defaults.foodAllergies,
+          ),
+        )
+        setOtherAllergies(
+          chooseNonEmpty(
+            pickArrayField(info as Record<string, unknown>, "otherAllergies", "other_allergies").length
+              ? pickArrayField(info as Record<string, unknown>, "otherAllergies", "other_allergies")
+              : pickArrayField(allergicInfo, "otherAllergies", "other_allergies"),
+            defaults.otherAllergies,
+          ),
+        )
         
         // Set medical history (supports both flat fields and medical_history object)
-        setChronicConditions(chooseNonEmpty(toArray(info.chronicConditions ?? medicalHistory.chronicConditions), defaults.chronicConditions))
-        setPastSurgeries(chooseNonEmpty(toArray(info.pastSurgeries ?? medicalHistory.pastSurgeries), defaults.pastSurgeries))
-        setFamilyHistory(chooseNonEmpty(toArray(info.familyHistory ?? medicalHistory.familyHistory), defaults.familyHistory))
-        setPastIllnesses(chooseNonEmpty(toArray(info.pastIllnesses ?? medicalHistory.pastIllnesses), defaults.pastIllnesses))
-        setVaccinations(chooseNonEmpty(toArray(info.vaccinations ?? medicalHistory.vaccinations), defaults.vaccinations))
-        setSubstanceAbuse(chooseNonEmpty(toArray(info.substanceAbuse ?? medicalHistory.substanceAbuse), defaults.substanceAbuse))
+        setChronicConditions(
+          chooseNonEmpty(
+            pickArrayField(info as Record<string, unknown>, "chronicConditions", "chronic_conditions").length
+              ? pickArrayField(info as Record<string, unknown>, "chronicConditions", "chronic_conditions")
+              : pickArrayField(medicalHistory, "chronicConditions", "chronic_conditions"),
+            defaults.chronicConditions,
+          ),
+        )
+        setPastSurgeries(
+          chooseNonEmpty(
+            pickArrayField(info as Record<string, unknown>, "pastSurgeries", "past_surgeries").length
+              ? pickArrayField(info as Record<string, unknown>, "pastSurgeries", "past_surgeries")
+              : pickArrayField(medicalHistory, "pastSurgeries", "past_surgeries"),
+            defaults.pastSurgeries,
+          ),
+        )
+        setFamilyHistory(
+          chooseNonEmpty(
+            pickArrayField(info as Record<string, unknown>, "familyHistory", "family_history").length
+              ? pickArrayField(info as Record<string, unknown>, "familyHistory", "family_history")
+              : pickArrayField(medicalHistory, "familyHistory", "family_history"),
+            defaults.familyHistory,
+          ),
+        )
+        setPastIllnesses(
+          chooseNonEmpty(
+            pickArrayField(info as Record<string, unknown>, "pastIllnesses", "past_illnesses").length
+              ? pickArrayField(info as Record<string, unknown>, "pastIllnesses", "past_illnesses")
+              : pickArrayField(medicalHistory, "pastIllnesses", "past_illnesses"),
+            defaults.pastIllnesses,
+          ),
+        )
+        setVaccinations(
+          chooseNonEmpty(
+            pickArrayField(info as Record<string, unknown>, "vaccinations").length
+              ? pickArrayField(info as Record<string, unknown>, "vaccinations")
+              : pickArrayField(medicalHistory, "vaccinations"),
+            defaults.vaccinations,
+          ),
+        )
+        setSubstanceAbuse(
+          chooseNonEmpty(
+            pickArrayField(info as Record<string, unknown>, "substanceAbuse", "substance_abuse").length
+              ? pickArrayField(info as Record<string, unknown>, "substanceAbuse", "substance_abuse")
+              : pickArrayField(medicalHistory, "substanceAbuse", "substance_abuse"),
+            defaults.substanceAbuse,
+          ),
+        )
 
         setBloodType(
           normalizePatientBloodTypeForSelect(
-            info.blood_type ?? info.bloodType ?? patientInfo.blood_type ?? "",
+            String(info.blood_type ?? info.bloodType ?? patientInfo.blood_type ?? ""),
           ),
         )
-      } else {
-        showError("Failed to load health information")
       }
     } catch (err) {
       console.error("Failed to load health info:", err)
@@ -479,12 +594,14 @@ export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps)
 const loadHealthHistory = async () => {
   try {
     const result = await doctorService.getHealthInfoHistory(patientId, 1, 100)
-    // #region agent log
-    fetch('http://127.0.0.1:7313/ingest/0fad1357-b396-4ed7-94eb-d59495bf0e42',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'73987d'},body:JSON.stringify({sessionId:'73987d',runId:'doctor-healthinfo-initial',hypothesisId:'H1',location:'doctor/medical_records/health-info.tsx:loadHealthHistory',message:'history API snapshot',data:{success:result?.success,count:Array.isArray(result?.history)?result.history.length:0,sampleKeys:result?.history?.[0]?Object.keys(result.history[0] as any):[]},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
 
-    if (result.success && result.history) {
-      const records: HealthRecord[] = result.history.map((h: any) => {
+    if (!result.success) {
+      showError((result as { message?: string }).message || "Failed to load health history")
+      return
+    }
+
+    const rows = Array.isArray(result.history) ? result.history : []
+    const records: HealthRecord[] = rows.map((h: any) => {
           const allergicInfo = (() => {
           try {
             return typeof h.allergic_info === "string"
@@ -539,24 +656,38 @@ const loadHealthHistory = async () => {
           bloodType: normalizePatientBloodTypeForSelect(h.blood_type || h.bloodType || ""),
 
           // Support both flat API fields and nested JSON blobs
-          drugAllergies: toArray(h.drugAllergies ?? allergicInfo.drugAllergies),
-          foodAllergies: toArray(h.foodAllergies ?? allergicInfo.foodAllergies),
-          otherAllergies: toArray(h.otherAllergies ?? allergicInfo.otherAllergies),
+          drugAllergies: pickArrayField(h as Record<string, unknown>, "drugAllergies", "drug_allergies").length
+            ? pickArrayField(h as Record<string, unknown>, "drugAllergies", "drug_allergies")
+            : pickArrayField(allergicInfo, "drugAllergies", "drug_allergies"),
+          foodAllergies: pickArrayField(h as Record<string, unknown>, "foodAllergies", "food_allergies").length
+            ? pickArrayField(h as Record<string, unknown>, "foodAllergies", "food_allergies")
+            : pickArrayField(allergicInfo, "foodAllergies", "food_allergies"),
+          otherAllergies: pickArrayField(h as Record<string, unknown>, "otherAllergies", "other_allergies").length
+            ? pickArrayField(h as Record<string, unknown>, "otherAllergies", "other_allergies")
+            : pickArrayField(allergicInfo, "otherAllergies", "other_allergies"),
 
-          chronicConditions: toArray(h.chronicConditions ?? medicalHistory.chronicConditions),
-          pastSurgeries: toArray(h.pastSurgeries ?? medicalHistory.pastSurgeries),
-          familyHistory: toArray(h.familyHistory ?? medicalHistory.familyHistory),
-          pastIllnesses: toArray(h.pastIllnesses ?? medicalHistory.pastIllnesses),
-          vaccinations: toArray(h.vaccinations ?? medicalHistory.vaccinations),
-          substanceAbuse: toArray(h.substanceAbuse ?? medicalHistory.substanceAbuse)
+          chronicConditions: pickArrayField(h as Record<string, unknown>, "chronicConditions", "chronic_conditions").length
+            ? pickArrayField(h as Record<string, unknown>, "chronicConditions", "chronic_conditions")
+            : pickArrayField(medicalHistory, "chronicConditions", "chronic_conditions"),
+          pastSurgeries: pickArrayField(h as Record<string, unknown>, "pastSurgeries", "past_surgeries").length
+            ? pickArrayField(h as Record<string, unknown>, "pastSurgeries", "past_surgeries")
+            : pickArrayField(medicalHistory, "pastSurgeries", "past_surgeries"),
+          familyHistory: pickArrayField(h as Record<string, unknown>, "familyHistory", "family_history").length
+            ? pickArrayField(h as Record<string, unknown>, "familyHistory", "family_history")
+            : pickArrayField(medicalHistory, "familyHistory", "family_history"),
+          pastIllnesses: pickArrayField(h as Record<string, unknown>, "pastIllnesses", "past_illnesses").length
+            ? pickArrayField(h as Record<string, unknown>, "pastIllnesses", "past_illnesses")
+            : pickArrayField(medicalHistory, "pastIllnesses", "past_illnesses"),
+          vaccinations: pickArrayField(h as Record<string, unknown>, "vaccinations").length
+            ? pickArrayField(h as Record<string, unknown>, "vaccinations")
+            : pickArrayField(medicalHistory, "vaccinations"),
+          substanceAbuse: pickArrayField(h as Record<string, unknown>, "substanceAbuse", "substance_abuse").length
+            ? pickArrayField(h as Record<string, unknown>, "substanceAbuse", "substance_abuse")
+            : pickArrayField(medicalHistory, "substanceAbuse", "substance_abuse")
         }
       })
-      // #region agent log
-      fetch('http://127.0.0.1:7313/ingest/0fad1357-b396-4ed7-94eb-d59495bf0e42',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'73987d'},body:JSON.stringify({sessionId:'73987d',runId:'doctor-healthinfo-initial',hypothesisId:'H2',location:'doctor/medical_records/health-info.tsx:loadHealthHistoryMap',message:'mapped record sample',data:{count:records.length,sample:records[0]?{id:records[0].id,bloodType:records[0].bloodType,drugAllergiesLen:records[0].drugAllergies?.length,foodAllergiesLen:records[0].foodAllergies?.length,otherAllergiesLen:records[0].otherAllergies?.length,chronicConditionsLen:records[0].chronicConditions?.length}:null},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
 
-      setHealthHistory(records)
-    }
+    setHealthHistory(records)
   } catch (err) {
     console.error("Failed to load health history:", err)
     showError("Failed to load health history")
@@ -598,9 +729,6 @@ const loadHealthHistory = async () => {
     setPastIllnesses(chooseNonEmpty(record.pastIllnesses || [], patientInfoDefaults.pastIllnesses))
     setVaccinations(chooseNonEmpty(record.vaccinations || [], patientInfoDefaults.vaccinations))
     setSubstanceAbuse(chooseNonEmpty(record.substanceAbuse || [], patientInfoDefaults.substanceAbuse))
-    // #region agent log
-    fetch('http://127.0.0.1:7313/ingest/0fad1357-b396-4ed7-94eb-d59495bf0e42',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'73987d'},body:JSON.stringify({sessionId:'73987d',runId:'doctor-healthinfo-initial',hypothesisId:'H4',location:'doctor/medical_records/health-info.tsx:loadRecordToForm',message:'row selected payload',data:{id:record?.id,bloodType:record?.bloodType,drugAllergiesLen:record?.drugAllergies?.length,foodAllergiesLen:record?.foodAllergies?.length,otherAllergiesLen:record?.otherAllergies?.length,chronicConditionsLen:record?.chronicConditions?.length,pastSurgeriesLen:record?.pastSurgeries?.length},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
   }
 
   const clearForm = () => {

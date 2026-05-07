@@ -139,7 +139,8 @@ export interface Medication {
   /** Days to take the medication (PRESCRIPTION_DETAIL.duration). */
   duration?: string;
   usage: string;
-  unit: 'tablet' | 'capsule' | 'syrup' | 'injection' | 'drop' | 'cream' | 'ointment' | 'powder' | 'spray';
+  /** Raw unit from MEDICINE.unit / PRESCRIPTION_DETAIL.unit (varchar). */
+  unit: string;
   note?: string;
 }
 
@@ -331,6 +332,14 @@ export const doctorService = {
           doctorName: string;
           roomName: string;
         }>;
+        diagnoses: Array<{
+          id: number;
+          diagnosedAt: string;
+          complaint: string;
+          icd10: string;
+          interpretation: string;
+          department: string;
+        }>;
         prescriptions: Array<{
           id: number;
           prescribedAt: string;
@@ -372,6 +381,11 @@ export const doctorService = {
           toHospitalName: string;
           transport: string | null;
           formPayload: Record<string, unknown> | null;
+        }>;
+        followUpReexamSlips: Array<{
+          orderId: number;
+          createdAt: string;
+          slip: Record<string, unknown>;
         }>;
         healthTrackingSlips: Array<{
           orderId: number;
@@ -654,6 +668,7 @@ export const doctorService = {
       type: string;
       start?: string | null;
       end?: string | null;
+      doctorId?: number | null;
       surgeonName?: string | null;
       urgency?: string | null;
       result?: string | null;
@@ -673,6 +688,7 @@ export const doctorService = {
       type: string;
       start: string | null;
       end: string | null;
+      doctorId: number | null;
       surgeonName: string | null;
       urgency: string | null;
       result: string | null;

@@ -15,7 +15,7 @@ export type HealthInfoTrackingRow = {
 export type HealthInfoTrackingPdfResult = { blob: Blob; filename: string }
 
 function escapeHtml(s: string): string {
-  return s
+  return String(s ?? "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -23,7 +23,8 @@ function escapeHtml(s: string): string {
 }
 
 function slugFilenamePart(s: string): string {
-  return s.replace(/[^\w\u00C0-\u024f]+/gi, "-").replace(/^-|-$/g, "") || "patient"
+  const safe = String(s ?? "")
+  return safe.replace(/[^\w\u00C0-\u024f]+/gi, "-").replace(/^-|-$/g, "") || "patient"
 }
 
 const MARGIN_MM = { top: 10, left: 10, bottom: 12, right: 10 }

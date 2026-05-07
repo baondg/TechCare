@@ -301,7 +301,7 @@ exports.login = async (req, res) => {
     const profile = user.User || user.user;
     const firstName = (profile?.first_name || '').trim();
     const lastName = (profile?.last_name || '').trim();
-    const displayName = [firstName, lastName].filter(Boolean).join(' ').trim();
+    const displayName = [lastName, firstName].filter(Boolean).join(' ').trim();
 
     res.json({
       success: true,
@@ -310,7 +310,7 @@ exports.login = async (req, res) => {
         username: user.username,
         firstName: user.User?.first_name,
         lastName: user.User?.last_name,
-        fullName: user.User ? `${user.User.first_name || ''} ${user.User.last_name || ''}`.trim() : null,
+        fullName: user.User ? `${user.User.last_name || ''} ${user.User.first_name || ''}`.trim() : null,
         type: user.type,
         role: role
       },

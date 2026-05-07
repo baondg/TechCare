@@ -531,12 +531,13 @@ async function createTreatmentForPatient({
   roomId: explicitRoomId,
   transaction,
 }) {
-  let regimenId;
-  if (diseaseId != null && Number.isFinite(Number(diseaseId))) {
-    regimenId = await ensureOpenRegimenForDisease(patientId, Number(diseaseId), transaction);
-  } else {
-    regimenId = await getOpenRegimenIdForPatient(patientId, transaction);
-    if (!regimenId) {
+  // Keep a single active visit bucket: if an open regimen exists, append all new papers to it.
+  // Only create disease-specific/new regimen when there is no currently open visit.
+  let regimenId = await getOpenRegimenIdForPatient(patientId, transaction);
+  if (!regimenId) {
+    if (diseaseId != null && Number.isFinite(Number(diseaseId))) {
+      regimenId = await ensureOpenRegimenForDisease(patientId, Number(diseaseId), transaction);
+    } else {
       const zId = await ensureDisease('Z00.0', 'General examination', transaction);
       regimenId = await ensureOpenRegimenForDisease(patientId, zId, transaction);
     }
@@ -1285,7 +1286,7 @@ exports.getActiveRegimenForPatient = async (req, res) => {
 
 /**
  * POST /api/doctor/patients/:patientId/regimen/close
- * Doctor ends the encounter: set REGIMEN.end = NOW() on the latest open visit.
+ * Doctor ends the encounter: set REGIMEN.end = NOW() on all open visits for this patient.
  * Nhắc uống thuốc do scheduler BE (7:00, 12:00, 18:00) dựa trên đơn còn trong duration.
  */
 exports.closeOpenRegimenForPatient = async (req, res) => {
@@ -1297,26 +1298,28 @@ exports.closeOpenRegimenForPatient = async (req, res) => {
     if (!pid) {
       return res.status(400).json({ success: false, message: 'Invalid patient' });
     }
-    const [open] = await sequelize.query(
+    const openRows = await sequelize.query(
       `SELECT id FROM REGIMEN
        WHERE patient_id = :pid AND \`end\` IS NULL
-       ORDER BY \`start\` DESC, id DESC
-       LIMIT 1`,
+       ORDER BY \`start\` DESC, id DESC`,
       { replacements: { pid }, type: QueryTypes.SELECT }
     );
-    if (!open) {
+    if (!openRows.length) {
       return res.status(404).json({
         success: false,
         message: 'No open visit to close. Check-in may not have been completed for this patient.',
       });
     }
-    const regimenId = Number(open.id);
+    const closedRegimenIds = openRows
+      .map((r) => Number(r.id))
+      .filter((id) => Number.isFinite(id) && id > 0);
+    const regimenId = closedRegimenIds[0];
     await sequelize.query(
       `UPDATE REGIMEN SET \`end\` = NOW()
-       WHERE id = :regimenId AND patient_id = :pid AND \`end\` IS NULL`,
-      { replacements: { regimenId, pid }, type: QueryTypes.UPDATE }
+       WHERE patient_id = :pid AND \`end\` IS NULL`,
+      { replacements: { pid }, type: QueryTypes.UPDATE }
     );
-    return res.json({ success: true, regimenId });
+    return res.json({ success: true, regimenId, closedRegimenIds, closedCount: closedRegimenIds.length });
   } catch (error) {
     console.error('Close open regimen error:', error);
     return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
@@ -1464,18 +1467,25 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid patient' });
     }
 
-    const [open] = await sequelize.query(
+    const openRows = await sequelize.query(
       `SELECT id AS regimenId, \`start\` AS regimenStart
        FROM REGIMEN
        WHERE patient_id = :pid AND \`end\` IS NULL
-       ORDER BY \`start\` DESC, id DESC
-       LIMIT 1`,
+       ORDER BY \`start\` DESC, id DESC`,
       { replacements: { pid: patientPk }, type: QueryTypes.SELECT }
     );
+    const open = openRows[0];
     if (!open) {
       return res.json({ success: true, regimen: null });
     }
+    const regimenIds = Array.from(
+      new Set((openRows || []).map((r) => Number(r.regimenId)).filter((id) => Number.isFinite(id) && id > 0))
+    );
+    if (!regimenIds.length) {
+      return res.json({ success: true, regimen: null });
+    }
     const regimenId = Number(open.regimenId);
+    const regimenIdCsv = regimenIds.join(",");
 
     const [treatments, rxRows, labRows, surgeryRows, hospitalTransferRows, trackingSlipRows] = await Promise.all([
       sequelize.query(
@@ -1495,9 +1505,9 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
          LEFT JOIN \`USER\` u ON u.id = d.user_id
          LEFT JOIN ACCOUNT acc ON acc.user_id = d.user_id
          LEFT JOIN CLINIC_ROOM cr ON cr.id = t.room_id
-         WHERE r.patient_id = :patientId AND r.id = :regimenId
+         WHERE r.patient_id = :patientId AND r.id IN (${regimenIdCsv})
          ORDER BY t.time ASC`,
-        { replacements: { patientId: patientPk, regimenId }, type: QueryTypes.SELECT }
+        { replacements: { patientId: patientPk }, type: QueryTypes.SELECT }
       ),
       selectPrescriptionRowsWithDurationFallback(
         sequelize,
@@ -1517,7 +1527,7 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
          JOIN REGIMEN r ON r.id = t.regimen_id
          LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id
          LEFT JOIN MEDICINE m ON m.id = pd.medicine_id
-         WHERE r.patient_id = :patientId AND r.id = :regimenId
+         WHERE r.patient_id = :patientId AND r.id IN (${regimenIdCsv})
          ORDER BY rx.time DESC, pd.no ASC`,
         `SELECT
            o.treatment_id AS treatmentId,
@@ -1534,9 +1544,9 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
          JOIN REGIMEN r ON r.id = t.regimen_id
          LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id
          LEFT JOIN MEDICINE m ON m.id = pd.medicine_id
-         WHERE r.patient_id = :patientId AND r.id = :regimenId
+         WHERE r.patient_id = :patientId AND r.id IN (${regimenIdCsv})
          ORDER BY rx.time DESC, pd.no ASC`,
-        { patientId: patientPk, regimenId }
+        { patientId: patientPk }
       ),
       sequelize.query(
         `SELECT
@@ -1559,9 +1569,9 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
          LEFT JOIN TECHNICIAN te ON te.technician_id = COALESCE(tst.technician_id, p.technician_id)
          LEFT JOIN \`USER\` u ON u.id = te.user_id
          LEFT JOIN ACCOUNT a ON a.user_id = te.user_id
-         WHERE r.patient_id = :patientId AND r.id = :regimenId
+         WHERE r.patient_id = :patientId AND r.id IN (${regimenIdCsv})
          ORDER BY tst.time DESC`,
-        { replacements: { patientId: patientPk, regimenId }, type: QueryTypes.SELECT }
+        { replacements: { patientId: patientPk }, type: QueryTypes.SELECT }
       ),
       sequelize.query(
         `SELECT
@@ -1579,9 +1589,9 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
          JOIN \`ORDER\` o ON o.id = pr.order_id
          JOIN TREATMENT t ON t.id = o.treatment_id
          JOIN REGIMEN r ON r.id = t.regimen_id
-         WHERE r.patient_id = :patientId AND r.id = :regimenId
+         WHERE r.patient_id = :patientId AND r.id IN (${regimenIdCsv})
          ORDER BY s.start DESC`,
-        { replacements: { patientId: patientPk, regimenId }, type: QueryTypes.SELECT }
+        { replacements: { patientId: patientPk }, type: QueryTypes.SELECT }
       ),
       sequelize.query(
         `SELECT
@@ -1598,9 +1608,9 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
          JOIN \`ORDER\` o ON o.treatment_id = t.id
          JOIN TRANSFERENCE tr ON tr.order_id = o.id
          INNER JOIN HOSPITAL_TRANSFERENCE ht ON ht.transference_id = tr.order_id
-         WHERE t.regimen_id = :regimenId
+         WHERE t.regimen_id IN (${regimenIdCsv})
          ORDER BY tr.time ASC`,
-        { replacements: { regimenId }, type: QueryTypes.SELECT }
+        { type: QueryTypes.SELECT }
       ),
       sequelize.query(
         `SELECT
@@ -1618,10 +1628,10 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
          LEFT JOIN DOCTOR d ON d.doctor_id = p.doctor_id
          LEFT JOIN \`USER\` u ON u.id = d.user_id
          LEFT JOIN ACCOUNT acc ON acc.user_id = d.user_id
-         WHERE t.regimen_id = :regimenId
+         WHERE t.regimen_id IN (${regimenIdCsv})
            AND p.type = 'HEALTH_TRACKING_SLIP'
          ORDER BY t.time ASC, o.id ASC`,
-        { replacements: { regimenId }, type: QueryTypes.SELECT }
+        { type: QueryTypes.SELECT }
       ),
     ]);
 
@@ -2308,18 +2318,25 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid patient' });
     }
 
-    const [open] = await sequelize.query(
+    const openRows = await sequelize.query(
       `SELECT id AS regimenId, \`start\` AS regimenStart
        FROM REGIMEN
        WHERE patient_id = :pid AND \`end\` IS NULL
-       ORDER BY \`start\` DESC, id DESC
-       LIMIT 1`,
+       ORDER BY \`start\` DESC, id DESC`,
       { replacements: { pid: patientPk }, type: QueryTypes.SELECT }
     );
+    const [open] = openRows;
     if (!open) {
       return res.json({ success: true, regimen: null });
     }
+    const regimenIds = Array.from(
+      new Set((openRows || []).map((r) => Number(r.regimenId)).filter((id) => Number.isFinite(id) && id > 0))
+    );
+    if (!regimenIds.length) {
+      return res.json({ success: true, regimen: null });
+    }
     const regimenId = Number(open.regimenId);
+    const regimenIdCsv = regimenIds.join(",");
 
     const [treatments, rxRows, labRows, surgeryRows, hospitalTransferRows, trackingSlipRows] = await Promise.all([
       sequelize.query(
@@ -2339,9 +2356,9 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
          LEFT JOIN \`USER\` u ON u.id = d.user_id
          LEFT JOIN ACCOUNT acc ON acc.user_id = d.user_id
          LEFT JOIN CLINIC_ROOM cr ON cr.id = t.room_id
-         WHERE r.patient_id = :patientId AND r.id = :regimenId
+         WHERE r.patient_id = :patientId AND r.id IN (${regimenIdCsv})
          ORDER BY t.time ASC`,
-        { replacements: { patientId: patientPk, regimenId }, type: QueryTypes.SELECT }
+        { replacements: { patientId: patientPk }, type: QueryTypes.SELECT }
       ),
       selectPrescriptionRowsWithDurationFallback(
         sequelize,
@@ -2361,7 +2378,7 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
          JOIN REGIMEN r ON r.id = t.regimen_id
          LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id
          LEFT JOIN MEDICINE m ON m.id = pd.medicine_id
-         WHERE r.patient_id = :patientId AND r.id = :regimenId
+         WHERE r.patient_id = :patientId AND r.id IN (${regimenIdCsv})
          ORDER BY rx.time DESC, pd.no ASC`,
         `SELECT
            o.treatment_id AS treatmentId,
@@ -2378,9 +2395,9 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
          JOIN REGIMEN r ON r.id = t.regimen_id
          LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id
          LEFT JOIN MEDICINE m ON m.id = pd.medicine_id
-         WHERE r.patient_id = :patientId AND r.id = :regimenId
+         WHERE r.patient_id = :patientId AND r.id IN (${regimenIdCsv})
          ORDER BY rx.time DESC, pd.no ASC`,
-        { patientId: patientPk, regimenId }
+        { patientId: patientPk }
       ),
       sequelize.query(
         `SELECT
@@ -2403,9 +2420,9 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
          LEFT JOIN TECHNICIAN te ON te.technician_id = COALESCE(tst.technician_id, p.technician_id)
          LEFT JOIN \`USER\` u ON u.id = te.user_id
          LEFT JOIN ACCOUNT a ON a.user_id = te.user_id
-         WHERE r.patient_id = :patientId AND r.id = :regimenId
+         WHERE r.patient_id = :patientId AND r.id IN (${regimenIdCsv})
          ORDER BY tst.time DESC`,
-        { replacements: { patientId: patientPk, regimenId }, type: QueryTypes.SELECT }
+        { replacements: { patientId: patientPk }, type: QueryTypes.SELECT }
       ),
       sequelize.query(
         `SELECT
@@ -2423,9 +2440,9 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
          JOIN \`ORDER\` o ON o.id = pr.order_id
          JOIN TREATMENT t ON t.id = o.treatment_id
          JOIN REGIMEN r ON r.id = t.regimen_id
-         WHERE r.patient_id = :patientId AND r.id = :regimenId
+         WHERE r.patient_id = :patientId AND r.id IN (${regimenIdCsv})
          ORDER BY s.start DESC`,
-        { replacements: { patientId: patientPk, regimenId }, type: QueryTypes.SELECT }
+        { replacements: { patientId: patientPk }, type: QueryTypes.SELECT }
       ),
       sequelize.query(
         `SELECT
@@ -2442,9 +2459,9 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
          JOIN \`ORDER\` o ON o.treatment_id = t.id
          JOIN TRANSFERENCE tr ON tr.order_id = o.id
          INNER JOIN HOSPITAL_TRANSFERENCE ht ON ht.transference_id = tr.order_id
-         WHERE t.regimen_id = :regimenId
+         WHERE t.regimen_id IN (${regimenIdCsv})
          ORDER BY tr.time ASC`,
-        { replacements: { regimenId }, type: QueryTypes.SELECT }
+        { type: QueryTypes.SELECT }
       ),
       sequelize.query(
         `SELECT
@@ -2462,10 +2479,10 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
          LEFT JOIN DOCTOR d ON d.doctor_id = p.doctor_id
          LEFT JOIN \`USER\` u ON u.id = d.user_id
          LEFT JOIN ACCOUNT acc ON acc.user_id = d.user_id
-         WHERE t.regimen_id = :regimenId
+         WHERE t.regimen_id IN (${regimenIdCsv})
            AND p.type = 'HEALTH_TRACKING_SLIP'
          ORDER BY t.time ASC, o.id ASC`,
-        { replacements: { regimenId }, type: QueryTypes.SELECT }
+        { type: QueryTypes.SELECT }
       ),
     ]);
 
@@ -2948,18 +2965,25 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid patient' });
     }
 
-    const [open] = await sequelize.query(
+    const openRows = await sequelize.query(
       `SELECT id AS regimenId, \`start\` AS regimenStart
        FROM REGIMEN
        WHERE patient_id = :pid AND \`end\` IS NULL
-       ORDER BY \`start\` DESC, id DESC
-       LIMIT 1`,
+       ORDER BY \`start\` DESC, id DESC`,
       { replacements: { pid: patientPk }, type: QueryTypes.SELECT }
     );
+    const [open] = openRows;
     if (!open) {
       return res.json({ success: true, regimen: null });
     }
+    const regimenIds = Array.from(
+      new Set((openRows || []).map((r) => Number(r.regimenId)).filter((id) => Number.isFinite(id) && id > 0))
+    );
+    if (!regimenIds.length) {
+      return res.json({ success: true, regimen: null });
+    }
     const regimenId = Number(open.regimenId);
+    const regimenIdCsv = regimenIds.join(",");
 
     const normalizeJsonColumn = (val) => {
       if (val == null) return null;
@@ -2971,7 +2995,7 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
       }
     };
 
-    const [treatments, rxRows, labRows, surgeryRows, hospitalTransferRows] = await Promise.all([
+    const [treatments, diagnosisRows, rxRows, labRows, surgeryRows, hospitalTransferRows, trackingSlipRows, followUpReexamRows] = await Promise.all([
       sequelize.query(
         `SELECT
            t.id AS treatmentId,
@@ -2989,9 +3013,27 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
          LEFT JOIN \`USER\` u ON u.id = d.user_id
          LEFT JOIN ACCOUNT acc ON acc.user_id = d.user_id
          LEFT JOIN CLINIC_ROOM cr ON cr.id = t.room_id
-         WHERE r.patient_id = :patientId AND r.id = :regimenId
+         WHERE r.patient_id = :patientId AND r.id IN (${regimenIdCsv})
          ORDER BY t.time ASC`,
-        { replacements: { patientId: patientPk, regimenId }, type: QueryTypes.SELECT }
+        { replacements: { patientId: patientPk }, type: QueryTypes.SELECT }
+      ),
+      sequelize.query(
+        `SELECT
+           t.id AS id,
+           t.time AS diagnosedAt,
+           t.\`condition\` AS complaint,
+           dis.icd_code AS icd10,
+           dis.description AS interpretation,
+           COALESCE(NULLIF(TRIM(dep_dx.name), ''), '') AS department
+         FROM TREATMENT t
+         JOIN REGIMEN r ON r.id = t.regimen_id
+         LEFT JOIN DEPARTMENT dep_dx ON dep_dx.id = t.dept_id
+         LEFT JOIN DISEASE dis ON dis.id = r.disease_id
+         WHERE r.patient_id = :patientId
+           AND r.id IN (${regimenIdCsv})
+           ${SQL_AND_TREATMENT_IS_STANDALONE_DIAGNOSIS}
+         ORDER BY t.time DESC`,
+        { replacements: { patientId: patientPk }, type: QueryTypes.SELECT }
       ),
       selectPrescriptionRowsWithDurationFallback(
         sequelize,
@@ -3011,7 +3053,7 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
          JOIN REGIMEN r ON r.id = t.regimen_id
          LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id
          LEFT JOIN MEDICINE m ON m.id = pd.medicine_id
-         WHERE r.patient_id = :patientId AND r.id = :regimenId
+         WHERE r.patient_id = :patientId AND r.id IN (${regimenIdCsv})
          ORDER BY rx.time DESC, pd.no ASC`,
         `SELECT
            o.treatment_id AS treatmentId,
@@ -3028,9 +3070,9 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
          JOIN REGIMEN r ON r.id = t.regimen_id
          LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id
          LEFT JOIN MEDICINE m ON m.id = pd.medicine_id
-         WHERE r.patient_id = :patientId AND r.id = :regimenId
+         WHERE r.patient_id = :patientId AND r.id IN (${regimenIdCsv})
          ORDER BY rx.time DESC, pd.no ASC`,
-        { patientId: patientPk, regimenId }
+        { patientId: patientPk }
       ),
       sequelize.query(
         `SELECT
@@ -3053,9 +3095,9 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
          LEFT JOIN TECHNICIAN te ON te.technician_id = COALESCE(tst.technician_id, p.technician_id)
          LEFT JOIN \`USER\` u ON u.id = te.user_id
          LEFT JOIN ACCOUNT a ON a.user_id = te.user_id
-         WHERE r.patient_id = :patientId AND r.id = :regimenId
+         WHERE r.patient_id = :patientId AND r.id IN (${regimenIdCsv})
          ORDER BY tst.time DESC`,
-        { replacements: { patientId: patientPk, regimenId }, type: QueryTypes.SELECT }
+        { replacements: { patientId: patientPk }, type: QueryTypes.SELECT }
       ),
       sequelize.query(
         `SELECT
@@ -3073,9 +3115,9 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
          JOIN \`ORDER\` o ON o.id = pr.order_id
          JOIN TREATMENT t ON t.id = o.treatment_id
          JOIN REGIMEN r ON r.id = t.regimen_id
-         WHERE r.patient_id = :patientId AND r.id = :regimenId
+         WHERE r.patient_id = :patientId AND r.id IN (${regimenIdCsv})
          ORDER BY s.start DESC`,
-        { replacements: { patientId: patientPk, regimenId }, type: QueryTypes.SELECT }
+        { replacements: { patientId: patientPk }, type: QueryTypes.SELECT }
       ),
       sequelize.query(
         `SELECT
@@ -3092,9 +3134,43 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
          JOIN \`ORDER\` o ON o.treatment_id = t.id
          JOIN TRANSFERENCE tr ON tr.order_id = o.id
          INNER JOIN HOSPITAL_TRANSFERENCE ht ON ht.transference_id = tr.order_id
-         WHERE t.regimen_id = :regimenId
+         WHERE t.regimen_id IN (${regimenIdCsv})
          ORDER BY tr.time ASC`,
-        { replacements: { regimenId }, type: QueryTypes.SELECT }
+        { type: QueryTypes.SELECT }
+      ),
+      sequelize.query(
+        `SELECT
+           o.id AS orderId,
+           t.time AS createdAt,
+           COALESCE(
+             NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''),
+             acc.username,
+             NULL
+           ) AS createdByDoctor,
+           p.note AS payload
+         FROM TREATMENT t
+         JOIN \`ORDER\` o ON o.treatment_id = t.id
+         JOIN PROCEDURE_ p ON p.order_id = o.id
+         LEFT JOIN DOCTOR d ON d.doctor_id = p.doctor_id
+         LEFT JOIN \`USER\` u ON u.id = d.user_id
+         LEFT JOIN ACCOUNT acc ON acc.user_id = d.user_id
+         WHERE t.regimen_id IN (${regimenIdCsv})
+           AND p.type = 'HEALTH_TRACKING_SLIP'
+         ORDER BY t.time ASC, o.id ASC`,
+        { type: QueryTypes.SELECT }
+      ),
+      sequelize.query(
+        `SELECT
+           o.id AS orderId,
+           t.time AS createdAt,
+           p.note AS payload
+         FROM TREATMENT t
+         JOIN \`ORDER\` o ON o.treatment_id = t.id
+         JOIN PROCEDURE_ p ON p.order_id = o.id
+         WHERE t.regimen_id IN (${regimenIdCsv})
+           AND p.type = 'FOLLOW_UP_REEXAM_SLIP'
+         ORDER BY t.time ASC, o.id ASC`,
+        { type: QueryTypes.SELECT }
       ),
     ]);
 
@@ -3131,16 +3207,49 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
       formPayload: normalizeJsonColumn(row.formPayload),
     }));
 
+    const healthTrackingSlips = (trackingSlipRows || []).map((row) => {
+      const payload = normalizeJsonColumn(row.payload);
+      const rows = Array.isArray(payload?.rows) ? payload.rows : [];
+      return {
+        orderId: Number(row.orderId),
+        createdAt: row.createdAt,
+        createdByDoctor: row.createdByDoctor || null,
+        rows: rows.map((r) => ({
+          id: Number(r?.id) || 0,
+          updatedAt: r?.updatedAt || r?.time || row.createdAt,
+          bloodPressure: r?.bloodPressure || '',
+          pulse: Number(r?.pulse) || 0,
+          temperature: Number(r?.temperature) || 0,
+          weight: Number(r?.weight) || 0,
+          respiratoryRate: Number(r?.respiratoryRate) || 0,
+          spo2: Number(r?.spo2) || 0,
+          symptoms: r?.symptoms || '',
+        })),
+        formPayload: payload,
+      };
+    });
+
+    const followUpReexamSlips = (followUpReexamRows || [])
+      .map((row) => ({
+        orderId: Number(row.orderId),
+        createdAt: row.createdAt,
+        slip: normalizeJsonColumn(row.payload),
+      }))
+      .filter((x) => x.orderId > 0 && x.slip && typeof x.slip === 'object');
+
     return res.json({
       success: true,
       regimen: {
         regimenId,
         regimenStart: open.regimenStart,
         treatments: treatments || [],
+        diagnoses: diagnosisRows || [],
         prescriptions: Array.from(rxByOrder.values()),
         labTests: labRows || [],
         surgeries: surgeryRows || [],
         hospitalTransfers: transfers,
+        healthTrackingSlips,
+        followUpReexamSlips,
       },
     });
   } catch (error) {
@@ -4746,7 +4855,7 @@ exports.getSurgeries = async (req, res) => {
          s.type AS type,
          s.start AS start,
          s.end AS end,
-         COALESCE(NULLIF(TRIM(s.surgeon), ''), NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username) AS surgeonName,
+        COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.last_name, ''), ' ', COALESCE(u.first_name, ''))), ''), a.username, '') AS surgeonName,
          s.urgency AS urgency,
          s.result AS result,
          p.note AS note
@@ -4755,7 +4864,7 @@ exports.getSurgeries = async (req, res) => {
        JOIN \`ORDER\` o ON o.id = s.id
        JOIN TREATMENT t ON t.id = o.treatment_id
        JOIN REGIMEN r ON r.id = t.regimen_id
-       LEFT JOIN DOCTOR d ON d.doctor_id = p.doctor_id
+      LEFT JOIN DOCTOR d ON d.doctor_id = COALESCE(s.surgeon, p.doctor_id)
        LEFT JOIN USER u ON u.id = d.user_id
        LEFT JOIN ACCOUNT a ON a.user_id = d.user_id
        WHERE r.patient_id = :patientId
@@ -4777,7 +4886,7 @@ exports.createSurgery = async (req, res) => {
       await transaction.rollback();
       return res.status(400).json({ success: false, message: 'Invalid patient id' });
     }
-    const { type, start, end, surgeonName, urgency, result, note } = req.body;
+    const { type, start, end, doctorId: surgeonDoctorIdInput, surgeonName, urgency, result, note } = req.body;
     const typeStr = normalizeSurgeryTypeInput(type);
     if (!typeStr) {
       await transaction.rollback();
@@ -4832,7 +4941,31 @@ exports.createSurgery = async (req, res) => {
         transaction
       }
     );
-    const surgeonVal = surgeonName != null && String(surgeonName).trim() ? String(surgeonName).trim().slice(0, 120) : null;
+    let surgeonIdForSave = null;
+    let surgeonNameResolved = surgeonName != null && String(surgeonName).trim() ? String(surgeonName).trim().slice(0, 120) : null;
+    const surgeonDoctorId = Number(surgeonDoctorIdInput);
+    if (Number.isFinite(surgeonDoctorId) && surgeonDoctorId > 0) {
+      const surgeonRows = await sequelize.query(
+        `SELECT
+           COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.last_name, ''), ' ', COALESCE(u.first_name, ''))), ''), a.username) AS surgeonName
+         FROM DOCTOR d
+         JOIN USER u ON u.id = d.user_id
+         LEFT JOIN ACCOUNT a ON a.user_id = d.user_id
+         WHERE d.doctor_id = :doctorId
+         LIMIT 1`,
+        {
+          replacements: { doctorId: surgeonDoctorId },
+          type: QueryTypes.SELECT,
+          transaction,
+        }
+      );
+      if (!surgeonRows[0]) {
+        await transaction.rollback();
+        return res.status(400).json({ success: false, message: 'Invalid doctorId for surgeon' });
+      }
+      surgeonIdForSave = surgeonDoctorId;
+      surgeonNameResolved = String(surgeonRows[0].surgeonName || '').trim().slice(0, 120) || surgeonNameResolved;
+    }
     await sequelize.query(
       `INSERT INTO SURGERY (id, duration, start, end, result, type, surgeon, urgency, note)
        VALUES (:id, :duration, :start, :end, :result, :type, :surgeon, :urgency, NULL)`,
@@ -4844,7 +4977,7 @@ exports.createSurgery = async (req, res) => {
           end: endDt,
           result: result != null && String(result).trim() ? String(result).trim() : null,
           type: typeStr,
-          surgeon: surgeonVal,
+          surgeon: surgeonIdForSave,
           urgency: urg
         },
         type: QueryTypes.INSERT,
@@ -4857,7 +4990,7 @@ exports.createSurgery = async (req, res) => {
       type: typeStr,
       start: startDt.toISOString(),
       end: endDt.toISOString(),
-      surgeonName: surgeonVal,
+      surgeonName: surgeonNameResolved,
       urgency: urg,
       result: result != null && String(result).trim() ? String(result).trim() : null,
       note: note != null && String(note).trim() ? String(note).trim() : null
@@ -4891,7 +5024,7 @@ exports.updateSurgery = async (req, res) => {
     if (!exists[0]) {
       return res.status(404).json({ success: false, message: 'Surgery not found' });
     }
-    const { type, start, end, surgeonName, urgency, result, note } = req.body;
+    const { type, start, end, doctorId: surgeonDoctorIdInput, surgeonName, urgency, result, note } = req.body;
 
     const curRows = await sequelize.query(
       'SELECT start, end, type, urgency, surgeon, result FROM SURGERY WHERE id = :id LIMIT 1',
@@ -4924,12 +5057,31 @@ exports.updateSurgery = async (req, res) => {
       const u = String(urgency).toUpperCase();
       nextUrg = ['HIGH', 'MEDIUM', 'LOW'].includes(u) ? u : 'MEDIUM';
     }
-    const nextSurgeon =
+    let nextSurgeonName =
       surgeonName !== undefined
         ? String(surgeonName).trim()
           ? String(surgeonName).trim().slice(0, 120)
           : null
-        : cur.surgeon;
+        : null;
+    let nextSurgeonId = cur.surgeon != null ? Number(cur.surgeon) : null;
+    const surgeonDoctorId = Number(surgeonDoctorIdInput);
+    if (Number.isFinite(surgeonDoctorId) && surgeonDoctorId > 0) {
+      const surgeonRows = await sequelize.query(
+        `SELECT
+           COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.last_name, ''), ' ', COALESCE(u.first_name, ''))), ''), a.username) AS surgeonName
+         FROM DOCTOR d
+         JOIN USER u ON u.id = d.user_id
+         LEFT JOIN ACCOUNT a ON a.user_id = d.user_id
+         WHERE d.doctor_id = :doctorId
+         LIMIT 1`,
+        { replacements: { doctorId: surgeonDoctorId }, type: QueryTypes.SELECT }
+      );
+      if (!surgeonRows[0]) {
+        return res.status(400).json({ success: false, message: 'Invalid doctorId for surgeon' });
+      }
+      nextSurgeonId = surgeonDoctorId;
+      nextSurgeonName = String(surgeonRows[0].surgeonName || '').trim().slice(0, 120) || nextSurgeonName;
+    }
     const nextResult = result !== undefined ? result : cur.result;
 
     await sequelize.query(
@@ -4950,7 +5102,7 @@ exports.updateSurgery = async (req, res) => {
           end: nextEnd,
           duration,
           urgency: nextUrg,
-          surgeon: nextSurgeon,
+          surgeon: nextSurgeonId,
           result: nextResult
         },
         type: QueryTypes.UPDATE
@@ -4987,7 +5139,7 @@ exports.updateSurgery = async (req, res) => {
         type: nextType,
         start: nextStart.toISOString(),
         end: nextEnd.toISOString(),
-        surgeonName: nextSurgeon,
+        surgeonName: nextSurgeonName,
         urgency: nextUrg,
         result: nextResult,
         note: noteFinal != null ? noteFinal : null

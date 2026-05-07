@@ -164,7 +164,7 @@ export default function DoctorPatientHistoryPage() {
     try {
       const res = await doctorService.getPatient(patientId)
       const patient = res.patient
-      const fullName = `${patient.firstName || ""} ${patient.lastName || ""}`.trim() || patient.username
+      const fullName = `${patient.lastName || ""} ${patient.firstName || ""}`.trim() || patient.username
       const ageStr = patient.age != null ? String(patient.age) : "—"
       const latestDiagnosisText = [v.icd10, v.interpretation].filter(Boolean).join(" — ") || "—"
 

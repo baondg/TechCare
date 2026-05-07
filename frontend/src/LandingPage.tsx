@@ -1,4 +1,4 @@
-﻿import { Header } from "@/components/header"
+import { Header } from "@/components/header"
 import { Hero } from "@/components/hero"
 import MainCarousel from "@/components/MainCarousel"
 import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react"
@@ -47,7 +47,7 @@ function DeferredSection({
 
 function App() {
   return (
-    <div className="relative max-h-screen">
+    <div className="relative">
       <div className="relative z-10">
         <Header />
 

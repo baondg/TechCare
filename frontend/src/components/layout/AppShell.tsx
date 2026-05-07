@@ -23,7 +23,7 @@ import { NotificationBell } from '@/components/NotificationBell'
 function sidebarUserLabel(portalLabel: string, user: User | null | undefined): string {
   if (portalLabel === 'Admin Portal') return portalLabel
   if (!user) return 'Guest'
-  const fromNames = [user.firstName, user.lastName].filter(Boolean).join(' ').trim()
+  const fromNames = [user.lastName, user.firstName].filter(Boolean).join(' ').trim()
   if (fromNames) return fromNames
   return (user.fullName || '').trim() || user.username || 'Guest'
 }

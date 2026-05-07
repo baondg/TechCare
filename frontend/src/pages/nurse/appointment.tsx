@@ -20,7 +20,6 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { appointmentService, type ClinicRoomOption, type DoctorOption, type NurseOpenSlot } from "@/services/appointment-service"
 import { getMyWorkShifts } from "@/services/work-shift-service"
-import { PATIENT_IN_DEPARTMENT_OPTIONS } from "@/lib/patient-departments"
 
 function doctorDepartmentsList(d: DoctorOption): string[] {
   if (d.departments?.length) {
@@ -62,16 +61,15 @@ function newDraftRow(dateYmd: string): SlotDraftRow {
   }
 }
 
-function matchDepartmentOption(dbName: string): string {
+/** Map a label from DB/work-shift onto the canonical DEPARTMENT.name list from the API. */
+function matchDepartmentOption(dbName: string, options: string[]): string {
   const raw = String(dbName || "").trim()
-  if (!raw) return PATIENT_IN_DEPARTMENT_OPTIONS[0] ?? ""
+  if (!raw) return options[0] ?? ""
   const low = raw.toLowerCase()
-  const exact = PATIENT_IN_DEPARTMENT_OPTIONS.find((o) => o.toLowerCase() === low)
+  const exact = options.find((o) => o.toLowerCase() === low)
   if (exact) return exact
-  const inc = PATIENT_IN_DEPARTMENT_OPTIONS.find(
-    (o) => low.includes(o.toLowerCase()) || o.toLowerCase().includes(low)
-  )
-  return inc ?? PATIENT_IN_DEPARTMENT_OPTIONS[0] ?? "Outpatient"
+  const inc = options.find((o) => low.includes(o.toLowerCase()) || o.toLowerCase().includes(low))
+  return inc ?? raw
 }
 
 function extractTimeHm(isoLike: string): string {
@@ -129,6 +127,8 @@ export default function NurseAppointmentsPage() {
   const [listDoctorFilter, setListDoctorFilter] = useState<string>("all")
 
   const [doctorOptions, setDoctorOptions] = useState<DoctorOption[]>([])
+  /** Names from DEPARTMENT table (GET /api/appointments/departments) */
+  const [departmentNames, setDepartmentNames] = useState<string[]>([])
   const [roomOptions, setRoomOptions] = useState<ClinicRoomOption[]>([])
   const [slots, setSlots] = useState<NurseOpenSlot[]>([])
   const [loading, setLoading] = useState(false)
@@ -210,17 +210,19 @@ export default function NurseAppointmentsPage() {
     try {
       const monthStart = format(startOfMonth(viewDate), "yyyy-MM-dd")
       const monthEnd = format(endOfMonth(viewDate), "yyyy-MM-dd")
-      const [doctors, rooms, openSlots] = await Promise.all([
+      const [doctors, rooms, openSlots, deptRows] = await Promise.all([
         appointmentService.getDoctors(),
         appointmentService.getClinicRooms(),
         appointmentService.getOpenSlots({
           startDate: monthStart,
           endDate: monthEnd,
         }),
+        appointmentService.getDepartments(),
       ])
       setDoctorOptions(doctors || [])
       setRoomOptions(rooms || [])
       setSlots(openSlots || [])
+      setDepartmentNames((deptRows || []).map((d) => String(d.name || "").trim()).filter(Boolean))
     } catch (e: any) {
       setMessage(e?.message || "Failed to load appointment slots")
     } finally {
@@ -418,7 +420,7 @@ export default function NurseAppointmentsPage() {
         for (const s of dayShifts) {
           rows.push({
             id: newRowId(),
-            department: matchDepartmentOption(s.departmentName),
+            department: matchDepartmentOption(s.departmentName, departmentNames),
             doctorId: String(s.doctorId),
             roomId: String(s.roomId),
             date: ymd,
@@ -495,24 +497,24 @@ export default function NurseAppointmentsPage() {
   }, [doctorOptions, createDepartment])
 
   const departmentsForCreate = useMemo(() => {
-    if (selectedSlotId) return [...PATIENT_IN_DEPARTMENT_OPTIONS]
-    if (!selectedDoctorId) return [...PATIENT_IN_DEPARTMENT_OPTIONS]
+    if (selectedSlotId) return [...departmentNames]
+    if (!selectedDoctorId) return [...departmentNames]
     const doc = doctorOptions.find((d) => String(d.id) === selectedDoctorId)
-    if (!doc) return [...PATIENT_IN_DEPARTMENT_OPTIONS]
-    return PATIENT_IN_DEPARTMENT_OPTIONS.filter((opt) => doctorWorksInDepartment(doc, opt))
-  }, [selectedDoctorId, doctorOptions, selectedSlotId])
+    if (!doc) return [...departmentNames]
+    return departmentNames.filter((opt) => doctorWorksInDepartment(doc, opt))
+  }, [selectedDoctorId, doctorOptions, selectedSlotId, departmentNames])
 
   useEffect(() => {
     if (selectedSlotId) return
     if (!selectedDoctorId) return
     const doc = doctorOptions.find((d) => String(d.id) === selectedDoctorId)
     if (!doc) return
-    const opts = PATIENT_IN_DEPARTMENT_OPTIONS.filter((opt) => doctorWorksInDepartment(doc, opt))
+    const opts = departmentNames.filter((opt) => doctorWorksInDepartment(doc, opt))
     if (opts.length !== 1) return
     if (!createDepartment || !doctorWorksInDepartment(doc, createDepartment)) {
       setCreateDepartment(opts[0])
     }
-  }, [selectedDoctorId, doctorOptions, selectedSlotId, createDepartment])
+  }, [selectedDoctorId, doctorOptions, selectedSlotId, createDepartment, departmentNames])
 
   useEffect(() => {
     if (selectedSlotId) return
@@ -820,7 +822,7 @@ export default function NurseAppointmentsPage() {
                             <SelectValue placeholder="Department" />
                           </SelectTrigger>
                           <SelectContent>
-                            {PATIENT_IN_DEPARTMENT_OPTIONS.map((d) => (
+                            {departmentNames.map((d) => (
                               <SelectItem key={`${row.id}-d-${d}`} value={d}>
                                 {d}
                               </SelectItem>
@@ -1032,7 +1034,7 @@ export default function NurseAppointmentsPage() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All</SelectItem>
-                        {PATIENT_IN_DEPARTMENT_OPTIONS.map((d) => (
+                        {departmentNames.map((d) => (
                           <SelectItem key={`list-dept-${d}`} value={d}>
                             {d}
                           </SelectItem>

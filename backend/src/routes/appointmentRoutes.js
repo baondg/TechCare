@@ -10,6 +10,7 @@ router.use(authenticateToken);
 // Get available doctors (for booking page)
 router.get('/doctors', appointmentController.getDoctors);
 router.get('/clinic-rooms', appointmentController.getClinicRooms);
+router.get('/departments', appointmentController.getDepartments);
 router.get('/patients', appointmentController.getPortalPatients);
 
 // Get already-booked slots for a date

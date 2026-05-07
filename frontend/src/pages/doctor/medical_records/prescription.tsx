@@ -56,47 +56,23 @@ import {
 } from "@/components/ui/dialog"
 import { useEmrSession } from "@/contexts/emr-session-context"
 
-const PRESCRIPTION_UNITS = [
-  "tablet",
-  "capsule",
-  "syrup",
-  "injection",
-  "drop",
-  "cream",
-  "ointment",
-  "powder",
-  "spray",
-] as const
-
-type MedUnit = (typeof PRESCRIPTION_UNITS)[number]
-
 type Medication = {
   name: string
   quantity: string
-  unit: MedUnit
+  unit: string
   /** Số ngày dùng thuốc (PRESCRIPTION_DETAIL.duration). */
   duration: string
   usage: string
   note?: string
 }
 
-function normalizeMedicationUnit(raw: string | null | undefined): MedUnit {
+function normalizeMedicationUnit(raw: string | null | undefined): string {
   const s = String(raw || "")
     .trim()
     .toLowerCase()
   if (!s) return "tablet"
-  const hit = PRESCRIPTION_UNITS.find((u) => u === s || s.startsWith(u) || s.includes(u))
-  if (hit) return hit
-  if (s.includes("cap")) return "capsule"
-  if (s.includes("tab") || s === "viên") return "tablet"
-  if (s.includes("syrup") || s.includes("siro")) return "syrup"
-  if (s.includes("inj") || s.includes("inject") || s.includes("tiêm")) return "injection"
-  if (s.includes("drop") || s.includes("nhỏ giọt")) return "drop"
-  if (s.includes("cream") || s.includes("kem")) return "cream"
-  if (s.includes("oint") || s.includes("mỡ")) return "ointment"
-  if (s.includes("powder") || s.includes("bột")) return "powder"
-  if (s.includes("spray") || s.includes("xịt")) return "spray"
-  return "tablet"
+  // Keep the DB unit label when available (e.g. "application", "vial", "ml")
+  return s
 }
 
 type UiPrescription = {

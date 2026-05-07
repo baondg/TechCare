@@ -25,7 +25,7 @@ import { useTranslation } from 'react-i18next'
 function sidebarUserLabel(portalLabel: string, user: User | null | undefined, guestLabel: string): string {
   if (portalLabel === 'Admin Portal') return portalLabel
   if (!user) return guestLabel
-  const fromNames = [user.firstName, user.lastName].filter(Boolean).join(' ').trim()
+  const fromNames = [user.lastName, user.firstName].filter(Boolean).join(' ').trim()
   if (fromNames) return fromNames
   return (user.fullName || '').trim() || user.username || guestLabel
 }

@@ -1427,6 +1427,29 @@ exports.getClinicRooms = async (_req, res) => {
 };
 
 /**
+ * GET /api/appointments/departments
+ * Master list from DEPARTMENT (nurse slot UI, booking — same source as DOCTOR_DEPARTMENT / CLINIC_ROOM).
+ */
+exports.getDepartments = async (_req, res) => {
+  try {
+    const rows = await sequelize.query(
+      `SELECT id, name
+       FROM DEPARTMENT
+       ORDER BY name ASC`,
+      { type: QueryTypes.SELECT }
+    );
+    const departments = (rows || []).map((r) => ({
+      id: Number(r.id),
+      name: String(r.name || '').trim(),
+    }));
+    return res.json({ success: true, departments });
+  } catch (error) {
+    console.error('Get departments error:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+  }
+};
+
+/**
  * GET /api/appointments/booked-slots?date=YYYY-MM-DD
  * Return already-booked (time, doctor) pairs for a given date.
  */
@@ -1479,7 +1502,7 @@ exports.getOpenSlots = async (req, res) => {
          a.patient_id AS patientId,
          p.user_id AS patientUserId,
          d.doctor_id AS doctorId,
-         COALESCE(NULLIF(TRIM(CONCAT(COALESCE(du.first_name,''), ' ', COALESCE(du.last_name,''))), ''), dacc.username) AS doctorName,
+         COALESCE(NULLIF(TRIM(CONCAT(COALESCE(du.last_name,''), ' ', COALESCE(du.first_name,''))), ''), dacc.username) AS doctorName,
          COALESCE(
            NULLIF(TRIM(dep_room.name), ''),
            (SELECT NULLIF(TRIM(d2.name), '')
@@ -1493,7 +1516,7 @@ exports.getOpenSlots = async (req, res) => {
          ) AS department,
          a.room_id AS roomId,
          COALESCE(cr.name, '') AS roomName,
-         COALESCE(NULLIF(TRIM(CONCAT(COALESCE(pu.first_name,''), ' ', COALESCE(pu.last_name,''))), ''), pacc.username, '') AS patientName
+         COALESCE(NULLIF(TRIM(CONCAT(COALESCE(pu.last_name,''), ' ', COALESCE(pu.first_name,''))), ''), pacc.username, '') AS patientName
        FROM APPOINTMENT a
        JOIN DOCTOR d ON d.doctor_id = a.doctor_id
        JOIN USER du ON du.id = d.user_id
@@ -1991,7 +2014,7 @@ exports.getAppointments = async (req, res) => {
          a.status,
          COALESCE(a.doctor_confirmed, 1) AS doctorConfirmed,
          a.\`condition\` AS symptoms,
-         COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), acc.username, '') AS doctorName,
+         COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.last_name,''), ' ', COALESCE(u.first_name,''))), ''), acc.username, '') AS doctorName,
          COALESCE(d.specifications, '') AS doctorSpecialty,
          COALESCE(cr.name, '') AS roomName,
          COALESCE(dep.name, '') AS roomDepartment

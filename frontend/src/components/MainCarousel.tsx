@@ -57,7 +57,7 @@ export default function MainCarousel({ slides }: { slides: JSX.Element[] }) {
       </button>
 
       {/* Dot indicators */}
-      <div className="absolute bottom-25 w-full flex justify-center gap-2">
+      <div className="absolute bottom-8 z-50 w-full flex justify-center gap-2">
         {slides.map((_, i) => (
           <div
             key={i}

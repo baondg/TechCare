@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
-import { Calendar, Search, Clock, User, ArrowRightFromLine, Loader2, CheckCircle2, MoreVertical } from "lucide-react"
+import { Calendar as CalendarIcon, Clock, User, ArrowRightFromLine, Loader2, CheckCircle2, MoreVertical } from "lucide-react"
 import { DoctorLayout } from "@/components/doctor-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -17,7 +17,8 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { format, parseISO } from "date-fns"
+import { Calendar } from "@/components/ui/calendar"
+import { format, parseISO, parse, isValid } from "date-fns"
 import { useDoctorAppointments } from "@/hooks/useDoctorAppointments"
 import { Link } from "react-router-dom"
 import { appointmentService, type DoctorOption } from "@/services/appointment-service"
@@ -51,7 +52,9 @@ function doctorWorksInDepartment(d: DoctorOption, dept: string): boolean {
 
 export default function DoctorAppointmentsPage() {
   const [startDate, setStartDate] = useState("")
+  const [startDateValue, setStartDateValue] = useState<Date | undefined>()
   const [endDate, setEndDate] = useState("")
+  const [endDateValue, setEndDateValue] = useState<Date | undefined>()
   const [doctorOptions, setDoctorOptions] = useState<DoctorOption[]>([])
   const [coverOpen, setCoverOpen] = useState(false)
   const [coverTarget, setCoverTarget] = useState<DoctorAppointment | null>(null)
@@ -68,6 +71,21 @@ export default function DoctorAppointmentsPage() {
 
   const { toast, isExiting, showSuccess, showError, onMouseEnter, onMouseLeave } = usePauseableToast(2600)
   const { appointments, loading, refresh, confirm, cancelConfirmed } = useDoctorAppointments()
+
+  const formatDateInput = (value: string) => {
+    const digits = value.replace(/\D/g, "").slice(0, 8)
+    if (digits.length <= 2) return digits
+    if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`
+    return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`
+  }
+
+  const parseDateInput = (value: string) => {
+    if (!value) return undefined
+    const parsedDate = parse(value, "dd/MM/yyyy", new Date())
+    if (!isValid(parsedDate)) return undefined
+    if (format(parsedDate, "dd/MM/yyyy") !== value) return undefined
+    return parsedDate
+  }
 
   useEffect(() => {
     void (async () => {
@@ -190,42 +208,89 @@ export default function DoctorAppointmentsPage() {
   return (
     <DoctorLayout>
       <div className="space-y-8">
-        <div>
-          <h2 className="text-3xl font-bold bg-linear-to-r from-[#06b6d4] via-[#0891b2] to-[#06b6d4] bg-clip-text text-transparent mb-2">
-            My Appointments
-          </h2>
-        </div>
-
         <Card className="card-feature border-slate-200/60">
           <CardContent className="p-6 flex items-center gap-4">
-            <div className="relative max-w-xs">
-              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+            <div className="relative flex-1 max-w-xs">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400"
+                    aria-label="Open start date calendar"
+                  >
+                    <CalendarIcon className="w-5 h-5" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="p-0">
+                  <Calendar
+                    mode="single"
+                    selected={startDateValue}
+                    onSelect={(selectedDate) => {
+                      setStartDateValue(selectedDate)
+                      setStartDate(selectedDate ? format(selectedDate, "dd/MM/yyyy") : "")
+                    }}
+                    captionLayout="dropdown"
+                  />
+                </PopoverContent>
+              </Popover>
               <Input
                 type="text"
                 placeholder="dd/mm/yyyy"
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="pl-10 h-12"
+                onChange={(e) => {
+                  const formattedInput = formatDateInput(e.target.value)
+                  setStartDate(formattedInput)
+                  if (formattedInput.length === 10) {
+                    setStartDateValue(parseDateInput(formattedInput))
+                  }
+                }}
+                className="pl-10 h-12 text-base"
               />
             </div>
 
             <span className="text-slate-400">to</span>
 
-            <div className="relative max-w-xs">
-              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+            <div className="relative flex-1 max-w-xs">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400"
+                    aria-label="Open end date calendar"
+                  >
+                    <CalendarIcon className="w-5 h-5" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="p-0">
+                  <Calendar
+                    mode="single"
+                    selected={endDateValue}
+                    onSelect={(selectedDate) => {
+                      setEndDateValue(selectedDate)
+                      setEndDate(selectedDate ? format(selectedDate, "dd/MM/yyyy") : "")
+                    }}
+                    captionLayout="dropdown"
+                  />
+                </PopoverContent>
+              </Popover>
               <Input
                 type="text"
                 placeholder="dd/mm/yyyy"
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="pl-10 h-12"
+                onChange={(e) => {
+                  const formattedInput = formatDateInput(e.target.value)
+                  setEndDate(formattedInput)
+                  if (formattedInput.length === 10) {
+                    setEndDateValue(parseDateInput(formattedInput))
+                  }
+                }}
+                className="pl-10 h-12 text-base"
               />
             </div>
-
-            <Button type="button" variant="outline">
-              <Search className="w-5 h-5 mr-2" />
-              Filter
-            </Button>
           </CardContent>
         </Card>
 
@@ -425,7 +490,7 @@ export default function DoctorAppointmentsPage() {
                   </SelectTrigger>
                   <SelectContent>
                     {coverCandidates.map((d) => {
-                      const fullName = `${d.firstName || ""} ${d.lastName || ""}`.trim() || d.username
+                      const fullName = `${d.lastName || ""} ${d.firstName || ""}`.trim() || d.username
                       return (
                         <SelectItem key={d.id} value={String(d.id)}>
                           Dr. {fullName}
@@ -462,7 +527,7 @@ export default function DoctorAppointmentsPage() {
                   </SelectTrigger>
                   <SelectContent>
                     {coverCandidates.map((d) => {
-                      const fullName = `${d.firstName || ""} ${d.lastName || ""}`.trim() || d.username
+                      const fullName = `${d.lastName || ""} ${d.firstName || ""}`.trim() || d.username
                       return (
                         <SelectItem key={d.id} value={String(d.id)}>
                           Dr. {fullName}

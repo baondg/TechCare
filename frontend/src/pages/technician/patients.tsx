@@ -85,7 +85,7 @@ export default function TechnicianPatients() {
 
           const mapped = (data.patients || []).map((p: any) => ({
             id: "OP" + String(p.id).padStart(9, "0"),
-            name: `${p.firstName || ""} ${p.lastName || ""}`.trim() || p.username || `Patient #${p.id}`,
+            name: `${p.lastName || ""} ${p.firstName || ""}`.trim() || p.username || `Patient #${p.id}`,
             sex: p.gender || null,
             age: String(p.age || ""),
             latestVisit: p.latestVisit ? new Date(p.latestVisit).toLocaleDateString("vi-VN") : "",

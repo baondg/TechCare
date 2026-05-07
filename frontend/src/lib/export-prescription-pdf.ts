@@ -26,7 +26,7 @@ const unitLabelsVi: Record<string, string> = {
 }
 
 function escapeHtml(s: string): string {
-  return s
+  return String(s ?? "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -40,7 +40,8 @@ function genderVi(g: string | null): string {
 }
 
 function slugFilenamePart(s: string): string {
-  return s.replace(/[^\w\u00C0-\u024f]+/gi, "-").replace(/^-|-$/g, "") || "patient"
+  const safe = String(s ?? "")
+  return safe.replace(/[^\w\u00C0-\u024f]+/gi, "-").replace(/^-|-$/g, "") || "patient"
 }
 
 /** A4 inner area (mm) — same margins as previous html2pdf setup: top, left, bottom, right */
@@ -109,7 +110,7 @@ export async function generatePrescriptionPdfBlob(opts: {
   signingTimeDisplay?: string | null
 }): Promise<PrescriptionPdfResult> {
   const { patient, medications, prescriptionDate, doctorName } = opts
-  const fullName = `${patient.firstName || ""} ${patient.lastName || ""}`.trim() || patient.username
+  const fullName = `${patient.lastName || ""} ${patient.firstName || ""}`.trim() || patient.username
   const bmi = patient.bmi != null ? String(patient.bmi) : "—"
   const age = patient.age != null ? String(patient.age) : "—"
   const diagnosisLine = patient.latestDiagnosis

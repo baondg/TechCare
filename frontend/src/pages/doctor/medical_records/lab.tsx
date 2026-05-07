@@ -140,7 +140,7 @@ export default function PatientLab() {
       setPatientCtx({
         gender: res.patient?.gender ?? null,
         bmi: typeof res.patient?.bmi === "number" ? res.patient.bmi : null,
-        fullName: `${firstName} ${lastName}`.trim(),
+        fullName: `${lastName} ${firstName}`.trim(),
         age: res.patient?.age != null ? String(res.patient.age) : "",
         department: res.patient?.inDepartment || "",
         diagnosis: diagnosisLine,

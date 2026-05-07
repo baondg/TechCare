@@ -4,7 +4,7 @@ const sequelize = require('../common/database');
 function formatName(first, last) {
   const a = String(first || '').trim();
   const b = String(last || '').trim();
-  const n = `${a} ${b}`.trim();
+  const n = `${b} ${a}`.trim();
   return n || '—';
 }
 

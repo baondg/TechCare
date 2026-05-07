@@ -90,6 +90,12 @@ export interface ClinicRoomOption {
   departmentName?: string | null;
 }
 
+/** Matches rows in DEPARTMENT table */
+export interface DepartmentOption {
+  id: number;
+  name: string;
+}
+
 export interface ChatModelOption {
   id: number;
   name: string;
@@ -307,6 +313,11 @@ export const appointmentService = {
   async getClinicRooms(): Promise<ClinicRoomOption[]> {
     const data = await apiClient.get<{ success: boolean; rooms: ClinicRoomOption[] }>('/api/appointments/clinic-rooms');
     return data.rooms || [];
+  },
+
+  async getDepartments(): Promise<DepartmentOption[]> {
+    const data = await apiClient.get<{ success: boolean; departments: DepartmentOption[] }>('/api/appointments/departments');
+    return data.departments || [];
   },
 
   async getBookedSlots(date: string): Promise<Array<{ doctor: string; time: string }>> {

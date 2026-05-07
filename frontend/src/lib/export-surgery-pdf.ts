@@ -64,7 +64,7 @@ function canvasToPdfDocument(canvas: HTMLCanvasElement): jsPDF {
 }
 
 function escapeHtml(s: string) {
-  return s
+  return String(s ?? "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -72,7 +72,8 @@ function escapeHtml(s: string) {
 }
 
 function slugFilenamePart(s: string) {
-  return s.replace(/[^\w\u00C0-\u024f]+/gi, "-").replace(/^-|-$/g, "") || "patient"
+  const safe = String(s ?? "")
+  return safe.replace(/[^\w\u00C0-\u024f]+/gi, "-").replace(/^-|-$/g, "") || "patient"
 }
 
 function fmtWhen(iso: string) {

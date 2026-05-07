@@ -462,17 +462,6 @@ export default function SystemConfig() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="rounded-xl bg-gradient-to-r from-cyan-50 to-blue-50 border border-cyan-100 p-4">
-              <p className="text-sm text-slate-700">
-                <span className="font-semibold">How it works:</span> If a Groq API key is set (in backend <code className="bg-white/60 px-1 rounded">.env</code>), all AI features use Groq Cloud.
-                Otherwise, the system uses the local LLM (Ollama).
-              </p>
-              <p className="text-xs text-slate-500 mt-2">
-                Set <code className="bg-white/60 px-1 rounded">GROQ_API_KEY</code>, <code className="bg-white/60 px-1 rounded">GROQ_MODEL</code>,
-                <code className="bg-white/60 px-1 rounded">LOCAL_LLM_BASE_URL</code>, <code className="bg-white/60 px-1 rounded">LOCAL_LLM_MODEL</code> in <code className="bg-white/60 px-1 rounded">backend/.env</code>
-              </p>
-            </div>
-
             <div className="rounded-lg border border-border bg-card p-4 space-y-4">
               <h3 className="text-sm font-semibold text-foreground">Add configuration</h3>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

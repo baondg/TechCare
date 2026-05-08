@@ -216,6 +216,14 @@ export default function PatientLab() {
       alert("Nhap loai xet nghiem")
       return
     }
+    if (!iso) {
+      alert("Please enter test date")
+      return
+    }
+    if (!selected.resultSummary.trim()) {
+      alert("Please enter result summary")
+      return
+    }
     setSaving(true)
     try {
       if (selected.id === "new") {
@@ -509,7 +517,9 @@ export default function PatientLab() {
                 </div>
 
                 <div>
-                  <label className="text-sm text-slate-600">Date</label>
+                  <label className="text-sm text-slate-600">
+                    Date <span className="text-red-500">*</span>
+                  </label>
                   <div className="relative">
                     <input
                       className="w-full border rounded px-3 py-2 pr-10"
@@ -639,7 +649,9 @@ export default function PatientLab() {
               </div>
 
               <div>
-                <label className="text-sm text-slate-600">Result (Short description)</label>
+                <label className="text-sm text-slate-600">
+                  Result (Short description) <span className="text-red-500">*</span>
+                </label>
                 <input
                   className="w-full border rounded px-3 py-2"
                   value={selected.resultSummary}

@@ -171,8 +171,8 @@ export default function PatientDiagnosis() {
   const handleSave = async () => {
     if (!mutationsAllowed) return
     if (!patientId || !selectedDx || !selectedDx.isDraft) return
-    if (!selectedDx.complaint.trim() || !selectedDx.icd10.trim()) {
-      alert("Please enter symptoms and ICD-10 code")
+    if (!selectedDx.icd10.trim()) {
+      alert("Please select an ICD-10 diagnosis")
       return
     }
     if (selectedDx.id !== "new") {
@@ -434,6 +434,7 @@ export default function PatientDiagnosis() {
 
               <Icd10Combobox
                 label="Diagnosis (ICD-10)"
+                required
                 value={selectedDx.icd10}
                 disabled={!selectedDx.isDraft || !mutationsAllowed}
                 onIcdChange={(icd10, interpretationFromPick) => {
@@ -483,11 +484,13 @@ export default function PatientDiagnosis() {
  */
 function Icd10Combobox({
   label,
+  required = false,
   value,
   disabled,
   onIcdChange,
 }: {
   label: string
+  required?: boolean
   value: string
   disabled: boolean
   /** Second arg only when user picks a row — then interpretation is set from DB. */
@@ -535,7 +538,10 @@ function Icd10Combobox({
   if (disabled) {
     return (
       <div className="space-y-1">
-        <label className="text-sm font-medium text-slate-600">{label}</label>
+        <label className="text-sm font-medium text-slate-600">
+          {label}
+          {required ? <span className="text-red-500"> *</span> : null}
+        </label>
         <div className="rounded-lg border bg-slate-50 px-3 py-2 text-sm">{value || "—"}</div>
       </div>
     )
@@ -543,7 +549,10 @@ function Icd10Combobox({
 
   return (
     <div className="space-y-1">
-      <label className="text-sm font-medium text-slate-600">{label}</label>
+      <label className="text-sm font-medium text-slate-600">
+        {label}
+        {required ? <span className="text-red-500"> *</span> : null}
+      </label>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverAnchor asChild>
           <div

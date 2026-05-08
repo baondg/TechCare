@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,16 +10,19 @@ import { User, CreditCard, Edit, Save, X, RotateCcw, Users, CalendarIcon, Circle
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
-import { format, parseISO } from "date-fns"
+import { format, isValid, parse, parseISO } from "date-fns"
 import { useAuth } from "@/contexts/AuthContext"
 import type { PatientProfile } from "@/services/profile-service"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useProfile } from "@/hooks/useProfile"
+import { usePauseableToast } from "@/hooks/usePauseableToast"
+import { PauseableCornerToastPortal } from "@/components/pauseable-corner-toast"
 
 export default function ProfilePage() {
   const { user } = useAuth()
   const { profile, loading, saving, error, success, save, clearMessages } = useProfile(user?.id)
-  
+  const { toast, isExiting, showSuccess, onMouseEnter, onMouseLeave } = usePauseableToast(2600)
+  const lastSuccessRef = useRef("")
 
   const [isEditing, setIsEditing] = useState(false)
 
@@ -27,18 +30,25 @@ export default function ProfilePage() {
   const [firstName, setFirstName] = useState("")
   const [lastName, setLastName] = useState("")
   const [dob, setDob] = useState<Date | undefined>()
+  const [dobInputValue, setDobInputValue] = useState("")
+  const [dobError, setDobError] = useState("")
   const [sex, setSex] = useState("Male")
   const [phone, setPhone] = useState("")
   const [email, setEmail] = useState("")
+  const [emailError, setEmailError] = useState("")
   const [nationalId, setNationalId] = useState("")
 
   // Relative information
   const [relativeName, setRelativeName] = useState("")
   const [relationship, setRelationship] = useState("Mother")
+  const [relationshipOther, setRelationshipOther] = useState("")
   const [reDob, setReDob] = useState<Date | undefined>()
+  const [reDobInputValue, setReDobInputValue] = useState("")
+  const [reDobError, setReDobError] = useState("")
   const [reSex, setReSex] = useState("Female")
   const [rePhone, setRePhone] = useState("")
   const [reEmail, setReEmail] = useState("")
+  const [reEmailError, setReEmailError] = useState("")
   const [reNationalId, setReNationalId] = useState("")
 
   // Insurance information
@@ -64,10 +74,68 @@ export default function ProfilePage() {
     }
   }, [success])
 
+  useEffect(() => {
+    if (!success) return
+    if (success === lastSuccessRef.current) return
+    lastSuccessRef.current = success
+    showSuccess(success)
+  }, [success, showSuccess])
+
   const mapSex = (sex?: string) => {
     if (sex === "M") return "Male"
     if (sex === "F") return "Female"
     return "Other"
+  }
+
+  const normalizeNationalId = (value: string) => value.replace(/\D/g, "").slice(0, 12)
+  const normalizePhone = (value: string) => value.replace(/\D/g, "").slice(0, 10)
+
+  const syncNationalId = (value: string) => setNationalId(normalizeNationalId(value))
+  const syncPhone = (value: string) => setPhone(normalizePhone(value))
+  const syncRelativeNationalId = (value: string) => setReNationalId(normalizeNationalId(value))
+  const syncRelativePhone = (value: string) => setRePhone(normalizePhone(value))
+
+  const formatDateInput = (raw: string) => {
+    const digits = raw.replace(/\D/g, "").slice(0, 8)
+    if (digits.length <= 2) return digits
+    if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`
+    return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`
+  }
+
+  const parseDateInput = (value: string) => {
+    if (!value) return undefined
+    const parsedDate = parse(value, "dd/MM/yyyy", new Date())
+    if (!isValid(parsedDate)) return undefined
+    if (format(parsedDate, "dd/MM/yyyy") !== value) return undefined
+    return parsedDate
+  }
+
+  const isAfterToday = (date: Date) => {
+    const candidate = new Date(date)
+    candidate.setHours(0, 0, 0, 0)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    return candidate > today
+  }
+
+  const validateDob = (date: Date | undefined, rawInput?: string) => {
+    if (!date) {
+      if (rawInput && rawInput.length === 10) {
+        return "Invalid date. Please use dd/mm/yyyy."
+      }
+      return ""
+    }
+    if (isAfterToday(date)) {
+      return "Date of birth cannot be later than today."
+    }
+    return ""
+  }
+
+  const validateEmail = (value: string) => {
+    const trimmed = value.trim()
+    if (!trimmed) return ""
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    return emailRegex.test(trimmed) ? "" : "Invalid email format"
   }
 
   const populateForm = (p: PatientProfile) => {
@@ -80,19 +148,38 @@ export default function ProfilePage() {
     }
     setFirstName(fn)
     setLastName(ln)
-    setDob(p.dateOfBirth ? parseISO(p.dateOfBirth) : undefined)
+    const parsedDob = p.dateOfBirth ? parseISO(p.dateOfBirth) : undefined
+    setDob(parsedDob)
+    setDobInputValue(parsedDob ? format(parsedDob, "dd/MM/yyyy") : "")
+    setDobError("")
     setSex(mapSex(p.sex))
-    setPhone(p.phone || "")
+    setPhone(normalizePhone(p.phone || ""))
     setEmail(p.email || "")
-    setNationalId(p.nationalId || "")
+    setEmailError("")
+    setNationalId(normalizeNationalId(p.nationalId || ""))
 
     setRelativeName(p.relativeName || "")
-    setRelationship(p.relativeRelationship || "Mother")
-    setReDob(p.relativeDateOfBirth ? parseISO(p.relativeDateOfBirth) : undefined)
+    const relativeRelationshipValue = (p.relativeRelationship || "").trim()
+    const relationshipOptions = ["Mother", "Father", "Spouse", "Sibling", "Other"]
+    if (!relativeRelationshipValue) {
+      setRelationship("Mother")
+      setRelationshipOther("")
+    } else if (relationshipOptions.includes(relativeRelationshipValue)) {
+      setRelationship(relativeRelationshipValue)
+      setRelationshipOther("")
+    } else {
+      setRelationship("Other")
+      setRelationshipOther(relativeRelationshipValue)
+    }
+    const parsedRelativeDob = p.relativeDateOfBirth ? parseISO(p.relativeDateOfBirth) : undefined
+    setReDob(parsedRelativeDob)
+    setReDobInputValue(parsedRelativeDob ? format(parsedRelativeDob, "dd/MM/yyyy") : "")
+    setReDobError("")
     setReSex(mapSex(p.relativeSex))
-    setRePhone(p.relativePhone || "")
+    setRePhone(normalizePhone(p.relativePhone || ""))
     setReEmail(p.relativeEmail || "")
-    setReNationalId(p.relativeNationalId || "")
+    setReEmailError("")
+    setReNationalId(normalizeNationalId(p.relativeNationalId || ""))
 
     setInsuranceId(p.insuranceId || "")
     setInsuranceProvider(p.insuranceProvider || "")
@@ -102,22 +189,34 @@ export default function ProfilePage() {
 
   const handleSave = async () => {
     if (!user?.id) return
+    const currentDobError = validateDob(dob, dobInputValue)
+    const currentRelativeDobError = validateDob(reDob, reDobInputValue)
+    const currentEmailError = validateEmail(email)
+    const currentRelativeEmailError = validateEmail(reEmail)
+    setDobError(currentDobError)
+    setReDobError(currentRelativeDobError)
+    setEmailError(currentEmailError)
+    setReEmailError(currentRelativeEmailError)
+    if (currentDobError || currentRelativeDobError || currentEmailError || currentRelativeEmailError) return
+
+    const relativeRelationshipValue =
+      relationship === "Other" ? relationshipOther.trim() : relationship
 
     const profileData: Partial<PatientProfile> = {
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       dateOfBirth: dob ? format(dob, "yyyy-MM-dd") : undefined,
       sex,
-      phone,
+      phone: normalizePhone(phone),
       email,
-      nationalId,
+      nationalId: normalizeNationalId(nationalId),
       relativeName,
-      relativeRelationship: relationship,
+      relativeRelationship: relativeRelationshipValue,
       relativeDateOfBirth: reDob ? format(reDob, "yyyy-MM-dd") : undefined,
       relativeSex: reSex,
-      relativePhone: rePhone,
+      relativePhone: normalizePhone(rePhone),
       relativeEmail: reEmail,
-      relativeNationalId: reNationalId,
+      relativeNationalId: normalizeNationalId(reNationalId),
       insuranceId,
       insuranceProvider,
       insuranceExpiry,
@@ -140,16 +239,23 @@ export default function ProfilePage() {
     setFirstName("")
     setLastName("")
     setDob(undefined)
+    setDobInputValue("")
+    setDobError("")
     setSex("Male")
     setPhone("")
     setEmail("")
+    setEmailError("")
     setNationalId("")
     setRelativeName("")
     setRelationship("Mother")
+    setRelationshipOther("")
     setReDob(undefined)
+    setReDobInputValue("")
+    setReDobError("")
     setReSex("Female")
     setRePhone("")
     setReEmail("")
+    setReEmailError("")
     setReNationalId("")
     setInsuranceId("")
     setInsuranceProvider("")
@@ -237,20 +343,13 @@ export default function ProfilePage() {
             </div>
           )}
 
-          {success && (
-            <div className="px-6">
-              <Alert className="bg-green-50 border-green-200 text-green-800">
-                <AlertDescription>{success}</AlertDescription>
-              </Alert>
-            </div>
-          )}
           <CardContent className="pt-6">
             <form className="space-y-6">
               {/* First / Last name */}
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="firstName" className="text-sm font-semibold text-slate-700">
-                    First name
+                    First name <span className="text-red-500">*</span>
                   </Label>
                   <Input
                     id="firstName"
@@ -265,7 +364,7 @@ export default function ProfilePage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="lastName" className="text-sm font-semibold text-slate-700">
-                    Last name
+                    Last name <span className="text-red-500">*</span>
                   </Label>
                   <Input
                     id="lastName"
@@ -284,26 +383,58 @@ export default function ProfilePage() {
               <div className="grid gap-4 md:grid-cols-4">
                 <div className="space-y-2">
                   <Label htmlFor="dob" className="text-sm font-semibold text-slate-700">
-                    Date of Birth
+                    Date of Birth <span className="text-red-500">*</span>
                   </Label>
-                  <Popover>
-                    <PopoverTrigger asChild disabled={!isEditing}>
-                      <div className={`custom-popover w-full flex items-center justify-between px-3 py-2 text-sm ${!isEditing ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}>
-                        <span className={dob ? "text-slate-900" : "text-slate-400"}>
-                          {dob ? format(dob, "dd/MM/yyyy") : "dd/mm/yyyy"}
-                        </span>
-                        <CalendarIcon className="h-4 w-4 opacity-60" />
-                      </div>
-                    </PopoverTrigger>
-                    <PopoverContent className="p-0">
-                      <Calendar 
-                        mode="single" 
-                        selected={dob} 
-                        onSelect={setDob} 
-                        captionLayout="dropdown"
-                      />
-                    </PopoverContent>
-                  </Popover>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="dob"
+                      value={dobInputValue}
+                      onChange={(e) => {
+                        const formattedInput = formatDateInput(e.target.value)
+                        setDobInputValue(formattedInput)
+                        if (formattedInput.length === 10) {
+                          const parsedDate = parseDateInput(formattedInput)
+                          setDob(parsedDate)
+                          setDobError(validateDob(parsedDate, formattedInput))
+                        } else {
+                          setDob(undefined)
+                          setDobError("")
+                        }
+                      }}
+                      onBlur={(e) => {
+                        const formattedInput = formatDateInput(e.target.value)
+                        const parsedDate = parseDateInput(formattedInput)
+                        setDob(parsedDate)
+                        setDobError(validateDob(parsedDate, formattedInput))
+                        setDobInputValue(parsedDate ? format(parsedDate, "dd/MM/yyyy") : formattedInput)
+                      }}
+                      placeholder="dd/mm/yyyy"
+                      inputMode="numeric"
+                      className="custom-input"
+                      disabled={!isEditing}
+                    />
+                    <Popover>
+                      <PopoverTrigger asChild disabled={!isEditing}>
+                        <Button type="button" variant="outline" size="icon" aria-label="Open date picker">
+                          <CalendarIcon className="h-4 w-4 opacity-60" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="p-0">
+                        <Calendar
+                          mode="single"
+                          selected={dob}
+                          onSelect={(selectedDate) => {
+                            setDob(selectedDate)
+                            setDobInputValue(selectedDate ? format(selectedDate, "dd/MM/yyyy") : "")
+                            setDobError(validateDob(selectedDate))
+                          }}
+                          disabled={(date) => isAfterToday(date)}
+                          captionLayout="dropdown"
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  {dobError ? <p className="mt-1 text-xs text-red-500">{dobError}</p> : null}
                 </div>
                 
                 <div className="space-y-2">
@@ -320,7 +451,7 @@ export default function ProfilePage() {
                 
                 <div className="space-y-2 col-span-2">
                   <Label htmlFor="sex" className="text-sm font-semibold text-slate-700">
-                    Sex
+                    Sex <span className="text-red-500">*</span>
                   </Label>
                   <Select value={sex} onValueChange={setSex} disabled={!isEditing}>
                     <SelectTrigger id="sex" className="custom-select">
@@ -339,7 +470,7 @@ export default function ProfilePage() {
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="phone" className="text-sm font-semibold text-slate-700">
-                    Phone Number
+                    Phone Number <span className="text-red-500">*</span>
                   </Label>
                   <Input 
                     id="phone" 
@@ -347,9 +478,11 @@ export default function ProfilePage() {
                     placeholder="+84 xxx xxx xxx" 
                     className="custom-input"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    onInput={(e) => setPhone((e.target as HTMLInputElement).value)}
-                    onBlur={(e) => setPhone(e.target.value)}
+                    onChange={(e) => syncPhone(e.target.value)}
+                    onBlur={(e) => syncPhone(e.target.value)}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={10}
                     disabled={!isEditing}
                   />
                 </div>
@@ -363,27 +496,37 @@ export default function ProfilePage() {
                     placeholder="your.email@example.com" 
                     className="custom-input"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    onInput={(e) => setEmail((e.target as HTMLInputElement).value)}
-                    onBlur={(e) => setEmail(e.target.value)}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      setEmail(value)
+                      setEmailError(validateEmail(value))
+                    }}
+                    onBlur={(e) => {
+                      const value = e.target.value
+                      setEmail(value)
+                      setEmailError(validateEmail(value))
+                    }}
                     disabled={!isEditing}
                   />
+                  {emailError ? <p className="mt-1 text-xs text-red-500">{emailError}</p> : null}
                 </div>
               </div>
 
               {/* National ID */}
               <div className="space-y-2">
                 <Label htmlFor="national-id" className="text-sm font-semibold text-slate-700">
-                  National ID / Passport
+                  National ID / Passport <span className="text-red-500">*</span>
                 </Label>
                 <Input 
                   id="national-id" 
                   placeholder="Enter your ID number" 
                   className="custom-input"
                   value={nationalId}
-                  onChange={(e) => setNationalId(e.target.value)}
-                  onInput={(e) => setNationalId((e.target as HTMLInputElement).value)}
-                  onBlur={(e) => setNationalId(e.target.value)}
+                  onChange={(e) => syncNationalId(e.target.value)}
+                  onBlur={(e) => syncNationalId(e.target.value)}
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={12}
                   disabled={!isEditing}
                 />
               </div>
@@ -406,7 +549,7 @@ export default function ProfilePage() {
               {/* Relative Name */}
               <div className="space-y-2">
                 <Label htmlFor="relative-name" className="text-sm font-semibold text-slate-700">
-                  Relative's Name
+                  Relative's Name <span className="text-red-500">*</span>
                 </Label>
                 <Input 
                   id="relative-name" 
@@ -423,9 +566,18 @@ export default function ProfilePage() {
               {/* Relationship */}
               <div className="space-y-2">
                 <Label htmlFor="relationship" className="text-sm font-semibold text-slate-700">
-                  Relationship
+                  Relationship <span className="text-red-500">*</span>
                 </Label>
-                <Select value={relationship} onValueChange={setRelationship} disabled={!isEditing}>
+                <Select
+                  value={relationship}
+                  onValueChange={(value) => {
+                    setRelationship(value)
+                    if (value !== "Other") {
+                      setRelationshipOther("")
+                    }
+                  }}
+                  disabled={!isEditing}
+                >
                   <SelectTrigger id="relationship" className="custom-select">
                     <SelectValue />
                   </SelectTrigger>
@@ -437,6 +589,17 @@ export default function ProfilePage() {
                     <SelectItem value="Other">Other</SelectItem>
                   </SelectContent>
                 </Select>
+                {relationship === "Other" ? (
+                  <Input
+                    id="relationship-other"
+                    placeholder="Enter relationship"
+                    className="custom-input"
+                    value={relationshipOther}
+                    onChange={(e) => setRelationshipOther(e.target.value)}
+                    onBlur={(e) => setRelationshipOther(e.target.value)}
+                    disabled={!isEditing}
+                  />
+                ) : null}
               </div>
 
               {/* Relative DOB, Age & Sex */}
@@ -445,24 +608,55 @@ export default function ProfilePage() {
                   <Label className="text-sm font-semibold text-slate-700">
                     Date of Birth
                   </Label>
-                  <Popover>
-                    <PopoverTrigger asChild disabled={!isEditing}>
-                      <div className={`custom-popover w-full flex items-center justify-between px-3 py-2 text-sm ${!isEditing ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}>
-                        <span className={reDob ? "text-slate-900" : "text-slate-400"}>
-                          {reDob ? format(reDob, "dd/MM/yyyy") : "dd/mm/yyyy"}
-                        </span>
-                        <CalendarIcon className="h-4 w-4 opacity-60" />
-                      </div>
-                    </PopoverTrigger>
-                    <PopoverContent className="p-0">
-                      <Calendar 
-                        mode="single" 
-                        selected={reDob} 
-                        onSelect={setReDob} 
-                        captionLayout="dropdown"
-                      />
-                    </PopoverContent>
-                  </Popover>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={reDobInputValue}
+                      onChange={(e) => {
+                        const formattedInput = formatDateInput(e.target.value)
+                        setReDobInputValue(formattedInput)
+                        if (formattedInput.length === 10) {
+                          const parsedDate = parseDateInput(formattedInput)
+                          setReDob(parsedDate)
+                          setReDobError(validateDob(parsedDate, formattedInput))
+                        } else {
+                          setReDob(undefined)
+                          setReDobError("")
+                        }
+                      }}
+                      onBlur={(e) => {
+                        const formattedInput = formatDateInput(e.target.value)
+                        const parsedDate = parseDateInput(formattedInput)
+                        setReDob(parsedDate)
+                        setReDobError(validateDob(parsedDate, formattedInput))
+                        setReDobInputValue(parsedDate ? format(parsedDate, "dd/MM/yyyy") : formattedInput)
+                      }}
+                      placeholder="dd/mm/yyyy"
+                      inputMode="numeric"
+                      className="custom-input"
+                      disabled={!isEditing}
+                    />
+                    <Popover>
+                      <PopoverTrigger asChild disabled={!isEditing}>
+                        <Button type="button" variant="outline" size="icon" aria-label="Open relative date picker">
+                          <CalendarIcon className="h-4 w-4 opacity-60" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="p-0">
+                        <Calendar
+                          mode="single"
+                          selected={reDob}
+                          onSelect={(selectedDate) => {
+                            setReDob(selectedDate)
+                            setReDobInputValue(selectedDate ? format(selectedDate, "dd/MM/yyyy") : "")
+                            setReDobError(validateDob(selectedDate))
+                          }}
+                          disabled={(date) => isAfterToday(date)}
+                          captionLayout="dropdown"
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  {reDobError ? <p className="mt-1 text-xs text-red-500">{reDobError}</p> : null}
                 </div>
                 
                 <div className="space-y-2">
@@ -493,16 +687,18 @@ export default function ProfilePage() {
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label className="text-sm font-semibold text-slate-700">
-                    Phone Number
+                    Phone Number <span className="text-red-500">*</span>
                   </Label>
                   <Input 
                     type="tel" 
                     placeholder="+84 xxx xxx xxx" 
                     className="custom-input"
                     value={rePhone}
-                    onChange={(e) => setRePhone(e.target.value)}
-                    onInput={(e) => setRePhone((e.target as HTMLInputElement).value)}
-                    onBlur={(e) => setRePhone(e.target.value)}
+                    onChange={(e) => syncRelativePhone(e.target.value)}
+                    onBlur={(e) => syncRelativePhone(e.target.value)}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={10}
                     disabled={!isEditing}
                   />
                 </div>
@@ -515,11 +711,19 @@ export default function ProfilePage() {
                     placeholder="relative@example.com" 
                     className="custom-input"
                     value={reEmail}
-                    onChange={(e) => setReEmail(e.target.value)}
-                    onInput={(e) => setReEmail((e.target as HTMLInputElement).value)}
-                    onBlur={(e) => setReEmail(e.target.value)}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      setReEmail(value)
+                      setReEmailError(validateEmail(value))
+                    }}
+                    onBlur={(e) => {
+                      const value = e.target.value
+                      setReEmail(value)
+                      setReEmailError(validateEmail(value))
+                    }}
                     disabled={!isEditing}
                   />
+                  {reEmailError ? <p className="mt-1 text-xs text-red-500">{reEmailError}</p> : null}
                 </div>
               </div>
 
@@ -532,9 +736,11 @@ export default function ProfilePage() {
                   placeholder="Enter ID number" 
                   className="custom-input"
                   value={reNationalId}
-                  onChange={(e) => setReNationalId(e.target.value)}
-                  onInput={(e) => setReNationalId((e.target as HTMLInputElement).value)}
-                  onBlur={(e) => setReNationalId(e.target.value)}
+                  onChange={(e) => syncRelativeNationalId(e.target.value)}
+                  onBlur={(e) => syncRelativeNationalId(e.target.value)}
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={12}
                   disabled={!isEditing}
                 />
               </div>
@@ -601,6 +807,12 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
       </div>
+      <PauseableCornerToastPortal
+        toast={toast}
+        isExiting={isExiting}
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
+      />
     </PatientLayout>
   )
 }
@@ -608,13 +820,31 @@ export default function ProfilePage() {
 function calculateAge(date: Date) {
   if (!date) return ""
   const today = new Date()
-  let age = today.getFullYear() - date.getFullYear()
-  const monthDiff = today.getMonth() - date.getMonth()
-  const dayDiff = today.getDate() - date.getDate()
+  const diffTime = today.getTime() - date.getTime()
+  if (diffTime < 0) return ""
 
-  if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) {
-    age--
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+  if (diffDays < 60) {
+    return `${diffDays} days`
   }
 
-  return age.toString()
+  let diffMonths =
+    (today.getFullYear() - date.getFullYear()) * 12 +
+    (today.getMonth() - date.getMonth())
+  if (today.getDate() < date.getDate()) {
+    diffMonths--
+  }
+
+  if (diffMonths < 24) {
+    return `${Math.max(diffMonths, 0)} months`
+  }
+
+  let ageYears = today.getFullYear() - date.getFullYear()
+  const monthDiff = today.getMonth() - date.getMonth()
+  const dayDiff = today.getDate() - date.getDate()
+  if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) {
+    ageYears--
+  }
+
+  return `${ageYears} years`
 }

@@ -41,6 +41,74 @@ function VitalWarning({ message }: { message: string | null }) {
   return <span className="text-sm text-red-600 block mt-0.5">{message}</span>
 }
 
+function InputList({
+  label,
+  values,
+  setValues,
+  disabled,
+}: {
+  label: string
+  values: string[]
+  setValues: (v: string[]) => void
+  disabled: boolean
+}) {
+  const updateValue = (index: number, v: string) => {
+    const newValues = [...values]
+    newValues[index] = v
+    setValues(newValues)
+  }
+
+  const addNew = () => {
+    setValues([...values, ""])
+  }
+
+  const removeItem = (index: number) => {
+    const newValues = values.filter((_, i) => i !== index)
+    setValues(newValues)
+  }
+
+  return (
+    <div className="space-y-2">
+      <Label>{label}</Label>
+
+      <div className="space-y-2">
+        {values.map((v, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <Input
+              value={v}
+              disabled={disabled}
+              onChange={(e) => updateValue(i, e.target.value)}
+              className="flex-1"
+            />
+
+            {!disabled && (
+              <button
+                type="button"
+                onClick={() => removeItem(i)}
+                className="p-2 rounded-md hover:bg-red-100 text-red-600 transition"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {!disabled && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="mt-1 flex items-center gap-2"
+          onClick={addNew}
+        >
+          + Add
+        </Button>
+      )}
+    </div>
+  )
+}
+
 export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps) {
   const { toast, isExiting, showSuccess, showError, onMouseEnter, onMouseLeave } = usePauseableToast(2600)
   /** Doctors and nurses can edit patient health info on this page (same controls). */
@@ -839,77 +907,6 @@ const loadHealthHistory = async () => {
   const [pastIllnesses, setPastIllnesses] = useState<string[]>([])
   const [vaccinations, setVaccinations] = useState<string[]>([])
   const [substanceAbuse, setSubstanceAbuse] = useState<string[]>([])
-
-  function InputList({
-    label,
-    values,
-    setValues,
-    disabled
-  }: {
-    label: string,
-    values: string[],
-    setValues: (v: string[]) => void,
-    disabled: boolean
-  }) {
-
-  const updateValue = (index: number, v: string) => {
-      const newValues = [...values]
-      newValues[index] = v
-      setValues(newValues)
-    }
-
-    const addNew = () => {
-      setValues([...values, ""])
-    }
-
-    const removeItem = (index: number) => {
-      const newValues = values.filter((_, i) => i !== index)
-      setValues(newValues)
-    }
-
-    return (
-      <div className="space-y-2">
-        <Label>{label}</Label>
-
-        <div className="space-y-2">
-          {values.map((v, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <Input
-                value={v}
-                disabled={disabled}
-                onChange={(e) => updateValue(i, e.target.value)}
-                onInput={(e) => updateValue(i, (e.target as HTMLInputElement).value)}
-                onBlur={(e) => updateValue(i, e.target.value)}
-                className="flex-1"
-              />
-
-              {!disabled && (
-                <button
-                  type="button"
-                  onClick={() => removeItem(i)}
-                  className="p-2 rounded-md hover:bg-red-100 text-red-600 transition"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-
-        {!disabled && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="mt-1 flex items-center gap-2"
-            onClick={addNew}
-          >
-            + Add
-          </Button>
-        )}
-      </div>
-    )
-  }
 
 
   if (loading) {

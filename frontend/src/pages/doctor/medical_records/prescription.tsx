@@ -546,11 +546,18 @@ export default function PatientPrescription() {
         ...(m.note?.trim() ? { note: m.note.trim() } : {}),
       }))
     if (meds.length === 0 || !meds.some((m) => m.name)) {
-      showError("Thêm ít nhất một thuốc có tên")
+      showError("Add at least one medication with a name")
+      return
+    }
+    const invalidRequiredIndex = meds.findIndex(
+      (m) => !m.name.trim() || !String(m.quantity ?? "").trim() || !String(m.usage ?? "").trim()
+    )
+    if (invalidRequiredIndex !== -1) {
+      showError(`Please complete Medication, Qty, and Usage on row ${invalidRequiredIndex + 1}`)
       return
     }
     if (selectedRx.id !== "new") {
-      showError("Chỉ có thể lưu đơn mới. Chọn Add để tạo đơn mới.")
+      showError("Only new prescriptions can be saved. Click Add to create a new one.")
       return
     }
     setSaving(true)
@@ -905,11 +912,19 @@ export default function PatientPrescription() {
                     }}
                   >
                     <TableHead className="w-8 p-1.5 text-center text-white">No.</TableHead>
-                    <TableHead className="w-[18%] min-w-0 p-1.5 text-left text-white">Medication</TableHead>
-                    <TableHead className="w-[9%] p-1.5 text-white">Qty</TableHead>
+                    <TableHead className="w-[18%] min-w-0 p-1.5 text-left text-white">
+                      Medication <span className="text-red-500">*</span>
+                    </TableHead>
+                    <TableHead className="w-[9%] p-1.5 text-white">
+                      Qty <span className="text-red-500">*</span>
+                    </TableHead>
                     <TableHead className="w-[10%] p-1.5 text-white">Unit</TableHead>
-                    <TableHead className="w-[9%] p-1.5 text-white">Duration</TableHead>
-                    <TableHead className="min-w-0 p-1.5 text-white">Usage</TableHead>
+                    <TableHead className="w-[9%] p-1.5 text-white">
+                      Duration <span className="text-red-500">*</span>
+                    </TableHead>
+                    <TableHead className="min-w-0 p-1.5 text-white">
+                      Usage <span className="text-red-500">*</span>
+                    </TableHead>
                     <TableHead className="min-w-0 p-1.5 text-white">Note</TableHead>
                     <TableHead className="w-7 p-1 text-center text-white" aria-label="Remove row" />
                   </TableRow>

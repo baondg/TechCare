@@ -146,6 +146,24 @@ export interface PatientDashboardSummary {
   }>;
 }
 
+export interface RecoveryPrediction {
+  daysMin: number;
+  daysMax: number;
+  confidence: 'low' | 'medium' | 'high';
+  note: string;
+  disclaimer: string;
+}
+
+export interface RecoveryPredictionApiResponse {
+  success: boolean;
+  eligible?: boolean;
+  prediction?: RecoveryPrediction;
+  cached?: boolean;
+  recommendationId?: number;
+  model?: { id: number | null; name: string; provider: string };
+  message?: string;
+}
+
 export interface PatientFeedback {
   id: number;
   userId?: number;
@@ -340,6 +358,11 @@ export const appointmentService = {
   async getPatientDashboardSummary(): Promise<PatientDashboardSummary> {
     const data = await apiClient.get<{ success: boolean } & PatientDashboardSummary>('/api/appointments/dashboard-summary');
     return data;
+  },
+
+  async getRecoveryPrediction(options?: { refresh?: boolean }): Promise<RecoveryPredictionApiResponse> {
+    const suffix = options?.refresh ? '?refresh=1' : '';
+    return apiClient.get<RecoveryPredictionApiResponse>(`/api/appointments/ai/recovery-prediction${suffix}`);
   },
 
   async getPatientMedicalVisits(): Promise<PatientMedicalVisit[]> {

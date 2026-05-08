@@ -154,6 +154,7 @@ exports.login = async (req, res) => {
     }
 
     const user = await Account.findOne({
+      attributes: ['user_id', 'username', 'password', 'type', 'created_by', 'created_time', 'status'],
       where: { username },
       include: [{
         model: User,
@@ -176,53 +177,16 @@ exports.login = async (req, res) => {
       });
     }
     
-    // Check if account is locked
-    if (user.lockUntil && user.lockUntil > new Date()) {
-      const minutesLeft = Math.ceil((user.lockUntil - new Date()) / 60000);
-      return res.status(423).json({ 
-        success: false, 
-        error: `Account locked due to multiple failed login attempts. Try again in ${minutesLeft} minutes.`,
-        lockUntil: user.lockUntil
-      });
-    }
-    
     // Verify password
     const isValidPassword = await verifyPassword(password, user.password);
     // console.log("INPUT PASSWORD:", password);
     // console.log("PASSWORD MATCH:", isValidPassword);
 
     if (!isValidPassword) {
-      // Increment failed login attempts
-      const attempts = (user.loginAttempts || 0) + 1;
-      const updates = { loginAttempts: attempts };
-      
-      // Lock account if max attempts reached
-      if (attempts >= MAX_LOGIN_ATTEMPTS) {
-        const lockUntil = new Date();
-        lockUntil.setMinutes(lockUntil.getMinutes() + LOCKOUT_TIME_MINUTES);
-        updates.lockUntil = lockUntil;
-        
-        await user.update(updates);
-        
-        return res.status(423).json({ 
-          success: false, 
-          error: `Account locked for ${LOCKOUT_TIME_MINUTES} minutes due to multiple failed login attempts.`,
-          lockUntil: lockUntil
-        });
-      }
-      
-      await user.update(updates);
-      
       return res.status(401).json({ 
         success: false, 
-        error: `Invalid username or password. ${MAX_LOGIN_ATTEMPTS - attempts} attempts remaining.`,
-        attemptsRemaining: MAX_LOGIN_ATTEMPTS - attempts
+        error: 'Invalid username or password.'
       });
-    }
-    
-    // Reset login attempts on successful login
-    if (user.loginAttempts > 0 || user.lockUntil) {
-      await user.update({ loginAttempts: 0, lockUntil: null });
     }
 
     // Kiểm tra số lượng user đồng thời
@@ -293,8 +257,12 @@ exports.login = async (req, res) => {
       userAgent: req.headers['user-agent']
     });
     
-    // Update last login time
-    await user.update({ lastLogin: new Date() });
+    // Update last login when schema supports it.
+    try {
+      await user.update({ lastLogin: new Date() });
+    } catch (_error) {
+      // Ignore when legacy schema does not have last_login column.
+    }
     // Normalize role names for RBAC capability checks.
     const role = normalizeRoleFromCode(user.type) || 'patient';
     

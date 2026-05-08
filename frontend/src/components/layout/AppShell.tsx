@@ -19,13 +19,15 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useAuth, type User } from '@/contexts/AuthContext'
 import { NotificationBell } from '@/components/NotificationBell'
+import { LanguageToggle } from '@/components/language-toggle'
+import { useTranslation } from 'react-i18next'
 
-function sidebarUserLabel(portalLabel: string, user: User | null | undefined): string {
+function sidebarUserLabel(portalLabel: string, user: User | null | undefined, guestLabel: string): string {
   if (portalLabel === 'Admin Portal') return portalLabel
-  if (!user) return 'Guest'
+  if (!user) return guestLabel
   const fromNames = [user.lastName, user.firstName].filter(Boolean).join(' ').trim()
   if (fromNames) return fromNames
-  return (user.fullName || '').trim() || user.username || 'Guest'
+  return (user.fullName || '').trim() || user.username || guestLabel
 }
 
 export interface NavItem {
@@ -73,6 +75,7 @@ function useBreakpoint() {
 }
 
 export function AppShell({ children, navItems, portalLabel, headerEnd }: AppShellProps) {
+  const { t } = useTranslation()
   const { pathname } = useLocation()
   const { logout, user } = useAuth()
   const { isMobile, isCompact } = useBreakpoint()
@@ -107,7 +110,7 @@ export function AppShell({ children, navItems, portalLabel, headerEnd }: AppShel
     [toggleSidebar]
   )
 
-  const userBadgeLabel = sidebarUserLabel(portalLabel, user)
+  const userBadgeLabel = sidebarUserLabel(portalLabel, user, t("common.guest"))
 
   // ── Mobile bottom nav ──
   if (isMobile) {
@@ -128,6 +131,7 @@ export function AppShell({ children, navItems, portalLabel, headerEnd }: AppShel
             </div>
 
             <div className="flex items-center gap-1">
+              <LanguageToggle compact />
               <NotificationBell />
               <Button variant="ghost" size="icon" onClick={logout} className="h-9 w-9 text-destructive">
                 <LogOut className="h-4 w-4" />
@@ -180,7 +184,7 @@ export function AppShell({ children, navItems, portalLabel, headerEnd }: AppShel
                 <div className="flex items-center justify-center w-8 h-8">
                   <Menu className="h-4 w-4" />
                 </div>
-                <span className="text-[10px] font-medium">More</span>
+                <span className="text-[10px] font-medium">{t("common.more")}</span>
               </Link>
             )}
           </div>
@@ -211,13 +215,14 @@ export function AppShell({ children, navItems, portalLabel, headerEnd }: AppShel
 
           {/* Logout */}
           <div className="flex items-center gap-2">
+            <LanguageToggle />
 
             {headerEnd ?? (
               <Button
                 variant="ghost"
                 size="icon"
                 className="btn-outline transition-transform duration-500 text-xl px-7 py-4"
-                aria-label="Notifications"
+                aria-label={t("common.notifications")}
               >
                 <Bell className="h-5 w-5" />
               </Button>
@@ -231,7 +236,7 @@ export function AppShell({ children, navItems, portalLabel, headerEnd }: AppShel
               className="text-destructive hover:bg-destructive hover:text-white"
             >
               <LogOut className="h-4 w-4 mr-2" />
-              Logout
+              {t("common.logout")}
             </Button>
 
           </div>
@@ -246,8 +251,8 @@ export function AppShell({ children, navItems, portalLabel, headerEnd }: AppShel
             onClick={onSidebarBackgroundClick}
             aria-label={
               sidebarCollapsed
-                ? 'Sidebar collapsed. Click to expand.'
-                : 'Sidebar expanded. Click outside menu links to collapse.'
+                ? t("layout.sidebarCollapsed")
+                : t("layout.sidebarExpanded")
             }
             className={cn(
               'flex max-h-full h-full flex-col border-r border-white/40 bg-white/80 backdrop-blur-xl shadow-[4px_0_20px_rgba(0,0,0,0.05)] transition-[width] duration-200 ease-in-out overflow-hidden cursor-pointer',
@@ -311,7 +316,7 @@ export function AppShell({ children, navItems, portalLabel, headerEnd }: AppShel
         </div>
 
         {/* ── Main content ── */}
-        <main className="flex-1 w-full p-0 md:p-4 overflow-y-auto overflow-x-hidden relative z-10">
+        <main className="flex-1 w-full px-3 py-2 md:px-4 md:py-4 lg:px-6 overflow-y-auto overflow-x-hidden relative z-10">
           <div className="w-full">{children}</div>
         </main>
       </div>

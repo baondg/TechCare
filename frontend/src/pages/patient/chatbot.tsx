@@ -125,7 +125,8 @@ export default function ChatbotPage() {
       try {
         const rows = await appointmentService.getPatientChatModels()
         if (!mounted) return
-        setModelOptions(rows)
+        const activeRows = rows.filter((m) => !m.status || String(m.status).toLowerCase() === "active")
+        setModelOptions(activeRows)
       } catch {
         if (!mounted) return
         setModelOptions([])

@@ -12,12 +12,43 @@
  */
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
+import i18n from '@/i18n'
+import { emitErrorToast } from '@/lib/error-toast-bus'
 
 function getToken(): string | null {
   return localStorage.getItem('authToken')
 }
 
-function handleUnauthorized(): void {
+function getSafeRouteByRole(role?: string): string {
+  switch ((role || '').toLowerCase()) {
+    case 'admin':
+      return '/admin/dashboard'
+    case 'doctor':
+      return '/doctor/dashboard'
+    case 'nurse':
+      return '/nurse/dashboard'
+    case 'technician':
+      return '/technician/dashboard'
+    case 'patient':
+      return '/patient/dashboard'
+    default:
+      return '/'
+  }
+}
+
+function handleUnauthorized(status: number): void {
+  if (status === 403) {
+    try {
+      const stored = localStorage.getItem('user')
+      const user = stored ? (JSON.parse(stored) as { role?: string }) : null
+      window.location.href = getSafeRouteByRole(user?.role)
+      return
+    } catch {
+      window.location.href = '/'
+      return
+    }
+  }
+
   localStorage.removeItem('authToken')
   localStorage.removeItem('user')
   localStorage.removeItem('sessionExpiresAt')
@@ -26,24 +57,41 @@ function handleUnauthorized(): void {
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken()
-
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options.headers as Record<string, string> | undefined),
-    },
-  })
+  let res: Response
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(options.headers as Record<string, string> | undefined),
+      },
+    })
+  } catch {
+    const msg = i18n.t('errors.networkError')
+    emitErrorToast(msg)
+    throw new Error(msg)
+  }
 
   if (res.status === 401 || res.status === 403) {
-    handleUnauthorized()
-    throw new Error('Unauthorized')
+    handleUnauthorized(res.status)
+    throw new Error(i18n.t('errors.unauthorized'))
   }
 
   if (!res.ok) {
     const text = await res.text()
-    throw new Error(text || `HTTP error ${res.status}`)
+    let message = text || i18n.t('errors.httpError', { status: res.status })
+    if (text) {
+      try {
+        const parsed = JSON.parse(text) as { message?: string; error?: string }
+        if (parsed?.message) message = parsed.message
+        else if (parsed?.error) message = parsed.error
+      } catch {
+        // Keep original text if not JSON.
+      }
+    }
+    emitErrorToast(message)
+    throw new Error(message)
   }
 
   // 204 No Content

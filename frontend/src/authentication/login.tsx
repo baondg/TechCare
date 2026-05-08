@@ -9,8 +9,10 @@ import { Link } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTranslation } from "react-i18next";
 
 export default function LoginPage() {
+  const { t } = useTranslation();
   // const router = useNavigate();
   // const [role, setRole] = useState<"patient" | "hospital staff" | "admin">("patient");
   const [showPassword, setShowPassword] = useState(false);
@@ -18,7 +20,7 @@ export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, isLoading } = useAuth();
 
   // const handleLogin = async (e: React.FormEvent) => {
   //   e.preventDefault();
@@ -42,10 +44,16 @@ export default function LoginPage() {
     const submittedUsername = String(formData.get("username") ?? "").trim() || username.trim();
     const submittedPassword = String(formData.get("password") ?? "") || password;
 
-    const result = await login(submittedUsername, submittedPassword);
+    let result: { success: boolean; error?: string };
+    try {
+      result = await login(submittedUsername, submittedPassword);
+    } catch {
+      setError(t("auth.unexpectedError"));
+      return;
+    }
 
     if (!result.success) {
-      setError(result.error ?? "Login failed. Please check your credentials.");
+      setError(result.error ?? t("auth.loginFailed"));
       return;
     }
 
@@ -99,8 +107,8 @@ export default function LoginPage() {
 
         <Card className="relative "> 
           <CardHeader>
-            <CardTitle className="text-2xl">Welcome!</CardTitle>
-            <CardDescription>Sign in to your TechCare account</CardDescription>
+            <CardTitle className="text-2xl">{t("auth.welcome")}</CardTitle>
+            <CardDescription>{t("auth.signInDescription")}</CardDescription>
           </CardHeader>
           <CardContent>
             {/* <Tabs value={role} onValueChange={(v) => setRole(v as any)} className="mb-6 transition duration-500">
@@ -129,13 +137,13 @@ export default function LoginPage() {
               )}
               <div className="space-y-2">
                 <Label htmlFor="username">
-                  Username <span className="text-red-500">*</span>
+                  {t("auth.username")} <span className="text-red-500">*</span>
                 </Label>
                 <Input
                   id="username"
                   name="username"
                   type="text"
-                  placeholder="Enter username"
+                  placeholder={t("auth.enterUsername")}
                   required
                   className="custom-input"
                   value={username}
@@ -144,14 +152,14 @@ export default function LoginPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">
-                  Password <span className="text-red-500">*</span>
+                  {t("auth.password")} <span className="text-red-500">*</span>
                 </Label>
                 <div className="relative"> 
                   <Input 
                     id="password" 
                     name="password"
                     type={showPassword ? "text" : "password"} 
-                    placeholder="Enter password" 
+                    placeholder={t("auth.enterPassword")} 
                     required 
                     className="custom-input"
                     value={password}
@@ -159,7 +167,7 @@ export default function LoginPage() {
                   />
                   <button
                     type="button"
-                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    aria-label={showPassword ? t("auth.hidePassword") : t("auth.showPassword")}
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute inset-y-0 right-0 flex items-center bg-none border-none pr-3 text-gray-500 hover:text-gray-700 focus:outline-none"
                   >
@@ -171,25 +179,30 @@ export default function LoginPage() {
                 <a
                   href="#"
                   className="group/item relative inline-block text-sm font-medium text-linear-to-r from-[#06b6d4] to-[#0891b2] hover:text-cyan-600 transition-all duration-400">
-                  Forgot password?
+                  {t("auth.forgotPassword")}
                   <span 
                     className="absolute inset-x-0 bottom-0 mx-auto h-0.5 w-0 bg-linear-to-r from-[#06b6d4] to-[#0891b2] rounded-full 
                               transition-all duration-500 ease-out origin-center
                               group-hover/item:w-full"/>
                 </a>
               </div>
-              <Button type="submit" size="default" className="w-full btn-gradient transition-transform duration-500">
-                Sign In
+              <Button
+                type="submit"
+                size="default"
+                disabled={isLoading}
+                className="w-full btn-gradient transition-transform duration-500"
+              >
+                {isLoading ? t("auth.signingIn") : t("auth.signIn")}
               </Button>
             </form>
 
             <div className="mt-6 text-center text-sm">
-              <span className="text-muted-foreground">Don't have an account? </span>
+              <span className="text-muted-foreground">{t("auth.noAccount")} </span>
               <Link
                 to="/register"
-                aria-label="Register as patient"
+                aria-label={t("auth.registerAsPatient")}
                 className="group/item relative inline-block text-sm font-medium text-linear-to-r from-[#06b6d4] to-[#0891b2] hover:text-cyan-600 transition-all duration-400">
-                Register as patient
+                {t("auth.registerAsPatient")}
                 <span 
                   className="absolute inset-x-0 bottom-0 mx-auto h-0.5 w-0 bg-linear-to-r from-[#06b6d4] to-[#0891b2] rounded-full 
                             transition-all duration-500 ease-out origin-center
@@ -204,7 +217,7 @@ export default function LoginPage() {
             className="group relative inline-flex items-center gap-3 text-muted-foreground/80 text-sm font-medium
                       transition-all duration-400 hover:text-linear-to-r from-[#06b6d4] to-[#0891b2] hover:translate-x-1">
             <span className="relative">
-              Back to Home
+              {t("common.backToHome")}
               <span className="absolute inset-0 bg-cyan-500/10 blur-lg scale-0 
                               transition-transform duration-400 group-hover:scale-100" />
             </span>

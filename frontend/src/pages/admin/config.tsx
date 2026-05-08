@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { AdminLayout } from "@/components/admin-layout"
-import { Save, Settings, Loader2, CheckCircle2, AlertCircle, Trash2 } from "lucide-react"
+import { Save, Settings, Loader2, CheckCircle2, Trash2 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   Select,
@@ -25,6 +25,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { useTranslation } from "react-i18next"
+import { emitErrorToast } from "@/lib/error-toast-bus"
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000"
 
@@ -81,9 +83,8 @@ const isFeatureEnabled = (status: FeatureFlag["status"]) =>
   status === true || status === 1 || status === "1" || String(status).toLowerCase() === "true"
 
 export default function SystemConfig() {
+  const { t } = useTranslation()
   const [config, setConfig] = useState({
-    apiKey: "",
-    emailServer: "smtp.hospital.com",
     aiModel: "gpt-4-turbo",
     maxUsers: "500",
     sessionTimeout: "30",
@@ -120,7 +121,7 @@ export default function SystemConfig() {
       const response = await fetch(`${API_BASE}/api/system-config/features`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
-      if (!response.ok) throw new Error("Failed to load features")
+      if (!response.ok) throw new Error(t("admin.config.failedLoadFeatures"))
       const data = await response.json()
       if (data.success) {
         setFeatures(data.features || [])
@@ -128,7 +129,7 @@ export default function SystemConfig() {
       }
     } catch (error) {
       console.error("Error loading features:", error)
-      setMessage({ type: "error", text: "Could not load feature flags." })
+      setMessage({ type: "error", text: t("admin.config.couldNotLoadFeatureFlags") })
     } finally {
       setFeaturesLoading(false)
     }
@@ -141,10 +142,10 @@ export default function SystemConfig() {
         headers: { Authorization: `Bearer ${token}` },
       })
       const data = await response.json()
-      if (!response.ok || !data.success) throw new Error(data.error || "Failed to load sessions")
+      if (!response.ok || !data.success) throw new Error(data.error || t("admin.config.failedLoadSessions"))
       setSessions(data.sessions || [])
     } catch (error) {
-      setMessage({ type: "error", text: error instanceof Error ? error.message : "Could not load sessions." })
+      setMessage({ type: "error", text: error instanceof Error ? error.message : t("admin.config.couldNotLoadSessions") })
     } finally {
       setSessionsLoading(false)
     }
@@ -156,11 +157,11 @@ export default function SystemConfig() {
         headers: { Authorization: `Bearer ${token}` },
       })
       const data = await response.json()
-      if (!response.ok || !data.success) throw new Error(data.error || "Failed to load AI models")
+      if (!response.ok || !data.success) throw new Error(data.error || t("admin.config.failedLoadAiModels"))
       setAiModels(data.models || [])
       setAiDefaults(data.defaults || {})
     } catch (error) {
-      setMessage({ type: "error", text: error instanceof Error ? error.message : "Could not load AI models." })
+      setMessage({ type: "error", text: error instanceof Error ? error.message : t("admin.config.couldNotLoadAiModels") })
     }
   }
 
@@ -197,6 +198,12 @@ export default function SystemConfig() {
     void loadAiModels();
   }, []);
 
+  useEffect(() => {
+    if (!message || message.type !== "error") return
+    emitErrorToast(message.text)
+    setMessage(null)
+  }, [message])
+
   const handleChange = (field: string, value: string) => {
     setConfig((prev) => ({ ...prev, [field]: value }))
     setMessage(null);
@@ -213,7 +220,7 @@ export default function SystemConfig() {
       const data = await response.json()
       if (!response.ok || !data.success) throw new Error(data.error || "Failed to revoke session")
       setSessions((prev) => prev.filter((s) => s.id !== id))
-      setMessage({ type: "success", text: "Session revoked successfully." })
+      setMessage({ type: "success", text: t("admin.config.sessionRevokedSuccessfully") })
     } catch (error) {
       setMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to revoke session." })
     } finally {
@@ -431,52 +438,12 @@ export default function SystemConfig() {
           <p className="text-muted-foreground mt-2">Manage system settings and parameters</p>
         </div>
 
-        {message && (
-          <Alert variant={message.type === 'error' ? 'destructive' : 'default'}>
-            {message.type === 'success' ? (
-              <CheckCircle2 className="h-4 w-4" />
-            ) : (
-              <AlertCircle className="h-4 w-4" />
-            )}
+        {message?.type === "success" && (
+          <Alert>
+            <CheckCircle2 className="h-4 w-4" />
             <AlertDescription>{message.text}</AlertDescription>
           </Alert>
         )}
-
-        {/* API Configuration */}
-        <Card className="card-feature-group">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Settings className="h-5 w-5" />
-              API Configuration
-            </CardTitle>
-            <CardDescription>Configure API keys and endpoints</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="apiKey">API Key</Label>
-              <Input
-                id="apiKey"
-                type="password"
-                value={config.apiKey}
-                onChange={(e) => handleChange("apiKey", e.target.value)}
-                className="custom-input"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="emailServer">Email Server</Label>
-              <Input
-                id="emailServer"
-                value={config.emailServer}
-                onChange={(e) => handleChange("emailServer", e.target.value)}
-                className="custom-input"
-              />
-            </div>
-            <Button className="gap-2 btn-gradient">
-              <Save size={20} />
-              Save API Config
-            </Button>
-          </CardContent>
-        </Card>
 
         {/* AI Model Configuration */}
         <Card className="card-feature-group">
@@ -495,17 +462,6 @@ export default function SystemConfig() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="rounded-xl bg-gradient-to-r from-cyan-50 to-blue-50 border border-cyan-100 p-4">
-              <p className="text-sm text-slate-700">
-                <span className="font-semibold">How it works:</span> If a Groq API key is set (in backend <code className="bg-white/60 px-1 rounded">.env</code>), all AI features use Groq Cloud.
-                Otherwise, the system uses the local LLM (Ollama).
-              </p>
-              <p className="text-xs text-slate-500 mt-2">
-                Set <code className="bg-white/60 px-1 rounded">GROQ_API_KEY</code>, <code className="bg-white/60 px-1 rounded">GROQ_MODEL</code>,
-                <code className="bg-white/60 px-1 rounded">LOCAL_LLM_BASE_URL</code>, <code className="bg-white/60 px-1 rounded">LOCAL_LLM_MODEL</code> in <code className="bg-white/60 px-1 rounded">backend/.env</code>
-              </p>
-            </div>
-
             <div className="rounded-lg border border-border bg-card p-4 space-y-4">
               <h3 className="text-sm font-semibold text-foreground">Add configuration</h3>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -697,11 +653,11 @@ export default function SystemConfig() {
                     })
                     setTimeout(() => setMessage(null), 5000)
                   } catch {
-                    setMessage({ type: "error", text: "Cannot reach AI service. Check backend server." })
+                    setMessage({ type: "error", text: t("admin.config.cannotReachAiService") })
                   }
                 }}
               >
-                Test AI Connection
+                {t("admin.config.testAiConnection")}
               </Button>
             </div>
           </CardContent>
@@ -712,9 +668,9 @@ export default function SystemConfig() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Settings className="h-5 w-5" />
-              System Limits
+              {t("admin.config.systemLimits")}
             </CardTitle>
-            <CardDescription>Configure system limits and timeouts</CardDescription>
+            <CardDescription>{t("admin.config.configureSystemLimits")}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -752,7 +708,7 @@ export default function SystemConfig() {
               ) : (
                 <>
                   <Save size={20} />
-                  Save System Config
+                  {t("admin.config.saveSystemConfig")}
                 </>
               )}
             </Button>

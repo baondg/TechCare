@@ -8,9 +8,12 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import {Dialog,DialogContent,DialogHeader,DialogTitle,DialogDescription,DialogFooter,} from "@/components/ui/dialog"
 import { PatientLayout } from "@/components/patient-layout"
 import { AlertCircle, X, Clock, Stethoscope, AlertTriangle, CheckCircle } from "lucide-react"
+import { Link } from "react-router-dom"
+import { useTranslation } from "react-i18next"
 import { appointmentService } from "@/services/appointment-service"
 import type { SymptomInput, SymptomAnalysisResult } from "@/types/ai-types"
 import { getReadableApiError } from "@/lib/utils"
+import { persistSymptomCheckerToHealthInfo } from "@/lib/symptom-checker-persist-health"
 
 interface SelectedSymptom {
   name: string
@@ -58,6 +61,7 @@ const durationOptions = [
  * @returns JSX.Element - Complete symptom checker page
  */
 export default function SymptomChecker() {
+  const { t } = useTranslation()
   // ==================== STATE MANAGEMENT ====================
   
   // Array of symptoms selected by the patient with their details
@@ -77,6 +81,8 @@ export default function SymptomChecker() {
   const [results, setResults] = useState<SymptomAnalysisResult[]>([])
   const [disclaimer, setDisclaimer] = useState<string>("")
   const [analysisError, setAnalysisError] = useState<string>("")
+  const [healthInfoSyncMessage, setHealthInfoSyncMessage] = useState<"ok" | "err" | null>(null)
+  const [healthInfoSyncDetail, setHealthInfoSyncDetail] = useState<string>("")
 
   // ==================== EVENT HANDLERS ====================
 
@@ -141,6 +147,8 @@ export default function SymptomChecker() {
     setAnalysisError("")
     setResults([])
     setDisclaimer("")
+    setHealthInfoSyncMessage(null)
+    setHealthInfoSyncDetail("")
 
     try {
       // Convert selected symptoms to AI service format
@@ -162,6 +170,15 @@ export default function SymptomChecker() {
         setAnalysisError(
           "AI did not return symptom suggestions. Check GROQ_API_KEY / Ollama backend configuration, then try again."
         )
+      }
+
+      const sync = await persistSymptomCheckerToHealthInfo(selectedSymptoms)
+      if (sync.ok) {
+        setHealthInfoSyncMessage("ok")
+        setHealthInfoSyncDetail("")
+      } else {
+        setHealthInfoSyncMessage("err")
+        setHealthInfoSyncDetail(sync.error || t("patient.symptomChecker.healthInfoSaveFailed"))
       }
     } catch (error) {
       console.error('Error analyzing symptoms:', error)
@@ -190,6 +207,32 @@ export default function SymptomChecker() {
   return (
     <PatientLayout>
       <div className="w-full max-w-none space-y-6 min-h-[calc(100vh-110px)]">
+        <Alert className="border-cyan-200 bg-cyan-50/80">
+          <Stethoscope className="h-5 w-5 text-cyan-700" />
+          <AlertDescription className="text-slate-800">
+            {t("patient.symptomChecker.profileHint")}
+          </AlertDescription>
+        </Alert>
+
+        {healthInfoSyncMessage === "ok" && (
+          <Alert className="border-green-200 bg-green-50/90">
+            <CheckCircle className="h-5 w-5 text-green-700" />
+            <AlertDescription className="text-slate-800">
+              {t("patient.symptomChecker.healthInfoSaved")}{" "}
+              <Link to="/patient/health-info" className="font-semibold text-cyan-700 underline">
+                Health Info
+              </Link>
+              .
+            </AlertDescription>
+          </Alert>
+        )}
+        {healthInfoSyncMessage === "err" && healthInfoSyncDetail && (
+          <Alert className="border-amber-200 bg-amber-50/90">
+            <AlertTriangle className="h-5 w-5 text-amber-700" />
+            <AlertDescription className="text-amber-950">{healthInfoSyncDetail}</AlertDescription>
+          </Alert>
+        )}
+
         <div className="flex flex-wrap items-center justify-end gap-3 w-full">
           <div className="flex gap-3">
             <Button

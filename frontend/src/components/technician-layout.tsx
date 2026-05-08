@@ -3,19 +3,21 @@ import { AppShell } from '@/components/layout/AppShell'
 import type { NavItem } from '@/components/layout/AppShell'
 import { PatientNotificationBell } from '@/components/patient-notification-bell'
 import { Activity, Users, CalendarClock, FileText } from 'lucide-react'
-
-const navigation: NavItem[] = [
-  { name: 'Dashboard', href: '/technician/dashboard', icon: Activity },
-  { name: 'Patients',  href: '/technician/patients',  icon: Users },
-  { name: 'Work shifts', href: '/technician/work-shifts', icon: CalendarClock },
-  { name: 'Feedback',  href: '/technician/feedback',  icon: FileText },
-]
+import { useTranslation } from 'react-i18next'
 
 export function TechnicianLayout({ children }: { children: React.ReactNode }) {
+  const { t } = useTranslation()
+  const navigation: NavItem[] = [
+    { name: t("nav.dashboard"), href: '/technician/dashboard', icon: Activity },
+    { name: t("nav.patients"), href: '/technician/patients', icon: Users },
+    { name: t("nav.workShifts"), href: '/technician/work-shifts', icon: CalendarClock },
+    { name: t("nav.feedback"), href: '/technician/feedback', icon: FileText },
+  ]
+
   return (
     <AppShell
       navItems={navigation}
-      portalLabel="Technician Portal"
+      portalLabel={t("layout.technicianPortal")}
       headerEnd={<PatientNotificationBell />}
     >
       {children}

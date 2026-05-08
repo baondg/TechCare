@@ -1,63 +1,47 @@
 {
-  "startedAt": "2026-05-05T13:03:17.022Z",
+  "startedAt": "2026-05-07T04:50:41.100Z",
   "dbName": "defaultdb",
   "personas": {
     "admin": {
-      "username": "demo_admin",
-      "userId": 55
+      "username": "admin",
+      "userId": 5,
+      "adminId": 2
     },
     "nurse": {
-      "username": "demo_nurse",
-      "userId": 56
+      "username": "nurse1",
+      "userId": 6,
+      "nurseId": 1
     },
     "technician": {
-      "username": "demo_technician",
-      "userId": 58,
+      "username": "tech1",
+      "userId": 7,
       "roleCode": "TEC"
     },
-    "doctors": [
-      {
-        "username": "demo_doc_1",
-        "userId": 59,
-        "doctorId": 26
-      },
-      {
-        "username": "demo_doc_2",
-        "userId": 60,
-        "doctorId": 27
-      }
-    ],
-    "patients": [
-      {
-        "username": "900000000001",
-        "userId": 61,
-        "patientId": 34
-      },
-      {
-        "username": "900000000002",
-        "userId": 62,
-        "patientId": 35
-      },
-      {
-        "username": "900000000003",
-        "userId": 63,
-        "patientId": 36
-      }
-    ]
-  },
-  "workflow": {
-    "departmentId": 15,
-    "roomId": 504,
-    "diseaseId": 12248,
-    "activeRegimenId": 46,
-    "appointments": {
-      "openSlotId": 403,
-      "bookedAppointmentId": 404,
-      "cancelledAppointmentId": 405
+    "doctor": {
+      "username": "doctor1",
+      "userId": 8,
+      "doctorId": 2
+    },
+    "patient": {
+      "username": "038204030823",
+      "userId": 9,
+      "patientId": 2
     }
   },
-  "credentials": {
-    "password": "Demo12345A"
+  "workflow": {
+    "departmentId": 7,
+    "roomId": 7,
+    "diseaseId": 71706,
+    "activeRegimenId": 3,
+    "appointments": {
+      "openSlotId": 38,
+      "bookedAppointmentId": 39,
+      "cancelledAppointmentId": 40
+    },
+    "shiftId": 26
   },
-  "completedAt": "2026-05-05T13:03:19.096Z"
+  "credentials": {
+    "password": "Test@1234"
+  },
+  "completedAt": "2026-05-07T04:50:44.050Z"
 }

@@ -24,11 +24,16 @@ const cleanupExpiredSessions = async () => {
 };
 
 const getNumericConfig = async (key, fallback) => {
-  const config = await SystemConfig.findOne({ where: { key } });
-  if (!config) return fallback;
+  try {
+    const config = await SystemConfig.findOne({ where: { key } });
+    if (!config) return fallback;
 
-  const parsed = Number.parseInt(String(config.value), 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+    const parsed = Number.parseInt(String(config.value), 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+  } catch (_error) {
+    // Legacy deployments may not have key/value system config schema.
+    return fallback;
+  }
 };
 
 // Kiểm tra và làm sạch session định kỳ (mỗi 5 phút)

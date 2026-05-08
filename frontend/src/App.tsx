@@ -1,9 +1,10 @@
 import "./App.css"
 
 import { lazy, Suspense } from "react"
-import { Route, Routes, useLocation } from "react-router-dom"
+import { Navigate, Route, Routes, useLocation, useParams } from "react-router-dom"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
 import { ErrorToastProvider } from "@/components/error-toast-provider"
+import { SuccessToastProvider } from "@/components/success-toast-provider"
 
 const LandingPage = lazy(() => import("./LandingPage"))
 const FadeTransition = lazy(() => import("@/components/FadeTransition"))
@@ -78,6 +79,11 @@ function RouteFallback() {
       Loading…
     </div>
   )
+}
+
+function LegacyDoctorPatientProfileRedirect() {
+  const { patientId } = useParams<{ patientId: string }>()
+  return <Navigate to={`/doctor/medical_records/${patientId || ""}/dashboard`} replace />
 }
 
 function App() {
@@ -155,7 +161,7 @@ function App() {
         </Route>
         <Route path="/doctor/appointments" element={<DoctorAppointment />} />
         <Route path="/doctor/work-shifts" element={<DoctorWorkShifts />} />
-        <Route path="/doctor/patients/:patientId/profile" element={<NursePatientProfilePage />} />
+        <Route path="/doctor/patients/:patientId/profile" element={<LegacyDoctorPatientProfileRedirect />} />
         <Route path="/doctor/feedback" element={<DoctorFeedback />} />
         <Route path="/doctor/notifications" element={<DoctorPortalNotificationsPage />} />
 
@@ -201,6 +207,7 @@ function App() {
         </div>
       </Suspense>
       {routedContent}
+      <SuccessToastProvider />
       <ErrorToastProvider />
     </>
   )

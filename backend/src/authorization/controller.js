@@ -19,6 +19,7 @@ const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_TIME_MINUTES = 15;
 const ACCESS_TOKEN_EXPIRY = '15m'; // Short-lived access token
 const REFRESH_TOKEN_EXPIRY = '7d'; // Long-lived refresh token
+const REFRESH_COOKIE_NAME = 'refreshToken';
 
 // Verify password
 const verifyPassword = async (password, hash) => {
@@ -31,6 +32,46 @@ const generateAccessToken = (username, userId, role) =>
 
 const generateRefreshToken = (username, userId) =>
   jwt.sign({ username, userId, type: 'refresh' }, getJwtSecret(), { expiresIn: REFRESH_TOKEN_EXPIRY });
+
+const resolveSameSite = () => {
+  const raw = String(process.env.AUTH_REFRESH_COOKIE_SAMESITE || '').trim().toLowerCase();
+  if (raw === 'lax' || raw === 'strict' || raw === 'none') return raw;
+  return process.env.NODE_ENV === 'production' ? 'none' : 'lax';
+};
+
+const shouldUseSecureCookies = () => {
+  if (process.env.AUTH_REFRESH_COOKIE_SECURE !== undefined) {
+    return String(process.env.AUTH_REFRESH_COOKIE_SECURE).toLowerCase() === 'true';
+  }
+  return process.env.NODE_ENV === 'production';
+};
+
+const getRefreshCookieOptions = (expiresAt) => ({
+  httpOnly: true,
+  secure: shouldUseSecureCookies(),
+  sameSite: resolveSameSite(),
+  path: '/api/auth',
+  expires: expiresAt,
+});
+
+const setRefreshCookie = (res, refreshToken, expiresAt) => {
+  res.cookie(REFRESH_COOKIE_NAME, refreshToken, getRefreshCookieOptions(expiresAt));
+};
+
+const clearRefreshCookie = (res) => {
+  res.clearCookie(REFRESH_COOKIE_NAME, {
+    ...getRefreshCookieOptions(new Date(0)),
+    expires: new Date(0),
+  });
+};
+
+const getRefreshTokenFromRequest = (req) => {
+  const fromCookie = req.cookies?.[REFRESH_COOKIE_NAME];
+  if (fromCookie) return String(fromCookie);
+  const fromBody = req.body?.refreshToken;
+  if (fromBody) return String(fromBody);
+  return null;
+};
 
 const getNumericConfig = async (key, fallback) => {
   try {
@@ -82,6 +123,7 @@ exports.register = async (req, res) => {
         lastActivity: new Date(),
       });
       
+      setRefreshCookie(res, refreshToken, expiresAt);
       res.status(201).json({
         success: true,
         user: {
@@ -90,7 +132,6 @@ exports.register = async (req, res) => {
           type: user.type
         },
         token: accessToken,
-        refreshToken: refreshToken,
         expiresAt: expiresAt.toISOString()
       });
   } catch (err) {
@@ -271,6 +312,7 @@ exports.login = async (req, res) => {
     const lastName = (profile?.last_name || '').trim();
     const displayName = [lastName, firstName].filter(Boolean).join(' ').trim();
 
+    setRefreshCookie(res, refreshToken, expiresAt);
     res.json({
       success: true,
       user: {
@@ -283,7 +325,6 @@ exports.login = async (req, res) => {
         role: role
       },
       token: accessToken,
-      refreshToken: refreshToken,
       expiresAt: expiresAt.toISOString()
     });
   } catch (err) {
@@ -296,6 +337,7 @@ exports.logout = async (req, res) => {
   try {
     const token = req.headers.authorization?.replace('Bearer ', '') || 
                   req.body.token;
+    const refreshToken = getRefreshTokenFromRequest(req);
     const { allDevices = false } = req.body;
     
     if (allDevices && req.user) {
@@ -304,7 +346,10 @@ exports.logout = async (req, res) => {
     } else if (token) {
       // Logout from current device only
       await Session.destroy({ where: { token } });
+    } else if (refreshToken) {
+      await Session.destroy({ where: { refreshToken } });
     }
+    clearRefreshCookie(res);
     
     res.json({
       success: true,
@@ -319,7 +364,7 @@ exports.logout = async (req, res) => {
 // Refresh access token using refresh token
 exports.refreshToken = async (req, res) => {
   try {
-    const { refreshToken } = req.body;
+    const refreshToken = getRefreshTokenFromRequest(req);
     
     if (!refreshToken) {
       return res.status(400).json({ 
@@ -336,6 +381,7 @@ exports.refreshToken = async (req, res) => {
         throw new Error('Invalid token type');
       }
     } catch (err) {
+      clearRefreshCookie(res);
       return res.status(403).json({ 
         success: false, 
         error: 'Invalid or expired refresh token' 
@@ -351,6 +397,7 @@ exports.refreshToken = async (req, res) => {
     });
     
     if (!session) {
+      clearRefreshCookie(res);
       return res.status(403).json({ 
         success: false, 
         error: 'Session not found or expired' 
@@ -360,6 +407,7 @@ exports.refreshToken = async (req, res) => {
     // Check if session is expired
     if (new Date() > new Date(session.expiresAt)) {
       await Session.destroy({ where: { id: session.id } });
+      clearRefreshCookie(res);
       return res.status(403).json({ 
         success: false, 
         error: 'Session expired. Please login again.' 
@@ -369,20 +417,24 @@ exports.refreshToken = async (req, res) => {
     // Get user details
     const user = await Account.findOne({ where: { user_id: decoded.userId } });
     if (!user) {
+      clearRefreshCookie(res);
       return res.status(404).json({
         success: false,
         error: 'User not found'
       });
     }
 
-    // Generate new access token
+    // Generate new access token + rotate refresh token
     const newAccessToken = generateAccessToken(user.username, user.user_id, user.type);
+    const newRefreshToken = generateRefreshToken(user.username, user.user_id);
     
-    // Update session with new access token and activity time
+    // Update session with rotated refresh token
     await session.update({
       token: newAccessToken,
+      refreshToken: newRefreshToken,
       lastActivity: new Date()
     });
+    setRefreshCookie(res, newRefreshToken, session.expiresAt);
     
     res.json({
       success: true,

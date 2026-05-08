@@ -161,7 +161,10 @@ export default function DoctorDashboard() {
                         <div>
                           <p className="font-medium">
                             {apt.patientId ? (
-                              <Link to={`/doctor/patients/${apt.patientId}/profile`} className="text-cyan-700 hover:underline">
+                              <Link
+                                to={`/doctor/medical_records/${apt.patientId}/dashboard`}
+                                className="text-cyan-700 hover:underline"
+                              >
                                 {apt.patientName || `Patient #${apt.patientId}`}
                               </Link>
                             ) : (
@@ -212,7 +215,10 @@ export default function DoctorDashboard() {
                 <div key={patient.patientId} className="flex items-center justify-between p-3 border rounded-lg">
                   <div>
                     <p className="font-medium">
-                      <Link to={`/doctor/patients/${patient.patientId}/profile`} className="text-cyan-700 hover:underline">
+                      <Link
+                        to={`/doctor/medical_records/${patient.patientId}/dashboard`}
+                        className="text-cyan-700 hover:underline"
+                      >
                         {patient.patientName}
                       </Link>
                     </p>

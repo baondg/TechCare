@@ -1,4 +1,5 @@
 import { useNavigate, useParams } from "react-router-dom"
+import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { DoctorLayout } from "./doctor-layout"
@@ -49,6 +50,7 @@ import { generateHospitalTransferPdfBlob } from "@/lib/export-hospital-transfer-
 import { generateHealthInfoTrackingPdfBlob } from "@/lib/export-health-info-tracking-pdf"
 import { buildSigningTimeLine, signingLineFromIso, stampPdfWithExportFooter } from "@/lib/pdf-export-stamp"
 import { usePauseableToast } from "@/hooks/usePauseableToast"
+import { translatePatientInDepartment } from "@/lib/patient-departments"
 import { PauseableCornerToastPortal } from "@/components/pauseable-corner-toast"
 import { Loader2, ArrowRightLeft, AlertCircle, FileDown, Printer, Plus, Minus } from "lucide-react"
 
@@ -133,6 +135,7 @@ export function DoctorLayout2() {
   const { toast, isExiting, showSuccess, showError, onMouseEnter, onMouseLeave } = usePauseableToast(2600)
   const navigate = useNavigate()
   const { tab = "dashboard", patientId } = useParams()
+  const { t } = useTranslation()
 
   const setActiveTab = (value: string) => {
     navigate(`/doctor/medical_records/${patientId}/${value}`)
@@ -425,7 +428,9 @@ export function DoctorLayout2() {
             Diagnosis: {latestDiagnosis.icd10 || "—"} - {latestDiagnosis.interpretation || "—"}
           </p>
         )}
-        <p className="text-sm text-slate-500">Department: {deptLabel || "—"}</p>
+        <p className="text-sm text-slate-500">
+          {t("doctor.patients.department")}: {translatePatientInDepartment(deptLabel, t)}
+        </p>
       </div>
     )
   }
@@ -1655,8 +1660,10 @@ export function DoctorLayout2() {
                       </div>
                       {fromRoomDepartmentLabel ? (
                         <p className="text-sm text-slate-600 rounded-md border border-cyan-100 bg-cyan-50/60 px-3 py-2">
-                          <span className="text-slate-500">Department: </span>
-                          <span className="font-medium text-slate-800">{fromRoomDepartmentLabel}</span>
+                          <span className="text-slate-500">{t("doctor.patients.department")}: </span>
+                          <span className="font-medium text-slate-800">
+                            {translatePatientInDepartment(fromRoomDepartmentLabel, t)}
+                          </span>
                         </p>
                       ) : null}
                     </>
@@ -1686,8 +1693,10 @@ export function DoctorLayout2() {
                       </Select>
                       {toRoomDepartmentLabel ? (
                         <p className="text-sm text-slate-600 rounded-md border border-cyan-100 bg-cyan-50/60 px-3 py-2">
-                          <span className="text-slate-500">Department: </span>
-                          <span className="font-medium text-slate-800">{toRoomDepartmentLabel}</span>
+                          <span className="text-slate-500">{t("doctor.patients.department")}: </span>
+                          <span className="font-medium text-slate-800">
+                            {translatePatientInDepartment(toRoomDepartmentLabel, t)}
+                          </span>
                         </p>
                       ) : null}
                     </>

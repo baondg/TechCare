@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const { RBAC_MATRIX, isRoleAllowed } = require('../src/security/rbacMatrix');
 const { authorizeCapability } = require('../src/middleware/authorizeCapability');
 const { normalizeRoleFromCode } = require('../src/security/roleMapping');
+const contract = require('../src/config/systemConfigurationContract');
 
 function createMockRes() {
   return {
@@ -102,4 +103,38 @@ test('middleware denies when role is missing', () => {
   });
   assert.equal(called, false);
   assert.equal(res.statusCode, 403);
+});
+
+test('system config contract: RATE_LIMIT_SCOPE_TO_KEYS includes aiRecovery', () => {
+  assert.ok(contract.RATE_LIMIT_SCOPE_TO_KEYS.aiRecovery);
+  assert.equal(contract.RATE_LIMIT_SCOPE_TO_KEYS.aiRecovery.requestsKey, 'aiRecoveryRateLimitRequests');
+});
+
+test('system config contract: getRateLimitQueryKeysForScope', () => {
+  const keys = contract.getRateLimitQueryKeysForScope('login');
+  assert.ok(keys.includes('rateLimitEnabled'));
+  assert.ok(keys.includes('loginRateLimitRequests'));
+  assert.ok(keys.includes('loginRateLimitWindowSeconds'));
+});
+
+test('system config contract: buildRateLimitPolicyFromKvMap honors overrides', () => {
+  const map = {
+    ...contract.CONFIG_DEFAULTS,
+    rateLimitEnabled: 'false',
+    rateLimitIpBased: 'false',
+    globalRateLimitRequests: '200',
+    globalRateLimitWindowSeconds: '120',
+  };
+  const p = contract.buildRateLimitPolicyFromKvMap(map, 'global', { maxRequests: 100, windowSeconds: 60 });
+  assert.equal(p.enabled, false);
+  assert.equal(p.ipBasedLimit, false);
+  assert.equal(p.maxRequests, 200);
+  assert.equal(p.windowSeconds, 120);
+});
+
+test('system config contract: buildRateLimitPolicyFromKvMap fallback defaults', () => {
+  const map = { rateLimitEnabled: 'true', rateLimitIpBased: 'true' };
+  const p = contract.buildRateLimitPolicyFromKvMap(map, 'login', { maxRequests: 99, windowSeconds: 77 });
+  assert.equal(p.maxRequests, 99);
+  assert.equal(p.windowSeconds, 77);
 });

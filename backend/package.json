@@ -18,10 +18,13 @@
     "seed:patient:vitals-slots": "node scripts/seed-patient-vitals-and-slots.js",
     "db:backup": "node scripts/backup-restore.js backup",
     "db:restore": "node scripts/backup-restore.js restore",
-    "db:indexes": "node scripts/ensure-performance-indexes.js"
+    "db:indexes": "node scripts/ensure-performance-indexes.js",
+    "migrate:system-config-kv": "node scripts/migrate-system-configuration-to-kv.js",
+    "db:migrate:system-config": "node scripts/migrate-system-configuration-to-kv.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",

@@ -7,6 +7,7 @@ dotenv.config();
 import express, { Express, Request, Response } from 'express';
 import cors from 'cors';
 import path from 'path';
+import cookieParser from 'cookie-parser';
 import aiRoutes from './routes/ai';
 const authRoutes = require('./authorization/routes');
 const systemConfigRoutes = require('./routes/systemConfig');
@@ -52,11 +53,15 @@ app.use(
           origin: allowAnyOrigin ? true : allowedOrigins,
           credentials: !allowAnyOrigin,
         }
-      : undefined
+      : {
+          origin: true,
+          credentials: true,
+        }
   )
 );
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 // Session middleware for checking timeout

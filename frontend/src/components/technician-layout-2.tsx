@@ -1,4 +1,5 @@
 import { useParams } from "react-router-dom"
+import { useTranslation } from "react-i18next"
 import { Card } from "@/components/ui/card"
 import { TechnicianLayout } from "./technician-layout"
 import ViewingPatientLab from "@/pages/technician/medical_records/lab"
@@ -7,9 +8,11 @@ import { EmrSessionProvider } from "@/contexts/emr-session-context"
 import { doctorService } from "@/services/doctor-service"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle } from "lucide-react"
+import { translatePatientInDepartment } from "@/lib/patient-departments"
 
 export function TechnicianLayout2() {
   const { patientId } = useParams()
+  const { t } = useTranslation()
   const [patientData, setPatientData] = useState<any>(null)
   const [visitLoading, setVisitLoading] = useState(true)
   const [visitActive, setVisitActive] = useState(false)
@@ -89,7 +92,8 @@ export function TechnicianLayout2() {
                     </p>
                   )}
                   <p className="text-sm text-slate-500">
-                    Department: {patientData.inDepartment || patientData.in_department || "—"}
+                    {t("doctor.patients.department")}:{" "}
+                    {translatePatientInDepartment(patientData.inDepartment || patientData.in_department, t)}
                   </p>
                 </>
               ) : (

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { AdminLayout } from "@/components/admin-layout"
-import { Save, Settings, Loader2, CheckCircle2, Trash2 } from "lucide-react"
+import { Save, Settings, Loader2, Trash2 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   Select,
@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/table"
 import { useTranslation } from "react-i18next"
 import { emitErrorToast } from "@/lib/error-toast-bus"
+import { emitSuccessToast } from "@/lib/success-toast-bus"
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000"
 
@@ -220,7 +221,7 @@ export default function SystemConfig() {
       const data = await response.json()
       if (!response.ok || !data.success) throw new Error(data.error || "Failed to revoke session")
       setSessions((prev) => prev.filter((s) => s.id !== id))
-      setMessage({ type: "success", text: t("admin.config.sessionRevokedSuccessfully") })
+      emitSuccessToast(t("admin.config.sessionRevokedSuccessfully"))
     } catch (error) {
       setMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to revoke session." })
     } finally {
@@ -240,7 +241,7 @@ export default function SystemConfig() {
       const data = await response.json()
       if (!response.ok || !data.success) throw new Error(data.error || "Failed to revoke sessions")
       setSessions([])
-      setMessage({ type: "success", text: `Revoked ${data.revokedCount || 0} sessions.` })
+      emitSuccessToast(`Revoked ${data.revokedCount || 0} sessions.`)
     } catch (error) {
       setMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to revoke sessions." })
     } finally {
@@ -269,7 +270,7 @@ export default function SystemConfig() {
       })
       const data = await response.json()
       if (!response.ok || !data.success) throw new Error(data.error || "Failed to add AI model")
-      setMessage({ type: "success", text: "AI model configuration added." })
+      emitSuccessToast("AI model configuration added.")
       setDraftRow({
         featureKey: "",
         provider: "groq",
@@ -323,7 +324,7 @@ export default function SystemConfig() {
       })
       const data = await response.json()
       if (!response.ok || !data.success) throw new Error(data.error || "Failed to remove AI model")
-      setMessage({ type: "success", text: "AI model configuration removed." })
+      emitSuccessToast("AI model configuration removed.")
       await loadAiModels()
     } catch (error) {
       setMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to remove AI model." })
@@ -344,7 +345,7 @@ export default function SystemConfig() {
       const data = await response.json()
       if (!response.ok || !data.success) throw new Error(data.error || "Failed to set default model")
       setAiDefaults(data.defaults || {})
-      setMessage({ type: "success", text: "Default AI model updated." })
+      emitSuccessToast("Default AI model updated.")
     } catch (error) {
       setMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to set default model." })
     } finally {
@@ -373,8 +374,7 @@ export default function SystemConfig() {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        setMessage({ type: 'success', text: 'System configuration saved successfully!' });
-        setTimeout(() => setMessage(null), 3000);
+        emitSuccessToast("System configuration saved successfully!")
       } else {
         setMessage({ type: 'error', text: data.error || 'Failed to save configuration' });
       }
@@ -411,8 +411,7 @@ export default function SystemConfig() {
         const enabled = nextStatus === 1 ? prev.enabled + 1 : prev.enabled - 1
         return { total: prev.total, enabled, disabled: prev.total - enabled }
       })
-      setMessage({ type: "success", text: `Feature "${feature.name}" is now ${nextStatus === 1 ? "enabled" : "disabled"}.` })
-      setTimeout(() => setMessage(null), 2500)
+      emitSuccessToast(`Feature "${feature.name}" is now ${nextStatus === 1 ? "enabled" : "disabled"}.`)
     } catch (error) {
       setMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to update feature" })
     } finally {
@@ -437,13 +436,6 @@ export default function SystemConfig() {
           <h2 className="text-3xl font-bold text-foreground">System Configuration</h2>
           <p className="text-muted-foreground mt-2">Manage system settings and parameters</p>
         </div>
-
-        {message?.type === "success" && (
-          <Alert>
-            <CheckCircle2 className="h-4 w-4" />
-            <AlertDescription>{message.text}</AlertDescription>
-          </Alert>
-        )}
 
         {/* AI Model Configuration */}
         <Card className="card-feature-group">
@@ -647,11 +639,9 @@ export default function SystemConfig() {
                       headers: { Authorization: `Bearer ${token}` },
                     })
                     const data = await res.json()
-                    setMessage({
-                      type: "success",
-                      text: `AI is online! Provider: ${data.provider || "unknown"}, Model: ${data.model || "unknown"}`,
-                    })
-                    setTimeout(() => setMessage(null), 5000)
+                    emitSuccessToast(
+                      `AI is online! Provider: ${data.provider || "unknown"}, Model: ${data.model || "unknown"}`
+                    )
                   } catch {
                     setMessage({ type: "error", text: t("admin.config.cannotReachAiService") })
                   }

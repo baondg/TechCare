@@ -115,9 +115,9 @@ export function AppShell({ children, navItems, portalLabel, headerEnd }: AppShel
   // ── Mobile bottom nav ──
   if (isMobile) {
     return (
-      <div className="min-h-screen w-screen bg-background">
+      <div className="flex h-dvh max-h-dvh min-h-0 w-full flex-col overflow-hidden bg-background">
         {/* Header */}
-        <header className="w-screen sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
+        <header className="w-full shrink-0 z-50 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
           <div className="w-full flex h-14 items-center justify-between px-4">
             <div className="group flex items-center gap-2">
               <div className="relative flex h-8 w-8 items-center justify-center rounded-xl bg-linear-to-br from-[#06b6d4] to-[#0891b2] p-0.5 shadow-lg">
@@ -140,8 +140,8 @@ export function AppShell({ children, navItems, portalLabel, headerEnd }: AppShel
           </div>
         </header>
 
-        {/* Main content */}
-        <main className="flex-1 w-full p-3 pb-20 overflow-y-auto overflow-x-hidden relative z-10">
+        {/* Main content — only this region scrolls so the scrollbar sits below the header */}
+        <main className="relative z-10 min-h-0 flex-1 w-full overflow-y-auto overflow-x-hidden px-3 pt-5 pb-20 md:pt-6">
           <div className="w-full">{children}</div>
         </main>
 
@@ -195,10 +195,10 @@ export function AppShell({ children, navItems, portalLabel, headerEnd }: AppShel
 
   // ── Desktop / Tablet sidebar layout ──
   return (
-    <div className="min-h-screen w-screen bg-background">
+    <div className="flex h-dvh max-h-dvh min-h-0 w-full flex-col overflow-hidden bg-background">
 
       {/* ── Header ── */}
-      <header className="w-screen sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
+      <header className="w-full shrink-0 z-50 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
         <div className="w-full flex h-16 items-center justify-between pl-4 pr-4">
 
           {/* Logo */}
@@ -214,7 +214,7 @@ export function AppShell({ children, navItems, portalLabel, headerEnd }: AppShel
           </div>
 
           {/* Logout */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 pr-1.5 md:pr-2">
             <LanguageToggle />
 
             {headerEnd ?? (
@@ -243,10 +243,10 @@ export function AppShell({ children, navItems, portalLabel, headerEnd }: AppShel
         </div>
       </header>
 
-      <div className="flex min-h-[calc(100vh-4rem)] w-full">
+      <div className="flex min-h-0 flex-1 w-full">
 
         {/* ── Sidebar (click background to expand/collapse; links only navigate) ── */}
-        <div className="relative shrink-0 sticky top-16 h-[calc(100vh-4rem)] self-start z-40">
+        <div className="relative z-40 flex h-full min-h-0 shrink-0 flex-col">
           <aside
             onClick={onSidebarBackgroundClick}
             aria-label={
@@ -316,7 +316,7 @@ export function AppShell({ children, navItems, portalLabel, headerEnd }: AppShel
         </div>
 
         {/* ── Main content ── */}
-        <main className="flex-1 w-full px-3 py-2 md:px-4 md:py-4 lg:px-6 overflow-y-auto overflow-x-hidden relative z-10">
+        <main className="relative z-10 min-h-0 flex-1 w-full overflow-y-auto overflow-x-hidden px-3 pt-5 pb-2 md:px-4 md:pt-6 md:pb-4 lg:px-6">
           <div className="w-full">{children}</div>
         </main>
       </div>

@@ -1,7 +1,17 @@
 const sequelize = require('../common/database');
+const { Op } = require('sequelize');
+const defineSystemConfig = require('../models/SystemConfig');
 const jwt = require('jsonwebtoken');
 const { createClient } = require('redis');
 const { getJwtSecret } = require('../security/jwtConfig');
+const SystemConfig = defineSystemConfig(sequelize);
+const {
+  CONFIG_DEFAULTS,
+  getRateLimitQueryKeysForScope,
+  buildRateLimitPolicyFromKvMap,
+  isLegacySystemConfigSchemaError,
+  parsePositiveInt,
+} = require('../config/systemConfigurationContract');
 
 // In-memory rate limit store
 const rateLimitStore = new Map();
@@ -51,18 +61,12 @@ const parseBoolean = (value, fallback = true) => {
   return fallback;
 };
 
-const parsePositiveInt = (value, fallback) => {
-  const parsed = Number.parseInt(String(value), 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-};
-
 const benchmarkBypassEnabled = () => parseBoolean(process.env.BENCHMARK_RATE_LIMIT_BYPASS, false);
 const hasBenchmarkBypassHeader = (req) => parseBoolean(req.headers['x-benchmark-run'], false);
 const POLICY_CACHE_TTL_MS = Number(process.env.RATE_LIMIT_POLICY_CACHE_MS || 30000);
 const policyCache = new Map();
 let systemConfigurationUnavailableUntil = 0;
 const distributedRateLimitEnabled = () => parseBoolean(process.env.ENABLE_DISTRIBUTED_RATE_LIMIT, false);
-
 async function getRedisClient() {
   if (!distributedRateLimitEnabled() || redisDisabled) return null;
   if (redisClient) return redisClient;
@@ -119,9 +123,32 @@ const getIdentifier = (req, ipBasedLimit) => {
   }
 };
 
+const loadLegacyRowPolicy = async (scope, defaults) => {
+  const rows = await sequelize.query(
+    `SELECT rate_limit AS rateLimit, access_limit AS accessLimit
+     FROM SYSTEM_CONFIGURATION
+     ORDER BY id DESC
+     LIMIT 1`,
+    { type: sequelize.QueryTypes.SELECT }
+  );
+  const row = rows[0] || null;
+  const derivedMax = row
+    ? parsePositiveInt(
+        scope === 'global' ? row.accessLimit ?? row.rateLimit : row.rateLimit,
+        defaults.maxRequests
+      )
+    : defaults.maxRequests;
+  return {
+    enabled: true,
+    ipBasedLimit: true,
+    maxRequests: derivedMax,
+    windowSeconds: defaults.windowSeconds,
+  };
+};
+
 const loadRateLimitPolicy = async (scope, defaults) => {
   const now = Date.now();
-  const cacheKey = `${scope}:${defaults.maxRequests}:${defaults.windowSeconds}`;
+  const cacheKey = `kv:${scope}:${defaults.maxRequests}:${defaults.windowSeconds}`;
   const cached = policyCache.get(cacheKey);
   if (cached && cached.expiresAt > now) return cached.policy;
   if (systemConfigurationUnavailableUntil > now) {
@@ -133,37 +160,38 @@ const loadRateLimitPolicy = async (scope, defaults) => {
     };
   }
   try {
-    const rows = await sequelize.query(
-      `SELECT rate_limit AS rateLimit, access_limit AS accessLimit
-       FROM SYSTEM_CONFIGURATION
-       ORDER BY time DESC, id DESC
-       LIMIT 1`,
-      { type: sequelize.QueryTypes.SELECT }
-    );
-    const row = rows[0] || null;
-    const derivedMax = row
-      ? parsePositiveInt(
-          scope === 'global' ? row.accessLimit ?? row.rateLimit : row.rateLimit,
-          defaults.maxRequests
-        )
-      : defaults.maxRequests;
-    const policy = {
-      enabled: true,
-      ipBasedLimit: true,
-      maxRequests: derivedMax,
-      windowSeconds: defaults.windowSeconds,
-    };
+    const keys = getRateLimitQueryKeysForScope(scope);
+    const configs = await SystemConfig.findAll({
+      where: { key: { [Op.in]: keys } },
+      attributes: ['key', 'value'],
+    });
+    const map = { ...CONFIG_DEFAULTS };
+    for (const item of configs) {
+      if (item && item.key != null && item.value !== undefined && item.value !== null) {
+        map[item.key] = String(item.value);
+      }
+    }
+    const policy = buildRateLimitPolicyFromKvMap(map, scope, defaults);
     policyCache.set(cacheKey, { policy, expiresAt: now + POLICY_CACHE_TTL_MS });
     return policy;
   } catch (error) {
-    if (error?.original?.code === 'ER_NO_SUCH_TABLE' || error?.original?.code === 'ER_BAD_FIELD_ERROR') {
-      systemConfigurationUnavailableUntil = now + POLICY_CACHE_TTL_MS;
-      return {
-        enabled: true,
-        ipBasedLimit: true,
-        maxRequests: defaults.maxRequests,
-        windowSeconds: defaults.windowSeconds,
-      };
+    if (isLegacySystemConfigSchemaError(error)) {
+      try {
+        const policy = await loadLegacyRowPolicy(scope, defaults);
+        policyCache.set(cacheKey, { policy, expiresAt: now + POLICY_CACHE_TTL_MS });
+        return policy;
+      } catch (legacyError) {
+        if (isLegacySystemConfigSchemaError(legacyError)) {
+          systemConfigurationUnavailableUntil = now + POLICY_CACHE_TTL_MS;
+          return {
+            enabled: true,
+            ipBasedLimit: true,
+            maxRequests: defaults.maxRequests,
+            windowSeconds: defaults.windowSeconds,
+          };
+        }
+        throw legacyError;
+      }
     }
     throw error;
   }

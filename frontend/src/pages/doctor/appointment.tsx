@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo, useEffect, type ComponentProps } from "react"
 import { Calendar as CalendarIcon, Clock, User, ArrowRightFromLine, Loader2, CheckCircle2, MoreVertical } from "lucide-react"
 import { DoctorLayout } from "@/components/doctor-layout"
 import { Button } from "@/components/ui/button"
@@ -25,6 +25,10 @@ import { appointmentService, type DoctorOption } from "@/services/appointment-se
 import { doctorService, type DoctorAppointment } from "@/services/doctor-service"
 import { usePauseableToast } from "@/hooks/usePauseableToast"
 import { PauseableCornerToastPortal } from "@/components/pauseable-corner-toast"
+import { useTranslation } from "react-i18next"
+import { enUS, vi } from "date-fns/locale"
+import { cn } from "@/lib/utils"
+import { applyDdMmYyyyRangeTyping } from "@/lib/date-range"
 
 type AppointmentUiStatus = "Done" | "Upcoming" | "Confirmed" | "Cancelled"
 
@@ -51,6 +55,27 @@ function doctorWorksInDepartment(d: DoctorOption, dept: string): boolean {
 }
 
 export default function DoctorAppointmentsPage() {
+  const { i18n } = useTranslation()
+  const calendarLocale = i18n.language?.startsWith("vi") ? vi : enUS
+  const isViCalendar = i18n.language?.startsWith("vi")
+
+  const appointmentCalendarClassName = cn(
+    "p-3 sm:p-4",
+    isViCalendar
+      ? "[--cell-size:2.5rem] sm:[--cell-size:2.625rem]"
+      : "[--cell-size:2.875rem] sm:[--cell-size:3.125rem]",
+  )
+
+  const appointmentCalendarGridClassNames = useMemo<
+    NonNullable<ComponentProps<typeof Calendar>["classNames"]>
+  >(
+    () => ({
+      week: cn("mt-1 flex w-full", isViCalendar ? "gap-1" : "gap-1.5 sm:gap-2"),
+      weekdays: cn("mt-1 flex w-full", isViCalendar ? "gap-1" : "gap-1.5 sm:gap-2"),
+    }),
+    [isViCalendar],
+  )
+
   const [startDate, setStartDate] = useState("")
   const [startDateValue, setStartDateValue] = useState<Date | undefined>()
   const [endDate, setEndDate] = useState("")
@@ -207,26 +232,33 @@ export default function DoctorAppointmentsPage() {
 
   return (
     <DoctorLayout>
-      <div className="space-y-8">
-        <Card className="card-feature border-slate-200/60">
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="relative flex-1 max-w-xs">
+      <div className="space-y-3 pt-3 md:space-y-4 md:pt-5">
+        <Card className="rounded-xl border border-slate-200/70 bg-white shadow-none ring-1 ring-slate-900/[0.06]">
+          <CardContent className="flex flex-wrap items-center gap-3 p-4 md:flex-nowrap md:gap-4 md:p-5">
+            <div className="relative min-w-[10rem] max-w-xs flex-1">
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="ghost"
                     size="icon"
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400"
+                    className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 rounded-md text-slate-500 shadow-none hover:bg-slate-100 hover:text-slate-800"
                     aria-label="Open start date calendar"
                   >
-                    <CalendarIcon className="w-5 h-5" />
+                    <CalendarIcon className="h-4 w-4" />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="p-0">
+                <PopoverContent
+                  align="start"
+                  className="w-auto max-w-[calc(100vw-1rem)] rounded-xl border border-slate-200/80 p-0 shadow-md"
+                >
                   <Calendar
                     mode="single"
+                    locale={calendarLocale}
+                    className={appointmentCalendarClassName}
+                    classNames={appointmentCalendarGridClassNames}
                     selected={startDateValue}
+                    disabled={(date) => Boolean(endDateValue && date > endDateValue)}
                     onSelect={(selectedDate) => {
                       setStartDateValue(selectedDate)
                       setStartDate(selectedDate ? format(selectedDate, "dd/MM/yyyy") : "")
@@ -240,35 +272,46 @@ export default function DoctorAppointmentsPage() {
                 placeholder="dd/mm/yyyy"
                 value={startDate}
                 onChange={(e) => {
-                  const formattedInput = formatDateInput(e.target.value)
-                  setStartDate(formattedInput)
-                  if (formattedInput.length === 10) {
-                    setStartDateValue(parseDateInput(formattedInput))
-                  }
+                  const next = applyDdMmYyyyRangeTyping({
+                    prevText: startDate,
+                    rawInput: e.target.value,
+                    otherValue: endDateValue,
+                    kind: "from",
+                  })
+                  if (!next) return
+                  setStartDate(next.nextText)
+                  setStartDateValue(next.nextValue)
                 }}
-                className="pl-10 h-12 text-base"
+                className="h-9 rounded-lg border border-slate-200 bg-white pl-3 pr-10 text-sm shadow-none ring-offset-background transition-colors placeholder:text-slate-400 focus-visible:border-cyan-500/40 focus-visible:ring-2 focus-visible:ring-cyan-500/20"
               />
             </div>
 
-            <span className="text-slate-400">to</span>
+            <span className="shrink-0 text-slate-400">to</span>
 
-            <div className="relative flex-1 max-w-xs">
+            <div className="relative min-w-[10rem] max-w-xs flex-1">
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="ghost"
                     size="icon"
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400"
+                    className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 rounded-md text-slate-500 shadow-none hover:bg-slate-100 hover:text-slate-800"
                     aria-label="Open end date calendar"
                   >
-                    <CalendarIcon className="w-5 h-5" />
+                    <CalendarIcon className="h-4 w-4" />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="p-0">
+                <PopoverContent
+                  align="start"
+                  className="w-auto max-w-[calc(100vw-1rem)] rounded-xl border border-slate-200/80 p-0 shadow-md"
+                >
                   <Calendar
                     mode="single"
+                    locale={calendarLocale}
+                    className={appointmentCalendarClassName}
+                    classNames={appointmentCalendarGridClassNames}
                     selected={endDateValue}
+                    disabled={(date) => Boolean(startDateValue && date < startDateValue)}
                     onSelect={(selectedDate) => {
                       setEndDateValue(selectedDate)
                       setEndDate(selectedDate ? format(selectedDate, "dd/MM/yyyy") : "")
@@ -282,13 +325,17 @@ export default function DoctorAppointmentsPage() {
                 placeholder="dd/mm/yyyy"
                 value={endDate}
                 onChange={(e) => {
-                  const formattedInput = formatDateInput(e.target.value)
-                  setEndDate(formattedInput)
-                  if (formattedInput.length === 10) {
-                    setEndDateValue(parseDateInput(formattedInput))
-                  }
+                  const next = applyDdMmYyyyRangeTyping({
+                    prevText: endDate,
+                    rawInput: e.target.value,
+                    otherValue: startDateValue,
+                    kind: "to",
+                  })
+                  if (!next) return
+                  setEndDate(next.nextText)
+                  setEndDateValue(next.nextValue)
                 }}
-                className="pl-10 h-12 text-base"
+                className="h-9 rounded-lg border border-slate-200 bg-white pl-3 pr-10 text-sm shadow-none ring-offset-background transition-colors placeholder:text-slate-400 focus-visible:border-cyan-500/40 focus-visible:ring-2 focus-visible:ring-cyan-500/20"
               />
             </div>
           </CardContent>
@@ -354,7 +401,7 @@ export default function DoctorAppointmentsPage() {
                           Patient:{" "}
                           {appointment.patientId ? (
                             <Link
-                              to={`/doctor/patients/${appointment.patientId}/profile`}
+                              to={`/doctor/medical_records/${appointment.patientId}/dashboard`}
                               className="text-cyan-700 hover:underline"
                             >
                               {appointment.patientName || `Patient #${appointment.patientId}`}

@@ -33,6 +33,8 @@ import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
+import { useTranslation } from "react-i18next"
+import { translatePatientInDepartment } from "@/lib/patient-departments"
 
 type UiDiagnosis = {
   id: string
@@ -72,6 +74,7 @@ function mapApiToUi(d: ApiDiagnosis): UiDiagnosis {
 }
 
 export default function PatientDiagnosis() {
+  const { t } = useTranslation()
   const { patientId } = useParams<{ patientId: string }>()
   const { mutationsAllowed, refreshPatientBanner } = useEmrSession()
   const [diagnoses, setDiagnoses] = useState<UiDiagnosis[]>([])
@@ -220,7 +223,8 @@ export default function PatientDiagnosis() {
 
       const fullName = `${p.lastName || ""} ${p.firstName || ""}`.trim() || p.username || ""
       const age = p.age != null ? String(p.age) : ""
-      const department = (p.inDepartment || (p as any).in_department || "").toString()
+      const departmentRaw = (p.inDepartment || (p as any).in_department || "").toString()
+      const department = translatePatientInDepartment(departmentRaw, t)
 
       releasePdfBlobUrl(null)
       const { blob, filename } = await generateTreatmentFollowupPdfBlob({

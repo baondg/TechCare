@@ -1,4 +1,5 @@
 import { useNavigate, useParams } from "react-router-dom"
+import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { NurseLayout } from "./nurse-layout"
@@ -10,6 +11,7 @@ import ViewingPatientHealthInfo from "@/pages/nurse/medical_records/health-info"
 import { NurseCheckInDialog } from "@/components/nurse-check-in-dialog"
 import { doctorService } from "@/services/doctor-service"
 import { NursePatientProfilePanel } from "@/pages/nurse/medical_records/patient-profile"
+import { translatePatientInDepartment } from "@/lib/patient-departments"
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000"
 const VISIT_STORAGE_PREFIX = "nurseExamVisit:"
@@ -49,6 +51,7 @@ const tabs = [
 export function NurseLayout2() {
   const navigate = useNavigate()
   const { tab = "dashboard", patientId } = useParams()
+  const { t } = useTranslation()
   const [patientData, setPatientData] = useState<any>(null)
   const [visitSession, setVisitSession] = useState<StoredVisit | null>(() => readStoredVisit(patientId))
   const [checkInDialogOpen, setCheckInDialogOpen] = useState(false)
@@ -144,7 +147,8 @@ export function NurseLayout2() {
                   </p>
                 )}
                 <p className="text-sm text-slate-500">
-                  Department: {patientData.inDepartment || patientData.in_department || "—"}
+                  {t("doctor.patients.department")}:{" "}
+                  {translatePatientInDepartment(patientData.inDepartment || patientData.in_department, t)}
                 </p>
               </>
             ) : (

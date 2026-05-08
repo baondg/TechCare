@@ -7,8 +7,11 @@ import { NurseLayout } from "@/components/nurse-layout"
 import { TechnicianLayout } from "@/components/technician-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar } from "@/components/ui/calendar"
+import { Calendar as CalendarIcon } from "lucide-react"
+import { format } from "date-fns"
 import {
   NotificationTabbedList,
   type NotificationSortConfig,
@@ -29,16 +32,6 @@ const Layouts: Record<Portal, ComponentType<{ children: ReactNode }>> = {
   doctor: DoctorLayout,
   nurse: NurseLayout,
   technician: TechnicianLayout,
-}
-
-function parseYmdLocal(ymd: string): Date | null {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd.trim())
-  if (!m) return null
-  const y = Number(m[1])
-  const mo = Number(m[2]) - 1
-  const d = Number(m[3])
-  const dt = new Date(y, mo, d)
-  return Number.isNaN(dt.getTime()) ? null : dt
 }
 
 function startOfLocalDay(d: Date): Date {
@@ -69,8 +62,8 @@ function NotificationsInner({ portal }: { portal: Portal }) {
   const [items, setItems] = useState<AppNotification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [loading, setLoading] = useState(true)
-  const [dateFrom, setDateFrom] = useState("")
-  const [dateTo, setDateTo] = useState("")
+  const [dateFrom, setDateFrom] = useState<Date | null>(null)
+  const [dateTo, setDateTo] = useState<Date | null>(null)
   const [filterColDate, setFilterColDate] = useState("")
   const [filterColType, setFilterColType] = useState("")
   const [filterColContent, setFilterColContent] = useState("")
@@ -116,20 +109,12 @@ function NotificationsInner({ portal }: { portal: Portal }) {
   }
 
   const filteredItems = useMemo(() => {
-    const fromRaw = dateFrom.trim()
-    const toRaw = dateTo.trim()
-    if (!fromRaw && !toRaw) return items
+    if (!dateFrom && !dateTo) return items
 
     let startMs: number | null = null
     let endMs: number | null = null
-    if (fromRaw) {
-      const d = parseYmdLocal(fromRaw)
-      if (d) startMs = startOfLocalDay(d).getTime()
-    }
-    if (toRaw) {
-      const d = parseYmdLocal(toRaw)
-      if (d) endMs = endOfLocalDay(d).getTime()
-    }
+    if (dateFrom) startMs = startOfLocalDay(dateFrom).getTime()
+    if (dateTo) endMs = endOfLocalDay(dateTo).getTime()
     if (startMs !== null && endMs !== null && startMs > endMs) {
       const t = startMs
       startMs = endMs
@@ -205,25 +190,55 @@ function NotificationsInner({ portal }: { portal: Portal }) {
               <Label htmlFor="notif-date-from" className="text-xs text-muted-foreground">
                 From date
               </Label>
-              <Input
-                id="notif-date-from"
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                className="h-9 w-[11.5rem] rounded-md border border-input bg-white text-sm text-slate-900 shadow-sm [color-scheme:light] dark:bg-white dark:text-slate-900"
-              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    id="notif-date-from"
+                    type="button"
+                    variant="outline"
+                    className="h-9 w-[11.5rem] justify-start border border-input bg-white text-left text-sm font-normal text-slate-900 shadow-sm hover:bg-white dark:bg-white dark:text-slate-900"
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4 shrink-0 text-slate-500" />
+                    {dateFrom ? format(dateFrom, "dd/MM/yyyy") : "Select date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={dateFrom ?? undefined}
+                    onSelect={(value) => setDateFrom(value ?? null)}
+                    disabled={(date) => Boolean(dateTo && date > dateTo)}
+                    captionLayout="dropdown"
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="grid gap-1">
               <Label htmlFor="notif-date-to" className="text-xs text-muted-foreground">
                 To date
               </Label>
-              <Input
-                id="notif-date-to"
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                className="h-9 w-[11.5rem] rounded-md border border-input bg-white text-sm text-slate-900 shadow-sm [color-scheme:light] dark:bg-white dark:text-slate-900"
-              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    id="notif-date-to"
+                    type="button"
+                    variant="outline"
+                    className="h-9 w-[11.5rem] justify-start border border-input bg-white text-left text-sm font-normal text-slate-900 shadow-sm hover:bg-white dark:bg-white dark:text-slate-900"
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4 shrink-0 text-slate-500" />
+                    {dateTo ? format(dateTo, "dd/MM/yyyy") : "Select date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={dateTo ?? undefined}
+                    onSelect={(value) => setDateTo(value ?? null)}
+                    disabled={(date) => Boolean(dateFrom && date < dateFrom)}
+                    captionLayout="dropdown"
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
           {unreadCount > 0 ? (
@@ -233,8 +248,8 @@ function NotificationsInner({ portal }: { portal: Portal }) {
           ) : null}
         </div>
 
-        <Card className="border-2 border-cyan-200/70 shadow-lg shadow-slate-300/20 ring-1 ring-slate-200/70 dark:border-cyan-900/40 dark:ring-slate-700/80">
-          <CardContent className="p-0">
+        <Card className="overflow-hidden rounded-xl border-2 border-cyan-200/70 shadow-lg shadow-slate-300/20 ring-1 ring-slate-200/70 dark:border-cyan-900/40 dark:ring-slate-700/80">
+          <CardContent className="overflow-hidden p-0">
             {loading ? (
               <p className="p-8 text-center text-sm text-muted-foreground">Loading…</p>
             ) : (

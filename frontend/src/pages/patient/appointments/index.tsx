@@ -20,6 +20,7 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar"
 import { useAppointments } from "@/hooks/useAppointments"
 import { format, parseISO, parse, isValid } from "date-fns"
+import { applyDdMmYyyyRangeTyping } from "@/lib/date-range"
 
 export default function AppointmentsPage() {
   const navigate = useNavigate()
@@ -134,6 +135,7 @@ export default function AppointmentsPage() {
                     <Calendar
                       mode="single"
                       selected={startDateValue}
+                      disabled={(date) => Boolean(endDateValue && date > endDateValue)}
                       onSelect={(selectedDate) => {
                         setStartDateValue(selectedDate)
                         setStartDate(selectedDate ? format(selectedDate, "dd/MM/yyyy") : "")
@@ -147,11 +149,15 @@ export default function AppointmentsPage() {
                   placeholder="dd/mm/yyyy"
                   value={startDate}
                   onChange={(e) => {
-                    const formattedInput = formatDateInput(e.target.value)
-                    setStartDate(formattedInput)
-                    if (formattedInput.length === 10) {
-                      setStartDateValue(parseDateInput(formattedInput))
-                    }
+                    const next = applyDdMmYyyyRangeTyping({
+                      prevText: startDate,
+                      rawInput: e.target.value,
+                      otherValue: endDateValue,
+                      kind: "from",
+                    })
+                    if (!next) return
+                    setStartDate(next.nextText)
+                    setStartDateValue(next.nextValue)
                   }}
                   className="pl-10 h-12 text-base"
                 />
@@ -174,6 +180,7 @@ export default function AppointmentsPage() {
                     <Calendar
                       mode="single"
                       selected={endDateValue}
+                      disabled={(date) => Boolean(startDateValue && date < startDateValue)}
                       onSelect={(selectedDate) => {
                         setEndDateValue(selectedDate)
                         setEndDate(selectedDate ? format(selectedDate, "dd/MM/yyyy") : "")
@@ -187,11 +194,15 @@ export default function AppointmentsPage() {
                   placeholder="dd/mm/yyyy"
                   value={endDate}
                   onChange={(e) => {
-                    const formattedInput = formatDateInput(e.target.value)
-                    setEndDate(formattedInput)
-                    if (formattedInput.length === 10) {
-                      setEndDateValue(parseDateInput(formattedInput))
-                    }
+                    const next = applyDdMmYyyyRangeTyping({
+                      prevText: endDate,
+                      rawInput: e.target.value,
+                      otherValue: startDateValue,
+                      kind: "to",
+                    })
+                    if (!next) return
+                    setEndDate(next.nextText)
+                    setEndDateValue(next.nextValue)
                   }}
                   className="pl-10 h-12 text-base"
                 />

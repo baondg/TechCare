@@ -47,6 +47,11 @@ spec:
                 secretKeyRef:
                   name: techcare-jwt-secret
                   key: latest
+            - name: GROQ_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: techcare-groq-api-key
+                  key: latest
             - name: BENCHMARK_RATE_LIMIT_BYPASS
               value: "1"
             - name: AUTO_SYNC_DB

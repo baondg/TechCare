@@ -132,7 +132,7 @@ export function AppShell({ children, navItems, portalLabel, headerEnd }: AppShel
 
             <div className="flex items-center gap-1">
               <LanguageToggle compact />
-              <NotificationBell />
+              {headerEnd ?? <NotificationBell />}
               <Button variant="ghost" size="icon" onClick={logout} className="h-9 w-9 text-destructive">
                 <LogOut className="h-4 w-4" />
               </Button>

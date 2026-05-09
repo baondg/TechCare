@@ -18,6 +18,7 @@ const BOOK_SUCCESS_NAV_DELAY_MS = 300 + 2600
 
 interface TimeSlot {
   id: number
+  doctorId: number
   time: string
   doctor: string
   department: string
@@ -157,6 +158,7 @@ export default function BookAppointmentPage() {
 
       await appointmentService.createAppointment({
         doctor: slot.doctor,
+        doctorId: slot.doctorId,
         department: slot.department,
         date: formattedDate,
         time: formattedTime,
@@ -210,6 +212,7 @@ export default function BookAppointmentPage() {
       })
       .map((slot) => ({
         id: slot.id,
+        doctorId: slot.doctorId,
         time: String(slot.time || "").slice(0, 5),
         doctor: `Dr. ${slot.doctorName}`.trim(),
         department: slot.department || selectedDepartmentLabel,

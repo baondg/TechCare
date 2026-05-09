@@ -2,6 +2,25 @@ const { QueryTypes } = require('sequelize');
 const sequelize = require('../common/database');
 
 /**
+ * GET /api/notifications/unread-count
+ * Lightweight poll target for notification badges (same filter as list).
+ */
+exports.getUnreadCount = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const [c] = await sequelize.query(
+      `SELECT COUNT(*) AS n FROM NOTIFICATION
+       WHERE user_id = :userId AND \`time\` <= NOW() AND status = 'unread'`,
+      { replacements: { userId }, type: QueryTypes.SELECT }
+    );
+    res.json({ count: Number(c?.n) || 0 });
+  } catch (error) {
+    console.error('Unread count error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+  }
+};
+
+/**
  * GET /api/notifications
  * Lists notifications that are already due (time <= NOW) for the logged-in user.
  */

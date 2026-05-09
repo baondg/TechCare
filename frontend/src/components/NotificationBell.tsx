@@ -8,6 +8,7 @@ import { Bell, Check, CheckCheck, Clock, UserRound, Calendar, X } from 'lucide-r
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { apiClient } from '@/api/client'
+import type { NotificationsResponse } from '@/services/notification-service'
 
 interface Notification {
   id: number
@@ -17,6 +18,41 @@ interface Notification {
   isRead: boolean
   relatedId: number | null
   createdAt: string
+}
+
+function titleFromNotificationType(type: string): string {
+  switch (type) {
+    case 'cover_request':
+      return 'Cover request'
+    case 'cover_accepted':
+      return 'Cover accepted'
+    case 'cover_rejected':
+      return 'Cover rejected'
+    case 'appointment_cancelled':
+      return 'Appointment cancelled'
+    case 'appointment_rescheduled':
+      return 'Appointment rescheduled'
+    default:
+      return 'Notification'
+  }
+}
+
+function mapApiToBellRow(r: {
+  id: number
+  type: string
+  content: string
+  time: string
+  status: string
+}): Notification {
+  return {
+    id: r.id,
+    title: titleFromNotificationType(r.type),
+    message: r.content,
+    type: r.type,
+    isRead: r.status === 'read',
+    relatedId: null,
+    createdAt: r.time,
+  }
 }
 
 function timeAgo(dateStr: string): string {
@@ -79,8 +115,9 @@ export function NotificationBell() {
   const fetchNotifications = useCallback(async () => {
     setLoading(true)
     try {
-      const data = await apiClient.get<{ notifications: Notification[] }>('/api/notifications?limit=20')
-      setNotifications(data.notifications || [])
+      const data = await apiClient.get<NotificationsResponse>('/api/notifications')
+      const rows = data.notifications || []
+      setNotifications(rows.slice(0, 20).map(mapApiToBellRow))
     } catch {
       // silently fail
     } finally {
@@ -113,7 +150,7 @@ export function NotificationBell() {
 
   const markAsRead = useCallback(async (id: number) => {
     try {
-      await apiClient.put(`/api/notifications/${id}/read`, {})
+      await apiClient.patch(`/api/notifications/${id}/read`, {})
       setNotifications(ns => ns.map(n => n.id === id ? { ...n, isRead: true } : n))
       setUnreadCount(c => Math.max(0, c - 1))
     } catch { /* ignore */ }
@@ -121,7 +158,7 @@ export function NotificationBell() {
 
   const markAllAsRead = useCallback(async () => {
     try {
-      await apiClient.put('/api/notifications/read-all', {})
+      await apiClient.patch('/api/notifications/read-all', {})
       setNotifications(ns => ns.map(n => ({ ...n, isRead: true })))
       setUnreadCount(0)
     } catch { /* ignore */ }

@@ -31,6 +31,24 @@ const validateNumericConfig = (key, value) => {
 
 /** @returns {{ value?: string; error?: string }} */
 const normalizeJsonConfig = (key, value) => {
+  if (key === 'aiModelCatalog') {
+    if (Array.isArray(value)) {
+      return { value: JSON.stringify(value) };
+    }
+    if (typeof value !== 'string') {
+      return { error: 'aiModelCatalog must be a JSON array or JSON array string.' };
+    }
+    let parsed;
+    try {
+      parsed = JSON.parse(value);
+    } catch (_error) {
+      return { error: 'aiModelCatalog must be valid JSON.' };
+    }
+    if (!Array.isArray(parsed)) {
+      return { error: 'aiModelCatalog must be a JSON array.' };
+    }
+    return { value: JSON.stringify(parsed) };
+  }
   if (key === 'aiModels') {
     if (Array.isArray(value)) {
       return { value: JSON.stringify(value) };
@@ -240,6 +258,32 @@ const loadAiModels = async () => {
   }
 };
 
+const loadAiModelCatalog = async () => {
+  let modelConfig;
+  try {
+    modelConfig = await SystemConfig.findOne({ where: { key: 'aiModelCatalog' } });
+  } catch (error) {
+    if (isLegacySystemConfigSchemaError(error)) return [];
+    throw error;
+  }
+  if (!modelConfig?.value) return [];
+  try {
+    const parsed = JSON.parse(modelConfig.value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_error) {
+    return [];
+  }
+};
+
+const saveAiModelCatalog = async (models) => {
+  try {
+    await upsertConfig('aiModelCatalog', JSON.stringify(models), 'AI model catalog by provider');
+  } catch (error) {
+    if (isLegacySystemConfigSchemaError(error)) return;
+    throw error;
+  }
+};
+
 const saveAiModels = async (models) => {
   try {
     await upsertConfig('aiModels', JSON.stringify(models), 'AI model registry');
@@ -278,8 +322,106 @@ const saveAiDefaultByFeature = async (defaults) => {
 exports.getAiModels = async (_req, res) => {
   try {
     const models = await loadAiModels();
+    const catalog = await loadAiModelCatalog();
     const defaults = await loadAiDefaultByFeature();
-    return res.json({ success: true, models, defaults });
+    return res.json({ success: true, models, catalog, defaults });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+exports.getAiModelCatalog = async (_req, res) => {
+  try {
+    const catalog = await loadAiModelCatalog();
+    return res.json({ success: true, catalog });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+exports.upsertAiModelCatalogEntry = async (req, res) => {
+  try {
+    const provider = String(req.body?.provider || '').trim().toLowerCase();
+    const modelId = String(req.body?.modelId || '').trim();
+    const labelRaw = req.body?.label;
+    const label = labelRaw == null ? modelId : String(labelRaw).trim();
+    const enabledStr = toBooleanString(req.body?.enabled);
+    const enabled = enabledStr == null ? true : enabledStr === 'true';
+
+    if (!provider || !modelId) {
+      return res.status(400).json({ success: false, error: 'provider and modelId are required' });
+    }
+    if (!['groq', 'local'].includes(provider)) {
+      return res.status(400).json({ success: false, error: "provider must be 'groq' or 'local'" });
+    }
+
+    const catalog = await loadAiModelCatalog();
+    const existingIndex = catalog.findIndex(
+      (item) =>
+        String(item.provider || '').toLowerCase() === provider &&
+        String(item.modelId || '').trim() === modelId
+    );
+    const next = { provider, modelId, label: label || modelId, enabled, updatedAt: new Date().toISOString() };
+    if (existingIndex >= 0) catalog[existingIndex] = { ...catalog[existingIndex], ...next };
+    else catalog.push(next);
+    await saveAiModelCatalog(catalog);
+    return res.json({ success: true, entry: next, catalog });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+exports.deleteAiModelCatalogEntry = async (req, res) => {
+  try {
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const q = req.query || {};
+    const provider = String(body.provider ?? q.provider ?? '').trim().toLowerCase();
+    const modelId = String(body.modelId ?? q.modelId ?? '').trim();
+    if (!provider || !modelId) {
+      return res.status(400).json({ success: false, error: 'provider and modelId are required' });
+    }
+
+    const catalog = await loadAiModelCatalog();
+    const nextCatalog = catalog.filter(
+      (item) =>
+        !(
+          String(item.provider || '').toLowerCase() === provider &&
+          String(item.modelId || '').trim() === modelId
+        )
+    );
+    if (nextCatalog.length === catalog.length) {
+      return res.status(404).json({ success: false, error: 'Catalog entry not found' });
+    }
+    await saveAiModelCatalog(nextCatalog);
+
+    // Also remove any feature-model rows bound to this catalog item.
+    const models = await loadAiModels();
+    const nextModels = models.filter(
+      (m) =>
+        !(
+          String(m.provider || '').toLowerCase() === provider &&
+          String(m.modelId || '').trim() === modelId
+        )
+    );
+    if (nextModels.length !== models.length) {
+      await saveAiModels(nextModels);
+      const defaults = await loadAiDefaultByFeature();
+      let changed = false;
+      Object.keys(defaults || {}).forEach((featureKey) => {
+        const d = defaults[featureKey];
+        if (
+          d &&
+          String(d.provider || '').toLowerCase() === provider &&
+          String(d.modelId || '').trim() === modelId
+        ) {
+          delete defaults[featureKey];
+          changed = true;
+        }
+      });
+      if (changed) await saveAiDefaultByFeature(defaults);
+    }
+
+    return res.json({ success: true, catalog: nextCatalog, models: await loadAiModels(), defaults: await loadAiDefaultByFeature() });
   } catch (error) {
     return res.status(500).json({ success: false, error: error.message });
   }

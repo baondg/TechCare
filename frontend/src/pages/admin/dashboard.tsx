@@ -51,7 +51,10 @@ export default function AdminDashboard() {
               <Card key={stat.label}>
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between gap-2">
-                    <div className="text-2xl font-bold">{stat.value}</div>
+                    <div>
+                      <div className="text-2xl font-bold">{stat.value}</div>
+                      <p className="text-xs text-slate-500 mt-1">{stat.label}</p>
+                    </div>
                     <div className={`${stat.color} p-2 rounded-lg shrink-0`}>
                       <Icon className="h-4 w-4 text-white" aria-hidden />
                     </div>

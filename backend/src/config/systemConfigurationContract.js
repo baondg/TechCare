@@ -23,6 +23,7 @@ const CONFIG_DEFAULTS = {
   aiRecoveryRateLimitWindowSeconds: '60',
   appointmentRateLimitRequests: '10',
   appointmentRateLimitWindowSeconds: '300',
+  aiModelCatalog: '[]',
   aiModels: '[]',
   aiDefaultModelByFeature: '{}',
 };
@@ -49,7 +50,7 @@ const NUMERIC_CONFIG_RULES = {
 
 const BOOLEAN_CONFIG_KEYS = new Set(['rateLimitEnabled', 'rateLimitIpBased']);
 
-const JSON_CONFIG_KEYS = new Set(['aiModels', 'aiDefaultModelByFeature']);
+const JSON_CONFIG_KEYS = new Set(['aiModelCatalog', 'aiModels', 'aiDefaultModelByFeature']);
 
 /**
  * Maps rate-limit middleware scope to CONFIG_DEFAULTS keys.

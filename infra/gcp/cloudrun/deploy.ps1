@@ -14,6 +14,16 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
 Set-Location $repoRoot
 
+if ([string]::IsNullOrWhiteSpace($RedisHost)) {
+  throw "RedisHost is required and cannot be empty. Example: -RedisHost '10.3.155.163'"
+}
+if ($RedisHost -match '[:/]') {
+  throw "RedisHost must be host/IP only (without protocol/port). Example: 10.3.155.163"
+}
+if ($RedisHost -in @('127.0.0.1', 'localhost')) {
+  throw "RedisHost must point to Memorystore/private Redis, not localhost."
+}
+
 $registry = "$Region-docker.pkg.dev/$ProjectId/techcare"
 $backendImage = "$registry/techcare-backend:latest"
 $frontendImage = "$registry/techcare-frontend:latest"
@@ -40,6 +50,7 @@ $backendArgs = @(
   "--set-secrets", "DB_USER=techcare-backend-db-user:latest",
   "--set-secrets", "DB_PASSWORD=techcare-backend-db-password:latest",
   "--set-secrets", "JWT_SECRET=techcare-jwt-secret:latest",
+  "--set-secrets", "GROQ_API_KEY=techcare-groq-api-key:latest",
   "--min-instances", "2",
   "--max-instances", "30",
   "--concurrency", "80",
@@ -77,6 +88,18 @@ if ($PublicUnauthenticated) {
 
 & gcloud @frontendArgs
 
+$frontendPublicUrl = (
+  gcloud run services describe techcare-frontend --region $Region --format="value(status.url)"
+).TrimEnd("/")
+
+$effectiveCorsOrigin = if ($WebDomain) { "https://$WebDomain" } else { $frontendPublicUrl }
+if ($effectiveCorsOrigin -and $effectiveCorsOrigin -ne $corsOrigin) {
+  Write-Host "Updating backend CORS_ALLOWED_ORIGINS to $effectiveCorsOrigin"
+  gcloud run services update techcare-backend `
+    --region $Region `
+    --update-env-vars "CORS_ALLOWED_ORIGINS=$effectiveCorsOrigin" | Out-Null
+}
+
 if ($ApiDomain) {
   Write-Host "Map API domain manually or via Terraform: $ApiDomain"
 }
@@ -84,4 +107,7 @@ if ($WebDomain) {
   Write-Host "Map web domain manually or via Terraform: $WebDomain"
 }
 
+Write-Host "Backend URL:  $backendPublicUrl"
+Write-Host "Frontend URL: $frontendPublicUrl"
+Write-Host "CORS origin:  $effectiveCorsOrigin"
 Write-Host "Deployment complete."

@@ -67,10 +67,41 @@ const POLICY_CACHE_TTL_MS = Number(process.env.RATE_LIMIT_POLICY_CACHE_MS || 300
 const policyCache = new Map();
 let systemConfigurationUnavailableUntil = 0;
 const distributedRateLimitEnabled = () => parseBoolean(process.env.ENABLE_DISTRIBUTED_RATE_LIMIT, false);
+const requireRedisWhenDistributed = () =>
+  parseBoolean(process.env.REQUIRE_REDIS_FOR_DISTRIBUTED_RATE_LIMIT, false);
+
+const createDistributedRateLimitConfigError = (reason) => {
+  return new Error(`[rate-limit] Distributed rate limit misconfigured: ${reason}`);
+};
+
+const getValidatedRedisUrl = () => {
+  const raw = String(process.env.REDIS_URL || '').trim();
+  if (!raw) return null;
+  try {
+    const parsed = new URL(raw);
+    const protocol = parsed.protocol.toLowerCase();
+    if ((protocol !== 'redis:' && protocol !== 'rediss:') || !parsed.hostname) {
+      return null;
+    }
+    return raw;
+  } catch (_error) {
+    return null;
+  }
+};
+
 async function getRedisClient() {
   if (!distributedRateLimitEnabled() || redisDisabled) return null;
   if (redisClient) return redisClient;
-  const url = process.env.REDIS_URL || 'redis://127.0.0.1:6379';
+  const url = getValidatedRedisUrl();
+  if (!url) {
+    const reason = 'REDIS_URL is missing/invalid.';
+    if (requireRedisWhenDistributed()) {
+      throw createDistributedRateLimitConfigError(`${reason} Configure REDIS_URL or disable distributed mode.`);
+    }
+    console.warn(`[rate-limit] ${reason} Distributed rate limit disabled; using memory store.`);
+    redisDisabled = true;
+    return null;
+  }
   const client = createClient({ url });
   client.on('error', (err) => {
     console.warn('[rate-limit] redis error:', err?.message || err);
@@ -80,6 +111,11 @@ async function getRedisClient() {
     redisClient = client;
     return redisClient;
   } catch (error) {
+    if (requireRedisWhenDistributed()) {
+      throw createDistributedRateLimitConfigError(
+        `Unable to connect to Redis (${error?.message || 'unknown error'}).`
+      );
+    }
     console.warn('[rate-limit] redis unavailable, fallback to memory store');
     redisDisabled = true;
     return null;

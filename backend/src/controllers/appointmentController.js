@@ -756,9 +756,17 @@ exports.getPortalPatients = async (req, res) => {
            TIME_FORMAT(a.time, '%H:%i') AS timeHm,
            a.regimen_id AS regimenId,
            a.room_id AS roomId,
-           COALESCE(cr.name, '') AS roomName
+           COALESCE(cr.name, '') AS roomName,
+           COALESCE(
+             NULLIF(TRIM(CONCAT(COALESCE(du.first_name, ''), ' ', COALESCE(du.last_name, ''))), ''),
+             da.username,
+             ''
+           ) AS appointmentDoctorName
          FROM APPOINTMENT a
          LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id
+         LEFT JOIN DOCTOR d ON d.doctor_id = a.doctor_id
+         LEFT JOIN USER du ON du.id = d.user_id
+         LEFT JOIN ACCOUNT da ON da.user_id = d.user_id
          WHERE DATE(a.time) = CURDATE()
            AND a.status = 'scheduled'
            AND a.patient_id IN (${idCsv})
@@ -803,6 +811,8 @@ exports.getPortalPatients = async (req, res) => {
       const ap = patientPk != null ? firstApptByPatientPk.get(Number(patientPk)) : null;
       const rid = ap?.regimenId != null ? Number(ap.regimenId) : null;
       const checkedIn = Number.isFinite(rid) && rid > 0;
+      const appointmentDoctorName =
+        ap?.appointmentDoctorName != null ? String(ap.appointmentDoctorName).trim() : '';
       const todayAppointment =
         ap && ap.appointmentId != null
           ? {
@@ -828,7 +838,8 @@ exports.getPortalPatients = async (req, res) => {
             }
           : null,
         latestVisit: latestDiagnosis?.visitTime || null,
-        doctor: latestDiagnosis?.doctorName || null,
+        // Prefer today's appointment assignee (supports cover reassignment); fallback to latest diagnosis doctor.
+        doctor: appointmentDoctorName || latestDiagnosis?.doctorName || null,
         inDepartment: p.inDepartment != null ? String(p.inDepartment) : null,
         todayAppointment,
       };
@@ -1077,6 +1088,9 @@ exports.analyzeSymptomsAndSave = async (req, res) => {
 
     const patientContext = await buildPatientContextForSymptomAnalysis(patientId);
 
+    const SYMPTOM_AI_UNAVAILABLE_MSG =
+      'AI symptom analysis is temporarily unavailable. Please try again later or consult a doctor.';
+
     let aiResp;
     try {
       aiResp = await fetch(MEDAI_SYMPTOM_ENDPOINT, {
@@ -1085,17 +1099,27 @@ exports.analyzeSymptomsAndSave = async (req, res) => {
         body: JSON.stringify({ symptoms, patientContext }),
       });
     } catch (upstreamError) {
-      return res.status(502).json({
+      console.error(
+        `[analyzeSymptomsAndSave] Cannot reach ${MEDAI_SYMPTOM_ENDPOINT}:`,
+        upstreamError?.message || upstreamError
+      );
+      return res.status(503).json({
         success: false,
-        message: `Cannot reach symptom analysis service (${MEDAI_SYMPTOM_ENDPOINT})`,
+        message: SYMPTOM_AI_UNAVAILABLE_MSG,
         error: upstreamError?.message || 'Network error',
       });
     }
     const aiData = await aiResp.json().catch(() => ({}));
     if (!aiResp.ok) {
-      return res.status(502).json({
+      console.error(
+        `[analyzeSymptomsAndSave] Upstream ${aiResp.status} from ${MEDAI_SYMPTOM_ENDPOINT}:`,
+        aiData?.error || aiData?.message || '(no body)',
+        aiData?.hint ? `hint=${aiData.hint}` : ''
+      );
+      return res.status(503).json({
         success: false,
-        message:
+        message: SYMPTOM_AI_UNAVAILABLE_MSG,
+        error:
           aiData?.error ||
           aiData?.message ||
           `Symptom analysis service error (${aiResp.status})`,
@@ -1227,6 +1251,9 @@ exports.getRecoveryPrediction = async (req, res) => {
     const clinicalSummary = await buildClinicalSummaryForRecovery(patientId);
     const patientContext = await buildPatientContextForSymptomAnalysis(patientId);
 
+    const RECOVERY_AI_UNAVAILABLE_MSG =
+      'AI recovery prediction is temporarily unavailable. Please try again later.';
+
     let aiResp;
     try {
       aiResp = await fetch(MEDAI_RECOVERY_ENDPOINT, {
@@ -1235,18 +1262,28 @@ exports.getRecoveryPrediction = async (req, res) => {
         body: JSON.stringify({ clinicalSummary, patientContext }),
       });
     } catch (upstreamError) {
-      return res.status(502).json({
+      console.error(
+        `[getRecoveryPrediction] Cannot reach ${MEDAI_RECOVERY_ENDPOINT}:`,
+        upstreamError?.message || upstreamError
+      );
+      return res.status(503).json({
         success: false,
-        message: `Cannot reach recovery prediction service (${MEDAI_RECOVERY_ENDPOINT})`,
+        message: RECOVERY_AI_UNAVAILABLE_MSG,
         error: upstreamError?.message || 'Network error',
       });
     }
 
     const aiData = await aiResp.json().catch(() => ({}));
     if (!aiResp.ok) {
-      return res.status(502).json({
+      console.error(
+        `[getRecoveryPrediction] Upstream ${aiResp.status} from ${MEDAI_RECOVERY_ENDPOINT}:`,
+        aiData?.error || aiData?.message || '(no body)',
+        aiData?.hint ? `hint=${aiData.hint}` : ''
+      );
+      return res.status(503).json({
         success: false,
-        message:
+        message: RECOVERY_AI_UNAVAILABLE_MSG,
+        error:
           aiData?.error ||
           aiData?.message ||
           `Recovery prediction service error (${aiResp.status})`,
@@ -1315,11 +1352,28 @@ async function getDoctorByInput(doctorInput) {
      WHERE a.username = :raw
         OR a.username = :normalized
         OR TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))) = :normalized
+        OR TRIM(CONCAT(COALESCE(u.last_name,''), ' ', COALESCE(u.first_name,''))) = :normalized
      LIMIT 1`,
     {
       replacements: { raw: String(doctorInput || '').trim(), normalized },
       type: QueryTypes.SELECT
     }
+  );
+  return rows[0] || null;
+}
+
+/** PK lookup — avoids ambiguous display-name order (open-slots uses last+first; booking used first+last). */
+async function getDoctorRowByPk(doctorPk) {
+  const id = Number(doctorPk);
+  if (!Number.isFinite(id) || id <= 0) return null;
+  const rows = await sequelize.query(
+    `SELECT d.doctor_id, a.username, u.first_name, u.last_name, d.room_id
+     FROM DOCTOR d
+     JOIN ACCOUNT a ON a.user_id = d.user_id
+     JOIN USER u ON u.id = d.user_id
+     WHERE d.doctor_id = :id
+     LIMIT 1`,
+    { replacements: { id }, type: QueryTypes.SELECT }
   );
   return rows[0] || null;
 }
@@ -1829,10 +1883,13 @@ exports.createAppointment = async (req, res) => {
       notes,
     rescheduleFromAppointmentId,
     rescheduleFromId,
+    doctorId: doctorIdBody,
   } = req.body;
   const userId = req.user.userId;
 
-  if (!doctor || !department || !date || !time) {
+  const doctorPk = Number(doctorIdBody);
+  const useDoctorPk = Number.isFinite(doctorPk) && doctorPk > 0;
+  if ((!doctor && !useDoctorPk) || !department || !date || !time) {
     return res.status(400).json({ message: 'Missing required fields' });
   }
 
@@ -1868,7 +1925,7 @@ exports.createAppointment = async (req, res) => {
       }
     }
 
-    doctorRow = await getDoctorByInput(doctor);
+    doctorRow = useDoctorPk ? await getDoctorRowByPk(doctorPk) : await getDoctorByInput(doctor);
     if (!doctorRow) {
       if (t) await t.rollback();
       return res.status(400).json({ message: 'Doctor not found' });

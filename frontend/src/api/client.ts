@@ -3,7 +3,7 @@
  *
  * - Automatically attaches the Bearer token from localStorage
  * - Redirects to /login on 401 and on 403 when the server signals a dead session (auth-lost codes)
- * - Throws a typed Error for non-OK responses so callers only need try/catch
+ * - Throws a typed Error for non-OK responses — UI surfaces errors via page handlers (emitErrorToast is not automatic here, avoiding duplicate toasts with PauseableCornerToast).
  *
  * Usage:
  *   import { apiClient } from '@/api/client'
@@ -28,6 +28,8 @@ type ApiErrorPayload = { message?: string; error?: string; code?: string; succes
 
 let refreshInFlight: Promise<string | null> | null = null
 let refreshToastShown = false
+let authLostRedirectTimer: ReturnType<typeof setTimeout> | null = null
+const AUTH_LOST_REDIRECT_DELAY_MS = 10_000
 
 /** Backend auth middleware returns these for a dead session / bad token (not RBAC). */
 const AUTH_LOST_CODES = new Set([
@@ -56,18 +58,23 @@ function navigateIfDifferent(href: string): void {
   window.location.href = href
 }
 
-function redirectToLogin(): void {
+function scheduleRedirectToLogin(): void {
+  if (authLostRedirectTimer) return
   clearAuthStorage()
-  navigateIfDifferent(`${window.location.origin}/login`)
+  emitErrorToast(i18n.t('errors.sessionExpiredRedirecting'))
+  authLostRedirectTimer = setTimeout(() => {
+    authLostRedirectTimer = null
+    navigateIfDifferent(`${window.location.origin}/login`)
+  }, AUTH_LOST_REDIRECT_DELAY_MS)
 }
 
 /** Only call for 401 (always logout) or 403 with an auth-lost code (RBAC 403 must not use this). */
 function handleUnauthorized(status: number, code?: string): void {
   if (status === 403) {
-    if (code && AUTH_LOST_CODES.has(code)) redirectToLogin()
+    if (code && AUTH_LOST_CODES.has(code)) scheduleRedirectToLogin()
     return
   }
-  if (status === 401) redirectToLogin()
+  if (status === 401) scheduleRedirectToLogin()
 }
 
 async function refreshOnce(): Promise<string | null> {
@@ -121,7 +128,6 @@ async function request<T>(path: string, options: RequestInit = {}, hasRetried = 
     })
   } catch {
     const msg = i18n.t('errors.networkError')
-    emitErrorToast(msg)
     throw new Error(msg)
   }
 
@@ -158,7 +164,6 @@ async function request<T>(path: string, options: RequestInit = {}, hasRetried = 
       payload?.error ||
       payload?.message ||
       i18n.t('errors.httpError', { status: 403 })
-    emitErrorToast(msg)
     throw new Error(msg)
   }
 
@@ -174,7 +179,6 @@ async function request<T>(path: string, options: RequestInit = {}, hasRetried = 
         // Keep original text if not JSON.
       }
     }
-    emitErrorToast(message)
     throw new Error(message)
   }
 

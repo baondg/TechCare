@@ -53,7 +53,10 @@ Then create secrets:
 echo "techcare" | gcloud secrets create techcare-backend-db-user --data-file=-
 echo "<strong-password>" | gcloud secrets create techcare-backend-db-password --data-file=-
 echo "<64-char-jwt-secret>" | gcloud secrets create techcare-jwt-secret --data-file=-
+echo "<groq-api-key>" | gcloud secrets create techcare-groq-api-key --data-file=-
 ```
+
+`techcare-groq-api-key` is required by all `/api/ai/*` routes. Without it the backend falls back to a local LLM at `localhost:11434`, which does not exist on Cloud Run and surfaces as `502 fetch failed` in the patient symptom checker / chat / recovery widgets.
 
 ## 5) Deploy Cloud Run Services
 

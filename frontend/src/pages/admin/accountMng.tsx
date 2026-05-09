@@ -1287,7 +1287,7 @@ function AdminPageToast({
       role="status"
       aria-live="polite"
       className={cn(
-        "pointer-events-auto fixed bottom-6 left-6 z-[100] max-w-md rounded-lg border px-4 py-3 text-sm shadow-lg transition-opacity duration-300 ease-out",
+        "pointer-events-auto fixed bottom-5 right-5 z-[118] max-w-md rounded-lg border px-4 py-3 text-sm shadow-lg transition-opacity duration-300 ease-out",
         visible ? "opacity-100" : "opacity-0",
         toast.variant === "success" && "bg-[#34A853] text-white",
         toast.variant === "error" && "bg-[#EA4335] text-white"

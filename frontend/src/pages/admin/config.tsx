@@ -1,7 +1,7 @@
 // config.tsx
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -31,21 +31,9 @@ import { emitSuccessToast } from "@/lib/success-toast-bus"
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000"
 
-/** Model lists for admin UI; backend still accepts any modelId string via API. */
-const GROQ_MODEL_OPTIONS = [
-  { value: "llama-3.1-8b-instant", label: "Llama 3.1 8B Instant" },
-  { value: "llama-3.3-70b-versatile", label: "Llama 3.3 70B Versatile" },
-  { value: "llama-3.3-8b-instant", label: "Llama 3.3 8B Instant" },
-  { value: "mixtral-8x7b-32768", label: "Mixtral 8x7B" },
-  { value: "gemma2-9b-it", label: "Gemma2 9B IT" },
-] as const
-
-const LOCAL_MODEL_OPTIONS = [
-  { value: "llama3", label: "llama3" },
-  { value: "llama3.2", label: "llama3.2" },
-  { value: "meditron:latest", label: "meditron:latest" },
-  { value: "mistral", label: "mistral" },
-  { value: "phi3", label: "phi3" },
+const PROVIDER_OPTIONS = [
+  { value: "groq", label: "Groq" },
+  { value: "local", label: "Local (Ollama / OpenAI-compatible)" },
 ] as const
 
 /** Preset feature keys — fills the draft input; admins can type any key for new AI routes. */
@@ -55,14 +43,6 @@ const FEATURE_KEY_PRESETS = [
   { value: "suggest-medicine", label: "suggest-medicine" },
   { value: "recommend-doctor", label: "recommend-doctor" },
 ] as const
-
-type FeatureFlag = {
-  id: number
-  name: string
-  status: number | boolean | string
-  featureGroup: string | null
-  systemId: number
-}
 
 type AdminSession = {
   id: number
@@ -80,8 +60,12 @@ type AiModel = {
   enabled: boolean
 }
 
-const isFeatureEnabled = (status: FeatureFlag["status"]) =>
-  status === true || status === 1 || status === "1" || String(status).toLowerCase() === "true"
+type AiCatalogEntry = {
+  provider: string
+  modelId: string
+  label?: string
+  enabled?: boolean
+}
 
 export default function SystemConfig() {
   const { t } = useTranslation()
@@ -97,44 +81,34 @@ export default function SystemConfig() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
-  const [featuresLoading, setFeaturesLoading] = useState(false)
-  const [features, setFeatures] = useState<FeatureFlag[]>([])
-  const [featureSavingId, setFeatureSavingId] = useState<number | null>(null)
-  const [featureStats, setFeatureStats] = useState({ total: 0, enabled: 0, disabled: 0 })
   const [sessions, setSessions] = useState<AdminSession[]>([])
   const [sessionsLoading, setSessionsLoading] = useState(false)
   const [sessionActionLoading, setSessionActionLoading] = useState(false)
   const [aiModels, setAiModels] = useState<AiModel[]>([])
+  const [aiModelCatalog, setAiModelCatalog] = useState<AiCatalogEntry[]>([])
   const [aiDefaults, setAiDefaults] = useState<Record<string, { provider: string; modelId: string }>>({})
   const [aiSaving, setAiSaving] = useState(false)
   const [draftRow, setDraftRow] = useState({
     featureKey: "",
     provider: "groq",
-    modelId: GROQ_MODEL_OPTIONS[0].value,
+    modelId: "",
+    enabled: true,
+  })
+  const [catalogDraft, setCatalogDraft] = useState({
+    provider: "groq",
+    modelId: "",
+    label: "",
     enabled: true,
   })
 
   const token = localStorage.getItem('authToken')
-
-  const loadFeatures = async () => {
-    setFeaturesLoading(true)
-    try {
-      const response = await fetch(`${API_BASE}/api/system-config/features`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      if (!response.ok) throw new Error(t("admin.config.failedLoadFeatures"))
-      const data = await response.json()
-      if (data.success) {
-        setFeatures(data.features || [])
-        setFeatureStats(data.stats || { total: 0, enabled: 0, disabled: 0 })
-      }
-    } catch (error) {
-      console.error("Error loading features:", error)
-      setMessage({ type: "error", text: t("admin.config.couldNotLoadFeatureFlags") })
-    } finally {
-      setFeaturesLoading(false)
-    }
-  }
+  const catalogByProvider = useMemo(
+    () => ({
+      groq: aiModelCatalog.filter((m) => m.provider === "groq" && m.enabled !== false),
+      local: aiModelCatalog.filter((m) => m.provider === "local" && m.enabled !== false),
+    }),
+    [aiModelCatalog]
+  )
 
   const loadSessions = async () => {
     setSessionsLoading(true)
@@ -160,6 +134,7 @@ export default function SystemConfig() {
       const data = await response.json()
       if (!response.ok || !data.success) throw new Error(data.error || t("admin.config.failedLoadAiModels"))
       setAiModels(data.models || [])
+      setAiModelCatalog(data.catalog || [])
       setAiDefaults(data.defaults || {})
     } catch (error) {
       setMessage({ type: "error", text: error instanceof Error ? error.message : t("admin.config.couldNotLoadAiModels") })
@@ -194,7 +169,6 @@ export default function SystemConfig() {
     };
 
     loadConfig();
-    void loadFeatures();
     void loadSessions();
     void loadAiModels();
   }, []);
@@ -274,7 +248,7 @@ export default function SystemConfig() {
       setDraftRow({
         featureKey: "",
         provider: "groq",
-        modelId: GROQ_MODEL_OPTIONS[0].value,
+        modelId: "",
         enabled: true,
       })
       await loadAiModels()
@@ -353,6 +327,63 @@ export default function SystemConfig() {
     }
   }
 
+  const addCatalogModel = async () => {
+    const modelId = catalogDraft.modelId.trim()
+    if (!modelId) {
+      setMessage({ type: "error", text: "Enter model id for catalog row." })
+      return
+    }
+    setAiSaving(true)
+    setMessage(null)
+    try {
+      const response = await fetch(`${API_BASE}/api/system-config/ai-model-catalog`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          provider: catalogDraft.provider,
+          modelId,
+          label: catalogDraft.label.trim() || modelId,
+          enabled: catalogDraft.enabled,
+        }),
+      })
+      const data = await response.json()
+      if (!response.ok || !data.success) throw new Error(data.error || "Failed to add model catalog entry")
+      emitSuccessToast("AI model catalog updated.")
+      setCatalogDraft((prev) => ({ ...prev, modelId: "", label: "" }))
+      await loadAiModels()
+    } catch (error) {
+      setMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to add model catalog entry." })
+    } finally {
+      setAiSaving(false)
+    }
+  }
+
+  const deleteCatalogModel = async (entry: AiCatalogEntry) => {
+    setAiSaving(true)
+    setMessage(null)
+    try {
+      const response = await fetch(`${API_BASE}/api/system-config/ai-model-catalog`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          provider: entry.provider,
+          modelId: entry.modelId,
+        }),
+      })
+      const data = await response.json()
+      if (!response.ok || !data.success) throw new Error(data.error || "Failed to remove model catalog entry")
+      emitSuccessToast("AI model catalog entry removed.")
+      await loadAiModels()
+    } catch (error) {
+      setMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "Failed to remove model catalog entry.",
+      })
+    } finally {
+      setAiSaving(false)
+    }
+  }
+
   const handleSaveSystemConfig = async () => {
     setSaving(true);
     setMessage(null);
@@ -382,40 +413,6 @@ export default function SystemConfig() {
       setMessage({ type: 'error', text: 'Network error. Please try again.' });
     } finally {
       setSaving(false);
-    }
-  }
-
-  const handleToggleFeature = async (feature: FeatureFlag) => {
-    setFeatureSavingId(feature.id)
-    setMessage(null)
-    const nextStatus = isFeatureEnabled(feature.status) ? 0 : 1
-    try {
-      const response = await fetch(`${API_BASE}/api/system-config/features/${feature.id}/status`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
-        },
-        body: JSON.stringify({ status: nextStatus }),
-      })
-      const data = await response.json()
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || "Failed to update feature status")
-      }
-      setFeatures((prev) =>
-        prev.map((f) =>
-          f.id === feature.id ? { ...f, status: nextStatus } : f
-        )
-      )
-      setFeatureStats((prev) => {
-        const enabled = nextStatus === 1 ? prev.enabled + 1 : prev.enabled - 1
-        return { total: prev.total, enabled, disabled: prev.total - enabled }
-      })
-      emitSuccessToast(`Feature "${feature.name}" is now ${nextStatus === 1 ? "enabled" : "disabled"}.`)
-    } catch (error) {
-      setMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to update feature" })
-    } finally {
-      setFeatureSavingId(null)
     }
   }
 
@@ -455,6 +452,87 @@ export default function SystemConfig() {
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="rounded-lg border border-border bg-card p-4 space-y-4">
+              <h3 className="text-sm font-semibold text-foreground">Model catalog</h3>
+              <p className="text-xs text-muted-foreground">
+                Manage reusable model IDs by provider, then assign them to feature keys below.
+              </p>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+                <div className="space-y-2">
+                  <Label>Provider</Label>
+                  <Select
+                    value={catalogDraft.provider}
+                    onValueChange={(v) => setCatalogDraft((prev) => ({ ...prev, provider: v.toLowerCase() }))}
+                  >
+                    <SelectTrigger className="custom-input w-full">
+                      <SelectValue placeholder="Provider" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PROVIDER_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="catalog-model-id">Model ID</Label>
+                  <Input
+                    id="catalog-model-id"
+                    className="custom-input"
+                    placeholder="e.g. llama-3.1-8b-instant"
+                    value={catalogDraft.modelId}
+                    onChange={(e) => setCatalogDraft((prev) => ({ ...prev, modelId: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="catalog-label">Label (optional)</Label>
+                  <Input
+                    id="catalog-label"
+                    className="custom-input"
+                    placeholder="Friendly display name"
+                    value={catalogDraft.label}
+                    onChange={(e) => setCatalogDraft((prev) => ({ ...prev, label: e.target.value }))}
+                  />
+                </div>
+                <div className="flex items-end gap-2">
+                  <Button type="button" className="btn-gradient w-full" onClick={() => void addCatalogModel()} disabled={aiSaving}>
+                    Add model
+                  </Button>
+                </div>
+              </div>
+              <div className="space-y-2">
+                {aiModelCatalog.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No catalog models yet.</p>
+                ) : (
+                  aiModelCatalog.map((entry) => (
+                    <div key={`${entry.provider}-${entry.modelId}`} className="flex items-center justify-between rounded border px-3 py-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">
+                          {entry.label?.trim() || entry.modelId}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {entry.provider.toUpperCase()} · {entry.modelId}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="gap-1 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        onClick={() => void deleteCatalogModel(entry)}
+                        disabled={aiSaving}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Remove
+                      </Button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-border bg-card p-4 space-y-4">
               <h3 className="text-sm font-semibold text-foreground">Add configuration</h3>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-2 md:col-span-2">
@@ -490,11 +568,11 @@ export default function SystemConfig() {
                     value={draftRow.provider}
                     onValueChange={(v) => {
                       const provider = v.toLowerCase()
-                      const options = provider === "groq" ? GROQ_MODEL_OPTIONS : LOCAL_MODEL_OPTIONS
+                      const options = provider === "groq" ? catalogByProvider.groq : catalogByProvider.local
                       setDraftRow((prev) => ({
                         ...prev,
                         provider,
-                        modelId: options[0]?.value ?? "",
+                        modelId: options[0]?.modelId ?? "",
                       }))
                     }}
                   >
@@ -502,8 +580,11 @@ export default function SystemConfig() {
                       <SelectValue placeholder="Provider" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="groq">Groq</SelectItem>
-                      <SelectItem value="local">Local (Ollama / OpenAI-compatible)</SelectItem>
+                      {PROVIDER_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -517,13 +598,19 @@ export default function SystemConfig() {
                       <SelectValue placeholder="Model" />
                     </SelectTrigger>
                     <SelectContent>
-                      {(draftRow.provider === "groq" ? GROQ_MODEL_OPTIONS : LOCAL_MODEL_OPTIONS).map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>
-                          {opt.label}
+                      {(draftRow.provider === "groq" ? catalogByProvider.groq : catalogByProvider.local).map((opt) => (
+                        <SelectItem key={`${opt.provider}-${opt.modelId}`} value={opt.modelId}>
+                          {opt.label?.trim() || opt.modelId}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  <Input
+                    className="custom-input"
+                    placeholder="Or type custom model id"
+                    value={draftRow.modelId}
+                    onChange={(e) => setDraftRow((prev) => ({ ...prev, modelId: e.target.value }))}
+                  />
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-4 md:col-span-2">
                   <div className="flex items-center gap-3">
@@ -705,68 +792,6 @@ export default function SystemConfig() {
             <p className="text-sm text-muted-foreground">
               Current active sessions will be affected by these changes. New login sessions will use the updated timeout.
             </p>
-          </CardContent>
-        </Card>
-
-        {/* Feature Flags */}
-        <Card className="card-feature-group">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Settings className="h-5 w-5" />
-              Feature Flags
-            </CardTitle>
-            <CardDescription>Enable/disable modules by feature switch</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 gap-2 rounded-lg border bg-muted/20 p-3 text-sm md:grid-cols-3">
-              <div><span className="font-medium">Total:</span> {featureStats.total}</div>
-              <div><span className="font-medium text-emerald-700">Enabled:</span> {featureStats.enabled}</div>
-              <div><span className="font-medium text-slate-600">Disabled:</span> {featureStats.disabled}</div>
-            </div>
-
-            {featuresLoading ? (
-              <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Loading feature flags...
-              </div>
-            ) : features.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No rows found in table FEATURE. Please insert seed data first.
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {features.map((f) => {
-                  const enabled = isFeatureEnabled(f.status)
-                  const busy = featureSavingId === f.id
-                  return (
-                    <div key={f.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
-                      <div className="min-w-0">
-                        <p className="font-medium">{f.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          Group: {f.featureGroup || "General"} · System ID: {f.systemId}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`text-xs font-semibold ${enabled ? "text-emerald-700" : "text-slate-500"}`}>
-                          {enabled ? "Enabled" : "Disabled"}
-                        </span>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant={enabled ? "outline" : "default"}
-                          className={enabled ? "" : "btn-gradient"}
-                          disabled={busy}
-                          onClick={() => void handleToggleFeature(f)}
-                        >
-                          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                          {enabled ? "Disable" : "Enable"}
-                        </Button>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
           </CardContent>
         </Card>
 

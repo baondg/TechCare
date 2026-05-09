@@ -30,6 +30,17 @@ const cacheService = require('../services/cacheService');
 // Hotpath cache: tuned for NFR load runs; override via env if needed.
 const PATIENT_RECORD_CACHE_TTL_SECONDS = Number(process.env.PATIENT_RECORD_CACHE_TTL_SECONDS || 30);
 const isHotpathProfilingEnabled = () => process.env.PROFILE_HOTPATHS === '1';
+const patientRecordCacheKey = (patientPk) => `doctor:patient_record:v1:${Number(patientPk)}`;
+
+async function invalidatePatientRecordCache(patientPk) {
+  const n = Number(patientPk);
+  if (!Number.isFinite(n) || n <= 0) return;
+  try {
+    await cacheService.del(patientRecordCacheKey(n));
+  } catch (e) {
+    console.warn('[cache] failed to invalidate patient record cache:', e?.message || e);
+  }
+}
 
 function parseRoutePatientId(patientId) {
   const n = Number(String(patientId).replace(/^OP0*/i, ''));
@@ -527,13 +538,21 @@ async function createTreatmentForPatient({
   department,
   encounterType,
   diseaseId,
+  forceDiseaseRegimen = false,
   deptId: explicitDeptId,
   roomId: explicitRoomId,
   transaction,
 }) {
-  // Keep a single active visit bucket: if an open regimen exists, append all new papers to it.
-  // Only create disease-specific/new regimen when there is no currently open visit.
-  let regimenId = await getOpenRegimenIdForPatient(patientId, transaction);
+  // Diagnosis records need disease-specific regimen to preserve per-diagnosis ICD on reload.
+  // Other documents can still append to the current open visit bucket.
+  let regimenId = null;
+  if (forceDiseaseRegimen && diseaseId != null && Number.isFinite(Number(diseaseId))) {
+    regimenId = await ensureOpenRegimenForDisease(patientId, Number(diseaseId), transaction);
+  } else {
+    // Keep a single active visit bucket: if an open regimen exists, append all new papers to it.
+    // Only create disease-specific/new regimen when there is no currently open visit.
+    regimenId = await getOpenRegimenIdForPatient(patientId, transaction);
+  }
   if (!regimenId) {
     if (diseaseId != null && Number.isFinite(Number(diseaseId))) {
       regimenId = await ensureOpenRegimenForDisease(patientId, Number(diseaseId), transaction);
@@ -3914,9 +3933,9 @@ exports.getDiagnoses = async (req, res) => {
        LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id
        LEFT JOIN USER u ON u.id = d.user_id
        LEFT JOIN ACCOUNT a ON a.user_id = d.user_id
-       WHERE r.patient_id = :patientId
-       ${SQL_AND_TREATMENT_IS_STANDALONE_DIAGNOSIS}
-       ORDER BY t.time DESC`,
+      WHERE r.patient_id = :patientId
+      ${SQL_AND_TREATMENT_IS_STANDALONE_DIAGNOSIS}
+      ORDER BY t.time DESC, t.id DESC`,
       { replacements: { patientId: patientPk }, type: QueryTypes.SELECT }
     );
 
@@ -3964,6 +3983,7 @@ exports.createDiagnosis = async (req, res) => {
       complaint,
       department,
       diseaseId,
+      forceDiseaseRegimen: true,
       transaction
     });
     const doctorName = await resolveDoctorDisplayName(req);
@@ -3982,6 +4002,7 @@ exports.createDiagnosis = async (req, res) => {
     };
 
     await transaction.commit();
+    await invalidatePatientRecordCache(patientPk);
 
     res.status(201).json({ success: true, diagnosis });
   } catch (error) {
@@ -4083,6 +4104,7 @@ exports.updateDiagnosis = async (req, res) => {
     }
 
     await transaction.commit();
+    await invalidatePatientRecordCache(patientPk);
 
     const doctorName = await resolveDoctorDisplayName(req);
     const diagnosis = {

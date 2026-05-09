@@ -562,11 +562,18 @@ export default function PatientPrescription() {
         ...(m.note?.trim() ? { note: m.note.trim() } : {}),
       }))
     if (meds.length === 0 || !meds.some((m) => m.name)) {
-      showError(t("doctor.prescription.needOneNamedMed"))
+      showError("Add at least one medication with a name")
+      return
+    }
+    const invalidRequiredIndex = meds.findIndex(
+      (m) => !m.name.trim() || !String(m.quantity ?? "").trim() || !String(m.usage ?? "").trim()
+    )
+    if (invalidRequiredIndex !== -1) {
+      showError(`Please complete Medication, Qty, and Usage on row ${invalidRequiredIndex + 1}`)
       return
     }
     if (selectedRx.id !== "new") {
-      showError(t("doctor.prescription.saveOnlyNew"))
+      showError("Only new prescriptions can be saved. Click Add to create a new one.")
       return
     }
     setSaving(true)
@@ -929,16 +936,22 @@ export default function PatientPrescription() {
                         "linear-gradient(135deg, #06b6d4 0%, #0891b2 50%, #06b6d4 100%)",
                     }}
                   >
-                    <TableHead className="w-8 p-1.5 text-center text-white">{t("doctor.prescription.tableNo")}</TableHead>
+                    <TableHead className="w-8 p-1.5 text-center text-white">No.</TableHead>
                     <TableHead className="w-[18%] min-w-0 p-1.5 text-left text-white">
-                      {t("doctor.prescription.medication")}
+                      Medication <span className="text-red-500">*</span>
                     </TableHead>
-                    <TableHead className="w-[9%] p-1.5 text-white">{t("doctor.prescription.qty")}</TableHead>
-                    <TableHead className="w-[10%] p-1.5 text-white">{t("doctor.prescription.unit")}</TableHead>
-                    <TableHead className="w-[9%] p-1.5 text-white">{t("doctor.prescription.duration")}</TableHead>
-                    <TableHead className="min-w-0 p-1.5 text-white">{t("doctor.prescription.usage")}</TableHead>
-                    <TableHead className="min-w-0 p-1.5 text-white">{t("doctor.prescription.note")}</TableHead>
-                    <TableHead className="w-7 p-1 text-center text-white" aria-label={t("doctor.prescription.removeRow")} />
+                    <TableHead className="w-[9%] p-1.5 text-white">
+                      Qty <span className="text-red-500">*</span>
+                    </TableHead>
+                    <TableHead className="w-[10%] p-1.5 text-white">Unit</TableHead>
+                    <TableHead className="w-[9%] p-1.5 text-white">
+                      Duration <span className="text-red-500">*</span>
+                    </TableHead>
+                    <TableHead className="min-w-0 p-1.5 text-white">
+                      Usage <span className="text-red-500">*</span>
+                    </TableHead>
+                    <TableHead className="min-w-0 p-1.5 text-white">Note</TableHead>
+                    <TableHead className="w-7 p-1 text-center text-white" aria-label="Remove row" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>

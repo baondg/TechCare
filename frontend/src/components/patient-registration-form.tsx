@@ -55,14 +55,17 @@ export function PatientRegistrationForm({
     
     // Basic fields (username = national ID / passport, synced below)
     const [email, setEmail] = useState("");
+    const [emailError, setEmailError] = useState("");
     const [firstName, setFirstName] = useState("");
     const [lastName, setLastName] = useState("");
     
     const [dob, setDob] = useState<Date | undefined>();
     const [dobInputValue, setDobInputValue] = useState("");
+    const [dobError, setDobError] = useState("");
     const age = dob ? calculateAge(dob) : "";
     const [dobRelative, setDobRelative] = useState<Date | undefined>();
     const [dobRelativeInputValue, setDobRelativeInputValue] = useState("");
+    const [dobRelativeError, setDobRelativeError] = useState("");
     const ageRelative = dobRelative ? calculateAge(dobRelative) : "";
     const [nationalId, setNationalId] = useState("");
     const accountUsername = useMemo(() => nationalId.trim(), [nationalId]);
@@ -73,9 +76,11 @@ export function PatientRegistrationForm({
     const [relativeNationalId, setRelativeNationalId] = useState("");
     const [relativeName, setRelativeName] = useState("");
     const [relativeRelationship, setRelativeRelationship] = useState("");
+    const [relativeRelationshipOther, setRelativeRelationshipOther] = useState("");
     const [relativePhone, setRelativePhone] = useState("");
     const [relativeSex, setRelativeSex] = useState<"male" | "female" | "other">("male");
     const [relativeEmail, setRelativeEmail] = useState("");
+    const [relativeEmailError, setRelativeEmailError] = useState("");
 
     // Insurance info state
     const [insuranceId, setInsuranceId] = useState("");
@@ -96,7 +101,9 @@ export function PatientRegistrationForm({
     const [showPassword, setShowPassword] = useState(false);
 
     const syncNationalId = (value: string) => {
-      setNationalId(value);
+      // Only keep digits for National ID input.
+      const digitsOnly = value.replace(/\D/g, "").slice(0, 12);
+      setNationalId(digitsOnly);
     };
     const syncFirstName = (value: string) => {
       setFirstName(value);
@@ -105,7 +112,16 @@ export function PatientRegistrationForm({
       setLastName(value);
     };
     const syncPhone = (value: string) => {
-      setPhone(value);
+      const digitsOnly = value.replace(/\D/g, "").slice(0, 10);
+      setPhone(digitsOnly);
+    };
+    const syncRelativeNationalId = (value: string) => {
+      const digitsOnly = value.replace(/\D/g, "").slice(0, 12);
+      setRelativeNationalId(digitsOnly);
+    };
+    const syncRelativePhone = (value: string) => {
+      const digitsOnly = value.replace(/\D/g, "").slice(0, 10);
+      setRelativePhone(digitsOnly);
     };
     const syncPassword = (value: string) => {
       setPassword(value);
@@ -116,21 +132,26 @@ export function PatientRegistrationForm({
     
     const resetFormFields = () => {
       setEmail("");
+      setEmailError("");
       setFirstName("");
       setLastName("");
       setDob(undefined);
       setDobInputValue("");
+      setDobError("");
       setDobRelative(undefined);
       setDobRelativeInputValue("");
+      setDobRelativeError("");
       setNationalId("");
       setPhone("");
       setSex("male");
       setRelativeNationalId("");
       setRelativeName("");
       setRelativeRelationship("");
+      setRelativeRelationshipOther("");
       setRelativePhone("");
       setRelativeSex("male");
       setRelativeEmail("");
+      setRelativeEmailError("");
       setInsuranceId("");
       setInsuranceProvider("");
       setInsuranceExpiry(undefined);
@@ -155,6 +176,34 @@ export function PatientRegistrationForm({
       return parsedDate;
     };
 
+    const isBeforeToday = (date: Date) => {
+      const candidate = new Date(date);
+      candidate.setHours(0, 0, 0, 0);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      return candidate < today;
+    };
+
+    const validateDob = (date: Date | undefined, rawInput?: string) => {
+      if (!date) {
+        if (rawInput && rawInput.length === 10) {
+          return "Invalid date. Please use dd/mm/yyyy.";
+        }
+        return "";
+      }
+      if (!isBeforeToday(date)) {
+        return "Date of birth must be earlier than today.";
+      }
+      return "";
+    };
+
+    const validateEmail = (value: string) => {
+      const trimmed = value.trim();
+      if (!trimmed) return "";
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      return emailRegex.test(trimmed) ? "" : "Invalid email format";
+    };
+
     const handleRegister = async (e: React.FormEvent) => {
       e.preventDefault();
       setError("");
@@ -164,13 +213,34 @@ export function PatientRegistrationForm({
         return;
       }
 
+      if (!relativeName.trim() || !relativeRelationship || !relativePhone.trim()) {
+        reportError("Please fill in all required relative information fields");
+        return;
+      }
+
+      const relativeRelationshipValue =
+        relativeRelationship === "other"
+          ? relativeRelationshipOther.trim()
+          : relativeRelationship;
+      if (!relativeRelationshipValue) {
+        reportError("Please enter relationship details");
+        return;
+      }
+
       const emailTrimmed = email.trim();
-      if (emailTrimmed) {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(emailTrimmed)) {
-          reportError("Invalid email format");
-          return;
-        }
+      const emailValidationError = validateEmail(emailTrimmed);
+      if (emailValidationError) {
+        setEmailError(emailValidationError);
+        reportError(emailValidationError);
+        return;
+      }
+
+      const relativeEmailTrimmed = relativeEmail.trim();
+      const relativeEmailValidationError = validateEmail(relativeEmailTrimmed);
+      if (relativeEmailValidationError) {
+        setRelativeEmailError(relativeEmailValidationError);
+        reportError(relativeEmailValidationError);
+        return;
       }
 
       if (!passwordsMatch) {
@@ -186,6 +256,20 @@ export function PatientRegistrationForm({
       // USER: idcard, sex, dob, tel NOT NULL
       if (!accountUsername || !dob || !phone.trim()) {
         reportError("Please fill in National ID / passport, date of birth, and phone number");
+        return;
+      }
+
+      const dobValidationError = validateDob(dob);
+      if (dobValidationError) {
+        setDobError(dobValidationError);
+        reportError(dobValidationError);
+        return;
+      }
+
+      const dobRelativeValidationError = validateDob(dobRelative, dobRelativeInputValue);
+      if (dobRelativeValidationError) {
+        setDobRelativeError(dobRelativeValidationError);
+        reportError(dobRelativeValidationError);
         return;
       }
 
@@ -210,11 +294,11 @@ export function PatientRegistrationForm({
           tel: phone.trim(),
           idcard: accountUsername,
           relativeName,
-          relativeRelationship,
+          relativeRelationship: relativeRelationshipValue,
           relativeDateOfBirth: dobRelative ? format(dobRelative, "yyyy-MM-dd") : undefined,
           relativeSex: mapSexToCode(relativeSex),
           relativePhone,
-          relativeEmail,
+          relativeEmail: relativeEmailTrimmed,
           relativeNationalId,
           insuranceId,
           insuranceProvider,
@@ -293,6 +377,8 @@ export function PatientRegistrationForm({
                 className="custom-input"
                 required
                 maxLength={12}
+                inputMode="numeric"
+                pattern="[0-9]*"
                 autoComplete="off"
                 placeholder="e.g. CCCD or passport number"
               />
@@ -320,6 +406,9 @@ export function PatientRegistrationForm({
               <Label htmlFor="first-name">
                 First Name <span className="text-red-500">*</span>
               </Label>
+              <p className="text-xs text-muted-foreground mt-1 mb-1">
+                Given name, e.g. <span className="font-medium">Van An</span>
+              </p>
               <Input 
                 id="first-name"
                 name="firstName"
@@ -336,6 +425,9 @@ export function PatientRegistrationForm({
               <Label htmlFor="last-name">
                 Last Name <span className="text-red-500">*</span>
               </Label>
+              <p className="text-xs text-muted-foreground mt-1 mb-1">
+                Family name, e.g. <span className="font-medium">Nguyen</span>
+              </p>
               <Input 
                 id="last-name"
                 name="lastName"
@@ -361,19 +453,28 @@ export function PatientRegistrationForm({
                     const formattedInput = formatDateInput(e.target.value);
                     setDobInputValue(formattedInput);
                     if (formattedInput.length === 10) {
-                      setDob(parseDateInput(formattedInput));
+                      const parsedDate = parseDateInput(formattedInput);
+                      setDob(parsedDate);
+                      setDobError(validateDob(parsedDate, formattedInput));
+                    } else {
+                      setDobError("");
                     }
                   }}
                   onInput={(e) => {
                     const formattedInput = formatDateInput((e.target as HTMLInputElement).value);
                     setDobInputValue(formattedInput);
                     if (formattedInput.length === 10) {
-                      setDob(parseDateInput(formattedInput));
+                      const parsedDate = parseDateInput(formattedInput);
+                      setDob(parsedDate);
+                      setDobError(validateDob(parsedDate, formattedInput));
+                    } else {
+                      setDobError("");
                     }
                   }}
                   onBlur={(e) => {
                     const parsedDate = parseDateInput(e.target.value);
                     setDob(parsedDate);
+                    setDobError(validateDob(parsedDate, e.target.value));
                     if (parsedDate) {
                       setDobInputValue(format(parsedDate, "dd/MM/yyyy"));
                     }
@@ -402,6 +503,7 @@ export function PatientRegistrationForm({
                       selected={dob}
                       onSelect={(selectedDate) => {
                         setDob(selectedDate);
+                        setDobError(validateDob(selectedDate));
                         setDobInputValue(selectedDate ? format(selectedDate, "dd/MM/yyyy") : "");
                       }}
                       captionLayout="dropdown"
@@ -409,6 +511,7 @@ export function PatientRegistrationForm({
                   </PopoverContent>
                 </Popover>
               </div>
+              {dobError ? <p className="mt-1 text-xs text-red-500">{dobError}</p> : null}
             </div>
 
             <div>
@@ -431,6 +534,9 @@ export function PatientRegistrationForm({
                 onBlur={(e) => syncPhone(e.target.value)}
                 required
                 autoComplete="tel"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={10}
               />
             </div>
 
@@ -462,10 +568,23 @@ export function PatientRegistrationForm({
                 placeholder="user@example.com" 
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                onInput={(e) => setEmail((e.target as HTMLInputElement).value)}
-                onBlur={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setEmail(value);
+                  setEmailError(validateEmail(value));
+                }}
+                onInput={(e) => {
+                  const value = (e.target as HTMLInputElement).value;
+                  setEmail(value);
+                  setEmailError(validateEmail(value));
+                }}
+                onBlur={(e) => {
+                  const value = e.target.value;
+                  setEmail(value);
+                  setEmailError(validateEmail(value));
+                }}
               />
+              {emailError ? <p className="mt-1 text-xs text-red-500">{emailError}</p> : null}
             </div>
           </CardContent>
         </Card>
@@ -490,14 +609,19 @@ export function PatientRegistrationForm({
                 aria-label="Relative National ID/passport"
                 className="custom-input"
                 value={relativeNationalId}
-                onChange={(e) => setRelativeNationalId(e.target.value)}
-                onInput={(e) => setRelativeNationalId((e.target as HTMLInputElement).value)}
-                onBlur={(e) => setRelativeNationalId(e.target.value)}
+                onChange={(e) => syncRelativeNationalId(e.target.value)}
+                onInput={(e) => syncRelativeNationalId((e.target as HTMLInputElement).value)}
+                onBlur={(e) => syncRelativeNationalId(e.target.value)}
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={12}
               />
             </div>
 
             <div>
-              <Label htmlFor="relative-name">Name</Label>
+              <Label htmlFor="relative-name">
+                Name <span className="text-red-500">*</span>
+              </Label>
               <Input 
                 id="relative-name"
                 name="relativeName"
@@ -507,12 +631,23 @@ export function PatientRegistrationForm({
                 onChange={(e) => setRelativeName(e.target.value)}
                 onInput={(e) => setRelativeName((e.target as HTMLInputElement).value)}
                 onBlur={(e) => setRelativeName(e.target.value)}
+                required
               />
             </div>
 
             <div className="md:col-span-2">
-              <Label htmlFor="relative-relationship">Relationship</Label>
-              <Select value={relativeRelationship} onValueChange={setRelativeRelationship}>
+              <Label htmlFor="relative-relationship">
+                Relationship <span className="text-red-500">*</span>
+              </Label>
+              <Select
+                value={relativeRelationship}
+                onValueChange={(value) => {
+                  setRelativeRelationship(value);
+                  if (value !== "other") {
+                    setRelativeRelationshipOther("");
+                  }
+                }}
+              >
                 <SelectTrigger id="relative-relationship" aria-label="Relationship" className="custom-select transition-all duration-100 rounded-2xl">
                   <div className="text-sm font-normal bg-background text-muted-foreground">
                     <SelectValue placeholder="Father" />
@@ -522,8 +657,23 @@ export function PatientRegistrationForm({
                   <SelectItem value="father">Father</SelectItem>
                   <SelectItem value="mother">Mother</SelectItem>
                   <SelectItem value="sibling">Sibling</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
                 </SelectContent>
               </Select>
+              {relativeRelationship === "other" ? (
+                <Input
+                  id="relative-relationship-other"
+                  name="relativeRelationshipOther"
+                  aria-label="Other relationship"
+                  className="custom-input mt-2 h-9"
+                  placeholder="Enter relationship"
+                  value={relativeRelationshipOther}
+                  onChange={(e) => setRelativeRelationshipOther(e.target.value)}
+                  onInput={(e) => setRelativeRelationshipOther((e.target as HTMLInputElement).value)}
+                  onBlur={(e) => setRelativeRelationshipOther(e.target.value)}
+                  required
+                />
+              ) : null}
             </div>
 
             <div>
@@ -538,19 +688,28 @@ export function PatientRegistrationForm({
                     const formattedInput = formatDateInput(e.target.value);
                     setDobRelativeInputValue(formattedInput);
                     if (formattedInput.length === 10) {
-                      setDobRelative(parseDateInput(formattedInput));
+                      const parsedDate = parseDateInput(formattedInput);
+                      setDobRelative(parsedDate);
+                      setDobRelativeError(validateDob(parsedDate, formattedInput));
+                    } else {
+                      setDobRelativeError("");
                     }
                   }}
                   onInput={(e) => {
                     const formattedInput = formatDateInput((e.target as HTMLInputElement).value);
                     setDobRelativeInputValue(formattedInput);
                     if (formattedInput.length === 10) {
-                      setDobRelative(parseDateInput(formattedInput));
+                      const parsedDate = parseDateInput(formattedInput);
+                      setDobRelative(parsedDate);
+                      setDobRelativeError(validateDob(parsedDate, formattedInput));
+                    } else {
+                      setDobRelativeError("");
                     }
                   }}
                   onBlur={(e) => {
                     const parsedDate = parseDateInput(e.target.value);
                     setDobRelative(parsedDate);
+                    setDobRelativeError(validateDob(parsedDate, e.target.value));
                     if (parsedDate) {
                       setDobRelativeInputValue(format(parsedDate, "dd/MM/yyyy"));
                     }
@@ -578,6 +737,7 @@ export function PatientRegistrationForm({
                       selected={dobRelative}
                       onSelect={(selectedDate) => {
                         setDobRelative(selectedDate);
+                        setDobRelativeError(validateDob(selectedDate));
                         setDobRelativeInputValue(selectedDate ? format(selectedDate, "dd/MM/yyyy") : "");
                       }}
                       captionLayout="dropdown"
@@ -585,6 +745,7 @@ export function PatientRegistrationForm({
                   </PopoverContent>
                 </Popover>
               </div>
+              {dobRelativeError ? <p className="mt-1 text-xs text-red-500">{dobRelativeError}</p> : null}
             </div>
 
             <div>
@@ -593,16 +754,22 @@ export function PatientRegistrationForm({
             </div>
 
             <div>
-              <Label htmlFor="relative-phone">Phone Number</Label>
+              <Label htmlFor="relative-phone">
+                Phone Number <span className="text-red-500">*</span>
+              </Label>
               <Input 
                 id="relative-phone"
                 name="relativePhone"
                 aria-label="Relative Phone Number"
                 className="custom-input"
                 value={relativePhone}
-                onChange={(e) => setRelativePhone(e.target.value)}
-                onInput={(e) => setRelativePhone((e.target as HTMLInputElement).value)}
-                onBlur={(e) => setRelativePhone(e.target.value)}
+                onChange={(e) => syncRelativePhone(e.target.value)}
+                onInput={(e) => syncRelativePhone((e.target as HTMLInputElement).value)}
+                onBlur={(e) => syncRelativePhone(e.target.value)}
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={10}
+                required
               />
             </div>
 
@@ -632,10 +799,23 @@ export function PatientRegistrationForm({
                 placeholder="user@example.com" 
                 className="custom-input"
                 value={relativeEmail}
-                onChange={(e) => setRelativeEmail(e.target.value)}
-                onInput={(e) => setRelativeEmail((e.target as HTMLInputElement).value)}
-                onBlur={(e) => setRelativeEmail(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setRelativeEmail(value);
+                  setRelativeEmailError(validateEmail(value));
+                }}
+                onInput={(e) => {
+                  const value = (e.target as HTMLInputElement).value;
+                  setRelativeEmail(value);
+                  setRelativeEmailError(validateEmail(value));
+                }}
+                onBlur={(e) => {
+                  const value = e.target.value;
+                  setRelativeEmail(value);
+                  setRelativeEmailError(validateEmail(value));
+                }}
               />
+              {relativeEmailError ? <p className="mt-1 text-xs text-red-500">{relativeEmailError}</p> : null}
             </div>
 
           </CardContent>

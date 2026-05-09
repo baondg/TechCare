@@ -46,6 +46,74 @@ function VitalWarningTable({ message }: { message: string | null }) {
   )
 }
 
+function InputList({
+  label,
+  values,
+  setValues,
+  disabled,
+}: {
+  label: string
+  values: string[]
+  setValues: (v: string[]) => void
+  disabled: boolean
+}) {
+  const updateValue = (index: number, v: string) => {
+    const newValues = [...values]
+    newValues[index] = v
+    setValues(newValues)
+  }
+
+  const addNew = () => {
+    setValues([...values, ""])
+  }
+
+  const removeItem = (index: number) => {
+    const newValues = values.filter((_, i) => i !== index)
+    setValues(newValues)
+  }
+
+  return (
+    <div className="space-y-2">
+      <Label>{label}</Label>
+
+      <div className="space-y-2">
+        {values.map((v, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <Input
+              value={v}
+              disabled={disabled}
+              onChange={(e) => updateValue(i, e.target.value)}
+              className="flex-1"
+            />
+
+            {!disabled && (
+              <button
+                type="button"
+                onClick={() => removeItem(i)}
+                className="p-2 rounded-md hover:bg-red-100 text-red-600 transition"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {!disabled && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="mt-1 flex items-center gap-2"
+          onClick={addNew}
+        >
+          + Add
+        </Button>
+      )}
+    </div>
+  )
+}
+
 export default function HealthInfoPage() {
   const { user } = useAuth()
   const { toast, isExiting, showSuccess, showError, dismiss, onMouseEnter, onMouseLeave } =
@@ -526,77 +594,6 @@ export default function HealthInfoPage() {
   const [pastIllnesses, setPastIllnesses] = useState<string[]>([])
   const [vaccinations, setVaccinations] = useState<string[]>([])
   const [substanceAbuse, setSubstanceAbuse] = useState<string[]>([])
-
-  function InputList({
-    label,
-    values,
-    setValues,
-    disabled
-  }: {
-    label: string,
-    values: string[],
-    setValues: (v: string[]) => void,
-    disabled: boolean
-  }) {
-
-  const updateValue = (index: number, v: string) => {
-      const newValues = [...values]
-      newValues[index] = v
-      setValues(newValues)
-    }
-
-    const addNew = () => {
-      setValues([...values, ""])
-    }
-
-    const removeItem = (index: number) => {
-      const newValues = values.filter((_, i) => i !== index)
-      setValues(newValues)
-    }
-
-    return (
-      <div className="space-y-2">
-        <Label>{label}</Label>
-
-        <div className="space-y-2">
-          {values.map((v, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <Input
-                value={v}
-                disabled={disabled}
-                onChange={(e) => updateValue(i, e.target.value)}
-                onInput={(e) => updateValue(i, (e.target as HTMLInputElement).value)}
-                onBlur={(e) => updateValue(i, e.target.value)}
-                className="flex-1"
-              />
-
-              {!disabled && (
-                <button
-                  type="button"
-                  onClick={() => removeItem(i)}
-                  className="p-2 rounded-md hover:bg-red-100 text-red-600 transition"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-
-        {!disabled && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="mt-1 flex items-center gap-2"
-            onClick={addNew}
-          >
-            + Add
-          </Button>
-        )}
-      </div>
-    )
-  }
 
   const cornerToast = (
     <PauseableCornerToastPortal
@@ -1199,7 +1196,7 @@ export default function HealthInfoPage() {
                 }}
                 disabled={isEditing} // disable khi đang edit/add
                 variant="outline"
-                className="btn-outline text-lg px-6 py-4 flex items-center gap-2"
+                className="btn-outline text-sm px-6 py-4 flex items-center gap-2"
               >
                 <Plus className="h-4 w-4" />
                 Add
@@ -1214,7 +1211,7 @@ export default function HealthInfoPage() {
                 }}
                 disabled={!canEditSelected}
                 variant="outline"
-                className="btn-outline text-lg px-6 py-4 flex items-center gap-2"
+                className="btn-outline text-sm px-6 py-4 flex items-center gap-2"
               >
                 <Edit className="h-4 w-4" />
                 Edit
@@ -1233,7 +1230,7 @@ export default function HealthInfoPage() {
               <Button
                 onClick={handleDeleteRecords}
                 disabled={selectedRecords.length === 0 || !!inlineEditingId}
-                className="btn-outline text-red-600 text-lg px-6 py-4 flex items-center gap-2"
+                className="btn-outline text-red-600 text-sm px-6 py-4 flex items-center gap-2"
               >
                 <X className="h-4 w-4" />
                 Delete
@@ -1243,7 +1240,7 @@ export default function HealthInfoPage() {
               <Button
                 onClick={handleSave}
                 disabled={!isEditing && !inlineEditingId} // chỉ enable khi đang edit/add
-                className="btn-gradient text-lg px-6 py-4 flex items-center gap-2"
+                className="btn-gradient text-sm px-6 py-4 flex items-center gap-2"
               >
                 <Save className="h-4 w-4" />
                 Save
@@ -1259,7 +1256,7 @@ export default function HealthInfoPage() {
                 }}
                 disabled={!isEditing && !inlineEditingId}
                 variant="destructive"
-                className="btn-outline text-lg px-6 py-4 flex items-center gap-2"
+                className="btn-outline text-sm px-6 py-4 flex items-center gap-2"
               >
                 <X className="h-4 w-4" />
                 Clear All

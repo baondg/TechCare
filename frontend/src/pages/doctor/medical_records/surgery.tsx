@@ -11,6 +11,7 @@ import {
   Loader2,
   Save,
   X,
+  CalendarIcon,
 } from "lucide-react"
 import {
   Table,
@@ -31,7 +32,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar } from "@/components/ui/calendar"
 import { useEmrSession } from "@/contexts/emr-session-context"
+import { format, isValid, parse } from "date-fns"
+import { enUS } from "date-fns/locale"
 
 const URGENCY_OPTIONS = ["HIGH", "MEDIUM", "LOW"] as const
 
@@ -74,25 +79,33 @@ function formatDt(iso: string | null | undefined) {
   }
 }
 
-function toDateInput(iso: string) {
-  if (!iso) return ""
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return ""
-  const pad = (n: number) => String(n).padStart(2, "0")
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(
-    d.getMinutes()
-  )}`
-}
-
 function normalizeUrgency(u: string | null | undefined) {
   const x = String(u || "MEDIUM").toUpperCase()
   return URGENCY_OPTIONS.includes(x as (typeof URGENCY_OPTIONS)[number]) ? x : "MEDIUM"
 }
 
-function toIsoFromLocal(v: string) {
-  if (!v) return ""
-  const d = new Date(v)
-  return Number.isNaN(d.getTime()) ? "" : d.toISOString()
+function formatDateTimeInput(raw: string) {
+  const digits = raw.replace(/\D/g, "").slice(0, 12)
+  if (digits.length <= 2) return digits
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`
+  if (digits.length <= 8) return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`
+  if (digits.length <= 10) return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4, 8)} ${digits.slice(8)}`
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4, 8)} ${digits.slice(8, 10)}:${digits.slice(10)}`
+}
+
+function parseDateTimeInput(value: string) {
+  if (!value) return undefined
+  const parsed = parse(value, "dd/MM/yyyy HH:mm", new Date())
+  if (!isValid(parsed)) return undefined
+  if (format(parsed, "dd/MM/yyyy HH:mm") !== value) return undefined
+  return parsed
+}
+
+function isoToDateTimeInput(iso: string) {
+  if (!iso) return ""
+  const d = new Date(iso)
+  if (!isValid(d)) return ""
+  return format(d, "dd/MM/yyyy HH:mm")
 }
 
 function mapApi(s: SurgeryRecord): UiSurgery {
@@ -126,6 +139,8 @@ export default function PatientSurgery() {
   const [patientGender, setPatientGender] = useState<string | null>(null)
   const [healthInsuranceId, setHealthInsuranceId] = useState<string | null>(null)
   const [latestDiagnosisText, setLatestDiagnosisText] = useState<string>("—")
+  const [startInputValue, setStartInputValue] = useState("")
+  const [endInputValue, setEndInputValue] = useState("")
 
   const doctorDisplayName = useCallback((d: DoctorOption) => {
     const full = `${d.lastName || ""} ${d.firstName || ""}`.trim()
@@ -210,6 +225,11 @@ export default function PatientSurgery() {
     load()
   }, [load, loadDoctors])
 
+  useEffect(() => {
+    setStartInputValue(isoToDateTimeInput(selected?.startIso || ""))
+    setEndInputValue(isoToDateTimeInput(selected?.endIso || ""))
+  }, [selected?.startIso, selected?.endIso])
+
   const patchSelected = (patch: Partial<UiSurgery>) => {
     if (!selected) return
     setSelected({ ...selected, ...patch })
@@ -250,6 +270,14 @@ export default function PatientSurgery() {
   const handleSave = async () => {
     if (!mutationsAllowed) return
     if (!patientId || !selected) return
+    if (!selected.surgeonDoctorId || !selected.surgeon.trim()) {
+      alert("Please select a surgeon")
+      return
+    }
+    if (!selected.type.trim() || !selected.urgency.trim()) {
+      alert("Please select surgery type and urgency")
+      return
+    }
     if (!selected.startIso || !selected.endIso) {
       alert("Please select start and end time")
       return
@@ -491,7 +519,9 @@ export default function PatientSurgery() {
                 <Field label="Patient" value={patientLabel} />
                 {canEditFields ? (
                   <div>
-                    <label className="text-xs text-slate-500">Surgeon</label>
+                    <label className="text-xs text-slate-500">
+                      Surgeon <span className="text-red-500">*</span>
+                    </label>
                     <select
                       id="surgeon"
                       className="w-full border rounded px-2 py-1 text-sm bg-white"
@@ -522,7 +552,9 @@ export default function PatientSurgery() {
                 {canEditFields ? (
                   <>
                     <div>
-                      <label className="text-xs text-slate-500">Type</label>
+                      <label className="text-xs text-slate-500">
+                        Type <span className="text-red-500">*</span>
+                      </label>
                       <select
                         className="w-full border rounded px-2 py-1 text-sm bg-white"
                         value={normalizeSurgeryType(selected.type)}
@@ -540,7 +572,9 @@ export default function PatientSurgery() {
                       </select>
                     </div>
                     <div>
-                      <label className="text-xs text-slate-500">Urgency</label>
+                      <label className="text-xs text-slate-500">
+                        Urgency <span className="text-red-500">*</span>
+                      </label>
                       <select
                         className="w-full border rounded px-2 py-1 text-sm bg-white"
                         value={normalizeUrgency(selected.urgency)}
@@ -554,36 +588,120 @@ export default function PatientSurgery() {
                       </select>
                     </div>
                     <div>
-                      <label className="text-xs text-slate-500">Start</label>
-                      <input
-                        type="datetime-local"
-                        className="w-full border rounded px-2 py-1 text-sm"
-                        value={toDateInput(selected.startIso)}
-                        onChange={(e) => {
-                          const iso = toIsoFromLocal(e.target.value)
-                          if (iso) patchSelected({ startIso: iso })
-                        }}
-                        onInput={(e) => {
-                          const iso = toIsoFromLocal((e.target as HTMLInputElement).value)
-                          if (iso) patchSelected({ startIso: iso })
-                        }}
-                      />
+                      <label className="text-xs text-slate-500">
+                        Start <span className="text-red-500">*</span>
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          className="w-full border rounded px-2 py-1 text-sm"
+                          placeholder="dd/mm/yyyy hh:mm"
+                          value={startInputValue}
+                          onChange={(e) => {
+                            const formattedInput = formatDateTimeInput(e.target.value)
+                            setStartInputValue(formattedInput)
+                            if (formattedInput.length === 16) {
+                              const parsed = parseDateTimeInput(formattedInput)
+                              if (parsed) patchSelected({ startIso: parsed.toISOString() })
+                            }
+                          }}
+                          onInput={(e) => {
+                            const formattedInput = formatDateTimeInput((e.target as HTMLInputElement).value)
+                            setStartInputValue(formattedInput)
+                          }}
+                          onBlur={(e) => {
+                            const formattedInput = formatDateTimeInput(e.target.value)
+                            const parsed = parseDateTimeInput(formattedInput)
+                            if (parsed) {
+                              patchSelected({ startIso: parsed.toISOString() })
+                              setStartInputValue(format(parsed, "dd/MM/yyyy HH:mm"))
+                            } else {
+                              setStartInputValue(formattedInput)
+                            }
+                          }}
+                        />
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button type="button" variant="outline" size="icon" aria-label="Open start date picker">
+                              <CalendarIcon className="h-4 w-4 opacity-70" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="p-0" align="end">
+                            <Calendar
+                              mode="single"
+                              locale={enUS}
+                              selected={selected.startIso ? new Date(selected.startIso) : undefined}
+                              onSelect={(pickedDate) => {
+                                if (!pickedDate) return
+                                const base = parseDateTimeInput(startInputValue) || (selected.startIso ? new Date(selected.startIso) : new Date())
+                                const next = new Date(pickedDate)
+                                next.setHours(base.getHours(), base.getMinutes(), 0, 0)
+                                patchSelected({ startIso: next.toISOString() })
+                                setStartInputValue(format(next, "dd/MM/yyyy HH:mm"))
+                              }}
+                              captionLayout="dropdown"
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
                     </div>
                     <div>
-                      <label className="text-xs text-slate-500">End</label>
-                      <input
-                        type="datetime-local"
-                        className="w-full border rounded px-2 py-1 text-sm"
-                        value={toDateInput(selected.endIso)}
-                        onChange={(e) => {
-                          const iso = toIsoFromLocal(e.target.value)
-                          if (iso) patchSelected({ endIso: iso })
-                        }}
-                        onInput={(e) => {
-                          const iso = toIsoFromLocal((e.target as HTMLInputElement).value)
-                          if (iso) patchSelected({ endIso: iso })
-                        }}
-                      />
+                      <label className="text-xs text-slate-500">
+                        End <span className="text-red-500">*</span>
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          className="w-full border rounded px-2 py-1 text-sm"
+                          placeholder="dd/mm/yyyy hh:mm"
+                          value={endInputValue}
+                          onChange={(e) => {
+                            const formattedInput = formatDateTimeInput(e.target.value)
+                            setEndInputValue(formattedInput)
+                            if (formattedInput.length === 16) {
+                              const parsed = parseDateTimeInput(formattedInput)
+                              if (parsed) patchSelected({ endIso: parsed.toISOString() })
+                            }
+                          }}
+                          onInput={(e) => {
+                            const formattedInput = formatDateTimeInput((e.target as HTMLInputElement).value)
+                            setEndInputValue(formattedInput)
+                          }}
+                          onBlur={(e) => {
+                            const formattedInput = formatDateTimeInput(e.target.value)
+                            const parsed = parseDateTimeInput(formattedInput)
+                            if (parsed) {
+                              patchSelected({ endIso: parsed.toISOString() })
+                              setEndInputValue(format(parsed, "dd/MM/yyyy HH:mm"))
+                            } else {
+                              setEndInputValue(formattedInput)
+                            }
+                          }}
+                        />
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button type="button" variant="outline" size="icon" aria-label="Open end date picker">
+                              <CalendarIcon className="h-4 w-4 opacity-70" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="p-0" align="end">
+                            <Calendar
+                              mode="single"
+                              locale={enUS}
+                              selected={selected.endIso ? new Date(selected.endIso) : undefined}
+                              onSelect={(pickedDate) => {
+                                if (!pickedDate) return
+                                const base = parseDateTimeInput(endInputValue) || (selected.endIso ? new Date(selected.endIso) : new Date())
+                                const next = new Date(pickedDate)
+                                next.setHours(base.getHours(), base.getMinutes(), 0, 0)
+                                patchSelected({ endIso: next.toISOString() })
+                                setEndInputValue(format(next, "dd/MM/yyyy HH:mm"))
+                              }}
+                              captionLayout="dropdown"
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
                     </div>
                   </>
                 ) : (

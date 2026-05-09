@@ -1,19 +1,21 @@
 "use client"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Navigate, useLocation, useParams } from "react-router-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { User, Users, Loader2, CalendarIcon, ShieldCheck, CircleAlert } from "lucide-react"
+import { User, Users, Loader2, CalendarIcon, ShieldCheck } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
-import { format, parseISO } from "date-fns"
+import { format, isValid, parse, parseISO } from "date-fns"
 import type { PatientProfile } from "@/services/profile-service"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useProfile } from "@/hooks/useProfile"
 import { NurseLayout } from "@/components/nurse-layout"
+import { usePauseableToast } from "@/hooks/usePauseableToast"
+import { PauseableCornerToastPortal } from "@/components/pauseable-corner-toast"
 /** Route param may be `OP000000049` (USER.id padded) or plain `49`; profile API expects USER.id. */
 function parseProfileRouteUserId(raw: string | undefined): number | null {
   if (!raw?.trim()) return null
@@ -29,29 +31,79 @@ export function NursePatientProfilePanel() {
   const { profile, loading, saving, error: saveError, success, save, clearMessages } = useProfile(
     invalidParam ? undefined : routeUserId ?? undefined
   )
+  const { toast, isExiting, showSuccess, onMouseEnter, onMouseLeave } = usePauseableToast(2600)
+  const lastSuccessRef = useRef("")
   const [isEditing, setIsEditing] = useState(false)
   const [firstName, setFirstName] = useState("")
   const [lastName, setLastName] = useState("")
   const [dob, setDob] = useState<Date | undefined>()
+  const [dobInputValue, setDobInputValue] = useState("")
+  const [dobError, setDobError] = useState("")
   const [sex, setSex] = useState("Male")
   const [phone, setPhone] = useState("")
   const [email, setEmail] = useState("")
+  const [emailError, setEmailError] = useState("")
   const [nationalId, setNationalId] = useState("")
   const [relativeName, setRelativeName] = useState("")
   const [relationship, setRelationship] = useState("Mother")
+  const [relationshipOther, setRelationshipOther] = useState("")
   const [reDob, setReDob] = useState<Date | undefined>()
+  const [reDobInputValue, setReDobInputValue] = useState("")
+  const [reDobError, setReDobError] = useState("")
   const [reSex, setReSex] = useState("Female")
   const [rePhone, setRePhone] = useState("")
   const [reEmail, setReEmail] = useState("")
+  const [reEmailError, setReEmailError] = useState("")
   const [reNationalId, setReNationalId] = useState("")
   const [insuranceId, setInsuranceId] = useState("")
   const [insuranceProvider, setInsuranceProvider] = useState("")
-  const [insuranceExpiry, setInsuranceExpiry] = useState("")
+  const [insuranceExpiry, setInsuranceExpiry] = useState<Date | undefined>()
+  const [insuranceExpiryInputValue, setInsuranceExpiryInputValue] = useState("")
   const mapSex = (value?: string) => {
     const s = String(value || "").trim()
     if (s === "M" || s.toLowerCase() === "male" || s.toLowerCase() === "m") return "Male"
     if (s === "F" || s.toLowerCase() === "female" || s.toLowerCase() === "f") return "Female"
     return "Other"
+  }
+  const normalizeNationalId = (value: string) => value.replace(/\D/g, "").slice(0, 12)
+  const normalizePhone = (value: string) => value.replace(/\D/g, "").slice(0, 10)
+  const syncNationalId = (value: string) => setNationalId(normalizeNationalId(value))
+  const syncPhone = (value: string) => setPhone(normalizePhone(value))
+  const syncRelativeNationalId = (value: string) => setReNationalId(normalizeNationalId(value))
+  const syncRelativePhone = (value: string) => setRePhone(normalizePhone(value))
+  const formatDateInput = (raw: string) => {
+    const digits = raw.replace(/\D/g, "").slice(0, 8)
+    if (digits.length <= 2) return digits
+    if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`
+    return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`
+  }
+  const parseDateInput = (value: string) => {
+    if (!value) return undefined
+    const parsedDate = parse(value, "dd/MM/yyyy", new Date())
+    if (!isValid(parsedDate)) return undefined
+    if (format(parsedDate, "dd/MM/yyyy") !== value) return undefined
+    return parsedDate
+  }
+  const isAfterToday = (date: Date) => {
+    const candidate = new Date(date)
+    candidate.setHours(0, 0, 0, 0)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    return candidate > today
+  }
+  const validateDob = (date: Date | undefined, rawInput?: string) => {
+    if (!date) {
+      if (rawInput && rawInput.length === 10) return "Invalid date. Please use dd/mm/yyyy."
+      return ""
+    }
+    if (isAfterToday(date)) return "Date of birth cannot be later than today."
+    return ""
+  }
+  const validateEmail = (value: string) => {
+    const trimmed = value.trim()
+    if (!trimmed) return ""
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    return emailRegex.test(trimmed) ? "" : "Invalid email format"
   }
   const age = dob ? calculateAge(dob) : ""
   const reAge = reDob ? calculateAge(reDob) : ""
@@ -65,21 +117,44 @@ export function NursePatientProfilePanel() {
     }
     setFirstName(fn)
     setLastName(ln)
-    setDob(p.dateOfBirth ? parseISO(p.dateOfBirth) : undefined)
+    const parsedDob = p.dateOfBirth ? parseISO(p.dateOfBirth) : undefined
+    setDob(parsedDob)
+    setDobInputValue(parsedDob ? format(parsedDob, "dd/MM/yyyy") : "")
+    setDobError("")
     setSex(mapSex(p.sex))
-    setPhone(p.phone || "")
+    setPhone(normalizePhone(p.phone || ""))
     setEmail(p.email || "")
-    setNationalId(p.nationalId || "")
+    setEmailError("")
+    setNationalId(normalizeNationalId(p.nationalId || ""))
     setRelativeName(p.relativeName || "")
-    setRelationship(p.relativeRelationship || "Mother")
-    setReDob(p.relativeDateOfBirth ? parseISO(p.relativeDateOfBirth) : undefined)
+    const relativeRelationshipValue = (p.relativeRelationship || "").trim()
+    const relationshipOptions = ["Mother", "Father", "Spouse", "Sibling", "Other"]
+    if (!relativeRelationshipValue) {
+      setRelationship("Mother")
+      setRelationshipOther("")
+    } else if (relationshipOptions.includes(relativeRelationshipValue)) {
+      setRelationship(relativeRelationshipValue)
+      setRelationshipOther("")
+    } else {
+      setRelationship("Other")
+      setRelationshipOther(relativeRelationshipValue)
+    }
+    const parsedReDob = p.relativeDateOfBirth ? parseISO(p.relativeDateOfBirth) : undefined
+    setReDob(parsedReDob)
+    setReDobInputValue(parsedReDob ? format(parsedReDob, "dd/MM/yyyy") : "")
+    setReDobError("")
     setReSex(mapSex(p.relativeSex))
-    setRePhone(p.relativePhone || "")
+    setRePhone(normalizePhone(p.relativePhone || ""))
     setReEmail(p.relativeEmail || "")
-    setReNationalId(p.relativeNationalId || "")
+    setReEmailError("")
+    setReNationalId(normalizeNationalId(p.relativeNationalId || ""))
     setInsuranceId(p.insuranceId || "")
-    setInsuranceProvider(p.insuranceProvider || "")
-    setInsuranceExpiry(p.insuranceExpiry || "")
+    const providerRaw = String(p.insuranceProvider || "").trim().toLowerCase()
+    setInsuranceProvider(providerRaw === "vss" || providerRaw === "vietnam social security" ? "vss" : "")
+    const parsedInsuranceExpiry = p.insuranceExpiry ? parseISO(p.insuranceExpiry) : undefined
+    const validInsuranceExpiry = parsedInsuranceExpiry && isValid(parsedInsuranceExpiry) ? parsedInsuranceExpiry : undefined
+    setInsuranceExpiry(validInsuranceExpiry)
+    setInsuranceExpiryInputValue(validInsuranceExpiry ? format(validInsuranceExpiry, "dd/MM/yyyy") : "")
   }
   useEffect(() => {
     if (profile) populateForm(profile)
@@ -90,26 +165,42 @@ export function NursePatientProfilePanel() {
       return () => clearTimeout(t)
     }
   }, [success])
+  useEffect(() => {
+    if (!success) return
+    if (success === lastSuccessRef.current) return
+    lastSuccessRef.current = success
+    showSuccess(success)
+  }, [success, showSuccess])
   const handleSave = async () => {
     if (routeUserId == null) return
+    const currentDobError = validateDob(dob, dobInputValue)
+    const currentReDobError = validateDob(reDob, reDobInputValue)
+    const currentEmailError = validateEmail(email)
+    const currentReEmailError = validateEmail(reEmail)
+    setDobError(currentDobError)
+    setReDobError(currentReDobError)
+    setEmailError(currentEmailError)
+    setReEmailError(currentReEmailError)
+    if (currentDobError || currentReDobError || currentEmailError || currentReEmailError) return
+    const relativeRelationshipValue = relationship === "Other" ? relationshipOther.trim() : relationship
     const profileData: Partial<PatientProfile> = {
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       dateOfBirth: dob ? format(dob, "yyyy-MM-dd") : undefined,
       sex,
-      phone,
+      phone: normalizePhone(phone),
       email,
-      nationalId,
+      nationalId: normalizeNationalId(nationalId),
       relativeName,
-      relativeRelationship: relationship,
+      relativeRelationship: relativeRelationshipValue,
       relativeDateOfBirth: reDob ? format(reDob, "yyyy-MM-dd") : undefined,
       relativeSex: reSex,
-      relativePhone: rePhone,
+      relativePhone: normalizePhone(rePhone),
       relativeEmail: reEmail,
-      relativeNationalId: reNationalId,
+      relativeNationalId: normalizeNationalId(reNationalId),
       insuranceId,
       insuranceProvider,
-      insuranceExpiry,
+      insuranceExpiry: insuranceExpiry ? format(insuranceExpiry, "yyyy-MM-dd") : undefined,
     }
     await save(profileData)
   }
@@ -125,20 +216,28 @@ export function NursePatientProfilePanel() {
     setFirstName("")
     setLastName("")
     setDob(undefined)
+    setDobInputValue("")
+    setDobError("")
     setSex("Male")
     setPhone("")
     setEmail("")
+    setEmailError("")
     setNationalId("")
     setRelativeName("")
     setRelationship("Mother")
+    setRelationshipOther("")
     setReDob(undefined)
+    setReDobInputValue("")
+    setReDobError("")
     setReSex("Female")
     setRePhone("")
     setReEmail("")
+    setReEmailError("")
     setReNationalId("")
     setInsuranceId("")
     setInsuranceProvider("")
-    setInsuranceExpiry("")
+    setInsuranceExpiry(undefined)
+    setInsuranceExpiryInputValue("")
   }
   if (invalidParam) {
     return (
@@ -191,19 +290,12 @@ export function NursePatientProfilePanel() {
             </Alert>
           </div>
         )}
-        {success && (
-          <div className="px-6">
-            <Alert className="bg-green-50 border-green-200 text-green-800">
-              <AlertDescription>{success}</AlertDescription>
-            </Alert>
-          </div>
-        )}
         <CardContent className="pt-6">
           <form className="space-y-6">
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="nurse-pp-first" className="text-sm font-semibold text-slate-700">
-                  First name
+                  First name <span className="text-red-500">*</span>
                 </Label>
                 <Input
                   id="nurse-pp-first"
@@ -215,7 +307,7 @@ export function NursePatientProfilePanel() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="nurse-pp-last" className="text-sm font-semibold text-slate-700">
-                  Last name
+                  Last name <span className="text-red-500">*</span>
                 </Label>
                 <Input
                   id="nurse-pp-last"
@@ -229,21 +321,55 @@ export function NursePatientProfilePanel() {
             <div className="grid gap-4 md:grid-cols-4">
               <div className="space-y-2">
                 <Label className="text-sm font-semibold text-slate-700">Date of Birth</Label>
-                <Popover>
-                  <PopoverTrigger asChild disabled={!isEditing}>
-                    <div
-                      className={`custom-popover w-full flex items-center justify-between px-3 py-2 text-sm ${!isEditing ? "opacity-70 cursor-not-allowed" : "cursor-pointer"}`}
-                    >
-                      <span className={dob ? "text-slate-900" : "text-slate-400"}>
-                        {dob ? format(dob, "dd/MM/yyyy") : "dd/mm/yyyy"}
-                      </span>
-                      <CalendarIcon className="h-4 w-4 opacity-60" />
-                    </div>
-                  </PopoverTrigger>
-                  <PopoverContent className="p-0">
-                    <Calendar mode="single" selected={dob} onSelect={setDob} captionLayout="dropdown" />
-                  </PopoverContent>
-                </Popover>
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={dobInputValue}
+                    onChange={(e) => {
+                      const formattedInput = formatDateInput(e.target.value)
+                      setDobInputValue(formattedInput)
+                      if (formattedInput.length === 10) {
+                        const parsedDate = parseDateInput(formattedInput)
+                        setDob(parsedDate)
+                        setDobError(validateDob(parsedDate, formattedInput))
+                      } else {
+                        setDob(undefined)
+                        setDobError("")
+                      }
+                    }}
+                    onBlur={(e) => {
+                      const formattedInput = formatDateInput(e.target.value)
+                      const parsedDate = parseDateInput(formattedInput)
+                      setDob(parsedDate)
+                      setDobError(validateDob(parsedDate, formattedInput))
+                      setDobInputValue(parsedDate ? format(parsedDate, "dd/MM/yyyy") : formattedInput)
+                    }}
+                    placeholder="dd/mm/yyyy"
+                    inputMode="numeric"
+                    className="custom-input"
+                    disabled={!isEditing}
+                  />
+                  <Popover>
+                    <PopoverTrigger asChild disabled={!isEditing}>
+                      <Button type="button" variant="outline" size="icon" aria-label="Open date picker">
+                        <CalendarIcon className="h-4 w-4 opacity-60" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="p-0">
+                      <Calendar
+                        mode="single"
+                        selected={dob}
+                        onSelect={(selectedDate) => {
+                          setDob(selectedDate)
+                          setDobInputValue(selectedDate ? format(selectedDate, "dd/MM/yyyy") : "")
+                          setDobError(validateDob(selectedDate))
+                        }}
+                        disabled={(date) => isAfterToday(date)}
+                        captionLayout="dropdown"
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                {dobError ? <p className="mt-1 text-xs text-red-500">{dobError}</p> : null}
               </div>
               <div className="space-y-2">
                 <Label className="text-sm font-semibold text-slate-700">Age</Label>
@@ -266,14 +392,18 @@ export function NursePatientProfilePanel() {
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="nurse-pp-phone" className="text-sm font-semibold text-slate-700">
-                  Phone Number
+                  Phone Number <span className="text-red-500">*</span>
                 </Label>
                 <Input
                   id="nurse-pp-phone"
                   type="tel"
                   className="custom-input"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  onChange={(e) => syncPhone(e.target.value)}
+                  onBlur={(e) => syncPhone(e.target.value)}
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={10}
                   disabled={!isEditing}
                 />
               </div>
@@ -286,20 +416,34 @@ export function NursePatientProfilePanel() {
                   type="email"
                   className="custom-input"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    setEmail(value)
+                    setEmailError(validateEmail(value))
+                  }}
+                  onBlur={(e) => {
+                    const value = e.target.value
+                    setEmail(value)
+                    setEmailError(validateEmail(value))
+                  }}
                   disabled={!isEditing}
                 />
+                {emailError ? <p className="mt-1 text-xs text-red-500">{emailError}</p> : null}
               </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="nurse-pp-national" className="text-sm font-semibold text-slate-700">
-                National ID / Passport
+                National ID / Passport <span className="text-red-500">*</span>
               </Label>
               <Input
                 id="nurse-pp-national"
                 className="custom-input"
                 value={nationalId}
-                onChange={(e) => setNationalId(e.target.value)}
+                onChange={(e) => syncNationalId(e.target.value)}
+                onBlur={(e) => syncNationalId(e.target.value)}
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={12}
                 disabled={!isEditing}
               />
             </div>
@@ -315,7 +459,9 @@ export function NursePatientProfilePanel() {
               Relative&apos;s Information
             </CardTitle>
             <div className="space-y-2">
-              <Label className="text-sm font-semibold text-slate-700">Relative&apos;s Name</Label>
+              <Label className="text-sm font-semibold text-slate-700">
+                Relative&apos;s Name <span className="text-red-500">*</span>
+              </Label>
               <Input
                 className="custom-input"
                 value={relativeName}
@@ -324,8 +470,17 @@ export function NursePatientProfilePanel() {
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-sm font-semibold text-slate-700">Relationship</Label>
-              <Select value={relationship} onValueChange={setRelationship} disabled={!isEditing}>
+              <Label className="text-sm font-semibold text-slate-700">
+                Relationship <span className="text-red-500">*</span>
+              </Label>
+              <Select
+                value={relationship}
+                onValueChange={(value) => {
+                  setRelationship(value)
+                  if (value !== "Other") setRelationshipOther("")
+                }}
+                disabled={!isEditing}
+              >
                 <SelectTrigger className="custom-select">
                   <SelectValue />
                 </SelectTrigger>
@@ -337,32 +492,80 @@ export function NursePatientProfilePanel() {
                   <SelectItem value="Other">Other</SelectItem>
                 </SelectContent>
               </Select>
+              {relationship === "Other" ? (
+                <Input
+                  placeholder="Enter relationship"
+                  className="custom-input"
+                  value={relationshipOther}
+                  onChange={(e) => setRelationshipOther(e.target.value)}
+                  onBlur={(e) => setRelationshipOther(e.target.value)}
+                  disabled={!isEditing}
+                />
+              ) : null}
             </div>
             <div className="grid gap-4 md:grid-cols-4">
               <div className="space-y-2">
-                <Label className="text-sm font-semibold text-slate-700">Date of Birth</Label>
-                <Popover>
-                  <PopoverTrigger asChild disabled={!isEditing}>
-                    <div
-                      className={`custom-popover w-full flex items-center justify-between px-3 py-2 text-sm ${!isEditing ? "opacity-70 cursor-not-allowed" : "cursor-pointer"}`}
-                    >
-                      <span className={reDob ? "text-slate-900" : "text-slate-400"}>
-                        {reDob ? format(reDob, "dd/MM/yyyy") : "dd/mm/yyyy"}
-                      </span>
-                      <CalendarIcon className="h-4 w-4 opacity-60" />
-                    </div>
-                  </PopoverTrigger>
-                  <PopoverContent className="p-0">
-                    <Calendar mode="single" selected={reDob} onSelect={setReDob} captionLayout="dropdown" />
-                  </PopoverContent>
-                </Popover>
+                <Label className="text-sm font-semibold text-slate-700">
+                  Date of Birth <span className="text-red-500">*</span>
+                </Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={reDobInputValue}
+                    onChange={(e) => {
+                      const formattedInput = formatDateInput(e.target.value)
+                      setReDobInputValue(formattedInput)
+                      if (formattedInput.length === 10) {
+                        const parsedDate = parseDateInput(formattedInput)
+                        setReDob(parsedDate)
+                        setReDobError(validateDob(parsedDate, formattedInput))
+                      } else {
+                        setReDob(undefined)
+                        setReDobError("")
+                      }
+                    }}
+                    onBlur={(e) => {
+                      const formattedInput = formatDateInput(e.target.value)
+                      const parsedDate = parseDateInput(formattedInput)
+                      setReDob(parsedDate)
+                      setReDobError(validateDob(parsedDate, formattedInput))
+                      setReDobInputValue(parsedDate ? format(parsedDate, "dd/MM/yyyy") : formattedInput)
+                    }}
+                    placeholder="dd/mm/yyyy"
+                    inputMode="numeric"
+                    className="custom-input"
+                    disabled={!isEditing}
+                  />
+                  <Popover>
+                    <PopoverTrigger asChild disabled={!isEditing}>
+                      <Button type="button" variant="outline" size="icon" aria-label="Open relative date picker">
+                        <CalendarIcon className="h-4 w-4 opacity-60" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="p-0">
+                      <Calendar
+                        mode="single"
+                        selected={reDob}
+                        onSelect={(selectedDate) => {
+                          setReDob(selectedDate)
+                          setReDobInputValue(selectedDate ? format(selectedDate, "dd/MM/yyyy") : "")
+                          setReDobError(validateDob(selectedDate))
+                        }}
+                        disabled={(date) => isAfterToday(date)}
+                        captionLayout="dropdown"
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                {reDobError ? <p className="mt-1 text-xs text-red-500">{reDobError}</p> : null}
               </div>
               <div className="space-y-2">
                 <Label className="text-sm font-semibold text-slate-700">Age</Label>
                 <Input value={reAge} disabled className="custom-input bg-slate-50" />
               </div>
               <div className="space-y-2 col-span-2">
-                <Label className="text-sm font-semibold text-slate-700">Sex</Label>
+                <Label className="text-sm font-semibold text-slate-700">
+                  Sex <span className="text-red-500">*</span>
+                </Label>
                 <Select value={reSex} onValueChange={setReSex} disabled={!isEditing}>
                   <SelectTrigger className="custom-select">
                     <SelectValue />
@@ -377,13 +580,19 @@ export function NursePatientProfilePanel() {
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label className="text-sm font-semibold text-slate-700">Phone Number</Label>
+                <Label className="text-sm font-semibold text-slate-700">
+                  Phone Number <span className="text-red-500">*</span>
+                </Label>
                 <Input
                   id="phone"
                   type="tel"
                   className="custom-input"
                   value={rePhone}
-                  onChange={(e) => setRePhone(e.target.value)}
+                  onChange={(e) => syncRelativePhone(e.target.value)}
+                  onBlur={(e) => syncRelativePhone(e.target.value)}
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={10}
                   disabled={!isEditing}
                 />
               </div>
@@ -393,9 +602,19 @@ export function NursePatientProfilePanel() {
                   type="email"
                   className="custom-input"
                   value={reEmail}
-                  onChange={(e) => setReEmail(e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    setReEmail(value)
+                    setReEmailError(validateEmail(value))
+                  }}
+                  onBlur={(e) => {
+                    const value = e.target.value
+                    setReEmail(value)
+                    setReEmailError(validateEmail(value))
+                  }}
                   disabled={!isEditing}
                 />
+                {reEmailError ? <p className="mt-1 text-xs text-red-500">{reEmailError}</p> : null}
               </div>
             </div>
             <div className="space-y-2">
@@ -403,7 +622,11 @@ export function NursePatientProfilePanel() {
               <Input
                 className="custom-input"
                 value={reNationalId}
-                onChange={(e) => setReNationalId(e.target.value)}
+                onChange={(e) => syncRelativeNationalId(e.target.value)}
+                onBlur={(e) => syncRelativeNationalId(e.target.value)}
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={12}
                 disabled={!isEditing}
               />
             </div>
@@ -424,36 +647,118 @@ export function NursePatientProfilePanel() {
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label className="text-sm font-semibold text-slate-700">Insurance ID</Label>
-                <Input value={insuranceId} disabled className="custom-input bg-slate-50" />
+                <Input
+                  value={insuranceId}
+                  onChange={(e) => setInsuranceId(e.target.value)}
+                  onInput={(e) => setInsuranceId((e.target as HTMLInputElement).value)}
+                  onBlur={(e) => setInsuranceId(e.target.value)}
+                  disabled={!isEditing}
+                  className={`custom-input ${!isEditing ? "bg-slate-50" : ""}`}
+                />
               </div>
               <div className="space-y-2">
                 <Label className="text-sm font-semibold text-slate-700">Insurance Provider</Label>
-                <Input value={insuranceProvider} disabled className="custom-input bg-slate-50" />
+                <Select value={insuranceProvider} onValueChange={setInsuranceProvider} disabled={!isEditing}>
+                  <SelectTrigger className="custom-select">
+                    <SelectValue placeholder="Vietnam Social Security" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="vss">Vietnam Social Security</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <div className="space-y-2 max-w-[calc(50%-8px)]">
               <Label className="text-sm font-semibold text-slate-700">Expiry Date</Label>
-              <Input value={insuranceExpiry} disabled className="custom-input bg-slate-50" />
-            </div>
-            <div className="p-4 bg-linear-to-r from-amber-50 to-orange-50 rounded-xl border border-amber-200 flex gap-3">
-              <CircleAlert className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-              <p className="text-sm text-slate-700">
-                To update insurance information, please contact the hospital administration or visit the front desk.
-              </p>
+              <div className="flex items-center gap-2">
+                <Input
+                  value={insuranceExpiryInputValue}
+                  onChange={(e) => {
+                    const formattedInput = formatDateInput(e.target.value)
+                    setInsuranceExpiryInputValue(formattedInput)
+                    if (formattedInput.length === 10) {
+                      setInsuranceExpiry(parseDateInput(formattedInput))
+                    }
+                  }}
+                  onInput={(e) => {
+                    const formattedInput = formatDateInput((e.target as HTMLInputElement).value)
+                    setInsuranceExpiryInputValue(formattedInput)
+                  }}
+                  onBlur={(e) => {
+                    const parsedDate = parseDateInput(e.target.value)
+                    setInsuranceExpiry(parsedDate)
+                    if (parsedDate) {
+                      setInsuranceExpiryInputValue(format(parsedDate, "dd/MM/yyyy"))
+                    }
+                  }}
+                  placeholder="dd/mm/yyyy"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  disabled={!isEditing}
+                  className={`custom-input ${!isEditing ? "bg-slate-50" : ""}`}
+                />
+                <Popover>
+                  <PopoverTrigger asChild disabled={!isEditing}>
+                    <Button type="button" variant="outline" size="icon" aria-label="Open insurance expiry date picker">
+                      <CalendarIcon className="h-4 w-4 opacity-60" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="p-0">
+                    <Calendar
+                      mode="single"
+                      selected={insuranceExpiry}
+                      onSelect={(selectedDate) => {
+                        setInsuranceExpiry(selectedDate)
+                        setInsuranceExpiryInputValue(selectedDate ? format(selectedDate, "dd/MM/yyyy") : "")
+                      }}
+                      captionLayout="dropdown"
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
             </div>
           </div>
         </CardContent>
       </Card>
+      <PauseableCornerToastPortal
+        toast={toast}
+        isExiting={isExiting}
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
+      />
     </div>
   )
 }
 function calculateAge(date: Date) {
+  if (!date) return ""
   const today = new Date()
-  let age = today.getFullYear() - date.getFullYear()
+  const diffTime = today.getTime() - date.getTime()
+  if (diffTime < 0) return ""
+
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+  if (diffDays < 60) {
+    return `${diffDays} days`
+  }
+
+  let diffMonths =
+    (today.getFullYear() - date.getFullYear()) * 12 +
+    (today.getMonth() - date.getMonth())
+  if (today.getDate() < date.getDate()) {
+    diffMonths--
+  }
+
+  if (diffMonths < 24) {
+    return `${Math.max(diffMonths, 0)} months`
+  }
+
+  let ageYears = today.getFullYear() - date.getFullYear()
   const monthDiff = today.getMonth() - date.getMonth()
   const dayDiff = today.getDate() - date.getDate()
-  if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) age -= 1
-  return String(age)
+  if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) {
+    ageYears--
+  }
+
+  return `${ageYears} years`
 }
 /**
  * Nurse: `/nurse/patients/:id/profile` → redirect EMR `/nurse/medical_records/:id/profile`.

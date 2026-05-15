@@ -15,7 +15,8 @@ export default defineConfig({
     host: true,
     proxy: {
       "/api": {
-        target: "http://localhost:5000",
+        // Align with backend default `PORT` (3000); use `http://localhost:5000` only if your API is mapped there (e.g. host Docker publish).
+        target: "http://localhost:3000",
         changeOrigin: true,
       },
     },

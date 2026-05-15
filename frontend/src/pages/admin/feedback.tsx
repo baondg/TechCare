@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { AdminLayout } from "@/components/admin-layout"
 import { FeedbackRatingStars } from "@/components/feedback-rating-stars"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Edit, Eye, EyeOff, Reply, Search } from 'lucide-react'
+import { Calendar as CalendarIcon, Edit, Eye, EyeOff, Reply, Search } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -18,10 +18,13 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar } from "@/components/ui/calendar"
 import { adminAccountService, type AdminFeedbackRow } from '@/services/admin-account-service'
 import { usePauseableToast, type PauseableToastEntry } from "@/hooks/usePauseableToast"
 import { createPortal } from "react-dom"
 import { cn } from "@/lib/utils"
+import { format } from "date-fns"
 
 interface Feedback extends AdminFeedbackRow {
   submittedDate: string
@@ -47,6 +50,8 @@ export default function FeedbackManagement() {
     dateTo: '',
   })
   const [recentSearch, setRecentSearch] = useState('')
+  const dateFromValue = tableFilters.dateFrom ? new Date(`${tableFilters.dateFrom}T00:00:00`) : undefined
+  const dateToValue = tableFilters.dateTo ? new Date(`${tableFilters.dateTo}T00:00:00`) : undefined
 
   const loadFeedbacks = async () => {
     setLoading(true)
@@ -316,19 +321,59 @@ export default function FeedbackManagement() {
                     </TableHead>
                     <TableHead className="px-2 py-2">
                       <div className="flex items-center gap-1">
-                        <Input
-                          type="date"
-                          value={tableFilters.dateFrom}
-                          onChange={(e) => setTableFilters((prev) => ({ ...prev, dateFrom: e.target.value }))}
-                          className="h-8 text-xs"
-                        />
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="h-8 w-[8.75rem] justify-start text-xs font-normal"
+                            >
+                              <CalendarIcon className="mr-2 h-3.5 w-3.5 shrink-0" />
+                              {dateFromValue ? format(dateFromValue, "dd/MM/yyyy") : "From"}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={dateFromValue}
+                              onSelect={(value) =>
+                                setTableFilters((prev) => ({
+                                  ...prev,
+                                  dateFrom: value ? format(value, "yyyy-MM-dd") : "",
+                                }))
+                              }
+                              disabled={(date) => Boolean(dateToValue && date > dateToValue)}
+                              captionLayout="dropdown"
+                            />
+                          </PopoverContent>
+                        </Popover>
                         <span className="text-[10px] text-slate-500">-</span>
-                        <Input
-                          type="date"
-                          value={tableFilters.dateTo}
-                          onChange={(e) => setTableFilters((prev) => ({ ...prev, dateTo: e.target.value }))}
-                          className="h-8 text-xs"
-                        />
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="h-8 w-[8.75rem] justify-start text-xs font-normal"
+                            >
+                              <CalendarIcon className="mr-2 h-3.5 w-3.5 shrink-0" />
+                              {dateToValue ? format(dateToValue, "dd/MM/yyyy") : "To"}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={dateToValue}
+                              onSelect={(value) =>
+                                setTableFilters((prev) => ({
+                                  ...prev,
+                                  dateTo: value ? format(value, "yyyy-MM-dd") : "",
+                                }))
+                              }
+                              disabled={(date) => Boolean(dateFromValue && date < dateFromValue)}
+                              captionLayout="dropdown"
+                            />
+                          </PopoverContent>
+                        </Popover>
                       </div>
                     </TableHead>
                     <TableHead className="px-2 py-2" />
@@ -530,7 +575,7 @@ function AdminPageToast({
       role="status"
       aria-live="polite"
       className={cn(
-        "pointer-events-auto fixed bottom-6 left-6 z-[100] max-w-md rounded-lg border px-4 py-3 text-sm shadow-lg transition-opacity duration-300 ease-out",
+        "pointer-events-auto fixed bottom-5 right-5 z-[118] max-w-md rounded-lg border px-4 py-3 text-sm shadow-lg transition-opacity duration-300 ease-out",
         isExiting ? "opacity-0" : "opacity-100",
         toast.variant === "success" && "bg-[#34A853] text-white",
         toast.variant === "error" && "bg-[#EA4335] text-white"

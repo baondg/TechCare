@@ -27,11 +27,10 @@ function Calendar({
 
   return (
     <DayPicker
-      locale={enUS}
       showOutsideDays={showOutsideDays}
       locale={locale}
       className={cn(
-        "bg-background group/calendar p-3 [--cell-size:=1rem] [[data-slot=card-content]_&]:bg-transparent [[data-slot=popover-content]_&]:bg-transparent",
+        "bg-background group/calendar p-3 [--cell-size:2.25rem] [[data-slot=card-content]_&]:bg-transparent [[data-slot=popover-content]_&]:bg-transparent",
         String.raw`rtl:**:[.rdp-button\_next>svg]:rotate-180`,
         String.raw`rtl:**:[.rdp-button\_previous>svg]:rotate-180`,
         className
@@ -39,36 +38,37 @@ function Calendar({
       captionLayout={captionLayout}
       formatters={{
         formatMonthDropdown: (date) =>
-          date.toLocaleString("en-US", { month: "short" }),
+          date.toLocaleString(locale.code ?? "en-US", { month: "short" }),
         ...formatters,
       }}
       classNames={{
         root: cn("w-fit", defaultClassNames.root),
-        months: cn(
-          "relative flex flex-col gap-4 md:flex-row",
-          defaultClassNames.months
-        ),
-        month: cn("flex w-full flex-col gap-4", defaultClassNames.month),
+        months: cn("relative flex flex-col gap-4", defaultClassNames.months),
+        month: cn("flex w-full min-w-0 flex-col gap-3", defaultClassNames.month),
         nav: cn(
-          "absolute inset-x-0 top-0 flex w-full items-center justify-between gap-1",
+          "pointer-events-none absolute inset-x-0 top-0 z-20 flex w-full items-center justify-between gap-1 px-0",
           defaultClassNames.nav
         ),
         button_previous: cn(
           buttonVariants({ variant: buttonVariant }),
-          "h-[--cell-size] w-[--cell-size] select-none p-0 aria-disabled:opacity-50",
+          "pointer-events-auto h-[length:var(--cell-size)] w-[length:var(--cell-size)] shrink-0 select-none p-0 aria-disabled:opacity-50",
+          captionLayout !== "label" && "-translate-x-0.5 sm:-translate-x-1",
           defaultClassNames.button_previous
         ),
         button_next: cn(
           buttonVariants({ variant: buttonVariant }),
-          "h-[--cell-size] w-[--cell-size] select-none p-0 aria-disabled:opacity-50",
+          "pointer-events-auto h-[length:var(--cell-size)] w-[length:var(--cell-size)] shrink-0 select-none p-0 aria-disabled:opacity-50",
+          captionLayout !== "label" && "translate-x-0.5 sm:translate-x-1",
           defaultClassNames.button_next
         ),
         month_caption: cn(
-          "flex h-[--cell-size] w-full items-center justify-center px-[--cell-size]",
+          captionLayout === "label"
+            ? "flex h-[length:var(--cell-size)] w-full items-center justify-center px-10 text-center text-sm font-semibold"
+            : "flex min-h-[length:var(--cell-size)] w-full items-center justify-center gap-2 px-[calc(var(--cell-size)+1rem)] py-1 text-center text-sm font-medium sm:px-[calc(var(--cell-size)+1.35rem)]",
           defaultClassNames.month_caption
         ),
         dropdowns: cn(
-          "flex h-[--cell-size] w-full items-center justify-center gap-1.5 text-sm font-medium",
+          "flex min-h-[length:var(--cell-size)] w-full max-w-full shrink-0 flex-wrap items-center justify-center gap-x-3 gap-y-1 px-0 text-sm font-medium sm:gap-x-5",
           defaultClassNames.dropdowns
         ),
         dropdown_root: cn(
@@ -87,12 +87,12 @@ function Calendar({
           defaultClassNames.caption_label
         ),
         table: "w-full border-collapse",
-        weekdays: cn("flex", defaultClassNames.weekdays),
+        weekdays: cn("mt-1 flex w-full gap-1", defaultClassNames.weekdays),
         weekday: cn(
-          "text-muted-foreground flex-1 select-none rounded-md text-[0.8rem] font-normal",
+          "text-muted-foreground flex-1 basis-0 select-none text-center text-[0.75rem] font-medium uppercase tracking-wide",
           defaultClassNames.weekday
         ),
-        week: cn("mt-2 flex w-full", defaultClassNames.week),
+        week: cn("mt-1 flex w-full gap-1", defaultClassNames.week),
         week_number_header: cn(
           "w-[--cell-size] select-none",
           defaultClassNames.week_number_header
@@ -102,7 +102,7 @@ function Calendar({
           defaultClassNames.week_number
         ),
         day: cn(
-          "group/day relative aspect-square h-full w-full select-none p-0 text-center [&:first-child[data-selected=true]_button]:rounded-l-md [&:last-child[data-selected=true]_button]:rounded-r-md",
+          "group/day relative aspect-square h-full min-w-0 flex-1 basis-0 select-none p-0 text-center [&:first-child[data-selected=true]_button]:rounded-l-md [&:last-child[data-selected=true]_button]:rounded-r-md",
           defaultClassNames.day
         ),
         range_start: cn(

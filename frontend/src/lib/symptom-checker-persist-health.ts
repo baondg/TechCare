@@ -10,18 +10,30 @@ const DURATION_LABEL: Record<SymptomInput["duration"], string> = {
 
 const MAX_SYMPTOMS_CHARS = 12000
 
+function stripLegacySymptomCheckerNoise(text: string): string {
+  return (text || "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => {
+      if (!line) return false
+      if (/^\[Symptom checker — .+\]$/i.test(line)) return false
+      if (/^Demo vitals\s+[-–—]\s+routine tracking$/i.test(line)) return false
+      return true
+    })
+    .join("\n")
+}
+
 export function formatSymptomCheckerBlock(
   symptoms: Array<{ name: string; severity: string; duration: SymptomInput["duration"] }>
 ): string {
-  const when = new Date().toISOString().slice(0, 16).replace("T", " ")
   const lines = symptoms.map(
     (s) => `- ${s.name}: ${s.severity}; ${DURATION_LABEL[s.duration] ?? s.duration}`
   )
-  return `[Symptom checker — ${when}]\n${lines.join("\n")}`
+  return lines.join("\n")
 }
 
 export function mergeHealthInfoSymptomText(existing: string, block: string): string {
-  const e = (existing || "").trim()
+  const e = stripLegacySymptomCheckerNoise(existing)
   const b = block.trim()
   if (!e) return b
   let merged = `${e}\n\n${b}`

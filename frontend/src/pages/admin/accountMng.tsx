@@ -9,9 +9,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button"
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { UserPlus, Trash2, Save, X, Edit3, ArrowUp, ArrowDown, ArrowUpDown, Search, Calendar } from "lucide-react"
+import { UserPlus, Trash2, Save, X, Edit3, ArrowUp, ArrowDown, ArrowUpDown, Search, Calendar as CalendarIcon } from "lucide-react"
 import { AdminLayout } from "@/components/admin-layout"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar } from "@/components/ui/calendar"
 import {
   adminAccountService,
   type AdminAccountRow,
@@ -21,6 +23,9 @@ import {
 import { cn } from "@/lib/utils"
 import { usePauseableToast, type PauseableToastEntry } from "@/hooks/usePauseableToast"
 import { useTranslation } from "react-i18next"
+import { format, isValid, parse } from "date-fns"
+import { enUS, vi } from "date-fns/locale"
+import { formatDdMmYyyyInput, parseDdMmYyyyStrict } from "@/lib/date-range"
 
 interface Patient {
   accountId: number
@@ -116,7 +121,7 @@ function withCreatedByName(rows: Patient[]): Patient[] {
 }
 
 export default function UserManagement() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { toast, isExiting, showSuccess, showError, onMouseEnter, onMouseLeave } = usePauseableToast()
   const ROLE_FILTER_OPTIONS = [
     { value: "ADM", label: t("admin.accounts.roleFilter.admin") },
@@ -460,7 +465,7 @@ export default function UserManagement() {
       case "dob":
         return (
           <div className="relative">
-            <Calendar className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <CalendarIcon className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <Input
               value={filters.dob}
               onChange={e =>
@@ -539,6 +544,25 @@ export default function UserManagement() {
   const canEditFields = isEditing
   const canSubmitOrCancel = isEditing && !savingAccount
   const canDelete = formMode === "view" && selectedAccountIds.length > 0
+
+  const calendarLocale = i18n.language?.startsWith("vi") ? vi : enUS
+  const isViCalendar = i18n.language?.startsWith("vi")
+  const dobCalendarClassName = cn(
+    "p-3 sm:p-4",
+    isViCalendar ? "[--cell-size:2.5rem] sm:[--cell-size:2.625rem]" : "[--cell-size:2.875rem] sm:[--cell-size:3.125rem]",
+  )
+
+  const activeDobYmd = useMemo(() => normalizeDobForStorage(activePatient?.dob || ""), [activePatient?.dob])
+  const activeDobDate = useMemo(() => {
+    if (!activeDobYmd || !/^\d{4}-\d{2}-\d{2}$/.test(activeDobYmd)) return undefined
+    const d = parse(activeDobYmd, "yyyy-MM-dd", new Date())
+    return isValid(d) ? d : undefined
+  }, [activeDobYmd])
+
+  const [dobText, setDobText] = useState("")
+  useEffect(() => {
+    setDobText(activeDobDate ? format(activeDobDate, "dd/MM/yyyy") : "")
+  }, [activeDobDate])
 
   const updateDraftField = <K extends keyof Patient>(key: K, value: Patient[K]) => {
     setDraftPatient((prev) => (prev ? { ...prev, [key]: value } : prev))
@@ -1051,20 +1075,69 @@ export default function UserManagement() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Date of Birth</label>
-                    <Input
-                      id="dob-picker"
-                      type="date"
-                      disabled={!canEditFields}
-                      className="w-full bg-gray-50"
-                      value={
-                        /^\d{4}-\d{2}-\d{2}$/.test(normalizeDobForStorage(activePatient.dob))
-                          ? normalizeDobForStorage(activePatient.dob)
-                          : ""
-                      }
-                      onChange={(e) => updateDraftField("dob", e.target.value)}
-                      onInput={(e) => updateDraftField("dob", (e.target as HTMLInputElement).value)}
-                      onBlur={(e) => updateDraftField("dob", e.target.value)}
-                    />
+                    <div className="relative min-w-0">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            disabled={!canEditFields}
+                            className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2 rounded-md text-slate-500 shadow-none hover:bg-slate-100 hover:text-slate-800 disabled:opacity-50"
+                            aria-label="Open date of birth calendar"
+                          >
+                            <CalendarIcon className="h-4 w-4" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent
+                          align="start"
+                          className="w-auto max-w-[calc(100vw-1rem)] rounded-xl border border-slate-200/80 p-0 shadow-md"
+                        >
+                          <Calendar
+                            mode="single"
+                            locale={calendarLocale}
+                            className={dobCalendarClassName}
+                            selected={activeDobDate}
+                            onSelect={(d) => {
+                              if (!d || !canEditFields) return
+                              updateDraftField("dob", format(d, "yyyy-MM-dd"))
+                              setDobText(format(d, "dd/MM/yyyy"))
+                            }}
+                            captionLayout="dropdown"
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <Input
+                        id="dob-picker"
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="off"
+                        placeholder="dd/mm/yyyy"
+                        disabled={!canEditFields}
+                        className="w-full bg-gray-50 pr-10"
+                        value={dobText}
+                        onChange={(e) => {
+                          if (!canEditFields) return
+                          const nextText = formatDdMmYyyyInput(e.target.value)
+                          setDobText(nextText)
+                          if (nextText === "") {
+                            updateDraftField("dob", "")
+                            return
+                          }
+                          if (nextText.length === 10) {
+                            const d = parseDdMmYyyyStrict(nextText)
+                            if (d) updateDraftField("dob", format(d, "yyyy-MM-dd"))
+                          }
+                        }}
+                        onBlur={() => {
+                          // If user leaves incomplete/invalid input, snap back to stored value.
+                          if (!canEditFields) return
+                          if (dobText && (dobText.length !== 10 || !parseDdMmYyyyStrict(dobText))) {
+                            setDobText(activeDobDate ? format(activeDobDate, "dd/MM/yyyy") : "")
+                          }
+                        }}
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -1214,7 +1287,7 @@ function AdminPageToast({
       role="status"
       aria-live="polite"
       className={cn(
-        "pointer-events-auto fixed bottom-6 left-6 z-[100] max-w-md rounded-lg border px-4 py-3 text-sm shadow-lg transition-opacity duration-300 ease-out",
+        "pointer-events-auto fixed bottom-5 right-5 z-[118] max-w-md rounded-lg border px-4 py-3 text-sm shadow-lg transition-opacity duration-300 ease-out",
         visible ? "opacity-100" : "opacity-0",
         toast.variant === "success" && "bg-[#34A853] text-white",
         toast.variant === "error" && "bg-[#EA4335] text-white"

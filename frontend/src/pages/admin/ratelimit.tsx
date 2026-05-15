@@ -8,6 +8,27 @@ import { Label } from "@/components/ui/label"
 import { AdminLayout } from "@/components/admin-layout"
 import { Shield, Save, RefreshCw, AlertCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { emitSuccessToast } from "@/lib/success-toast-bus"
+
+/** Must match backend CONFIG_DEFAULTS (systemConfigurationContract) for rate-limit keys */
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000"
+
+const RATE_LIMIT_FORM_DEFAULTS = {
+  apiRateLimit: "100",
+  apiTimeWindow: "60",
+  chatbotRateLimit: "20",
+  chatbotTimeWindow: "60",
+  aiSymptomRateLimit: "10",
+  aiSymptomTimeWindow: "60",
+  appointmentRateLimit: "10",
+  appointmentTimeWindow: "300",
+  loginRateLimit: "100",
+  loginTimeWindow: "900",
+  registrationRateLimit: "20",
+  registrationTimeWindow: "3600",
+  ipBasedLimit: true,
+  enabled: true,
+}
 
 export default function RateLimitConfig() {
   const [config, setConfig] = useState({
@@ -27,14 +48,14 @@ export default function RateLimitConfig() {
     enabled: true,
   })
   const [loading, setLoading] = useState(false)
-  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+  const [message, setMessage] = useState<{ type: 'error', text: string } | null>(null)
   const token = localStorage.getItem("authToken")
 
   useEffect(() => {
     const loadConfig = async () => {
       setLoading(true)
       try {
-        const response = await fetch("http://localhost:3000/api/system-config", {
+        const response = await fetch(`${API_BASE}/api/system-config`, {
           headers: { Authorization: `Bearer ${token}` },
         })
         const data = await response.json()
@@ -69,7 +90,7 @@ export default function RateLimitConfig() {
     setLoading(true)
     setMessage(null)
     try {
-      const response = await fetch("http://localhost:3000/api/system-config", {
+      const response = await fetch(`${API_BASE}/api/system-config`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -94,7 +115,7 @@ export default function RateLimitConfig() {
       })
       const data = await response.json()
       if (!response.ok || !data.success) throw new Error(data.error || "Failed to save settings")
-      setMessage({ type: 'success', text: 'Rate limit settings saved successfully!' })
+      emitSuccessToast("Rate limit settings saved successfully!")
     } catch (error) {
       setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to save settings. Please try again.' })
     } finally {
@@ -103,23 +124,8 @@ export default function RateLimitConfig() {
   }
 
   const handleReset = () => {
-    setConfig({
-      apiRateLimit: "100",
-      apiTimeWindow: "60",
-      chatbotRateLimit: "20",
-      chatbotTimeWindow: "60",
-      aiSymptomRateLimit: "10",
-      aiSymptomTimeWindow: "60",
-      appointmentRateLimit: "5",
-      appointmentTimeWindow: "300",
-      loginRateLimit: "5",
-      loginTimeWindow: "15",
-      registrationRateLimit: "3",
-      registrationTimeWindow: "60",
-      ipBasedLimit: true,
-      enabled: true,
-    })
-    setMessage({ type: 'success', text: 'Settings reset to defaults.' })
+    setConfig({ ...RATE_LIMIT_FORM_DEFAULTS })
+    emitSuccessToast("Settings reset to defaults.")
   }
 
   return (
@@ -131,37 +137,11 @@ export default function RateLimitConfig() {
             <h2 className="text-3xl font-bold text-gray-900">Rate Limit Configuration</h2>
             <p className="text-gray-600 mt-2">Configure rate limiting to protect your API from abuse</p>
           </div>
-          <div className="flex gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleReset}
-              className="border-slate-300 bg-white text-slate-800 shadow-sm hover:bg-slate-50 hover:text-slate-900"
-            >
-              <RefreshCw className="w-4 h-4 mr-2" /> Reset to Defaults
-            </Button>
-            <Button
-              type="button"
-              onClick={handleSave}
-              disabled={loading}
-              className="bg-[#0086C4] text-white shadow-sm hover:bg-[#0078b0] hover:text-white border border-[#006a9e]"
-            >
-              {loading ? (
-                <>
-                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Saving...
-                </>
-              ) : (
-                <>
-                  <Save className="w-4 h-4 mr-2" /> Save Changes
-                </>
-              )}
-            </Button>
-          </div>
         </div>
 
         {/* Alert Messages */}
         {message && (
-          <Alert variant={message.type === 'error' ? 'destructive' : 'default'}>
+          <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>{message.text}</AlertDescription>
           </Alert>
@@ -360,7 +340,7 @@ export default function RateLimitConfig() {
                   type="number"
                   value={config.appointmentRateLimit}
                   onChange={(e) => setConfig({ ...config, appointmentRateLimit: e.target.value })}
-                  placeholder="5"
+                  placeholder="10"
                 />
                 <p className="text-xs text-gray-500 mt-1">Booking requests allowed</p>
               </div>
@@ -401,7 +381,7 @@ export default function RateLimitConfig() {
                   type="number"
                   value={config.loginRateLimit}
                   onChange={(e) => setConfig({ ...config, loginRateLimit: e.target.value })}
-                  placeholder="5"
+                  placeholder="100"
                 />
                 <p className="text-xs text-gray-500 mt-1">Failed login attempts allowed</p>
               </div>
@@ -412,7 +392,7 @@ export default function RateLimitConfig() {
                   type="number"
                   value={config.loginTimeWindow}
                   onChange={(e) => setConfig({ ...config, loginTimeWindow: e.target.value })}
-                  placeholder="15"
+                  placeholder="900"
                 />
                 <p className="text-xs text-gray-500 mt-1">How long to block after limit</p>
               </div>
@@ -442,7 +422,7 @@ export default function RateLimitConfig() {
                   type="number"
                   value={config.registrationRateLimit}
                   onChange={(e) => setConfig({ ...config, registrationRateLimit: e.target.value })}
-                  placeholder="3"
+                  placeholder="20"
                 />
                 <p className="text-xs text-gray-500 mt-1">Accounts per IP address</p>
               </div>
@@ -453,7 +433,7 @@ export default function RateLimitConfig() {
                   type="number"
                   value={config.registrationTimeWindow}
                   onChange={(e) => setConfig({ ...config, registrationTimeWindow: e.target.value })}
-                  placeholder="60"
+                  placeholder="3600"
                 />
                 <p className="text-xs text-gray-500 mt-1">Duration to count registrations</p>
               </div>
@@ -465,6 +445,28 @@ export default function RateLimitConfig() {
             </div>
           </CardContent>
         </Card>
+      </div>
+
+      <div className="fixed bottom-6 right-10 z-40 flex flex-col gap-3">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleReset}
+          disabled={loading}
+          aria-label="Reset rate limit settings to defaults"
+          className="h-12 w-12 rounded-full border-slate-300 bg-white text-slate-800 shadow-lg hover:bg-slate-50 hover:text-slate-900"
+        >
+          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+        </Button>
+        <Button
+          type="button"
+          onClick={handleSave}
+          disabled={loading}
+          aria-label="Save rate limit changes"
+          className="h-12 w-12 rounded-full bg-[#0086C4] text-white shadow-lg hover:bg-[#0078b0] hover:text-white border border-[#006a9e]"
+        >
+          {loading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+        </Button>
       </div>
     </AdminLayout>
   )

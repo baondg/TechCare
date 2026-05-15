@@ -22,8 +22,12 @@ export function getReadableApiError(error: unknown): string {
     // Non-JSON message, continue below.
   }
 
-  if (raw.toLowerCase() === "failed to fetch") {
+  const lower = raw.toLowerCase();
+  if (lower === "failed to fetch") {
     return "Cannot connect to the server. Please check that backend is running and VITE_API_BASE_URL is configured.";
+  }
+  if (lower === "fetch failed") {
+    return "Service temporarily unavailable. Please try again in a moment.";
   }
 
   return raw;

@@ -94,7 +94,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\docker.ps1 -Profile dev -Acti
 
 Parameters:
 - `-Profile`: `dev` or `prod`
-- `-Action`: `up`, `down`, `logs`, `ps`, `build`, `restart`
+- `-Action`: `up`, `down`, `logs`, `ps`, `build`, `restart`, `check`
 
 Common examples:
 ```powershell
@@ -103,6 +103,9 @@ powershell -ExecutionPolicy Bypass -File .\scripts\docker.ps1 -Profile dev -Acti
 
 # View dev status
 powershell -ExecutionPolicy Bypass -File .\scripts\docker.ps1 -Profile dev -Action ps
+
+# Quick dev health check (services + key endpoints)
+powershell -ExecutionPolicy Bypass -File .\scripts\docker.ps1 -Profile dev -Action check
 
 # Stream prod logs
 powershell -ExecutionPolicy Bypass -File .\scripts\docker.ps1 -Profile prod -Action logs
@@ -116,7 +119,9 @@ Notes:
 - Run commands from repo root (`TechCare-2`).
 
 ### Troubleshooting
-- If frontend cannot reach backend, confirm `VITE_API_BASE_URL` in `frontend/.env` is `http://localhost:5000`.
+- **Frontend → API (local `npm run dev`):** Backend defaults to port **3000**. Either leave `VITE_API_BASE_URL` unset (defaults to `http://localhost:3000`) or set `VITE_API_BASE_URL=/api` and rely on the Vite dev proxy (`frontend/vite.config.ts` → `http://localhost:3000`).
+- **Docker Compose dev:** The sample compose maps the API to host port **5000** (`5000:3000`) and may set `VITE_API_BASE_URL=http://localhost:5000` — use that host URL from the browser, not `3000`.
+- **Production static build:** The Docker image build uses `VITE_API_BASE_URL=/api` so requests stay same-origin and nginx proxies `/api/` to the backend.
 - If backend cannot connect to DB, confirm `DB_HOST=mysql` and `DB_PORT=3306` in `backend/.env`.
 - If ports are occupied on your machine, edit host-side ports in `docker-compose.yml`.
 - After dependency changes, rebuild containers with `docker compose up --build -d`.

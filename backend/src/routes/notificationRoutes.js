@@ -5,6 +5,7 @@ const notificationController = require('../controllers/notificationController');
 
 router.use(authenticateToken);
 
+router.get('/unread-count', notificationController.getUnreadCount);
 router.get('/', notificationController.listNotifications);
 router.patch('/read-all', notificationController.markAllNotificationsRead);
 router.patch('/:id/read', notificationController.markNotificationRead);

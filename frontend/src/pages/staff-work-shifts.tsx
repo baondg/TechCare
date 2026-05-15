@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState, type ComponentProps } from "react"
 import * as XLSX from "xlsx"
-import { ChevronDown, Download, History, RefreshCcw, Users } from "lucide-react"
+import { Calendar as CalendarIcon, ChevronDown, Download, History, RefreshCcw, Users } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -27,6 +27,11 @@ import {
   type WorkShiftRow,
 } from "@/services/work-shift-service"
 import { useAuth } from "@/contexts/AuthContext"
+import { Calendar } from "@/components/ui/calendar"
+import { format, parse, isValid } from "date-fns"
+import { enUS, vi } from "date-fns/locale"
+import { useTranslation } from "react-i18next"
+import { applyDdMmYyyyRangeTyping } from "@/lib/date-range"
 
 /** Minutes from midnight; inclusive end for shift 1 & 2 windows. */
 const CA1_START = 7 * 60
@@ -176,6 +181,138 @@ const SELF_VALUE = "__self__"
 const ALL_VALUE = "__all__"
 
 type StaffScheduleScope = "self" | "all" | number
+
+/** From/To in Date range tab: same dd/MM/yyyy + Calendar (dropdown) pattern as doctor appointments / patients filters. */
+function WorkShiftRangeDateField({
+  id,
+  label,
+  kind,
+  valueYmd,
+  otherYmd,
+  onYmdChange,
+}: {
+  id: string
+  label: string
+  kind: "from" | "to"
+  valueYmd: string
+  otherYmd?: string
+  onYmdChange: (ymd: string) => void
+}) {
+  const { i18n } = useTranslation()
+  const calendarLocale = i18n.language?.startsWith("vi") ? vi : enUS
+  const isViCalendar = i18n.language?.startsWith("vi")
+
+  const appointmentCalendarClassName = cn(
+    "p-3 sm:p-4",
+    isViCalendar
+      ? "[--cell-size:2.5rem] sm:[--cell-size:2.625rem]"
+      : "[--cell-size:2.875rem] sm:[--cell-size:3.125rem]",
+  )
+
+  const appointmentCalendarGridClassNames = useMemo<
+    NonNullable<ComponentProps<typeof Calendar>["classNames"]>
+  >(
+    () => ({
+      week: cn("mt-1 flex w-full", isViCalendar ? "gap-1" : "gap-1.5 sm:gap-2"),
+      weekdays: cn("mt-1 flex w-full", isViCalendar ? "gap-1" : "gap-1.5 sm:gap-2"),
+    }),
+    [isViCalendar],
+  )
+
+  const parsedBase = parse(valueYmd, "yyyy-MM-dd", new Date())
+  const [text, setText] = useState(() => (isValid(parsedBase) ? format(parsedBase, "dd/MM/yyyy") : ""))
+  const [calDate, setCalDate] = useState<Date | undefined>(() => (isValid(parsedBase) ? parsedBase : undefined))
+  const otherDate = useMemo(() => {
+    if (!otherYmd) return undefined
+    const d = parse(otherYmd, "yyyy-MM-dd", new Date())
+    return isValid(d) ? d : undefined
+  }, [otherYmd])
+
+  useEffect(() => {
+    const d = parse(valueYmd, "yyyy-MM-dd", new Date())
+    if (isValid(d)) {
+      setText(format(d, "dd/MM/yyyy"))
+      setCalDate(d)
+    } else {
+      setText("")
+      setCalDate(undefined)
+    }
+  }, [valueYmd])
+
+  return (
+    <div className="grid shrink-0 gap-1">
+      <Label htmlFor={id} className="text-xs leading-none">
+        {label}
+      </Label>
+      <div className="relative min-w-[10rem] max-w-[13rem]">
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 rounded-md text-slate-500 shadow-none hover:bg-slate-100 hover:text-slate-800"
+              aria-label={`Open calendar for ${label}`}
+            >
+              <CalendarIcon className="h-4 w-4" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent
+            align="start"
+            className="w-auto max-w-[calc(100vw-1rem)] rounded-xl border border-slate-200/80 p-0 shadow-md"
+          >
+            <Calendar
+              mode="single"
+              locale={calendarLocale}
+              className={appointmentCalendarClassName}
+              classNames={appointmentCalendarGridClassNames}
+              selected={calDate}
+              disabled={(date) => {
+                if (!otherDate) return false
+                if (kind === "from") return date > otherDate
+                return date < otherDate
+              }}
+              onSelect={(d) => {
+                if (!d) return
+                if (otherDate) {
+                  if (kind === "from" && d > otherDate) return
+                  if (kind === "to" && d < otherDate) return
+                }
+                setCalDate(d)
+                onYmdChange(format(d, "yyyy-MM-dd"))
+                setText(format(d, "dd/MM/yyyy"))
+              }}
+              captionLayout="dropdown"
+            />
+          </PopoverContent>
+        </Popover>
+        <Input
+          id={id}
+          type="text"
+          inputMode="numeric"
+          placeholder="dd/mm/yyyy"
+          autoComplete="off"
+          value={text}
+          onChange={(e) => {
+            const next = applyDdMmYyyyRangeTyping({
+              prevText: text,
+              rawInput: e.target.value,
+              otherValue: otherDate,
+              kind,
+            })
+            if (!next) return
+            setText(next.nextText)
+            if (next.nextValue) {
+              setCalDate(next.nextValue)
+              onYmdChange(format(next.nextValue, "yyyy-MM-dd"))
+            }
+          }}
+          className="h-9 rounded-lg border border-slate-200 bg-white pl-3 pr-10 text-sm shadow-none ring-offset-background transition-colors placeholder:text-slate-400 focus-visible:border-cyan-500/40 focus-visible:ring-2 focus-visible:ring-cyan-500/20"
+        />
+      </div>
+    </div>
+  )
+}
 
 export default function StaffWorkShiftsPage() {
   const { user } = useAuth()
@@ -432,40 +569,22 @@ export default function StaffWorkShiftsPage() {
 
               {scheduleView === "range" ? (
                 <>
-                  <div className="grid shrink-0 gap-1">
-                    <Label htmlFor="ws-range-from" className="text-xs leading-none">
-                      From
-                    </Label>
-                    <Input
-                      id="ws-range-from"
-                      type="date"
-                      className="h-9 w-[11rem] min-w-[9.5rem]"
-                      value={rangeFrom}
-                      onChange={(e) => setRangeFrom(e.target.value)}
-                    />
-                  </div>
-                  <div className="grid shrink-0 gap-1">
-                    <Label htmlFor="ws-range-to" className="text-xs leading-none">
-                      To
-                    </Label>
-                    <Input
-                      id="ws-range-to"
-                      type="date"
-                      className="h-9 w-[11rem] min-w-[9.5rem]"
-                      value={rangeTo}
-                      onChange={(e) => setRangeTo(e.target.value)}
-                    />
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-9 shrink-0 gap-2"
-                    disabled={loading || rangeInvalid}
-                    onClick={() => void load()}
-                  >
-                    <RefreshCcw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-                    Apply range
-                  </Button>
+                  <WorkShiftRangeDateField
+                    id="ws-range-from"
+                    label="From"
+                    kind="from"
+                    valueYmd={rangeFrom}
+                    otherYmd={rangeTo}
+                    onYmdChange={setRangeFrom}
+                  />
+                  <WorkShiftRangeDateField
+                    id="ws-range-to"
+                    label="To"
+                    kind="to"
+                    valueYmd={rangeTo}
+                    otherYmd={rangeFrom}
+                    onYmdChange={setRangeTo}
+                  />
                 </>
               ) : null}
             </div>

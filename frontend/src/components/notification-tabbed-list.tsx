@@ -83,16 +83,14 @@ export function NotificationTabbedList({
   const scrollClass =
     variant === "popover"
       ? cn(
-          "min-h-0 flex-1 basis-0 overflow-y-auto overflow-x-auto overscroll-y-contain bg-slate-50/95 pr-0.5 dark:bg-slate-900/50",
-          "[scrollbar-gutter:stable]",
+          "min-h-0 flex-1 basis-0 overflow-y-auto overflow-x-auto overscroll-y-contain bg-slate-50/95 dark:bg-slate-900/50",
           "[scrollbar-width:thin] [scrollbar-color:rgb(148_163_184)_rgb(241_245_249)]",
           "[&::-webkit-scrollbar]:w-2",
           "[&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-100 dark:[&::-webkit-scrollbar-track]:bg-slate-800",
           "[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:border-2 [&::-webkit-scrollbar-thumb]:border-transparent [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-600",
         )
       : cn(
-          "min-h-0 flex-1 overflow-y-auto overflow-x-auto overscroll-y-contain bg-slate-50/95 pr-0.5 dark:bg-slate-900/50",
-          "[scrollbar-gutter:stable]",
+          "min-h-0 flex-1 overflow-y-auto overflow-x-auto overscroll-y-contain bg-slate-50/95 dark:bg-slate-900/50",
           "[scrollbar-width:thin] [scrollbar-color:rgb(148_163_184)_rgb(241_245_249)]",
           "[&::-webkit-scrollbar]:w-2",
           "[&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-100 dark:[&::-webkit-scrollbar-track]:bg-slate-800",
@@ -117,7 +115,7 @@ export function NotificationTabbedList({
         {!showShell ? (
           <p className="p-3 text-center text-xs text-muted-foreground">No notifications yet.</p>
         ) : (
-          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-950">
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-950">
             <Table className="w-full table-fixed text-xs">
               <TableHeader className="sticky top-0 z-10">
                 <TableRow

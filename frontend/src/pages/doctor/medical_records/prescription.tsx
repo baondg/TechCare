@@ -55,6 +55,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { useEmrSession } from "@/contexts/emr-session-context"
+import { useTranslation } from "react-i18next"
+import type { TFunction } from "i18next"
 
 type Medication = {
   name: string
@@ -85,32 +87,36 @@ type UiPrescription = {
   isDraft?: boolean
 }
 
-function formatHistoryTableDate(iso: string) {
-  if (!iso) return "—"
+function resolveLocaleTag(lang: string | undefined): string {
+  return lang?.toLowerCase().startsWith("vi") ? "vi-VN" : "en-US"
+}
+
+function formatHistoryTableDate(iso: string, localeTag: string, notAvailable: string) {
+  if (!iso) return notAvailable
   try {
     const d = new Date(iso)
     if (Number.isNaN(d.getTime())) return iso
-    const date = d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "2-digit" })
-    const time = d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", hour12: false })
+    const date = d.toLocaleDateString(localeTag, { day: "2-digit", month: "2-digit", year: "2-digit" })
+    const time = d.toLocaleTimeString(localeTag, { hour: "2-digit", minute: "2-digit", hour12: false })
     return `${date} ${time}`
   } catch {
     return iso
   }
 }
 
-function formatDt(iso: string) {
+function formatDt(iso: string, localeTag: string) {
   try {
-    return new Date(iso).toLocaleString("vi-VN")
+    return new Date(iso).toLocaleString(localeTag)
   } catch {
     return iso
   }
 }
 
-function mapApi(p: ApiPrescription): UiPrescription {
+function mapApi(p: ApiPrescription, localeTag: string): UiPrescription {
   return {
     id: String(p.id),
     createdAt: p.createdAt,
-    date: formatDt(p.createdAt),
+    date: formatDt(p.createdAt, localeTag),
     doctor: p.doctorName,
     medications: (p.medications || []).map((m) => ({
       name: m.name,
@@ -145,6 +151,7 @@ function MedicineNameCombobox({
   onMedicinePickOrResolve?: (m: MedicineOption) => void
   disabled?: boolean
 }) {
+  const { t } = useTranslation()
   const listId = useId()
   const skipBlurResolveRef = useRef(false)
   const blurResolveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -222,7 +229,7 @@ function MedicineNameCombobox({
             size="sm"
             className="h-7 min-h-7 w-6 shrink-0 rounded-none rounded-r-md border-l border-slate-200 p-0 hover:bg-slate-50"
             disabled={disabled}
-            aria-label="Mở danh sách thuốc"
+            aria-label={t("doctor.prescription.openMedicineList")}
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => setOpen((o) => !o)}
           >
@@ -240,9 +247,9 @@ function MedicineNameCombobox({
       >
         <ScrollArea className="h-[200px]">
           {loading ? (
-            <div className="p-3 text-sm text-slate-500">Loading…</div>
+            <div className="p-3 text-sm text-slate-500">{t("doctor.prescription.comboboxLoading")}</div>
           ) : items.length === 0 ? (
-            <div className="p-3 text-sm text-slate-500">No result!</div>
+            <div className="p-3 text-sm text-slate-500">{t("doctor.prescription.noResult")}</div>
           ) : (
             <ul id={listId} className="py-1" role="listbox">
               {items.map((m) => (
@@ -291,12 +298,13 @@ function formatDailyDoseFromQtyDuration(quantityStr: string, durationStr: string
 }
 
 function buildUsageTypeaheadSuggestion(
-  med: Pick<Medication, "quantity" | "duration" | "unit">
+  med: Pick<Medication, "quantity" | "duration" | "unit">,
+  t: TFunction
 ): string | null {
   const n = formatDailyDoseFromQtyDuration(med.quantity, med.duration)
   if (n == null) return null
   const unit = (med.unit || "tablet").trim() || "tablet"
-  return `Use ${n} ${unit} daily, `
+  return t("doctor.prescription.usageDailyPrefix", { amount: n, unit })
 }
 
 function usageTypeaheadGhostTail(suggestion: string | null, usage: string): string | null {
@@ -318,12 +326,13 @@ function UsageTypeaheadInput({
   onChange: (v: string) => void
   quantity: string
   duration: string
-  unit: MedUnit
+  unit: string
   disabled?: boolean
 }) {
+  const { t } = useTranslation()
   const suggestion = useMemo(
-    () => buildUsageTypeaheadSuggestion({ quantity, duration, unit }),
-    [quantity, duration, unit]
+    () => buildUsageTypeaheadSuggestion({ quantity, duration, unit }, t),
+    [quantity, duration, unit, t]
   )
   const ghostTail = usageTypeaheadGhostTail(suggestion, value)
 
@@ -354,12 +363,16 @@ function UsageTypeaheadInput({
       <input
         className="relative z-10 h-7 w-full box-border rounded bg-transparent px-1.5 text-xs leading-tight text-transparent caret-slate-900 selection:bg-cyan-200/80"
         value={value}
-        placeholder={suggestion ? "" : "Usage"}
+        placeholder={suggestion ? "" : t("doctor.prescription.usagePlaceholder")}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
         onInput={(e) => onChange((e.target as HTMLInputElement).value)}
         onKeyDown={onKeyDown}
-        title={suggestion ? `Press Enter to insert: ${suggestion.trimEnd()}` : undefined}
+        title={
+          suggestion
+            ? t("doctor.prescription.usageEnterHint", { suggestion: suggestion.trimEnd() })
+            : undefined
+        }
         spellCheck={false}
         autoComplete="off"
       />
@@ -368,6 +381,8 @@ function UsageTypeaheadInput({
 }
 
 export default function PatientPrescription() {
+  const { t, i18n } = useTranslation()
+  const localeTag = resolveLocaleTag(i18n.language)
   const { toast, isExiting, showSuccess, showError, onMouseEnter, onMouseLeave } = usePauseableToast(2600)
   const { patientId } = useParams<{ patientId: string }>()
   const { mutationsAllowed } = useEmrSession()
@@ -416,7 +431,8 @@ export default function PatientPrescription() {
       setLoading(true)
       try {
         const res = await doctorService.getPrescriptions(patientId)
-        const rows = (res.prescriptions || []).map(mapApi)
+        const loc = resolveLocaleTag(i18n.language)
+        const rows = (res.prescriptions || []).map((p) => mapApi(p, loc))
         setPrescriptions(rows)
         const pickId = options?.selectPrescriptionId
         if (pickId) {
@@ -434,12 +450,12 @@ export default function PatientPrescription() {
         setViewRxBeforeEdit(null)
       } catch (e) {
         console.error(e)
-        showError(e instanceof Error ? e.message : "Fail to load prescription information")
+        showError(e instanceof Error ? e.message : t("doctor.prescription.loadFail"))
       } finally {
         setLoading(false)
       }
     },
-    [patientId, showError]
+    [patientId, showError, i18n.language, t]
   )
 
   useEffect(() => {
@@ -469,8 +485,8 @@ export default function PatientPrescription() {
     setSelectedRx({
       id: "new",
       createdAt: "",
-      date: "—",
-      doctor: "—",
+      date: t("common.notAvailable"),
+      doctor: t("common.notAvailable"),
       medications: [],
       isDraft: true,
     })
@@ -486,8 +502,8 @@ export default function PatientPrescription() {
       ...selectedRx,
       id: "new",
       createdAt: "",
-      date: "—",
-      doctor: "—",
+      date: t("common.notAvailable"),
+      doctor: t("common.notAvailable"),
       isDraft: true,
     })
     setDraftMeds([
@@ -577,9 +593,9 @@ export default function PatientPrescription() {
           : undefined
       await load(newId ? { selectPrescriptionId: newId } : undefined)
       setIsEditMode(false)
-      showSuccess("Success")
+      showSuccess(t("doctor.prescription.saveSuccess"))
     } catch (e) {
-      showError(e instanceof Error ? e.message : "Fail")
+      showError(e instanceof Error ? e.message : t("doctor.prescription.saveFail"))
     } finally {
       setSaving(false)
     }
@@ -611,10 +627,18 @@ export default function PatientPrescription() {
       const patient = patientRes.patient
       const diagnosis = patient?.latestDiagnosis
         ? `${patient.latestDiagnosis.icd10} - ${patient.latestDiagnosis.interpretation}`
-        : 'General consultation'
+        : t("doctor.prescription.generalConsultation")
+      const na = t("doctor.prescription.patientInfoNa")
       const patientInfo = patient
-        ? `Age: ${patient.age || 'N/A'}, Gender: ${patient.gender || 'N/A'}, BMI: ${patient.bmi || 'N/A'}`
-        : ''
+        ? t("doctor.prescription.patientInfoLine", {
+            ageLabel: t("doctor.prescription.patientInfoAge"),
+            age: patient.age != null && String(patient.age).trim() !== "" ? String(patient.age) : na,
+            genderLabel: t("doctor.prescription.patientInfoGender"),
+            gender: patient.gender?.trim() ? patient.gender : na,
+            bmiLabel: t("doctor.prescription.patientInfoBmi"),
+            bmi: patient.bmi != null && String(patient.bmi).trim() !== "" ? String(patient.bmi) : na,
+          })
+        : ""
 
       const res = await doctorService.getAiMedicineSuggestions({
         diagnosis,
@@ -637,12 +661,12 @@ export default function PatientPrescription() {
           }
         })
         setDraftMeds([...newMeds, emptyMed()])
-        showSuccess(`AI suggested ${res.suggestions.length} medications (${res.provider})`)
+        showSuccess(t("doctor.prescription.aiSuggestSuccess", { count: res.suggestions.length }))
       } else {
-        showError('AI returned no suggestions. Try again or add manually.')
+        showError(t("doctor.prescription.aiNoSuggestions"))
       }
     } catch (err: any) {
-      showError(err?.message || 'Failed to get AI suggestions')
+      showError(err?.message || t("doctor.prescription.aiSuggestFail"))
     } finally {
       setAiSuggesting(false)
     }
@@ -667,13 +691,14 @@ export default function PatientPrescription() {
     try {
       const res = await doctorService.getPatient(patientId)
       if (!res.success || !res.patient) {
-        throw new Error("Fail to load patient information")
+        throw new Error(t("doctor.prescription.patientLoadFail"))
       }
-      const rxDate = selectedRx?.date && selectedRx.date !== "—" ? selectedRx.date : new Date().toLocaleString("vi-VN")
+      const dash = t("common.notAvailable")
+      const rxDate = selectedRx?.createdAt
+        ? formatDt(selectedRx.createdAt, localeTag)
+        : new Date().toLocaleString(localeTag)
       const rxDoctor =
-        selectedRx?.doctor && selectedRx.doctor !== "—"
-          ? selectedRx.doctor
-          : "—"
+        selectedRx?.doctor && selectedRx.doctor !== dash ? selectedRx.doctor : dash
       releasePdfBlobUrl(null)
       /** Saved prescriptions always show doctor name on PDF (no separate sign step). */
       const sigForPdf = selectedRx?.isDraft ? ("draft" as const) : ("signed" as const)
@@ -696,9 +721,9 @@ export default function PatientPrescription() {
       setPdfPreviewFilename(filename)
       releasePdfBlobUrl(url)
       setPdfPreviewOpen(true)
-      showSuccess("Success")
+      showSuccess(t("doctor.prescription.pdfPreviewSuccess"))
     } catch (e) {
-      showError(e instanceof Error ? e.message : "Failed to export PDF")
+      showError(e instanceof Error ? e.message : t("doctor.prescription.pdfExportFail"))
     } finally {
       setExportingPdf(false)
     }
@@ -719,7 +744,7 @@ export default function PatientPrescription() {
       URL.revokeObjectURL(url)
     } catch (e) {
       console.error(e)
-      showError(e instanceof Error ? e.message : "Download failed")
+      showError(e instanceof Error ? e.message : t("doctor.prescription.downloadFailed"))
     }
   }
 
@@ -734,32 +759,32 @@ export default function PatientPrescription() {
       >
         <DialogContent className="flex max-h-[90vh] w-[min(920px,96vw)] max-w-none flex-col gap-3 p-4 sm:p-6">
           <DialogHeader>
-            <DialogTitle>Prescription preview (PDF)</DialogTitle>
+            <DialogTitle>{t("doctor.prescription.dialogPdfTitle")}</DialogTitle>
           </DialogHeader>
           {pdfPreviewUrl ? (
             <iframe
-              title="Prescription PDF preview"
+              title={t("doctor.prescription.iframePdfTitle")}
               src={pdfPreviewUrl}
               className="min-h-[min(520px,60vh)] w-full flex-1 rounded-md border border-slate-200 bg-slate-50"
             />
           ) : null}
           <DialogFooter className="gap-2 sm:gap-2">
             <Button type="button" variant="outline" className="btn-outline" onClick={closePdfPreview}>
-              Close
+              {t("doctor.prescription.close")}
             </Button>
             <Button
               type="button"
               variant="outline"
               className="btn-outline"
               disabled
-              title="Printing will be added in a future update"
+              title={t("doctor.prescription.printDisabledHint")}
             >
               <Printer className="h-4 w-4 mr-2" />
-              Print
+              {t("doctor.prescription.print")}
             </Button>
             <Button type="button" className="btn-gradient" onClick={handleSavePdfFromPreview}>
               <FileDown className="h-4 w-4 mr-2" />
-              Save / Download
+              {t("doctor.prescription.saveDownload")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -770,7 +795,7 @@ export default function PatientPrescription() {
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center gap-2">
               <History size={18} />
-              <h3 className="font-semibold text-lg">Prescription History</h3>
+              <h3 className="font-semibold text-lg">{t("doctor.prescription.historyTitle")}</h3>
             </div>
             <Button
               type="button"
@@ -785,12 +810,12 @@ export default function PatientPrescription() {
               ) : (
                 <FileDown className="h-4 w-4" />
               )}
-              <span className="ml-2">Export PDF</span>
+              <span className="ml-2">{t("doctor.prescription.exportPdf")}</span>
             </Button>
           </div>
 
           {loading ? (
-            <p className="text-sm text-slate-500">Loading…</p>
+            <p className="text-sm text-slate-500">{t("common.loading")}</p>
           ) : (
             <div className="overflow-hidden border rounded-lg">
               <Table className="w-full table-fixed text-xs">
@@ -803,10 +828,10 @@ export default function PatientPrescription() {
                 >
                   <TableRow>
                     <TableHead className="w-[38%] p-1.5 text-left text-[13px] font-semibold text-white">
-                      Date
+                      {t("doctor.prescription.colDate")}
                     </TableHead>
                     <TableHead className="p-1.5 text-left text-[13px] font-semibold text-white">
-                      Doctor
+                      {t("doctor.patients.colDoctor")}
                     </TableHead>
                   </TableRow>
                 </TableHeader>
@@ -825,8 +850,8 @@ export default function PatientPrescription() {
                       }`}
                     >
                       <TableCell className="max-w-0 p-1.5 align-top leading-snug">
-                        <span className="block truncate" title={rx.date}>
-                          {formatHistoryTableDate(rx.createdAt)}
+                        <span className="block truncate" title={formatDt(rx.createdAt, localeTag)}>
+                          {formatHistoryTableDate(rx.createdAt, localeTag, t("common.notAvailable"))}
                         </span>
                       </TableCell>
                       <TableCell className="max-w-0 p-1.5 align-top leading-snug">
@@ -854,7 +879,7 @@ export default function PatientPrescription() {
                 disabled={!canAdd}
               >
                 <Plus className="h-4 w-4" />
-                Add
+                {t("doctor.prescription.add")}
               </Button>
               {/* AI Suggest Medicine Button */}
               {selectedRx?.isDraft && isEditMode && (
@@ -863,10 +888,10 @@ export default function PatientPrescription() {
                   className="h-9 gap-2 border-0 !bg-gradient-to-r !from-violet-500 !to-purple-600 px-4 text-white shadow-sm hover:from-violet-600 hover:to-purple-700"
                   onClick={handleAiSuggest}
                   disabled={aiSuggesting}
-                  title="Let AI suggest medications based on the patient's diagnosis"
+                  title={t("doctor.prescription.aiSuggestHint")}
                 >
                   {aiSuggesting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                  AI Suggest
+                  {t("doctor.prescription.aiSuggest")}
                 </Button>
               )}
               <Button
@@ -876,7 +901,7 @@ export default function PatientPrescription() {
                 disabled={!canInherit}
               >
                 <Copy className="h-4 w-4" />
-                Inherit
+                {t("doctor.prescription.inherit")}
               </Button>
               <Button
                 size="sm"
@@ -885,7 +910,7 @@ export default function PatientPrescription() {
                 disabled={!canSaveRx || saving}
               >
                 <Save className="h-4 w-4" />
-                Save
+                {t("doctor.prescription.save")}
               </Button>
               <Button
                 size="sm"
@@ -894,13 +919,13 @@ export default function PatientPrescription() {
                 disabled={!canCancelEdit || saving}
               >
                 <X className="h-4 w-4" />
-                Cancel
+                {t("doctor.prescription.cancel")}
               </Button>
             </div>
           </div>
 
           {!selectedRx ? (
-            <p className="text-sm text-slate-500">Click on any row to load that record into the form below or click "Add" button to create a new record</p>
+            <p className="text-sm text-slate-500">{t("doctor.prescription.selectRowHint")}</p>
           ) : (
             <div className="relative overflow-x-hidden border rounded-lg">
               <Table className="relative z-0 w-full table-fixed text-xs">
@@ -952,7 +977,7 @@ export default function PatientPrescription() {
                           <input
                             className="h-7 w-full box-border rounded border border-slate-200 px-1.5 text-xs leading-tight"
                             value={med.quantity}
-                            placeholder="Qty"
+                            placeholder={t("doctor.prescription.qtyPlaceholder")}
                             disabled={!mutationsAllowed}
                             onChange={(e) => updateMedication(index, "quantity", e.target.value)}
                             onInput={(e) => updateMedication(index, "quantity", (e.target as HTMLInputElement).value)}
@@ -965,7 +990,7 @@ export default function PatientPrescription() {
                             disabled
                             className="h-7 w-full box-border cursor-not-allowed rounded border border-slate-200 bg-slate-100 px-1.5 text-xs leading-tight text-slate-700"
                             value={med.unit}
-                            title="Unit comes from the MEDICINE catalog when you select a drug name"
+                            title={t("doctor.prescription.unitFromCatalogHint")}
                           />
                         </TableCell>
                         <TableCell className="p-0.5 align-middle">
@@ -974,8 +999,8 @@ export default function PatientPrescription() {
                             min={1}
                             className="h-7 w-full box-border rounded border border-slate-200 px-1.5 text-xs leading-tight"
                             value={med.duration}
-                            placeholder="Days"
-                            title="Số ngày dùng thuốc"
+                            placeholder={t("doctor.prescription.daysPlaceholder")}
+                            title={t("doctor.prescription.durationDaysHint")}
                             disabled={!mutationsAllowed}
                             onChange={(e) => updateMedication(index, "duration", e.target.value)}
                             onInput={(e) => updateMedication(index, "duration", (e.target as HTMLInputElement).value)}
@@ -996,7 +1021,7 @@ export default function PatientPrescription() {
                           <input
                             className="h-7 w-full box-border rounded border border-slate-200 px-1.5 text-xs leading-tight"
                             value={med.note}
-                            placeholder="Note"
+                            placeholder={t("doctor.prescription.notePlaceholder")}
                             disabled={!mutationsAllowed}
                             onChange={(e) => updateMedication(index, "note", e.target.value)}
                             onInput={(e) => updateMedication(index, "note", (e.target as HTMLInputElement).value)}
@@ -1010,7 +1035,7 @@ export default function PatientPrescription() {
                               onClick={() => removeMedication(index)}
                               disabled={!mutationsAllowed}
                               className="inline-flex h-7 w-6 shrink-0 items-center justify-center rounded text-red-500 hover:bg-red-50 disabled:opacity-40"
-                              title="Remove medication"
+                              title={t("doctor.prescription.removeMedHint")}
                             >
                               <Trash2 className="h-3.5 w-3.5 " strokeWidth={2} aria-hidden />
                             </button>
@@ -1028,10 +1053,10 @@ export default function PatientPrescription() {
                         <TableCell className="p-0.5 text-center align-middle text-xs">{med.quantity}</TableCell>
                         <TableCell className="p-0.5 align-middle text-xs">{med.unit}</TableCell>
                         <TableCell className="p-0.5 text-center align-middle text-xs tabular-nums">
-                          {med.duration || "—"}
+                          {med.duration || t("common.notAvailable")}
                         </TableCell>
                         <TableCell className="p-0.5 align-middle text-xs">{med.usage}</TableCell>
-                        <TableCell className="p-0.5 align-middle text-xs">{med.note ?? "—"}</TableCell>
+                        <TableCell className="p-0.5 align-middle text-xs">{med.note ?? t("common.notAvailable")}</TableCell>
                         <TableCell className="w-7 p-0.5" />
                       </TableRow>
                     ))
@@ -1042,7 +1067,7 @@ export default function PatientPrescription() {
                 <div className="relative z-[1] flex items-start gap-3 border-t border-slate-200 bg-cyan-50/80 px-4 py-3">
                   <div className="min-w-0">
                     <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                      Doctor:
+                      {t("doctor.prescription.doctorLabel")}
                     </div>
                     <div className="text-base font-semibold text-slate-900">{selectedRx.doctor}</div>
                   </div>

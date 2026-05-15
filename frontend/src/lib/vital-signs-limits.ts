@@ -64,7 +64,7 @@ export function vitalNumericError(field: VitalNumericField, raw: string): string
   return null
 }
 
-/** English copy for bottom-left pauseable toast (e.g. prescription page pattern). */
+/** English copy for bottom-right pauseable toast (e.g. prescription / health info pages). */
 export function formatVitalValidationErrorToast(messages: string[]): string {
   const lead =
     "Save unsuccessful. One or more vital values are invalid—correct the fields with red warnings below."

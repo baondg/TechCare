@@ -4,18 +4,19 @@ import { useCallback, useEffect, useState, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent} from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ChevronLeft, ChevronRight, CalendarIcon, Search } from "lucide-react"
+import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { CalendarIcon, Search, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react"
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 import { NurseLayout } from "@/components/nurse-layout"
 import { Popover,  PopoverContent,  PopoverTrigger} from "@/components/ui/popover"
 import { format } from "date-fns"
 import { Calendar } from "@/components/ui/calendar"
 import { useNavigate } from "react-router-dom"
-import { Checkbox } from "@/components/ui/checkbox"
 import {Tooltip,TooltipContent,TooltipProvider,TooltipTrigger,} from "@/components/ui/tooltip"
-import { PATIENT_IN_DEPARTMENT_OPTIONS } from "@/lib/patient-departments"
+import { useTranslation } from "react-i18next"
+import { PATIENT_IN_DEPARTMENT_OPTIONS, translatePatientInDepartment } from "@/lib/patient-departments"
 import { NurseCheckInDialog } from "@/components/nurse-check-in-dialog"
+import { cn } from "@/lib/utils"
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000"
 const VISIT_STORAGE_PREFIX = "nurseExamVisit:"
@@ -54,23 +55,33 @@ type Patient = {
 
 type ColumnKey = keyof Patient | "no" | "visitStatus"
 
-const columns: {
-  key: ColumnKey
-  label: string
-  sortable?: boolean
-}[] = [
-  { key: "no", label: "No." },
-  { key: "id", label: "Patient ID", sortable: true },
-  { key: "name", label: "Name", sortable: true },
-  { key: "sex", label: "Sex", sortable: true },
-  { key: "age", label: "Age", sortable: true },
-  { key: "latestVisit", label: "Latest visit", sortable: true },
-  { key: "diagnosis", label: "Diagnosis", sortable: true },
-  { key: "doctor", label: "Doctor", sortable: true },
-  { key: "recoverDays", label: "Remaining days", sortable: true },
-  { key: "recoverPercent", label: "Progress (%)", sortable: true },
-  { key: "visitStatus", label: "Status", sortable: true },
-]
+const columnWidthClassEn: Record<ColumnKey, string> = {
+  no: "w-[4%] min-w-0",
+  id: "w-[9%] min-w-0",
+  name: "w-[13%] min-w-0",
+  sex: "w-[7%] min-w-0",
+  age: "w-[6%] min-w-0",
+  latestVisit: "w-[10%] min-w-0",
+  diagnosis: "w-[13%] min-w-0",
+  doctor: "w-[11%] min-w-0",
+  recoverDays: "w-[8%] min-w-0",
+  recoverPercent: "w-[8%] min-w-0",
+  visitStatus: "w-[11%] min-w-0",
+}
+
+const columnWidthClassVi: Record<ColumnKey, string> = {
+  no: "w-[3.5%] min-w-0",
+  id: "w-[8.5%] min-w-0",
+  name: "w-[12.5%] min-w-0",
+  sex: "w-[8.5%] min-w-0",
+  age: "w-[6.5%] min-w-0",
+  latestVisit: "w-[14%] min-w-0",
+  diagnosis: "w-[12%] min-w-0",
+  doctor: "w-[10.5%] min-w-0",
+  recoverDays: "w-[7%] min-w-0",
+  recoverPercent: "w-[7%] min-w-0",
+  visitStatus: "w-[10%] min-w-0",
+}
 
 const ICD10_MAP: Record<string, string> = {
   "Z59.1": "Housing and economic circumstances",
@@ -94,9 +105,35 @@ function visitStatusRank(p: Patient): { tier: number; label: string } {
 
 export default function NursePatients() {
     const navigate = useNavigate()
+    const { t, i18n } = useTranslation()
+    const isVi = Boolean(i18n.language?.toLowerCase().startsWith("vi"))
+    const columnWidthClass = isVi ? columnWidthClassVi : columnWidthClassEn
+    const tableMinWidthClass = isVi ? "min-w-[1240px]" : "min-w-[1180px]"
+    const columns: {
+      key: ColumnKey
+      label: string
+      sortable?: boolean
+    }[] = useMemo(
+      () => [
+        { key: "no", label: t("doctor.patients.colNo") },
+        { key: "id", label: t("doctor.patients.colPatientId"), sortable: true },
+        { key: "name", label: t("doctor.patients.colName"), sortable: true },
+        { key: "sex", label: t("doctor.patients.colSex"), sortable: true },
+        { key: "age", label: t("doctor.patients.colAge"), sortable: true },
+        { key: "latestVisit", label: t("doctor.patients.colLatestVisit"), sortable: true },
+        { key: "diagnosis", label: t("doctor.patients.colDiagnosis"), sortable: true },
+        { key: "doctor", label: t("doctor.patients.colDoctor"), sortable: true },
+        { key: "recoverDays", label: t("doctor.patients.colRemainingDays"), sortable: true },
+        { key: "recoverPercent", label: t("doctor.patients.colProgress"), sortable: true },
+        { key: "visitStatus", label: t("doctor.patients.status"), sortable: true },
+      ],
+      [t],
+    )
     const [patients, setPatients] = useState<Patient[]>([])
     const [checkInDialogOpen, setCheckInDialogOpen] = useState(false)
     const [checkInPatientOpId, setCheckInPatientOpId] = useState<string | null>(null)
+
+    const visitLocale = i18n.language?.startsWith("vi") ? "vi-VN" : "en-US"
 
     const loadPatients = useCallback(async () => {
       try {
@@ -129,7 +166,7 @@ export default function NursePatients() {
             name: `${p.lastName || ""} ${p.firstName || ""}`.trim() || String(p.username || "") || `Patient #${p.id}`,
             sex: (p.gender as Patient["sex"]) || null,
             age: String(p.age || ""),
-            latestVisit: p.latestVisit ? new Date(String(p.latestVisit)).toLocaleDateString("vi-VN") : "",
+            latestVisit: p.latestVisit ? new Date(String(p.latestVisit)).toLocaleDateString(visitLocale) : "",
             diagnosis: (p.latestDiagnosis as { icd10?: string } | null)?.icd10 || "",
             diagnosisDescription: (p.latestDiagnosis as { interpretation?: string } | null)?.interpretation || "",
             doctor: String(p.doctor || ""),
@@ -143,7 +180,7 @@ export default function NursePatients() {
       } catch (err) {
         console.error("Fetch patients error:", err)
       }
-    }, [])
+    }, [visitLocale])
 
     useEffect(() => {
       void loadPatients()
@@ -160,6 +197,7 @@ export default function NursePatients() {
         diagnosis: "",
         doctor: "",
         department: "All" as "All" | (typeof PATIENT_IN_DEPARTMENT_OPTIONS)[number],
+        status: "All" as "All" | "Active" | "Recovered",
         })
 
     const [currentPage, setCurrentPage] = useState(1)
@@ -181,6 +219,13 @@ export default function NursePatients() {
               filters.department === "All" ||
               (p.department != null && p.department === filters.department)
 
+            const matchSex = filters.sex === "All" || p.sex === filters.sex
+
+            const matchLatestVisit =
+              !filters.latestVisit ||
+              (!!p.latestVisit &&
+                p.latestVisit === format(filters.latestVisit, "dd/MM/yyyy"))
+
             return (
             p.id.toLowerCase().includes(filters.patientId.toLowerCase()) &&
             p.name.toLowerCase().includes(filters.name.toLowerCase()) &&
@@ -190,6 +235,8 @@ export default function NursePatients() {
             String(p.doctor ?? "")
               .toLowerCase()
               .includes(String(filters.doctor ?? "").toLowerCase()) &&
+            matchSex &&
+            matchLatestVisit &&
             matchAge &&
             matchRecoverDays &&
             matchRecoverPercent &&
@@ -198,7 +245,7 @@ export default function NursePatients() {
         })
     }, [patients, filters])
 
-    const totalPages = Math.ceil(filteredPatients.length / pageSize)
+    const totalPages = Math.max(1, Math.ceil(filteredPatients.length / pageSize))
 
     type SortKey = ColumnKey
 
@@ -219,9 +266,7 @@ export default function NursePatients() {
       })
     }
 
-    const allColumns = columns.map(c => c.key)
-
-    const [visibleColumns, setVisibleColumns] = useState<ColumnKey[]>(allColumns)
+    const visibleColumns = columns.map((c) => c.key)
 
     const sortedPatients = useMemo(() => {
       if (!sortConfig) return filteredPatients
@@ -269,8 +314,22 @@ export default function NursePatients() {
     )
 
     const SortIcon = ({ column }: { column: SortKey }) => {
-      if (sortConfig?.key !== column) return <span className="ml-1">⇅</span>
-      return <span className="ml-1">{sortConfig.direction === "asc" ? "↑" : "↓"}</span>
+      if (sortConfig?.key !== column) {
+        return (
+          <span className="ml-1 inline-flex text-slate-300">
+            <ArrowUpDown className="w-3 h-3" aria-hidden />
+          </span>
+        )
+      }
+      return (
+        <span className="ml-1 inline-flex">
+          {sortConfig.direction === "asc" ? (
+            <ArrowUp className="w-3 h-3" aria-hidden />
+          ) : (
+            <ArrowDown className="w-3 h-3" aria-hidden />
+          )}
+        </span>
+      )
     }
 
 
@@ -293,36 +352,10 @@ export default function NursePatients() {
           void loadPatients()
         }}
       />
-      <div className="p-1 space-y-1">
-        {/* Header — one toolbar row: column toggles + filters */}
-        <div className="space-y-2">
-          <div className="flex flex-nowrap items-center gap-3 overflow-x-auto pb-1 -mx-1 px-1">
-            <Checkbox
-              label="Show All"
-              checked={visibleColumns.length === allColumns.length}
-              onChange={(checked) => {
-                if (checked) {
-                  setVisibleColumns(allColumns)
-                }
-              }}
-            />
-            {columns.filter(col => col.key !== "no").map(col => (
-              <Checkbox
-                key={col.key}
-                label={col.label}
-                checked={visibleColumns.includes(col.key)}
-                onChange={(checked) =>
-                  setVisibleColumns(prev =>
-                    checked
-                      ? [...prev, col.key]
-                      : prev.filter(k => k !== col.key)
-                  )
-                }
-              />
-            ))}
-            <span className="h-5 w-px shrink-0 bg-slate-200" aria-hidden />
-            <div className="flex items-center gap-2 shrink-0">
-              <span className="text-xs font-medium text-slate-600 whitespace-nowrap">Department</span>
+      <div className="w-full max-w-none space-y-2 px-1 pb-1">
+        <div className="flex flex-wrap items-center gap-3 px-2 py-1">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-slate-600 whitespace-nowrap">{t("doctor.patients.department")}</span>
               <Select
                 value={filters.department}
                 onValueChange={(value) =>
@@ -333,42 +366,48 @@ export default function NursePatients() {
                 }
               >
                 <SelectTrigger className="h-9 w-[min(12rem,42vw)] btn-outline text-sm">
-                  <SelectValue placeholder="All" />
+                  <SelectValue placeholder={t("doctor.patients.all")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="All">All</SelectItem>
+                  <SelectItem value="All">{t("doctor.patients.all")}</SelectItem>
                   {PATIENT_IN_DEPARTMENT_OPTIONS.map((d) => (
                     <SelectItem key={d} value={d}>
-                      {d}
+                      {translatePatientInDepartment(d, t)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <span className="text-xs font-medium text-slate-600 whitespace-nowrap">Status</span>
-              <Select defaultValue="All">
-                <SelectTrigger className="h-9 w-[8.5rem] btn-outline text-sm">
-                  <SelectValue placeholder="All" />
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-slate-600 whitespace-nowrap">{t("doctor.patients.status")}</span>
+              <Select
+                value={filters.status}
+                onValueChange={(value) =>
+                  setFilters({
+                    ...filters,
+                    status: value as typeof filters.status,
+                  })
+                }
+              >
+                <SelectTrigger className="h-9 w-[8.5rem] btn-outline text-sm border-slate-300">
+                  <SelectValue placeholder={t("doctor.patients.all")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="All">All</SelectItem>
-                  <SelectItem value="Active">Active</SelectItem>
-                  <SelectItem value="Recovered">Recovered</SelectItem>
+                  <SelectItem value="All">{t("doctor.patients.all")}</SelectItem>
+                  <SelectItem value="Active">{t("doctor.patients.active")}</SelectItem>
+                  <SelectItem value="Recovered">{t("doctor.patients.recovered")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-          </div>
         </div>
 
-        {/* Bảng chính */}
-        <div className="">
-          <Card className="h-[560px]">
-            <CardContent className="p-0 h-full flex flex-col">
-              <div className="flex-1 overflow-y-auto">
-                <Table>
+        <Card className="flex flex-col">
+          <CardContent className="p-0 overflow-hidden">
+            <div className="flex flex-col rounded-xl border border-slate-200 bg-white overflow-hidden">
+              <div className="w-full min-w-0 flex flex-col">
+                <table className={cn("w-full table-fixed caption-bottom text-sm", tableMinWidthClass)}>
                   <TableHeader
-                    className="sticky top-0 z-20 text-white"
+                    className="z-20 text-white"
                     style={{
                       background: "linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)"
                     }}
@@ -379,7 +418,14 @@ export default function NursePatients() {
                           <TableHead
                             key={col.key}
                             onClick={() => col.sortable && handleSort(col.key)}
-                            className="cursor-pointer select-none whitespace-nowrap text-white transition"
+                            className={cn(
+                              "h-auto min-h-10 select-none px-3 py-2.5 align-middle text-white transition",
+                              isVi && col.key === "latestVisit" ? "whitespace-normal leading-snug" : "whitespace-nowrap",
+                              col.key === "recoverDays" && "pr-5",
+                              col.key === "recoverPercent" && "pl-5",
+                              col.sortable && "cursor-pointer",
+                              columnWidthClass[col.key],
+                            )}
                           >
                             {col.label}
                             {col.sortable && <SortIcon column={col.key} />}
@@ -390,7 +436,15 @@ export default function NursePatients() {
                     <TableRow className="border-b hover:bg-white transition-colors">
                       {columns.map(col =>
                         visibleColumns.includes(col.key) ? (
-                          <TableHead key={col.key}>
+                          <TableHead
+                            key={col.key}
+                            className={cn(
+                              "px-3 py-2 align-middle",
+                              col.key === "recoverDays" && "pr-5",
+                              col.key === "recoverPercent" && "pl-5",
+                              columnWidthClass[col.key],
+                            )}
+                          >
                             {col.key === "no" && null}
 
                             {col.key === "id" && (
@@ -401,7 +455,7 @@ export default function NursePatients() {
                                   onChange={(e) =>
                                     setFilters({ ...filters, patientId: e.target.value })
                                   }
-                                  className="h-8 text-xs pr-8"
+                                  className="h-8 text-xs pr-8 border-slate-300 focus-visible:ring-1 focus-visible:ring-cyan-400"
                                 />
                               </div>
                             )}
@@ -414,7 +468,7 @@ export default function NursePatients() {
                                   onChange={(e) =>
                                     setFilters({ ...filters, name: e.target.value })
                                   }
-                                  className="h-8 text-xs pr-8"
+                                  className="h-8 text-xs pr-8 border-slate-300 focus-visible:ring-1 focus-visible:ring-cyan-400"
                                 />
                               </div>
                             )}
@@ -426,13 +480,13 @@ export default function NursePatients() {
                                   setFilters({ ...filters, sex: value })
                                 }
                               >
-                                <SelectTrigger className="h-8 text-xs w-16 mx-auto">
+                                <SelectTrigger className="h-8 text-xs w-full border-slate-300 focus-visible:ring-1 focus-visible:ring-cyan-400">
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="All">All</SelectItem>
-                                  <SelectItem value="M">M</SelectItem>
-                                  <SelectItem value="F">F</SelectItem>
+                                  <SelectItem value="All">{t("doctor.patients.all")}</SelectItem>
+                                  <SelectItem value="M">{t("doctor.patients.sexMale")}</SelectItem>
+                                  <SelectItem value="F">{t("doctor.patients.sexFemale")}</SelectItem>
                                 </SelectContent>
                               </Select>
                             )}
@@ -444,7 +498,7 @@ export default function NursePatients() {
                                 onChange={(e) =>
                                   setFilters({ ...filters, age: e.target.value })
                                 }
-                                className="h-8 text-xs text-center"
+                                className="h-8 text-xs text-center border-slate-300 focus-visible:ring-1 focus-visible:ring-cyan-400"
                               />
                             )}
 
@@ -454,12 +508,12 @@ export default function NursePatients() {
                                   <Button
                                     variant="outline"
                                     size="sm"
-                                    className="h-8 w-full text-xs justify-start"
+                                    className="h-8 w-full text-xs justify-start border-slate-300"
                                   >
                                     <CalendarIcon className="mr-2 h-4 w-4" />
                                     {filters.latestVisit
                                       ? format(filters.latestVisit, "dd/MM/yyyy")
-                                      : "Select"}
+                                      : t("doctor.patients.selectDate")}
                                   </Button>
                                 </PopoverTrigger>
                                 <PopoverContent className="w-auto p-0">
@@ -469,6 +523,7 @@ export default function NursePatients() {
                                     onSelect={(date) =>
                                       setFilters({ ...filters, latestVisit: date ?? null })
                                     }
+                                    captionLayout="dropdown"
                                   />
                                 </PopoverContent>
                               </Popover>
@@ -482,7 +537,7 @@ export default function NursePatients() {
                                   onChange={(e) =>
                                     setFilters({ ...filters, diagnosis: e.target.value })
                                   }
-                                  className="h-8 text-xs"
+                                  className="h-8 text-xs pr-8 border-slate-300 focus-visible:ring-1 focus-visible:ring-cyan-400"
                                 />
                               </div>
                             )}
@@ -495,7 +550,7 @@ export default function NursePatients() {
                                   onChange={(e) =>
                                     setFilters({ ...filters, doctor: e.target.value })
                                   }
-                                  className="h-8 text-xs pr-8"
+                                  className="h-8 text-xs pr-8 border-slate-300 focus-visible:ring-1 focus-visible:ring-cyan-400"
                                 />
                               </div>
                             )}
@@ -507,7 +562,7 @@ export default function NursePatients() {
                                 onChange={(e) =>
                                   setFilters({ ...filters, recoverDays: e.target.value })
                                 }
-                                className="h-8 text-xs text-center"
+                                className="h-8 text-xs text-center border-slate-300 focus-visible:ring-1 focus-visible:ring-cyan-400"
                               />
                             )}
 
@@ -518,7 +573,7 @@ export default function NursePatients() {
                                 onChange={(e) =>
                                   setFilters({ ...filters, recoverPercent: e.target.value })
                                 }
-                                className="h-8 text-xs text-center"
+                                className="h-8 text-xs text-center border-slate-300 focus-visible:ring-1 focus-visible:ring-cyan-400"
                               />
                             )}
 
@@ -529,43 +584,55 @@ export default function NursePatients() {
                     </TableRow>
                   </TableHeader>
 
-                  <TableBody>
+                </table>
+
+                <div className="overflow-y-auto overflow-x-auto overscroll-y-contain h-[360px] pb-2 min-w-0" onWheel={(e) => e.stopPropagation()}>
+                  <table className={cn("w-full table-fixed caption-bottom text-sm", tableMinWidthClass)}>
+                    <TableBody className="[&_td]:px-3 [&_td]:py-2.5">
                     {paginatedPatients.map((patient, index) => (
                       <TableRow
                         key={patient.id}
                         onClick={() =>
                           navigate(`/nurse/medical_records/${patient.id}/dashboard`)
                         }
-                        className="group hover:bg-muted/50 cursor-pointer h-14 transition-colors"
+                        className="group cursor-pointer hover:bg-gray-100 transition-colors"
                       >
                         {visibleColumns.includes("no") && (
-                          <TableCell className="text-center font-medium">
+                          <TableCell className={cn(columnWidthClass.no, "text-center font-medium")}>
                             {(currentPage - 1) * pageSize + index + 1}
                           </TableCell>
                         )}
 
                         {visibleColumns.includes("id") && (
-                          <TableCell className="font-medium">{patient.id}</TableCell>
+                          <TableCell className={cn(columnWidthClass.id, "font-medium whitespace-nowrap overflow-hidden text-ellipsis")}>{patient.id}</TableCell>
                         )}
 
                         {visibleColumns.includes("name") && (
-                          <TableCell>{patient.name}</TableCell>
+                          <TableCell className={cn(columnWidthClass.name, "whitespace-nowrap overflow-hidden text-ellipsis")}>{patient.name}</TableCell>
                         )}
 
                         {visibleColumns.includes("sex") && (
-                          <TableCell className="text-center">{patient.sex}</TableCell>
+                          <TableCell className={cn(columnWidthClass.sex, "text-center")}>
+                            {patient.sex === "M"
+                              ? t("doctor.patients.sexMale")
+                              : patient.sex === "F"
+                                ? t("doctor.patients.sexFemale")
+                                : patient.sex}
+                          </TableCell>
                         )}
 
                         {visibleColumns.includes("age") && (
-                          <TableCell className="text-center">{patient.age}</TableCell>
+                          <TableCell className={cn(columnWidthClass.age, "text-center")}>{patient.age}</TableCell>
                         )}
 
                         {visibleColumns.includes("latestVisit") && (
-                          <TableCell className="text-center">{patient.latestVisit}</TableCell>
+                          <TableCell className={cn(columnWidthClass.latestVisit, "text-center")}>
+                            {patient.latestVisit || t("common.notAvailable")}
+                          </TableCell>
                         )}
 
                         {visibleColumns.includes("diagnosis") && (
-                          <TableCell className="text-center">
+                          <TableCell className={cn(columnWidthClass.diagnosis, "text-center")}>
                             <TooltipProvider delayDuration={0}>
                               <Tooltip>
                                 <TooltipTrigger asChild>
@@ -575,7 +642,7 @@ export default function NursePatients() {
                                 </TooltipTrigger>
                                 <TooltipContent side="top" className="bg-linear-to-br from-[#06b6d4] to-[#0891b2]">
                                   <b className="text-sm max-w-xs ">
-                                    {patient.diagnosisDescription || ICD10_MAP[patient.diagnosis] || "No description"}
+                                    {patient.diagnosisDescription || ICD10_MAP[patient.diagnosis] || t("doctor.patients.noDescription")}
                                   </b>
                                 </TooltipContent>
                               </Tooltip>
@@ -584,29 +651,31 @@ export default function NursePatients() {
                         )}
 
                         {visibleColumns.includes("doctor") && (
-                          <TableCell>{patient.doctor}</TableCell>
+                          <TableCell className={cn(columnWidthClass.doctor, "whitespace-nowrap overflow-hidden text-ellipsis")}>{patient.doctor}</TableCell>
                         )}
 
                         {visibleColumns.includes("recoverDays") && (
-                          <TableCell className="text-center">
-                            {patient.recoverDays ?? "-"}{patient.recoverDays != null ? " days" : ""}
+                          <TableCell className={cn(columnWidthClass.recoverDays, "text-center pr-5")}>
+                            {patient.recoverDays != null
+                              ? t("doctor.patients.remainingDays", { count: patient.recoverDays })
+                              : t("common.notAvailable")}
                           </TableCell>
                         )}
 
                         {visibleColumns.includes("recoverPercent") && (
-                          <TableCell className="text-center">
-                            {patient.recoverPercent != null ? `${patient.recoverPercent}%` : "-"}
+                          <TableCell className={cn(columnWidthClass.recoverPercent, "text-center pl-5")}>
+                            {patient.recoverPercent != null ? `${patient.recoverPercent}%` : t("common.notAvailable")}
                           </TableCell>
                         )}
 
                         {visibleColumns.includes("visitStatus") && (
                           <TableCell
-                            className="w-[min(9.5rem,22vw)] min-w-[7.5rem] text-center align-middle"
+                            className={cn(columnWidthClass.visitStatus, "text-center align-middle")}
                             onClick={(e) => e.stopPropagation()}
                           >
                             {patient.todayAppointment?.checkedIn ? (
                               <span className="text-sm font-semibold text-emerald-700 whitespace-nowrap">
-                                Examining
+                                {t("doctor.patients.active")}
                               </span>
                             ) : patient.todayAppointment ? (
                               <div className="relative flex min-h-9 items-center justify-center px-0.5">
@@ -636,18 +705,17 @@ export default function NursePatients() {
                     {paginatedPatients.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={visibleColumns.length} className="text-center py-10 text-muted-foreground">
-                          No patients found.
+                          {t("doctor.patients.noPatientsFound")}
                         </TableCell>
                       </TableRow>
                     )}
-                  </TableBody>
-                </Table>
-              </div>
+                    </TableBody>
+                  </table>
+                </div>
 
-              {/* Pagination */}
-              <div className="flex items-center justify-between px-6 py-4 bg-gray-50 border-t text-sm">
-                <div className="flex items-center gap-3">
-                  <span>Show</span>
+              <div className="mt-1 flex flex-wrap items-center justify-start gap-3 px-4 py-3 bg-gray-50 border-t text-xs rounded-b-xl">
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-700 whitespace-nowrap">{t("doctor.patients.show")}</span>
                   <Select
                     value={pageSize.toString()}
                     onValueChange={(v) => {
@@ -655,52 +723,81 @@ export default function NursePatients() {
                       setCurrentPage(1)
                     }}
                   >
-                    <SelectTrigger className="w-20 h-9">
+                    <SelectTrigger className="w-16 h-8 text-xs">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="5">5</SelectItem>
                       <SelectItem value="10">10</SelectItem>
                       <SelectItem value="25">25</SelectItem>
                       <SelectItem value="50">50</SelectItem>
+                      <SelectItem value="100">100</SelectItem>
                     </SelectContent>
                   </Select>
-                  <span>entries</span>
+                  <span className="text-gray-700 whitespace-nowrap">{t("doctor.patients.entries")}</span>
                 </div>
 
-                <div className="flex items-center gap-1">
+                <div className="text-gray-700 whitespace-nowrap">
+                  {t("doctor.patients.showingRange", {
+                    start: filteredPatients.length === 0 ? 0 : (currentPage - 1) * pageSize + 1,
+                    end: Math.min(currentPage * pageSize, filteredPatients.length),
+                    total: filteredPatients.length,
+                  })}
+                </div>
+
+                <div className="flex items-center gap-1 ml-auto">
                   <Button
                     variant="outline"
                     size="sm"
                     disabled={currentPage === 1}
                     onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    className="btn-outline h-8 px-2.5 text-xs"
                   >
-                    <ChevronLeft className="h-4 w-4" />
+                    {t("doctor.patients.previous")}
                   </Button>
 
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                    <Button
-                      key={page}
-                      size="sm"
-                      className={currentPage === page ? "btn-gradient" : "btn-outline"}
-                      onClick={() => setCurrentPage(page)}
-                    >
-                      {page}
-                    </Button>
-                  ))}
+                  {(() => {
+                    const pages = []
+                    const maxVisible = 5
+                    let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2))
+                    const endPage = Math.min(totalPages, startPage + maxVisible - 1)
+                    if (endPage - startPage + 1 < maxVisible) {
+                      startPage = Math.max(1, endPage - maxVisible + 1)
+                    }
+                    for (let i = startPage; i <= endPage; i++) {
+                      pages.push(
+                        <Button
+                          key={i}
+                          variant={currentPage === i ? "default" : "outline"}
+                          size="sm"
+                          className={cn(
+                            "h-8 min-w-8 px-2 text-xs",
+                            currentPage === i ? "btn-gradient" : "btn-outline"
+                          )}
+                          onClick={() => setCurrentPage(i)}
+                        >
+                          {i}
+                        </Button>
+                      )
+                    }
+                    return pages
+                  })()}
 
                   <Button
                     variant="outline"
                     size="sm"
                     disabled={currentPage === totalPages}
                     onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    className="btn-outline h-8 px-2.5 text-xs"
                   >
-                    <ChevronRight className="h-4 w-4" />
+                    {t("doctor.patients.next")}
                   </Button>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </NurseLayout>
   )

@@ -1,4 +1,14 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+/**
+ * Origin/prefix for API calls. Empty string = same-origin (use paths like `/api/...`),
+ * e.g. when `VITE_API_BASE_URL=/api` (Vite dev proxy or nginx static build).
+ */
+const API_BASE_URL = (() => {
+  const raw = import.meta.env.VITE_API_BASE_URL as string | undefined;
+  if (raw === undefined || raw === '') return 'http://localhost:3000';
+  const s = String(raw).trim();
+  if (s === '/api') return '';
+  return s.replace(/\/$/, '');
+})();
 import type { PatientMedicalRegimen } from './appointment-service';
 
 // ─── Helpers ───
@@ -91,6 +101,8 @@ export interface Patient {
   latestVisit: string | null;
   doctor: string | null;
   bmi: number | null;
+  /** Present on list/detail from API when available */
+  inDepartment?: string | null;
 }
 
 export interface PatientDetail extends Patient {

@@ -251,8 +251,10 @@ async function callLocalLLM(messages: ChatMessage[], systemPrompt?: string, over
 // ============================================================
 const loadAiModelRegistry = async () => {
   let modelConfig: any = null;
+  let catalogConfig: any = null;
   let defaultsConfig: any = null;
   try {
+    catalogConfig = await SystemConfig.findOne({ where: { key: 'aiModelCatalog' } });
     modelConfig = await SystemConfig.findOne({ where: { key: 'aiModels' } });
     defaultsConfig = await SystemConfig.findOne({ where: { key: 'aiDefaultModelByFeature' } });
   } catch (error: any) {
@@ -260,13 +262,19 @@ const loadAiModelRegistry = async () => {
     // Fallback to env-based model resolution instead of failing AI endpoints.
     if (error?.original?.code === 'ER_BAD_FIELD_ERROR') {
       console.warn('[AI] SYSTEM_CONFIGURATION key/value columns unavailable. Using env/default AI model config.');
-      return { models: [], defaults: {} };
+      return { catalog: [], models: [], defaults: {} };
     }
     throw error;
   }
 
+  let catalog: Array<{ provider: string; modelId: string; label?: string; enabled?: boolean }> = [];
   let models: Array<{ provider: string; modelId: string; featureScope: string; enabled: boolean }> = [];
   let defaults: Record<string, { provider: string; modelId: string }> = {};
+  try {
+    catalog = catalogConfig?.value ? JSON.parse(catalogConfig.value) : [];
+  } catch (_error) {
+    catalog = [];
+  }
   try {
     models = modelConfig?.value ? JSON.parse(modelConfig.value) : [];
   } catch (_error) {
@@ -277,7 +285,11 @@ const loadAiModelRegistry = async () => {
   } catch (_error) {
     defaults = {};
   }
-  return { models: Array.isArray(models) ? models : [], defaults: defaults || {} };
+  return {
+    catalog: Array.isArray(catalog) ? catalog : [],
+    models: Array.isArray(models) ? models : [],
+    defaults: defaults || {},
+  };
 };
 
 const resolveProviderAndModel = async (feature: string) => {
@@ -293,7 +305,7 @@ const resolveProviderAndModel = async (feature: string) => {
 
   const fallbackProvider = getActiveProvider();
   const fallbackModel = fallbackProvider === 'groq' ? getGroqConfig().model : getLocalLLMConfig().model;
-  const { models, defaults } = await loadAiModelRegistry();
+  const { catalog, models, defaults } = await loadAiModelRegistry();
 
   const defaultCandidate = defaults?.[feature];
   if (defaultCandidate?.provider && defaultCandidate?.modelId) {
@@ -310,6 +322,13 @@ const resolveProviderAndModel = async (feature: string) => {
   const firstEnabled = models.find((m) => m.featureScope === feature && m.enabled === true);
   if (firstEnabled) {
     return { provider: firstEnabled.provider as 'groq' | 'local', model: firstEnabled.modelId };
+  }
+
+  const firstCatalogByProvider = catalog.find(
+    (m) => m.provider === fallbackProvider && (m.enabled === undefined || m.enabled === true)
+  );
+  if (firstCatalogByProvider?.modelId) {
+    return { provider: fallbackProvider, model: String(firstCatalogByProvider.modelId) };
   }
 
   return { provider: fallbackProvider, model: fallbackModel };
@@ -330,14 +349,13 @@ async function callAI(messages: ChatMessage[], feature: string, systemPrompt?: s
 /**
  * GET /api/ai/chat — Health-check / info endpoint
  */
-router.get('/chat', authenticateToken, requireAdmin, (_req: Request, res: Response) => {
-  const provider = getActiveProvider();
-  const config = provider === 'groq' ? getGroqConfig() : getLocalLLMConfig();
+router.get('/chat', authenticateToken, requireAdmin, async (_req: Request, res: Response) => {
+  const resolved = await resolveProviderAndModel('chat');
   res.json({
     status: 'ok',
     message: 'AI Chat API is running!',
-    provider: provider === 'groq' ? 'Groq Cloud API' : 'Local LLM (OpenAI-compatible)',
-    model: provider === 'groq' ? (config as any).model : (config as any).model,
+    provider: resolved.provider === 'groq' ? 'Groq Cloud API' : 'Local LLM (OpenAI-compatible)',
+    model: resolved.model,
     endpoints: {
       test: 'GET /api/ai/chat',
       chat: 'POST /api/ai/chat',
@@ -589,6 +607,7 @@ Patient Symptoms: ${symptoms || 'Not provided'}
 
 Based on the above, suggest appropriate medications.`;
 
+    const resolved = await resolveProviderAndModel('suggest-medicine');
     const reply = await callAI(
       [{ role: 'user', content: userMessage }],
       'suggest-medicine',
@@ -611,7 +630,8 @@ Based on the above, suggest appropriate medications.`;
       success: true,
       suggestions,
       raw: reply,
-      provider: (await resolveProviderAndModel('suggest-medicine')).provider,
+      provider: resolved.provider,
+      model: resolved.model,
     });
   } catch (error: any) {
     console.error('[AI] suggest-medicine error:', error?.message);
@@ -667,6 +687,7 @@ Respond with a JSON object:
   "generalAdvice": "Any scheduling advice"
 }`;
 
+    const resolved = await resolveProviderAndModel('recommend-doctor');
     const reply = await callAI(
       [{ role: 'user', content: prompt }],
       'recommend-doctor',
@@ -685,7 +706,8 @@ Respond with a JSON object:
       success: true,
       ...parsed,
       raw: reply,
-      provider: (await resolveProviderAndModel('recommend-doctor')).provider,
+      provider: resolved.provider,
+      model: resolved.model,
     });
   } catch (error: any) {
     console.error('[AI] recommend-doctor error:', error?.message);

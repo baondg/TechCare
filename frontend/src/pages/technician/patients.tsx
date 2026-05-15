@@ -14,7 +14,8 @@ import { Calendar } from "@/components/ui/calendar"
 import { useNavigate } from "react-router-dom"
 import { Checkbox } from "@/components/ui/checkbox"
 import {Tooltip,TooltipContent,TooltipProvider,TooltipTrigger,} from "@/components/ui/tooltip"
-import { PATIENT_IN_DEPARTMENT_OPTIONS } from "@/lib/patient-departments"
+import { useTranslation } from "react-i18next"
+import { PATIENT_IN_DEPARTMENT_OPTIONS, translatePatientInDepartment } from "@/lib/patient-departments"
 
 
 type Patient = {
@@ -67,6 +68,7 @@ const ICD10_MAP: Record<string, string> = {
 
 export default function TechnicianPatients() {
     const navigate = useNavigate()
+    const { t } = useTranslation()
     const [patients, setPatients] = useState<Patient[]>([])
 
     useEffect(() => {
@@ -251,7 +253,7 @@ export default function TechnicianPatients() {
             ))}
             <span className="h-5 w-px shrink-0 bg-slate-200" aria-hidden />
             <div className="flex items-center gap-2 shrink-0">
-              <span className="text-xs font-medium text-slate-600 whitespace-nowrap">Department</span>
+              <span className="text-xs font-medium text-slate-600 whitespace-nowrap">{t("doctor.patients.department")}</span>
               <Select
                 value={filters.department}
                 onValueChange={(value) =>
@@ -262,28 +264,28 @@ export default function TechnicianPatients() {
                 }
               >
                 <SelectTrigger className="h-9 w-[min(12rem,42vw)] btn-outline text-sm">
-                  <SelectValue placeholder="All" />
+                  <SelectValue placeholder={t("doctor.patients.all")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="All">All</SelectItem>
+                  <SelectItem value="All">{t("doctor.patients.all")}</SelectItem>
                   {PATIENT_IN_DEPARTMENT_OPTIONS.map((d) => (
                     <SelectItem key={d} value={d}>
-                      {d}
+                      {translatePatientInDepartment(d, t)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <span className="text-xs font-medium text-slate-600 whitespace-nowrap">Status</span>
+              <span className="text-xs font-medium text-slate-600 whitespace-nowrap">{t("doctor.patients.status")}</span>
               <Select defaultValue="All">
                 <SelectTrigger className="h-9 w-[8.5rem] btn-outline text-sm">
-                  <SelectValue placeholder="All" />
+                  <SelectValue placeholder={t("doctor.patients.all")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="All">All</SelectItem>
-                  <SelectItem value="Active">Active</SelectItem>
-                  <SelectItem value="Recovered">Recovered</SelectItem>
+                  <SelectItem value="All">{t("doctor.patients.all")}</SelectItem>
+                  <SelectItem value="Active">{t("doctor.patients.active")}</SelectItem>
+                  <SelectItem value="Recovered">{t("doctor.patients.recovered")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>

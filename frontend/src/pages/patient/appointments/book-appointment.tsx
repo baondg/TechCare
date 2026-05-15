@@ -163,6 +163,7 @@ export default function BookAppointmentPage() {
       await appointmentService.createAppointment({
         doctorId: slot.doctorId,
         doctor: slot.doctor,
+        doctorId: slot.doctorId,
         department: slot.department,
         date: formattedDate,
         time: formattedTime,

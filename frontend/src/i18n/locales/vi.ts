@@ -161,6 +161,7 @@ const vi = {
       quantity: "SL: {{count}}",
       viewAllMedications: "Xem tất cả thuốc",
       recoveryProgress: "Tiến trình hồi phục",
+      recoveryComingSoon: "Sắp ra mắt",
       upcomingAppointments: "Lịch hẹn sắp tới",
       scheduledVisits: "Các lịch khám đã đặt",
       noUpcomingAppointments: "Không có lịch hẹn sắp tới.",

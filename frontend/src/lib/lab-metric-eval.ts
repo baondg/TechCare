@@ -14,13 +14,24 @@ type RefRange = {
   note?: string
 }
 
-/** Same normalization as PDF export / lab pages (strip diacritics, keep +). */
-export function normalizeLabMetricKey(raw: string): string {
-  return String(raw || "")
+function stripForLabKey(value: string): string {
+  return String(value || "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
-    .replace(/[^a-z0-9+]/g, "")
+    .replace(/[^a-z0-9+-]/g, "")
+    .replace(/-/g, "")
+}
+
+/** Same normalization as PDF export / lab pages (strip diacritics, keep +). */
+export function normalizeLabMetricKey(raw: string): string {
+  const text = String(raw || "").trim()
+  const paren = text.match(/\(([A-Za-z0-9+\-]+)\)\s*$/) ?? text.match(/\(([A-Za-z0-9+\-]+)\)/)
+  if (paren?.[1]) {
+    const inner = stripForLabKey(paren[1])
+    if (inner) return inner
+  }
+  return stripForLabKey(text)
 }
 
 /**
@@ -28,24 +39,99 @@ export function normalizeLabMetricKey(raw: string): string {
  * Example: "Protein T" → proteint → proteintp; "Natri" → natri → na+.
  */
 const LAB_KEY_ALIASES: Record<string, string> = {
+  summary: "summary",
   proteint: "proteintp",
   proteintoanphan: "proteintp",
   totalprotein: "proteintp",
+  proteintp: "proteintp",
   protein: "proteintp",
   natri: "na+",
   sodium: "na+",
   sodiu: "na+",
+  sodiumna: "na+",
+  "sodiumna+": "na+",
   kali: "k+",
   potassium: "k+",
+  potassiumk: "k+",
+  "potassiumk+": "k+",
   canxi: "calci",
   calcium: "calci",
   clo: "cl",
   chloride: "cl",
   chlorid: "cl",
+  chloridecl: "cl",
+  "chloridecl-": "cl",
+  ure: "ure",
+  urea: "ure",
+  creatinin: "creatinin",
+  creatinine: "creatinin",
+  aciduric: "aciduric",
+  uricacid: "aciduric",
+  bilirubintp: "bilirubintp",
+  bilirubintt: "bilirubintt",
+  bilirubingt: "bilirubingt",
+  totalbilirubin: "bilirubintp",
+  directbilirubin: "bilirubintt",
+  indirectbilirubin: "bilirubingt",
+  hdlcho: "hdlcho",
+  hdlcholesterol: "hdlcho",
+  hdl: "hdlcho",
+  ldlcho: "ldlcho",
+  ldlcholesterol: "ldlcho",
+  ldl: "ldlcho",
+  ast: "astgot",
+  astgot: "astgot",
+  got: "astgot",
+  alt: "altgpt",
+  altgpt: "altgpt",
+  gpt: "altgpt",
+  ggt: "ggt",
+  gammagt: "ggt",
+  amylase: "amylase",
+  sat: "sat",
+  iron: "sat",
+  fe: "sat",
+  magie: "magie",
+  magnesium: "magie",
+  calciionhoa: "calciionhoa",
+  ionizedcalcium: "calciionhoa",
+  globulin: "globulin",
+  tyleag: "tyleag",
+  ag: "tyleag",
+  agratio: "tyleag",
+  ck: "ck",
+  creatinekinase: "ck",
+  ckmb: "ckmb",
+  ldh: "ldh",
+  lactatedehydrogenase: "ldh",
+  glucose: "glucose",
+  glucozo: "glucozo",
+  arterialph: "arterialph",
+  ph: "arterialph",
+  phdongmach: "arterialph",
+  pco2: "pco2",
+  po2: "po2",
+  totalcholesterol: "totalcholesterol",
+  cholesterol: "totalcholesterol",
+  triglycerides: "triglycerides",
+  triglyceride: "triglycerides",
 }
 
 export function resolveLabMetricKey(normalized: string): string {
   return LAB_KEY_ALIASES[normalized] ?? normalized
+}
+
+/** Map TEST_DETAIL rows to canonical keys used by the blood-test form / PDF. */
+export function buildLabDetailMap(details: LabTestDetail[]): Map<string, LabTestDetail> {
+  const map = new Map<string, LabTestDetail>()
+  for (const d of details || []) {
+    const raw = normalizeLabMetricKey(d.itemIndex)
+    if (!raw || raw === "summary") continue
+    const canonical = resolveLabMetricKey(raw)
+    map.set(canonical, d)
+    if (canonical !== raw) map.set(raw, d)
+  }
+  return map
 }
 
 function parseFirstNumeric(raw: string): number | null {
@@ -70,6 +156,8 @@ export function getLabReferenceRange(indexName: string, ctx: LabMetricEvalContex
   const sex = String(ctx.gender || "").toUpperCase()
 
   if (key === "glucose" || key === "glucozo") return { min: 3.9, max: 5.6, note: "mmol/L" }
+  if (key === "ure") return { min: 2.5, max: 7.5, note: "mmol/L" }
+  if (key === "creatinin") return sex === "F" ? { min: 53, max: 100, note: "umol/L" } : { min: 62, max: 120, note: "umol/L" }
   if (key === "aciduric") return sex === "F" ? { min: 150, max: 360, note: "umol/L" } : { min: 210, max: 420, note: "umol/L" }
   if (key === "bilirubintp") return { min: 5, max: 21, note: "umol/L" }
   if (key === "bilirubintt") return { min: 0, max: 5, note: "umol/L" }
@@ -86,9 +174,19 @@ export function getLabReferenceRange(indexName: string, ctx: LabMetricEvalContex
   if (key === "calci") return { min: 2.1, max: 2.6, note: "mmol/L" }
   if (key === "calciionhoa") return { min: 1.12, max: 1.32, note: "mmol/L" }
   if (key === "ggt") return sex === "F" ? { min: 6, max: 42, note: "U/L" } : { min: 10, max: 71, note: "U/L" }
+  if (key === "astgot" || key === "ast") return { max: 37, note: "U/L" }
+  if (key === "altgpt" || key === "alt") return { max: 40, note: "U/L" }
   if (key === "amylase") return { min: 30, max: 110, note: "U/L" }
   if (key === "sat") return sex === "F" ? { min: 9, max: 30, note: "umol/L" } : { min: 11, max: 30, note: "umol/L" }
   if (key === "magie") return { min: 0.66, max: 1.07, note: "mmol/L" }
+  if (key === "ck") return sex === "F" ? { min: 24, max: 167, note: "U/L" } : { min: 24, max: 190, note: "U/L" }
+  if (key === "ckmb") return { max: 24, note: "U/L" }
+  if (key === "ldh") return { min: 230, max: 460, note: "U/L" }
+  if (key === "totalcholesterol") return { max: 5.2, note: "mmol/L" }
+  if (key === "triglycerides") return { max: 1.7, note: "mmol/L" }
+  if (key === "arterialph") return { min: 7.35, max: 7.45 }
+  if (key === "pco2") return { min: 35, max: 45, note: "mmHg" }
+  if (key === "po2") return { min: 80, max: 100, note: "mmHg" }
 
   return null
 }

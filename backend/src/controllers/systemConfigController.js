@@ -19,8 +19,8 @@ const CONFIG_DEFAULTS = {
   chatbotRateLimitWindowSeconds: '60',
   aiSymptomRateLimitRequests: '10',
   aiSymptomRateLimitWindowSeconds: '60',
-  appointmentRateLimitRequests: '10',
-  appointmentRateLimitWindowSeconds: '300',
+  appointmentRateLimitRequests: '60',
+  appointmentRateLimitWindowSeconds: '60',
   aiModels: '[]',
   aiDefaultModelByFeature: '{}',
 };

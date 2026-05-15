@@ -21,6 +21,8 @@ export interface Appointment {
 
 export interface CreateAppointmentData {
   doctor: string;
+  /** Prefer when booking from open-slot list (avoids name-order mismatch). */
+  doctorId?: number;
   department: string;
   date: string;
   time: string;

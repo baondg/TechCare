@@ -18,6 +18,7 @@ const BOOK_SUCCESS_NAV_DELAY_MS = 300 + 2600
 
 interface TimeSlot {
   id: number
+  doctorId: number
   time: string
   doctor: string
   department: string
@@ -149,6 +150,10 @@ export default function BookAppointmentPage() {
 
   const bookSlot = async (slot: TimeSlot) => {
     if (!slot.available || !user?.id) return
+    if (!Number.isFinite(slot.doctorId) || slot.doctorId <= 0) {
+      showError("Invalid doctor for this slot. Please refresh and try again.")
+      return
+    }
 
     setBookingSlotId(slot.id)
     try {
@@ -156,6 +161,7 @@ export default function BookAppointmentPage() {
       const formattedTime = `${slot.time}:00`
 
       await appointmentService.createAppointment({
+        doctorId: slot.doctorId,
         doctor: slot.doctor,
         department: slot.department,
         date: formattedDate,
@@ -208,14 +214,23 @@ export default function BookAppointmentPage() {
         if (!sameDate) return false
         return (slot.department || "").trim().toLowerCase() === selectedDepartmentLabel.trim().toLowerCase()
       })
-      .map((slot) => ({
-        id: slot.id,
-        time: String(slot.time || "").slice(0, 5),
-        doctor: `Dr. ${slot.doctorName}`.trim(),
-        department: slot.department || selectedDepartmentLabel,
-        room: slot.roomName || "",
-        available: true,
-      }))
+      .map((slot) => {
+        const name = String(slot.doctorName || "").trim()
+        const doctorLabel = name
+          ? /^dr\.?\s/i.test(name)
+            ? name
+            : `Dr. ${name}`
+          : "Dr."
+        return {
+          id: slot.id,
+          doctorId: Number(slot.doctorId),
+          time: String(slot.time || "").slice(0, 5),
+          doctor: doctorLabel,
+          department: slot.department || selectedDepartmentLabel,
+          room: slot.roomName || "",
+          available: true,
+        }
+      })
   }, [selectedDepartmentLabel, openSlots, selectedDate])
 
   return (

@@ -1305,6 +1305,21 @@ exports.getRecoveryPrediction = async (req, res) => {
   }
 };
 
+async function getDoctorById(doctorId) {
+  const id = Number(doctorId);
+  if (!Number.isFinite(id) || id <= 0) return null;
+  const rows = await sequelize.query(
+    `SELECT d.doctor_id, a.username, u.first_name, u.last_name, d.room_id
+     FROM DOCTOR d
+     JOIN ACCOUNT a ON a.user_id = d.user_id
+     JOIN USER u ON u.id = d.user_id
+     WHERE d.doctor_id = :doctorId
+     LIMIT 1`,
+    { replacements: { doctorId: id }, type: QueryTypes.SELECT }
+  );
+  return rows[0] || null;
+}
+
 async function getDoctorByInput(doctorInput) {
   const normalized = normalizeDoctorInput(doctorInput);
   const rows = await sequelize.query(
@@ -1315,6 +1330,7 @@ async function getDoctorByInput(doctorInput) {
      WHERE a.username = :raw
         OR a.username = :normalized
         OR TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))) = :normalized
+        OR TRIM(CONCAT(COALESCE(u.last_name,''), ' ', COALESCE(u.first_name,''))) = :normalized
      LIMIT 1`,
     {
       replacements: { raw: String(doctorInput || '').trim(), normalized },
@@ -1821,6 +1837,7 @@ exports.deleteOpenSlot = async (req, res) => {
 exports.createAppointment = async (req, res) => {
   const {
       doctor,
+      doctorId: doctorIdRaw,
       department,
       date,
       time,
@@ -1831,8 +1848,9 @@ exports.createAppointment = async (req, res) => {
     rescheduleFromId,
   } = req.body;
   const userId = req.user.userId;
+  const doctorIdNum = Number(doctorIdRaw);
 
-  if (!doctor || !department || !date || !time) {
+  if ((!doctor && !(Number.isFinite(doctorIdNum) && doctorIdNum > 0)) || !department || !date || !time) {
     return res.status(400).json({ message: 'Missing required fields' });
   }
 
@@ -1868,7 +1886,10 @@ exports.createAppointment = async (req, res) => {
       }
     }
 
-    doctorRow = await getDoctorByInput(doctor);
+    doctorRow =
+      Number.isFinite(doctorIdNum) && doctorIdNum > 0
+        ? await getDoctorById(doctorIdNum)
+        : await getDoctorByInput(doctor);
     if (!doctorRow) {
       if (t) await t.rollback();
       return res.status(400).json({ message: 'Doctor not found' });

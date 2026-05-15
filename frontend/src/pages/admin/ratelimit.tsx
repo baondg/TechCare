@@ -31,7 +31,22 @@ const RATE_LIMIT_FORM_DEFAULTS = {
 }
 
 export default function RateLimitConfig() {
-  const [config, setConfig] = useState({ ...RATE_LIMIT_FORM_DEFAULTS })
+  const [config, setConfig] = useState({
+    apiRateLimit: "100",
+    apiTimeWindow: "60",
+    chatbotRateLimit: "20",
+    chatbotTimeWindow: "60",
+    aiSymptomRateLimit: "10",
+    aiSymptomTimeWindow: "60",
+    appointmentRateLimit: "60",
+    appointmentTimeWindow: "60",
+    loginRateLimit: "5",
+    loginTimeWindow: "15",
+    registrationRateLimit: "3",
+    registrationTimeWindow: "60",
+    ipBasedLimit: true,
+    enabled: true,
+  })
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<{ type: 'error', text: string } | null>(null)
   const token = localStorage.getItem("authToken")

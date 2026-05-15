@@ -26,6 +26,7 @@ import {
 import { generateBloodTestPdfBlob } from "@/lib/export-blood-test-pdf"
 import { signingLineFromIso, stampPdfWithExportFooter } from "@/lib/pdf-export-stamp"
 import { evaluateLabMetric } from "@/lib/lab-metric-eval"
+import { orderLabDetailsForDisplay } from "@/lib/lab-blood-test-form"
 import { useEmrSession } from "@/contexts/emr-session-context"
 import { format, isValid, parse } from "date-fns"
 
@@ -298,7 +299,7 @@ export default function PatientLab() {
     setDetailLoading(true)
     try {
       const res = await doctorService.getLabTestDetails(patientId, selected.id)
-      setDetailRows(res.details || [])
+      setDetailRows(orderLabDetailsForDisplay(res.details || []))
     } catch (error) {
       console.error(error)
       alert(error instanceof Error ? error.message : "Cannot load test details")

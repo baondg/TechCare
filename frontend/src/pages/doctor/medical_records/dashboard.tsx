@@ -2,7 +2,7 @@
 
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Calendar, Pill, Activity, Clock, ChevronRight, User } from "lucide-react"
+import { Calendar, Pill, Clock, ChevronRight, User, TrendingUp } from "lucide-react"
 import { Link } from "react-router-dom";
 import { CollapsibleSection } from "@/components/collapsible-section"
 import { useEffect, useMemo, useState } from "react";
@@ -67,69 +67,19 @@ export default function ViewingPatientDashboard() {
   return (
     <div>
       <div className="relative space-y-8 pb-12">
-        {/* Header Section */}
+        <Card className="card-feature-group overflow-hidden rounded-xl border border-slate-200/80 shadow-sm">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <TrendingUp className="h-5 w-5 text-cyan-600" aria-hidden />
+              <h3 className="text-lg font-semibold text-slate-900">Recovery Progress</h3>
+            </div>
+            <div className="flex flex-col items-center justify-center text-center min-h-[140px] py-4">
+              <TrendingUp className="h-10 w-10 text-cyan-500/60 mb-3" aria-hidden />
+              <p className="text-base font-medium text-slate-600">Coming soon</p>
+            </div>
+          </CardContent>
+        </Card>
 
-        {/* Quick Stats Cards */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-          <Link to="/patient/medical-record">
-            <Card className="card-feature card-feature-hover cursor-pointer h-full group border-r border-white/40 sticky top-16 bg-white/80 backdrop-blur-xl shadow-[4px_0_20px_rgba(0,0,0,0.05)] z-40">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="card-icon-wrapper">
-                    <Activity className="h-7 w-7" />
-                  </div>
-                  <ChevronRight className="h-5 w-5 text-slate-400 group-hover:text-cyan-500 transition-colors" />
-                </div>
-                <h3 className="text-sm font-medium text-slate-500 mb-1"></h3>
-                <div className="text-2xl font-bold text-slate-900 mb-1"></div>
-                <p className="text-sm text-slate-600"></p>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Card className="col-span-3 card-feature card-feature-hover cursor-pointer h-full group border-r border-white/40 sticky top-16 bg-white/80 backdrop-blur-xl shadow-[4px_0_20px_rgba(0,0,0,0.05)] z-40">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                {/* <div>
-                  <div className="flex items-start justify-between">
-                    <div className="card-icon-wrapper">
-                      <TrendingUp className="h-7 w-7" />
-                    </div>
-                    <ChevronRight className="absolute top-6 right-6 h-5 w-5 text-slate-400 group-hover:text-cyan-500 transition-colors" />
-                  </div>
-                  <h3 className="text-sm font-medium text-slate-500">
-                    Recovery Progress
-                  </h3>
-                  <p className="text-xl font-semibold text-slate-900">
-                    Estimated full recovery in 5-7 days
-                  </p>
-                </div> */}
-              </div>
-
-              {/* Progress bar */}
-              {/* <div className="space-y-3">
-                <div className="flex justify-between text-sm font-medium">
-                  <span>Overall Recovery</span>
-                  <span className="text-cyan-600">75%</span>
-                </div>
-
-                <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-linear-to-r from-cyan-400 to-cyan-600"
-                    style={{ width: "75%" }}
-                  />
-                </div>
-
-                <p className="text-sm text-slate-600">
-                  Based on your current treatment and recovery trend, you are responding
-                  very well.
-                </p>
-              </div> */}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Upcoming Appointments Section */}
         <CollapsibleSection 
           title="Upcoming Appointments" 
           description="Your scheduled visits" 
@@ -180,9 +130,7 @@ export default function ViewingPatientDashboard() {
           </Button>
         </CollapsibleSection>
 
-        {/* Two Column Layout */}
         <div className="grid gap-6 lg:grid-cols-2">
-          {/* Active Medications */}
           <CollapsibleSection
             title="Active Prescriptions"
             description="Currently prescribed medications"

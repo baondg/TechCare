@@ -2,6 +2,14 @@ import html2canvas from "html2canvas"
 import { jsPDF } from "jspdf"
 import type { LabTestDetail } from "@/services/doctor-service"
 import {
+  BLOOD_TEST_LEFT,
+  BLOOD_TEST_RIGHT,
+  chooseBloodTestRef,
+  getUnmappedLabDetails,
+  type BloodTestMetricDef,
+} from "@/lib/lab-blood-test-form"
+import {
+  buildLabDetailMap,
   evaluateLabMetric,
   normalizeLabMetricKey,
   parseLabNumericValue,
@@ -21,14 +29,6 @@ export type BloodTestPdfInput = {
   filename?: string
   /** Hiển thị dưới dòng ngày tháng, trên dòng chức danh ký */
   signingTimeDisplay?: string
-}
-
-type MetricDef = {
-  label: string
-  keys: string[]
-  refMale?: string
-  refFemale?: string
-  refCommon?: string
 }
 
 function escapeHtml(s: string): string {
@@ -59,46 +59,6 @@ function parseRefRange(raw: string): { min?: number; max?: number } | null {
   return null
 }
 
-const LEFT: MetricDef[] = [
-  { label: "Urê", keys: ["ure"], refCommon: "2.5 - 7.5 mmol/L" },
-  { label: "Glucose", keys: ["glucose", "glucozo"], refCommon: "3.9 - 6.4 mmol/L" },
-  { label: "Creatinin", keys: ["creatinin"], refMale: "62 - 120 umol/L", refFemale: "53 - 100 umol/L" },
-  { label: "Acid Uric", keys: ["aciduric"], refMale: "180 - 420 umol/L", refFemale: "150 - 360 umol/L" },
-  { label: "Bilirubin T.P", keys: ["bilirubintp"], refCommon: "≤ 17 umol/L" },
-  { label: "Bilirubin T.T", keys: ["bilirubintt"], refCommon: "≤ 4.3 umol/L" },
-  { label: "Bilirubin G.T", keys: ["bilirubingt"], refCommon: "≤ 12.7 umol/L" },
-  { label: "Protein T.P", keys: ["proteintp"], refCommon: "65 - 82 g/L" },
-  { label: "Albumin", keys: ["albumin"], refCommon: "35 - 50 g/L" },
-  { label: "Globulin", keys: ["globulin"], refCommon: "24 - 38 g/L" },
-  { label: "Tỷ lệ A/G", keys: ["tyleag", "ag"], refCommon: "1.3 - 1.8" },
-  { label: "HDL-cho", keys: ["hdlcho"], refCommon: "≥ 0.9 mmol/L" },
-  { label: "LDL-cho", keys: ["ldlcho"], refCommon: "≤ 3.4 mmol/L" },
-  { label: "Na+", keys: ["na+"], refCommon: "135 - 145 mmol/L" },
-  { label: "K+", keys: ["k+"], refCommon: "3.5 - 5.0 mmol/L" },
-  { label: "Cl-", keys: ["cl"], refCommon: "98 - 106 mmol/L" },
-  { label: "Calci", keys: ["calci"], refCommon: "2.15 - 2.6 mmol/L" },
-  { label: "Calci ion hoá", keys: ["calciionhoa"], refCommon: "1.17 - 1.29 mmol/L" },
-]
-
-const RIGHT: MetricDef[] = [
-  { label: "Sắt", keys: ["sat"], refMale: "11 - 27 umol/L", refFemale: "7 - 26 umol/L" },
-  { label: "Magiê", keys: ["magie"], refCommon: "0.8 - 1.00 mmol/L" },
-  { label: "AST (GOT)", keys: ["astgot", "ast"], refCommon: "≤ 37 U/L" },
-  { label: "ALT (GPT)", keys: ["altgpt", "alt"], refCommon: "≤ 40 U/L" },
-  { label: "Amylase", keys: ["amylase"], refCommon: "" },
-  { label: "CK", keys: ["ck"], refMale: "24 - 190 U/L", refFemale: "24 - 167 U/L" },
-  { label: "CK-MB", keys: ["ckmb"], refCommon: "≤ 24 U/L" },
-  { label: "LDH", keys: ["ldh"], refCommon: "230 - 460 U/L" },
-  { label: "GGT", keys: ["ggt"], refMale: "11 - 50 U/L", refFemale: "7 - 32 U/L" },
-]
-
-function chooseRef(def: MetricDef, gender: string) {
-  const g = String(gender || "").toUpperCase()
-  if (g === "M") return def.refMale || def.refCommon || ""
-  if (g === "F") return def.refFemale || def.refCommon || ""
-  return def.refCommon || def.refMale || def.refFemale || ""
-}
-
 /** Fallback when a row is not in the shared lab reference map (e.g. creatinin). */
 function evaluateAbnormalFromRefText(value: number | null, refText: string): boolean {
   if (value === null || !refText) return false
@@ -110,17 +70,18 @@ function evaluateAbnormalFromRefText(value: number | null, refText: string): boo
 }
 
 function buildMetricCell(
-  def: MetricDef,
+  def: BloodTestMetricDef,
   map: Map<string, LabTestDetail>,
   gender: string,
   genderRaw: string | null | undefined
 ): string {
   const detail = def.keys.map((k) => map.get(k)).find(Boolean) || null
-  const ref = chooseRef(def, gender)
   const ctx = { gender: genderRaw ?? null }
+  let ref = chooseBloodTestRef(def, gender)
   let abnormal = false
   if (detail) {
     const ev = evaluateLabMetric(detail, ctx)
+    if (!ref && ev.referenceText !== "N/A") ref = ev.referenceText
     if (ev.status !== "unknown") abnormal = ev.abnormal
     else abnormal = evaluateAbnormalFromRefText(parseLabNumericValue(detail), ref)
   }
@@ -169,23 +130,41 @@ export async function generateBloodTestPdfBlob(input: BloodTestPdfInput): Promis
       ? `<div style="font-size:10px;font-style:italic;margin:4px 0 6px">${escapeHtml(String(input.signingTimeDisplay).trim())}</div>`
       : ""
 
-  const map = new Map<string, LabTestDetail>()
-  for (const d of input.details || []) {
-    const k = normalizeLabMetricKey(d.itemIndex)
-    const r = resolveLabMetricKey(k)
-    map.set(k, d)
-    if (r !== k) map.set(r, d)
-  }
+  const map = buildLabDetailMap(input.details || [])
   const gender = String(input.gender || "").toUpperCase()
 
-  const rows = Array.from({ length: Math.max(LEFT.length, RIGHT.length) }, (_, i) => {
-    const left = LEFT[i]
-    const right = RIGHT[i]
+  const formRows = Array.from({ length: Math.max(BLOOD_TEST_LEFT.length, BLOOD_TEST_RIGHT.length) }, (_, i) => {
+    const left = BLOOD_TEST_LEFT[i]
+    const right = BLOOD_TEST_RIGHT[i]
     return `<tr>
       ${left ? buildMetricCell(left, map, gender, input.gender) : "<td></td><td></td><td></td>"}
       ${right ? buildMetricCell(right, map, gender, input.gender) : "<td></td><td></td><td></td>"}
     </tr>`
   }).join("")
+
+  const unmapped = getUnmappedLabDetails(input.details || [])
+  const extraRows = Array.from({ length: Math.ceil(unmapped.length / 2) }, (_, i) => {
+    const leftDetail = unmapped[i * 2]
+    const rightDetail = unmapped[i * 2 + 1]
+    const leftDef: BloodTestMetricDef | null = leftDetail
+      ? {
+          label: leftDetail.itemIndex,
+          keys: [resolveLabMetricKey(normalizeLabMetricKey(leftDetail.itemIndex))],
+        }
+      : null
+    const rightDef: BloodTestMetricDef | null = rightDetail
+      ? {
+          label: rightDetail.itemIndex,
+          keys: [resolveLabMetricKey(normalizeLabMetricKey(rightDetail.itemIndex))],
+        }
+      : null
+    return `<tr>
+      ${leftDef ? buildMetricCell(leftDef, map, gender, input.gender) : "<td></td><td></td><td></td>"}
+      ${rightDef ? buildMetricCell(rightDef, map, gender, input.gender) : "<td></td><td></td><td></td>"}
+    </tr>`
+  }).join("")
+
+  const rows = formRows + extraRows
 
   const line = (minWidthPx: number, text?: string) => {
     const t = String(text ?? "").trim()

@@ -2,8 +2,8 @@
 
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Calendar, Pill, Activity, Clock, ChevronRight, User } from "lucide-react"
-import { Link } from "react-router-dom";
+import { Calendar, Pill, Clock, ChevronRight, User, TrendingUp } from "lucide-react"
+import { Link } from "react-router-dom"
 import { CollapsibleSection } from "@/components/collapsible-section"
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
@@ -60,7 +60,7 @@ export default function ViewingPatientDashboard() {
 
   const togglePrescription = (id: number) => {
     setOpenPrescriptions((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     )
   }
 
@@ -92,10 +92,9 @@ export default function ViewingPatientDashboard() {
           </div>
         </div>
 
-        {/* Upcoming Appointments Section */}
-        <CollapsibleSection 
-          title="Upcoming Appointments" 
-          description="Your scheduled visits" 
+        <CollapsibleSection
+          title="Upcoming Appointments"
+          description="Your scheduled visits"
           defaultOpen={true}
         >
           <div className="space-y-4">
@@ -143,9 +142,7 @@ export default function ViewingPatientDashboard() {
           </Button>
         </CollapsibleSection>
 
-        {/* Two Column Layout */}
         <div className="grid gap-6 lg:grid-cols-2">
-          {/* Active Medications */}
           <CollapsibleSection
             title="Active Prescriptions"
             description="Currently prescribed medications"
@@ -174,28 +171,19 @@ export default function ViewingPatientDashboard() {
                         className="w-full flex items-center justify-between text-left"
                       >
                         <div>
-                          <p className="font-semibold text-slate-900">
-                            Prescription # {dateLabel}
-                          </p>
-                          <p className="text-sm text-slate-500">
-                            {rx.doctorName}
-                          </p>
+                          <p className="font-semibold text-slate-900">Prescription # {dateLabel}</p>
+                          <p className="text-sm text-slate-500">{rx.doctorName}</p>
                         </div>
 
                         <ChevronRight
-                          className={`h-4 w-4 transition-transform ${
-                            isOpen ? "rotate-90" : ""
-                          }`}
+                          className={`h-4 w-4 transition-transform ${isOpen ? "rotate-90" : ""}`}
                         />
                       </button>
 
                       {isOpen && (
                         <div className="pt-2 space-y-2 border-t">
                           {rx.medications.map((med, i) => (
-                            <div
-                              key={i}
-                              className="flex items-center justify-between text-sm"
-                            >
+                            <div key={i} className="flex items-center justify-between text-sm">
                               <div>
                                 <p className="font-medium">{med.name}</p>
                                 <p className="text-slate-500">
@@ -224,7 +212,7 @@ export default function ViewingPatientDashboard() {
           0% { transform: translateX(-100%); }
           100% { transform: translateX(100%); }
         }
-        
+
         .animate-shimmer {
           animation: shimmer 2s infinite;
         }
@@ -233,7 +221,7 @@ export default function ViewingPatientDashboard() {
           0%, 100% { background-position: 0% 50%; }
           50% { background-position: 100% 50%; }
         }
-        
+
         .animate-gradient {
           background-size: 200% 200%;
           animation: gradient 3s ease infinite;

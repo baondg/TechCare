@@ -357,6 +357,7 @@ const en = {
       quantity: "Qty: {{count}}",
       viewAllMedications: "View All Medications",
       recoveryProgress: "Recovery Progress",
+      recoveryComingSoon: "Coming soon",
       upcomingAppointments: "Upcoming Appointments",
       scheduledVisits: "Your scheduled visits",
       noUpcomingAppointments: "No upcoming appointments.",

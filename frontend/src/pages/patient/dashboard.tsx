@@ -13,17 +13,11 @@ import {
   ChevronRight,
   User,
   TestTube,
-  RefreshCw,
-  AlertCircle,
 } from "lucide-react"
 import { Link } from "react-router-dom"
 import { PatientLayout } from "@/components/patient-layout"
 import { CollapsibleSection } from "@/components/collapsible-section"
-import {
-  appointmentService,
-  type PatientDashboardSummary,
-  type RecoveryPrediction,
-} from "@/services/appointment-service"
+import { appointmentService, type PatientDashboardSummary } from "@/services/appointment-service"
 import { useTranslation } from "react-i18next"
 import { getReadableApiError, cn } from "@/lib/utils"
 import { RecoveryTimelineVisual } from "@/components/recovery-timeline-visual"

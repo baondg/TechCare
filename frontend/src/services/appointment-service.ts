@@ -24,7 +24,7 @@ export interface Appointment {
 
 export interface CreateAppointmentData {
   doctor: string;
-  /** From GET /api/appointments/open-slots — preferred so the server resolves the doctor by PK (display names can vary). */
+  /** Prefer when booking from open-slot list (avoids name-order mismatch). */
   doctorId?: number;
   department: string;
   date: string;

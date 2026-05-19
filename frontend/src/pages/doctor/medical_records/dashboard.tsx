@@ -2,7 +2,7 @@
 
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Calendar, Pill, Activity, Clock, ChevronRight, User } from "lucide-react"
+import { Calendar, Pill, Clock, ChevronRight, User, TrendingUp } from "lucide-react"
 import { Link } from "react-router-dom";
 import { CollapsibleSection } from "@/components/collapsible-section"
 import { useEffect, useMemo, useState } from "react";
@@ -93,7 +93,6 @@ export default function ViewingPatientDashboard() {
           </div>
         </div>
 
-        {/* Upcoming Appointments Section */}
         <CollapsibleSection 
           title="Upcoming Appointments" 
           description="Your scheduled visits" 
@@ -144,9 +143,7 @@ export default function ViewingPatientDashboard() {
           </Button>
         </CollapsibleSection>
 
-        {/* Two Column Layout */}
         <div className="grid gap-6 lg:grid-cols-2">
-          {/* Active Medications */}
           <CollapsibleSection
             title="Active Prescriptions"
             description="Currently prescribed medications"

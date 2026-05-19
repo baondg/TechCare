@@ -3,13 +3,46 @@ const defineSystemConfig = require('../models/SystemConfig');
 const SystemConfig = defineSystemConfig(sequelize);
 const Session = require('../models/Session');
 const { Op } = require('sequelize');
-const {
-  CONFIG_DEFAULTS,
-  NUMERIC_CONFIG_RULES,
-  BOOLEAN_CONFIG_KEYS,
-  JSON_CONFIG_KEYS,
-  isLegacySystemConfigSchemaError,
-} = require('../config/systemConfigurationContract');
+
+const CONFIG_DEFAULTS = {
+  maxConcurrentUsers: '500',
+  sessionTimeoutMinutes: '30',
+  rateLimitEnabled: 'true',
+  rateLimitIpBased: 'true',
+  globalRateLimitRequests: '100',
+  globalRateLimitWindowSeconds: '60',
+  loginRateLimitRequests: '100',
+  loginRateLimitWindowSeconds: '900',
+  registrationRateLimitRequests: '20',
+  registrationRateLimitWindowSeconds: '3600',
+  chatbotRateLimitRequests: '20',
+  chatbotRateLimitWindowSeconds: '60',
+  aiSymptomRateLimitRequests: '10',
+  aiSymptomRateLimitWindowSeconds: '60',
+  appointmentRateLimitRequests: '60',
+  appointmentRateLimitWindowSeconds: '60',
+  aiModels: '[]',
+  aiDefaultModelByFeature: '{}',
+};
+
+const NUMERIC_CONFIG_RULES = {
+  maxConcurrentUsers: { min: 1, max: 100000 },
+  sessionTimeoutMinutes: { min: 5, max: 10080 },
+  globalRateLimitRequests: { min: 1, max: 100000 },
+  globalRateLimitWindowSeconds: { min: 1, max: 86400 },
+  loginRateLimitRequests: { min: 1, max: 1000 },
+  loginRateLimitWindowSeconds: { min: 30, max: 86400 },
+  registrationRateLimitRequests: { min: 1, max: 1000 },
+  registrationRateLimitWindowSeconds: { min: 30, max: 86400 },
+  chatbotRateLimitRequests: { min: 1, max: 10000 },
+  chatbotRateLimitWindowSeconds: { min: 1, max: 86400 },
+  aiSymptomRateLimitRequests: { min: 1, max: 10000 },
+  aiSymptomRateLimitWindowSeconds: { min: 1, max: 86400 },
+  appointmentRateLimitRequests: { min: 1, max: 10000 },
+  appointmentRateLimitWindowSeconds: { min: 1, max: 86400 },
+};
+
+const BOOLEAN_CONFIG_KEYS = new Set(['rateLimitEnabled', 'rateLimitIpBased']);
 
 const toBooleanString = (value) => {
   if (value === true || value === 1 || value === '1' || String(value).toLowerCase() === 'true') return 'true';

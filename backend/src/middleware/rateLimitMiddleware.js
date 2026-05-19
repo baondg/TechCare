@@ -143,6 +143,77 @@ async function incrementDistributedRateLimit(key, ttlSeconds) {
   };
 }
 
+const SCOPE_CONFIG_KEYS = {
+  global: {
+    max: 'globalRateLimitRequests',
+    window: 'globalRateLimitWindowSeconds',
+  },
+  login: {
+    max: 'loginRateLimitRequests',
+    window: 'loginRateLimitWindowSeconds',
+  },
+  registration: {
+    max: 'registrationRateLimitRequests',
+    window: 'registrationRateLimitWindowSeconds',
+  },
+  chatbot: {
+    max: 'chatbotRateLimitRequests',
+    window: 'chatbotRateLimitWindowSeconds',
+  },
+  aiSymptom: {
+    max: 'aiSymptomRateLimitRequests',
+    window: 'aiSymptomRateLimitWindowSeconds',
+  },
+  aiRecovery: {
+    max: 'aiSymptomRateLimitRequests',
+    window: 'aiSymptomRateLimitWindowSeconds',
+  },
+  appointment: {
+    max: 'appointmentRateLimitRequests',
+    window: 'appointmentRateLimitWindowSeconds',
+  },
+};
+
+const GLOBAL_TOGGLE_KEYS = ['rateLimitEnabled', 'rateLimitIpBased'];
+
+const envScopeOverride = (scope, field, fallback) => {
+  const envKey = `${String(scope).toUpperCase()}_RATE_LIMIT_${field === 'max' ? 'MAX' : 'WINDOW_SECONDS'}`;
+  return parsePositiveInt(process.env[envKey], fallback);
+};
+
+const loadKeyValueRateLimitPolicy = async (scope, defaults) => {
+  const scopeKeys = SCOPE_CONFIG_KEYS[scope];
+  if (!scopeKeys) return null;
+
+  const queryKeys = [...GLOBAL_TOGGLE_KEYS, scopeKeys.max, scopeKeys.window];
+  const rows = await sequelize.query(
+    `SELECT \`key\` AS configKey, value
+     FROM SYSTEM_CONFIGURATION
+     WHERE \`key\` IN (:keys)`,
+    { replacements: { keys: queryKeys }, type: sequelize.QueryTypes.SELECT }
+  );
+  if (!rows?.length) return null;
+
+  const configMap = {};
+  for (const row of rows) {
+    configMap[row.configKey] = row.value;
+  }
+
+  const enabled = parseBoolean(configMap.rateLimitEnabled, true);
+  const ipBasedLimit = parseBoolean(configMap.rateLimitIpBased, true);
+  let maxRequests = parsePositiveInt(configMap[scopeKeys.max], defaults.maxRequests);
+  let windowSeconds = parsePositiveInt(configMap[scopeKeys.window], defaults.windowSeconds);
+
+  maxRequests = envScopeOverride(scope, 'max', maxRequests);
+  windowSeconds = envScopeOverride(scope, 'window', windowSeconds);
+
+  if (process.env.NODE_ENV === 'development' && parseBoolean(process.env.RATE_LIMIT_RELAXED, false)) {
+    maxRequests = Math.max(maxRequests, defaults.maxRequests * 10);
+  }
+
+  return { enabled, ipBasedLimit, maxRequests, windowSeconds };
+};
+
 const getIdentifier = (req, ipBasedLimit) => {
   if (ipBasedLimit) {
     return req.ip || req.connection.remoteAddress || 'unknown';
@@ -159,28 +230,12 @@ const getIdentifier = (req, ipBasedLimit) => {
   }
 };
 
-const loadLegacyRowPolicy = async (scope, defaults) => {
-  const rows = await sequelize.query(
-    `SELECT rate_limit AS rateLimit, access_limit AS accessLimit
-     FROM SYSTEM_CONFIGURATION
-     ORDER BY id DESC
-     LIMIT 1`,
-    { type: sequelize.QueryTypes.SELECT }
-  );
-  const row = rows[0] || null;
-  const derivedMax = row
-    ? parsePositiveInt(
-        scope === 'global' ? row.accessLimit ?? row.rateLimit : row.rateLimit,
-        defaults.maxRequests
-      )
-    : defaults.maxRequests;
-  return {
-    enabled: true,
-    ipBasedLimit: true,
-    maxRequests: derivedMax,
-    windowSeconds: defaults.windowSeconds,
-  };
-};
+const fallbackPolicy = (scope, defaults) => ({
+  enabled: true,
+  ipBasedLimit: true,
+  maxRequests: envScopeOverride(scope, 'max', defaults.maxRequests),
+  windowSeconds: envScopeOverride(scope, 'window', defaults.windowSeconds),
+});
 
 const loadRateLimitPolicy = async (scope, defaults) => {
   const now = Date.now();
@@ -188,46 +243,47 @@ const loadRateLimitPolicy = async (scope, defaults) => {
   const cached = policyCache.get(cacheKey);
   if (cached && cached.expiresAt > now) return cached.policy;
   if (systemConfigurationUnavailableUntil > now) {
-    return {
-      enabled: true,
-      ipBasedLimit: true,
-      maxRequests: defaults.maxRequests,
-      windowSeconds: defaults.windowSeconds,
-    };
+    return fallbackPolicy(scope, defaults);
   }
   try {
-    const keys = getRateLimitQueryKeysForScope(scope);
-    const configs = await SystemConfig.findAll({
-      where: { key: { [Op.in]: keys } },
-      attributes: ['key', 'value'],
-    });
-    const map = { ...CONFIG_DEFAULTS };
-    for (const item of configs) {
-      if (item && item.key != null && item.value !== undefined && item.value !== null) {
-        map[item.key] = String(item.value);
+    try {
+      const kvPolicy = await loadKeyValueRateLimitPolicy(scope, defaults);
+      if (kvPolicy) {
+        policyCache.set(cacheKey, { policy: kvPolicy, expiresAt: now + POLICY_CACHE_TTL_MS });
+        return kvPolicy;
+      }
+    } catch (kvError) {
+      if (kvError?.original?.code !== 'ER_NO_SUCH_TABLE' && kvError?.original?.code !== 'ER_BAD_FIELD_ERROR') {
+        throw kvError;
       }
     }
-    const policy = buildRateLimitPolicyFromKvMap(map, scope, defaults);
+
+    const rows = await sequelize.query(
+      `SELECT rate_limit AS rateLimit, access_limit AS accessLimit
+       FROM SYSTEM_CONFIGURATION
+       ORDER BY time DESC, id DESC
+       LIMIT 1`,
+      { type: sequelize.QueryTypes.SELECT }
+    );
+    const row = rows[0] || null;
+    const derivedMax = row
+      ? parsePositiveInt(
+          scope === 'global' ? row.accessLimit ?? row.rateLimit : row.rateLimit,
+          defaults.maxRequests
+        )
+      : defaults.maxRequests;
+    const policy = {
+      enabled: true,
+      ipBasedLimit: true,
+      maxRequests: envScopeOverride(scope, 'max', derivedMax),
+      windowSeconds: envScopeOverride(scope, 'window', defaults.windowSeconds),
+    };
     policyCache.set(cacheKey, { policy, expiresAt: now + POLICY_CACHE_TTL_MS });
     return policy;
   } catch (error) {
-    if (isLegacySystemConfigSchemaError(error)) {
-      try {
-        const policy = await loadLegacyRowPolicy(scope, defaults);
-        policyCache.set(cacheKey, { policy, expiresAt: now + POLICY_CACHE_TTL_MS });
-        return policy;
-      } catch (legacyError) {
-        if (isLegacySystemConfigSchemaError(legacyError)) {
-          systemConfigurationUnavailableUntil = now + POLICY_CACHE_TTL_MS;
-          return {
-            enabled: true,
-            ipBasedLimit: true,
-            maxRequests: defaults.maxRequests,
-            windowSeconds: defaults.windowSeconds,
-          };
-        }
-        throw legacyError;
-      }
+    if (error?.original?.code === 'ER_NO_SUCH_TABLE' || error?.original?.code === 'ER_BAD_FIELD_ERROR') {
+      systemConfigurationUnavailableUntil = now + POLICY_CACHE_TTL_MS;
+      return fallbackPolicy(scope, defaults);
     }
     throw error;
   }
@@ -328,7 +384,7 @@ exports.aiRecoveryRateLimit = buildRateLimiter(
 );
 exports.appointmentRateLimit = buildRateLimiter(
   'appointment',
-  { maxRequests: 10, windowSeconds: 5 * 60 },
+  { maxRequests: 60, windowSeconds: 60 },
   'Too many appointment requests. Please try again later.'
 );
 

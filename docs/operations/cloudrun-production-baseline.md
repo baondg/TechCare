@@ -22,7 +22,7 @@ Key runtime controls:
 - `ENABLE_DISTRIBUTED_RATE_LIMIT=1` for multi-instance rate-limit consistency
 - `ENABLE_PATIENT_RECORD_CACHE=1` and `REDIS_URL=redis://...` for cache path
 - `CORS_ALLOWED_ORIGINS=https://app.<domain>` for browser production origin
-- `BENCHMARK_RATE_LIMIT_BYPASS=1` + `x-benchmark-run: 1` for benchmark-only bypass
+- Default production: `BENCHMARK_RATE_LIMIT_BYPASS=0`. For isolated load testing only: `BENCHMARK_RATE_LIMIT_BYPASS=1` + `x-benchmark-run: 1` (strip this header at the edge in real production).
 
 ## Deployment Procedure
 

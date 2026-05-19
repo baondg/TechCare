@@ -1,9 +1,8 @@
 "use client"
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   Calendar,
@@ -27,53 +26,7 @@ import {
 } from "@/services/appointment-service"
 import { useTranslation } from "react-i18next"
 import { getReadableApiError, cn } from "@/lib/utils"
-
-function RecoveryTimelineVisual({ pct, caption }: { pct: number; caption: string }) {
-  const uid = useId().replace(/[^a-zA-Z0-9]/g, "")
-  const gradId = `recoveryGrad-${uid}`
-  const r = 38
-  const c = 2 * Math.PI * r
-  const safePct = Math.min(100, Math.max(0, Math.round(pct)))
-  const dash = (safePct / 100) * c
-
-  return (
-    <div className="flex flex-col sm:flex-row items-center gap-5">
-      <div className="relative h-[108px] w-[108px] shrink-0">
-        <svg className="h-full w-full -rotate-90" viewBox="0 0 100 100" aria-hidden>
-          <circle cx="50" cy="50" r={r} fill="none" className="stroke-slate-200" strokeWidth="10" />
-          <circle
-            cx="50"
-            cy="50"
-            r={r}
-            fill="none"
-            stroke={`url(#${gradId})`}
-            strokeWidth="10"
-            strokeLinecap="round"
-            strokeDasharray={`${dash} ${c}`}
-          />
-          <defs>
-            <linearGradient id={gradId} x1="0" x2="1" y1="0" y2="1">
-              <stop offset="0%" stopColor="#06b6d4" />
-              <stop offset="100%" stopColor="#0891b2" />
-            </linearGradient>
-          </defs>
-        </svg>
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <span className="text-xl font-bold tabular-nums text-slate-900">{safePct}%</span>
-        </div>
-      </div>
-      <div className="flex-1 w-full min-w-0 space-y-2">
-        <p className="text-xs text-slate-600 leading-snug">{caption}</p>
-        <div className="h-2.5 w-full rounded-full bg-slate-200 overflow-hidden">
-          <div
-            className="h-full rounded-full bg-linear-to-r from-cyan-500 to-cyan-600 transition-all duration-700 ease-out"
-            style={{ width: `${safePct}%` }}
-          />
-        </div>
-      </div>
-    </div>
-  )
-}
+import { RecoveryTimelineVisual } from "@/components/recovery-timeline-visual"
 
 export default function PatientDashboard() {
   const { t, i18n } = useTranslation()
@@ -83,7 +36,6 @@ export default function PatientDashboard() {
   const [recoveryLoading, setRecoveryLoading] = useState(false)
   const [recoveryError, setRecoveryError] = useState<string | null>(null)
   const [recoveryPrediction, setRecoveryPrediction] = useState<RecoveryPrediction | null>(null)
-  const [recoveryCached, setRecoveryCached] = useState(false)
   const [recoveryViewed, setRecoveryViewed] = useState(false)
 
   const loadRecovery = useCallback(
@@ -94,13 +46,11 @@ export default function PatientDashboard() {
         const data = await appointmentService.getRecoveryPrediction({ refresh })
         if (data.eligible === false) {
           setRecoveryPrediction(null)
-          setRecoveryCached(false)
           setRecoveryError(null)
           return
         }
         if (data.success && data.prediction) {
           setRecoveryPrediction(data.prediction)
-          setRecoveryCached(Boolean(data.cached))
         } else {
           setRecoveryError(data.message || t("patient.dashboard.recoveryAiError"))
           setRecoveryPrediction(null)
@@ -153,7 +103,6 @@ export default function PatientDashboard() {
       recoveryAutoLoadRef.current = false
       setRecoveryViewed(false)
       setRecoveryPrediction(null)
-      setRecoveryCached(false)
       setRecoveryError(null)
     }
   }, [recoveryEligible])
@@ -171,7 +120,7 @@ export default function PatientDashboard() {
           void loadRecovery(false)
         }
       },
-      { root: null, rootMargin: "0px 0px -8% 0px", threshold: 0.12 }
+      { root: null, rootMargin: "0px 0px 180px 0px", threshold: 0.08 }
     )
     obs.observe(el)
     return () => obs.disconnect()
@@ -182,36 +131,15 @@ export default function PatientDashboard() {
     return `${nextAppointment.date} ${String(nextAppointment.time).slice(0, 5)}`
   }, [nextAppointment])
 
-  const recoveryConfidenceLabel = useMemo(() => {
-    if (!recoveryPrediction) return ""
-    switch (recoveryPrediction.confidence) {
-      case "high":
-        return t("patient.dashboard.recoveryConfidenceHigh")
-      case "medium":
-        return t("patient.dashboard.recoveryConfidenceMedium")
-      default:
-        return t("patient.dashboard.recoveryConfidenceLow")
-    }
-  }, [recoveryPrediction, t])
-
-  const recoveryRangeLabel = useMemo(() => {
-    if (!recoveryPrediction) return ""
-    if (recoveryPrediction.daysMin === recoveryPrediction.daysMax) {
-      return t("patient.dashboard.recoveryEstimateSingle", { days: recoveryPrediction.daysMin })
-    }
-    return t("patient.dashboard.recoveryEstimateRange", {
-      min: recoveryPrediction.daysMin,
-      max: recoveryPrediction.daysMax,
-    })
-  }, [recoveryPrediction, t])
-
   const recoveryVisual = useMemo(() => {
     if (!recoveryPrediction) return null
     const { daysMin, daysMax } = recoveryPrediction
     const mid = (daysMin + daysMax) / 2
     const refCap = Math.max(42, daysMax, daysMin, 1)
     const pct = Math.min(100, Math.max(0, (mid / refCap) * 100))
-    return { pct, refCap: Math.round(refCap) }
+    const numeratorDays = Math.max(1, Math.round(mid))
+    const denominatorDays = Math.round(refCap)
+    return { pct, numeratorDays, denominatorDays }
   }, [recoveryPrediction])
 
   return (
@@ -382,10 +310,6 @@ export default function PatientDashboard() {
                       </Button>
                     </div>
 
-                    {!recoveryViewed && (
-                      <p className="text-sm text-slate-500">{t("patient.dashboard.recoveryScrollHint")}</p>
-                    )}
-
                     {recoveryViewed && recoveryLoading && !recoveryPrediction && (
                       <p className="text-sm text-slate-600">{t("patient.dashboard.recoveryAiLoading")}</p>
                     )}
@@ -398,40 +322,11 @@ export default function PatientDashboard() {
                     )}
 
                     {recoveryPrediction && recoveryVisual && (
-                      <div className="space-y-4">
-                        <RecoveryTimelineVisual
-                          pct={recoveryVisual.pct}
-                          caption={t("patient.dashboard.recoveryVisualHint", { days: recoveryVisual.refCap })}
-                        />
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-lg font-semibold text-slate-900">
-                            {t("patient.dashboard.recoveryEstimateTitle")}:{" "}
-                            <span className="text-cyan-700">{recoveryRangeLabel}</span>
-                          </p>
-                          <Badge
-                            variant="outline"
-                            className={
-                              recoveryPrediction.confidence === "high"
-                                ? "border-emerald-300 bg-emerald-50 text-emerald-900"
-                                : recoveryPrediction.confidence === "medium"
-                                  ? "border-amber-300 bg-amber-50 text-amber-900"
-                                  : "border-slate-300 bg-slate-50 text-slate-800"
-                            }
-                          >
-                            {t("patient.dashboard.recoveryConfidence")}: {recoveryConfidenceLabel}
-                          </Badge>
-                        </div>
-                        {recoveryCached && (
-                          <p className="text-xs text-slate-500">{t("patient.dashboard.recoveryCachedHint")}</p>
-                        )}
-                        <p className="text-sm text-slate-700 leading-relaxed">{recoveryPrediction.note}</p>
-                        <Alert className="border-amber-200 bg-amber-50/80">
-                          <AlertDescription className="text-amber-950 text-sm">
-                            <span className="font-semibold">{t("patient.dashboard.recoveryDisclaimerTitle")}: </span>
-                            {recoveryPrediction.disclaimer}
-                          </AlertDescription>
-                        </Alert>
-                      </div>
+                      <RecoveryTimelineVisual
+                        pct={recoveryVisual.pct}
+                        numeratorDays={recoveryVisual.numeratorDays}
+                        denominatorDays={recoveryVisual.denominatorDays}
+                      />
                     )}
                   </CardContent>
                 </Card>

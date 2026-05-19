@@ -202,12 +202,16 @@ export default function BookAppointmentPage() {
 
   const doctorSlots = useMemo(() => {
     if (!selectedDepartmentLabel) return []
+    const now = new Date()
     return openSlots
       .filter((slot) => {
         if (!slot?.date || !slot?.time) return false
         if (String(slot.status || "").toLowerCase() !== "open") return false
         const sameDate = isSameDay(new Date(`${slot.date}T00:00:00`), startOfDay(selectedDate))
         if (!sameDate) return false
+        const slotDateTime = new Date(`${slot.date}T${String(slot.time).slice(0, 5)}:00`)
+        if (Number.isNaN(slotDateTime.getTime())) return false
+        if (slotDateTime <= now) return false
         return (slot.department || "").trim().toLowerCase() === selectedDepartmentLabel.trim().toLowerCase()
       })
       .map((slot) => ({

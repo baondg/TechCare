@@ -39,6 +39,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: ${PORT:-3000}
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET:-local-dev-internal-ai-secret}
     depends_on:
       mysql:
         condition: service_healthy

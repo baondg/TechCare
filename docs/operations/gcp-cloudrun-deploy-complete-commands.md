@@ -192,7 +192,7 @@ Backend cần:
 - Cloud SQL attachment
 - Biến `DB_NAME`
 - (Khuyến nghị) VPC connector để tới **Memorystore** private IP
-- Secret: `DB_USER`, `DB_PASSWORD`, `JWT_SECRET`, `GROQ_API_KEY`
+- Secret: `DB_USER`, `DB_PASSWORD`, `JWT_SECRET`, `GROQ_API_KEY`, `INTERNAL_API_SECRET` (`techcare-internal-api-secret`)
 
 ### CORS
 
@@ -211,8 +211,8 @@ gcloud run deploy techcare-backend `
   --add-cloudsql-instances $InstanceConn `
   --vpc-connector $VpcConnectorFull `
   --vpc-egress private-ranges-only `
-  --set-env-vars "NODE_ENV=production,DB_NAME=$DbName,CLOUDSQL_INSTANCE_CONNECTION_NAME=$InstanceConn,REDIS_URL=redis://${RedisHost}:6379,ENABLE_PATIENT_RECORD_CACHE=1,ENABLE_DISTRIBUTED_RATE_LIMIT=1,BENCHMARK_RATE_LIMIT_BYPASS=1,AUTO_SYNC_DB=0,CORS_ALLOWED_ORIGINS=$Cors" `
-  --set-secrets "DB_USER=techcare-backend-db-user:latest,DB_PASSWORD=techcare-backend-db-password:latest,JWT_SECRET=techcare-jwt-secret:latest,GROQ_API_KEY=techcare-groq-api-key:latest" `
+  --set-env-vars "NODE_ENV=production,DB_NAME=$DbName,CLOUDSQL_INSTANCE_CONNECTION_NAME=$InstanceConn,REDIS_URL=redis://${RedisHost}:6379,ENABLE_PATIENT_RECORD_CACHE=1,ENABLE_DISTRIBUTED_RATE_LIMIT=1,BENCHMARK_RATE_LIMIT_BYPASS=0,AUTO_SYNC_DB=0,CORS_ALLOWED_ORIGINS=$Cors" `
+  --set-secrets "DB_USER=techcare-backend-db-user:latest,DB_PASSWORD=techcare-backend-db-password:latest,JWT_SECRET=techcare-jwt-secret:latest,GROQ_API_KEY=techcare-groq-api-key:latest,INTERNAL_API_SECRET=techcare-internal-api-secret:latest" `
   --min-instances 2 `
   --max-instances 30 `
   --concurrency 80 `

@@ -144,6 +144,26 @@ async function syncDoctorProfile(sequelize, tx, userId, { specifications, qualif
   }
 }
 
+function parseDobYmdLocal(ymd) {
+  const m = String(ymd || '')
+    .trim()
+    .match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]) - 1;
+  const d = Number(m[3]);
+  const dt = new Date(y, mo, d);
+  if (dt.getFullYear() !== y || dt.getMonth() !== mo || dt.getDate() !== d) return null;
+  return dt;
+}
+
+function completedFullYearsBetween(birth, ref) {
+  let age = ref.getFullYear() - birth.getFullYear();
+  const monthDiff = ref.getMonth() - birth.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && ref.getDate() < birth.getDate())) age -= 1;
+  return age;
+}
+
 function normalizeAccountPayload(body) {
   const username = String(body?.username || '').trim();
   const roleCode = String(body?.roleCode || '').trim().toUpperCase();
@@ -158,6 +178,13 @@ function normalizeAccountPayload(body) {
   if (!ROLE_CODES.has(roleCode)) return { error: 'Invalid role code' };
   if (!name) return { error: 'Name is required' };
   if (!dob) return { error: 'Date of birth is required' };
+  const dobDate = parseDobYmdLocal(dob);
+  if (!dobDate) return { error: 'Invalid date of birth' };
+  const now = new Date();
+  const todayYmd = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  if (dob >= todayYmd) return { error: 'Date of birth must be before today (not today or a future date)' };
+  const ageYears = completedFullYearsBetween(dobDate, new Date());
+  if (ageYears <= 1) return { error: 'Age must be greater than 1 year' };
   if (!phone) return { error: 'Phone number is required' };
 
   const doctor = parseDoctorPayload(body, roleCode);
@@ -187,16 +214,115 @@ exports.listDepartments = async (req, res) => {
 exports.getAccounts = async (req, res) => {
   try {
     // Demo mode: allow any authenticated role to view account list in admin UI.
+    const pageRaw = Number.parseInt(String(req.query?.page ?? '1'), 10);
+    const limitRaw = Number.parseInt(String(req.query?.limit ?? '10'), 10);
+    const page = Number.isFinite(pageRaw) && pageRaw > 0 ? pageRaw : 1;
+    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : 10;
+    const offset = (page - 1) * limit;
 
+    const sortByMap = {
+      role: 'a.type',
+      userId: 'a.user_id',
+      name: "COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username)",
+      username: 'a.username',
+      sex: 'u.sex',
+      dob: 'u.dob',
+      phone: 'u.tel',
+      email: 'u.email',
+      createdBy: 'a.created_by',
+      enabled: 'a.status',
+      createdTime: 'a.created_time',
+    };
+    const requestedSortBy = String(req.query?.sortBy || 'createdTime');
+    const sortBy = Object.prototype.hasOwnProperty.call(sortByMap, requestedSortBy)
+      ? requestedSortBy
+      : 'createdTime';
+    const requestedSortDirection = String(req.query?.sortDirection || 'desc').toLowerCase();
+    const sortDirection = requestedSortDirection === 'asc' ? 'ASC' : 'DESC';
+
+    const where = [];
+    const replacements = { limit, offset };
+
+    const userId = String(req.query?.userId || '').trim();
+    if (userId) {
+      where.push('CAST(a.user_id AS CHAR) LIKE :userId');
+      replacements.userId = `%${userId}%`;
+    }
+    const name = String(req.query?.name || '').trim();
+    if (name) {
+      where.push(
+        "COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username) LIKE :name"
+      );
+      replacements.name = `%${name}%`;
+    }
+    const username = String(req.query?.username || '').trim();
+    if (username) {
+      where.push('a.username LIKE :username');
+      replacements.username = `%${username}%`;
+    }
+    const roleCode = String(req.query?.roleCode || '').trim().toUpperCase();
+    if (ROLE_CODES.has(roleCode)) {
+      where.push('a.type = :roleCode');
+      replacements.roleCode = roleCode;
+    }
+    const sex = String(req.query?.sex || '').trim();
+    if (sex === 'Male' || sex === 'Female') {
+      where.push('u.sex = :sex');
+      replacements.sex = sex === 'Male' ? 'M' : 'F';
+    }
+    const dob = String(req.query?.dob || '').trim();
+    if (dob) {
+      where.push('CAST(u.dob AS CHAR) LIKE :dob');
+      replacements.dob = `%${dob}%`;
+    }
+    const phone = String(req.query?.phone || '').trim();
+    if (phone) {
+      where.push('u.tel LIKE :phone');
+      replacements.phone = `%${phone}%`;
+    }
+    const email = String(req.query?.email || '').trim();
+    if (email) {
+      where.push('u.email LIKE :email');
+      replacements.email = `%${email}%`;
+    }
+    const enabled = String(req.query?.enabled || '').trim();
+    if (enabled === 'active') {
+      where.push('a.status = 1');
+    } else if (enabled === 'inactive') {
+      where.push('a.status = 0');
+    }
+
+    const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+    const orderSql = `ORDER BY ${sortByMap[sortBy]} ${sortDirection}, a.user_id DESC`;
+
+    const [countRow] = await sequelize.query(
+      `SELECT COUNT(*) AS total
+       FROM ACCOUNT a
+       LEFT JOIN USER u ON u.id = a.user_id
+       ${whereSql}`,
+      { replacements, type: QueryTypes.SELECT }
+    );
+    const total = Number(countRow?.total || 0);
     const rows = await sequelize.query(
       `${ACCOUNT_SELECT_SQL}
-       ORDER BY a.created_time DESC, a.user_id DESC`,
-      { type: QueryTypes.SELECT }
+       ${whereSql}
+       ${orderSql}
+       LIMIT :limit OFFSET :offset`,
+      { replacements, type: QueryTypes.SELECT }
     );
 
     const accounts = rows.map(mapAccountRow);
 
-    res.json({ success: true, accounts });
+    res.json({
+      success: true,
+      accounts,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+      },
+    });
   } catch (error) {
     console.error('Get accounts error:', error);
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
@@ -360,90 +486,13 @@ exports.createAccount = async (req, res) => {
   }
 };
 
-exports.updateAccount = async (req, res) => {
-  const tx = await sequelize.transaction();
-  try {
-    const userId = Number(req.params.id);
-    if (!Number.isFinite(userId)) {
-      await tx.rollback();
-      return res.status(400).json({ success: false, message: 'Invalid account id' });
-    }
-
-    const normalized = normalizeAccountPayload(req.body);
-    if (normalized.error) {
-      await tx.rollback();
-      return res.status(400).json({ success: false, message: normalized.error });
-    }
-    const { username, roleCode, name, dob, phone, email, enabled, sexCode, doctor } = normalized.data;
-    const { firstName, lastName } = splitName(name);
-
-    const [existing] = await sequelize.query(
-      'SELECT user_id AS userId FROM ACCOUNT WHERE user_id = :userId LIMIT 1',
-      { replacements: { userId }, type: QueryTypes.SELECT, transaction: tx }
-    );
-    if (!existing) {
-      await tx.rollback();
-      return res.status(404).json({ success: false, message: 'Account not found' });
-    }
-
-    const [usernameConflict] = await sequelize.query(
-      'SELECT user_id AS userId FROM ACCOUNT WHERE username = :username AND user_id <> :userId LIMIT 1',
-      { replacements: { username, userId }, type: QueryTypes.SELECT, transaction: tx }
-    );
-    if (usernameConflict) {
-      await tx.rollback();
-      return res.status(400).json({ success: false, message: 'Username already exists' });
-    }
-
-    await sequelize.query(
-      `UPDATE ACCOUNT
-       SET username = :username, type = :type, status = :status
-       WHERE user_id = :userId`,
-      {
-        replacements: { userId, username, type: roleCode, status: enabled ? 1 : 0 },
-        type: QueryTypes.UPDATE,
-        transaction: tx,
-      }
-    );
-
-    await sequelize.query(
-      `UPDATE USER
-       SET sex = :sex, dob = :dob, tel = :tel, email = :email, first_name = :firstName, last_name = :lastName
-       WHERE id = :userId`,
-      {
-        replacements: {
-          userId: Number(existing.userId),
-          sex: sexCode,
-          dob,
-          tel: phone,
-          email: email || null,
-          firstName: firstName || null,
-          lastName: lastName || null,
-        },
-        type: QueryTypes.UPDATE,
-        transaction: tx,
-      }
-    );
-
-    if (roleCode === 'DOC') {
-      await syncDoctorProfile(sequelize, tx, Number(existing.userId), doctor);
-    }
-
-    const [updated] = await sequelize.query(
-      `${ACCOUNT_SELECT_SQL}
-       WHERE a.user_id = :userId
-       LIMIT 1`,
-      { replacements: { userId }, type: QueryTypes.SELECT, transaction: tx }
-    );
-
-    await tx.commit();
-    return res.json({ success: true, account: mapAccountRow(updated) });
-  } catch (error) {
-    await tx.rollback();
-    console.error('Update account error:', error);
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
-  }
-};
+/** Admins may only activate/deactivate accounts; profile changes use other flows. */
+exports.updateAccount = async (req, res) =>
+  res.status(403).json({
+    success: false,
+    message:
+      'Editing user profiles is not allowed. Use PATCH /accounts/:id/status with { "status": true|false } to activate or deactivate only.',
+  });
 
 exports.updateAccountStatus = async (req, res) => {
   try {
@@ -458,11 +507,15 @@ exports.updateAccountStatus = async (req, res) => {
 
     const next = req.body?.status ? 1 : 0;
     const exists = await sequelize.query(
-      'SELECT user_id AS userId FROM ACCOUNT WHERE user_id = :userId LIMIT 1',
+      'SELECT user_id AS userId, type FROM ACCOUNT WHERE user_id = :userId LIMIT 1',
       { replacements: { userId }, type: QueryTypes.SELECT }
     );
     if (!exists[0]) {
       return res.status(404).json({ success: false, message: 'Account not found' });
+    }
+    const account = exists[0];
+    if (String(account.type || '').toUpperCase() === 'ADM' && next === 0) {
+      return res.status(403).json({ success: false, message: 'Cannot disable admin accounts.' });
     }
 
     await sequelize.query(

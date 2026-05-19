@@ -50,10 +50,12 @@ import { PauseableCornerToastPortal } from "@/components/pauseable-corner-toast"
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { SignaturePad } from "@/components/SignaturePad"
 import { useEmrSession } from "@/contexts/emr-session-context"
 import { useTranslation } from "react-i18next"
 import type { TFunction } from "i18next"
@@ -398,6 +400,14 @@ export default function PatientPrescription() {
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null)
   const [pdfPreviewFilename, setPdfPreviewFilename] = useState("")
   const pdfBlobUrlRef = useRef<string | null>(null)
+  const [signatureDialogOpen, setSignatureDialogOpen] = useState(false)
+  /** `export` = opened because PDF needs a signature; `edit` = user chose "Change signature". */
+  const [signatureDialogContext, setSignatureDialogContext] = useState<"export" | "edit">("export")
+  const [signaturePadInitial, setSignaturePadInitial] = useState<string | null>(null)
+  const [signaturePadKey, setSignaturePadKey] = useState(0)
+  const [signatureSaving, setSignatureSaving] = useState(false)
+  const [openingSignatureEditor, setOpeningSignatureEditor] = useState(false)
+  const signatureWaiterRef = useRef<{ resolve: (sig: string | null) => void } | null>(null)
 
   const releasePdfBlobUrl = useCallback((next: string | null) => {
     if (pdfBlobUrlRef.current && pdfBlobUrlRef.current !== next) {
@@ -683,12 +693,86 @@ export default function PatientPrescription() {
   const canExportPdf =
     !!patientId && getMedicationsForExport().length > 0 && !exportingPdf
 
+  const ensureSignatureForPdf = useCallback(async (): Promise<string | null> => {
+    try {
+      const got = await doctorService.getSignature()
+      if (got.success && got.signature?.trim()) {
+        return got.signature.trim()
+      }
+    } catch (e) {
+      showError(e instanceof Error ? e.message : t("doctor.prescription.signatureLoadFail"))
+      return null
+    }
+    return await new Promise((resolve) => {
+      signatureWaiterRef.current = { resolve }
+      setSignatureDialogContext("export")
+      setSignaturePadInitial(null)
+      setSignaturePadKey((k) => k + 1)
+      setSignatureDialogOpen(true)
+    })
+  }, [showError, t])
+
+  const openEditSignatureDialog = useCallback(async () => {
+    setOpeningSignatureEditor(true)
+    try {
+      const got = await doctorService.getSignature()
+      const initial =
+        got.success && got.signature?.trim() ? got.signature.trim() : null
+      setSignatureDialogContext("edit")
+      setSignaturePadInitial(initial)
+      setSignaturePadKey((k) => k + 1)
+      setSignatureDialogOpen(true)
+    } catch (e) {
+      showError(e instanceof Error ? e.message : t("doctor.prescription.signatureLoadFail"))
+    } finally {
+      setOpeningSignatureEditor(false)
+    }
+  }, [showError, t])
+
+  const finishSignatureDialog = useCallback((sig: string | null) => {
+    const w = signatureWaiterRef.current
+    signatureWaiterRef.current = null
+    w?.resolve(sig)
+    setSignatureDialogOpen(false)
+  }, [])
+
+  const handleSignaturePadSave = useCallback(
+    async (dataUrl: string) => {
+      setSignatureSaving(true)
+      const hadExportWaiter = signatureWaiterRef.current != null
+      try {
+        await doctorService.saveSignature(dataUrl)
+        finishSignatureDialog(dataUrl)
+        if (!hadExportWaiter) {
+          showSuccess(t("doctor.prescription.signatureUpdateSuccess"))
+        }
+      } catch (e) {
+        showError(e instanceof Error ? e.message : t("doctor.prescription.signatureSaveFail"))
+      } finally {
+        setSignatureSaving(false)
+      }
+    },
+    [finishSignatureDialog, showError, showSuccess, t]
+  )
+
+  const handleSignaturePadCancel = useCallback(() => {
+    if (signatureWaiterRef.current) {
+      finishSignatureDialog(null)
+      showError(t("doctor.prescription.signatureExportCancelled"))
+      return
+    }
+    setSignatureDialogOpen(false)
+  }, [finishSignatureDialog, showError, t])
+
   const handleExportPdf = async () => {
     if (!patientId) return
     const meds = getMedicationsForExport()
     if (meds.length === 0) return
     setExportingPdf(true)
     try {
+      const sigDataUrl = await ensureSignatureForPdf()
+      if (!sigDataUrl) return
+
       const res = await doctorService.getPatient(patientId)
       if (!res.success || !res.patient) {
         throw new Error(t("doctor.prescription.patientLoadFail"))
@@ -702,6 +786,7 @@ export default function PatientPrescription() {
       releasePdfBlobUrl(null)
       /** Saved prescriptions always show doctor name on PDF (no separate sign step). */
       const sigForPdf = selectedRx?.isDraft ? ("draft" as const) : ("signed" as const)
+      const signingTimeDisplay = new Date().toLocaleString(localeTag)
 
       const { blob, filename } = await generatePrescriptionPdfBlob({
         patient: res.patient,
@@ -716,6 +801,8 @@ export default function PatientPrescription() {
         prescriptionDate: rxDate,
         doctorName: rxDoctor,
         signatureStatus: sigForPdf,
+        signatureDataUrl: sigDataUrl,
+        signingTimeDisplay,
       })
       const url = URL.createObjectURL(blob)
       setPdfPreviewFilename(filename)
@@ -750,6 +837,46 @@ export default function PatientPrescription() {
 
   return (
     <>
+    <Dialog
+      open={signatureDialogOpen}
+      onOpenChange={(open) => {
+        setSignatureDialogOpen(open)
+        if (!open && signatureWaiterRef.current) {
+          signatureWaiterRef.current.resolve(null)
+          signatureWaiterRef.current = null
+          showError(t("doctor.prescription.signatureExportCancelled"))
+        }
+      }}
+    >
+      <DialogContent className="max-w-md gap-4">
+        <DialogHeader>
+          <DialogTitle>
+            {signatureDialogContext === "edit"
+              ? t("doctor.prescription.signatureEditDialogTitle")
+              : t("doctor.prescription.signatureDialogTitle")}
+          </DialogTitle>
+          <DialogDescription>
+            {signatureDialogContext === "edit"
+              ? t("doctor.prescription.signatureEditDialogDescription")
+              : t("doctor.prescription.signatureDialogDescription")}
+          </DialogDescription>
+        </DialogHeader>
+        <SignaturePad
+          key={signaturePadKey}
+          initialSignature={signaturePadInitial}
+          onSave={(url) => void handleSignaturePadSave(url)}
+          onCancel={handleSignaturePadCancel}
+          className={signatureSaving ? "pointer-events-none opacity-60" : undefined}
+        />
+        {signatureSaving ? (
+          <div className="flex items-center justify-center gap-2 text-sm text-slate-600">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            {t("common.loading")}
+          </div>
+        ) : null}
+      </DialogContent>
+    </Dialog>
+
     <div className="grid grid-cols-12 gap-6">
       <Dialog
         open={pdfPreviewOpen}
@@ -797,21 +924,39 @@ export default function PatientPrescription() {
               <History size={18} />
               <h3 className="font-semibold text-lg">{t("doctor.prescription.historyTitle")}</h3>
             </div>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="btn-outline shrink-0"
-              disabled={!canExportPdf}
-              onClick={() => void handleExportPdf()}
-            >
-              {exportingPdf ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <FileDown className="h-4 w-4" />
-              )}
-              <span className="ml-2">{t("doctor.prescription.exportPdf")}</span>
-            </Button>
+            <div className="flex flex-wrap items-center gap-2 justify-end">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="btn-outline shrink-0"
+                disabled={loading || signatureSaving || openingSignatureEditor}
+                onClick={() => void openEditSignatureDialog()}
+                title={t("doctor.prescription.editSignatureHint")}
+              >
+                {openingSignatureEditor ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <PenLine className="h-4 w-4" />
+                )}
+                <span className="ml-2">{t("doctor.prescription.editSignature")}</span>
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="btn-outline shrink-0"
+                disabled={!canExportPdf}
+                onClick={() => void handleExportPdf()}
+              >
+                {exportingPdf ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <FileDown className="h-4 w-4" />
+                )}
+                <span className="ml-2">{t("doctor.prescription.exportPdf")}</span>
+              </Button>
+            </div>
           </div>
 
           {loading ? (

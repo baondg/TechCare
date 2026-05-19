@@ -3,6 +3,7 @@ const Session = require('../models/Session');
 const Account = require('../models/Account');
 const { normalizeRoleFromCode } = require('../security/roleMapping');
 const { getJwtSecret } = require('../security/jwtConfig');
+const { isAccountStatusActive } = require('../common/accountStatus');
 
 const authenticateToken = async (req, res, next) => {
   const authHeader = req.headers['authorization'];
@@ -55,16 +56,10 @@ const authenticateToken = async (req, res, next) => {
       });
     }
     
-    // Check if user is active (support both legacy text and tinyint values)
+    // Check if user is active (same rules as login / ACCOUNT.status)
     const user = await Account.findOne({ where: { user_id: decoded.userId } }); // Use user_id (Users table ID) instead of PK (Account table ID)
-    const rawStatus = user?.status;
-    const isActive =
-      rawStatus === 'Active' ||
-      rawStatus === 'active' ||
-      rawStatus === 1 ||
-      rawStatus === true ||
-      rawStatus === '1';
-    if (!user || !isActive) {
+    const rawStatus = user ? (user.getDataValue ? user.getDataValue('status') : user.status) : undefined;
+    if (!user || !isAccountStatusActive(rawStatus)) {
       return res.status(403).json({ 
         success: false,
         error: 'Account is inactive or not found',

@@ -1,4 +1,4 @@
-const { QueryTypes } = require('sequelize');
+const appointmentReminderRepository = require('../repositories/appointmentReminderRepository');
 
 /** Shown under Appointments tab (`getNotificationTabId` matches `appointment_*`). */
 const TYPE_APPOINTMENT_REMINDER_1DAY = 'appointment_reminder_1day_before';
@@ -11,59 +11,25 @@ function apptMarker(appointmentId) {
 /**
  * Appointments whose **slot date** is **tomorrow** (server local calendar), patient assigned, still scheduled, doctor/staff confirmed.
  */
-async function selectTomorrowsConfirmedPatientAppointments(sequelize) {
-  return sequelize.query(
-    `SELECT
-       a.id AS appointmentId,
-       a.patient_id AS patientId,
-       pu.id AS userId,
-       DATE_FORMAT(a.time, '%d/%m/%Y') AS dateVi,
-       DATE_FORMAT(a.time, '%H:%i') AS timeVi,
-       COALESCE(NULLIF(TRIM(CONCAT(COALESCE(du.first_name,''),' ',COALESCE(du.last_name,''))), ''), dacc.username) AS doctorLabel,
-       COALESCE(NULLIF(TRIM(dep.name), ''), NULLIF(TRIM(d.specifications), ''), '') AS department
-     FROM APPOINTMENT a
-     INNER JOIN PATIENT p ON p.patient_id = a.patient_id
-     INNER JOIN USER pu ON pu.id = p.user_id
-     INNER JOIN DOCTOR d ON d.doctor_id = a.doctor_id
-     INNER JOIN ACCOUNT dacc ON dacc.user_id = d.user_id
-     INNER JOIN USER du ON du.id = d.user_id
-     LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id
-     LEFT JOIN DEPARTMENT dep ON dep.id = cr.department_id
-     WHERE a.patient_id IS NOT NULL
-       AND a.status = 'scheduled'
-       AND COALESCE(a.doctor_confirmed, 1) = 1
-       AND DATE(a.time) = DATE_ADD(CURDATE(), INTERVAL 1 DAY)`,
-    { type: QueryTypes.SELECT }
-  );
+async function selectTomorrowsConfirmedPatientAppointments() {
+  return appointmentReminderRepository.selectTomorrowsConfirmedPatientAppointments();
 }
 
-async function hasReminderToday(sequelize, userId, appointmentId) {
+async function hasReminderToday(userId, appointmentId) {
   const marker = apptMarker(appointmentId);
-  const [row] = await sequelize.query(
-    `SELECT id FROM NOTIFICATION
-     WHERE user_id = :userId
-       AND type = :type
-       AND DATE(\`time\`) = CURDATE()
-       AND content LIKE :likeMarker
-     LIMIT 1`,
-    {
-      replacements: {
-        userId,
-        type: TYPE_APPOINTMENT_REMINDER_1DAY,
-        likeMarker: `%${marker}`,
-      },
-      type: QueryTypes.SELECT,
-    }
+  return appointmentReminderRepository.hasAppointmentReminderToday(
+    userId,
+    TYPE_APPOINTMENT_REMINDER_1DAY,
+    marker
   );
-  return Boolean(row);
 }
 
 /**
  * One run at REMINDER_HOUR:00 — insert one notification per qualifying appointment (patient portal).
  * Use server TZ (set process TZ / MySQL session) for “tomorrow” semantics; see medication reminders.
  */
-async function runAppointmentReminderDayBeforeSlot(sequelize, hour) {
-  const rows = await selectTomorrowsConfirmedPatientAppointments(sequelize);
+async function runAppointmentReminderDayBeforeSlot(hour) {
+  const rows = await selectTomorrowsConfirmedPatientAppointments();
 
   let inserted = 0;
   let skippedDup = 0;
@@ -73,7 +39,7 @@ async function runAppointmentReminderDayBeforeSlot(sequelize, hour) {
     const aid = row.appointmentId;
     if (userId == null || aid == null) continue;
 
-    if (await hasReminderToday(sequelize, userId, aid)) {
+    if (await hasReminderToday(userId, aid)) {
       skippedDup += 1;
       continue;
     }
@@ -83,19 +49,12 @@ async function runAppointmentReminderDayBeforeSlot(sequelize, hour) {
     const deptVi = dept ? ` — ${dept}` : '';
     const content = `Nhắc lịch khám: Ngày mai (${row.dateVi}) bạn có lịch lúc ${row.timeVi} với ${doctor}${deptVi}. Vui lòng đến đúng giờ. ${apptMarker(aid)}`;
 
-    await sequelize.query(
-      `INSERT INTO NOTIFICATION (\`type\`, content, \`time\`, status, user_id)
-       VALUES (:type, :content, TIMESTAMP(DATE(NOW()), MAKETIME(:hour, 0, 0)), 'unread', :userId)`,
-      {
-        replacements: {
-          type: TYPE_APPOINTMENT_REMINDER_1DAY,
-          content,
-          hour,
-          userId,
-        },
-        type: QueryTypes.INSERT,
-      }
-    );
+    await appointmentReminderRepository.insertAppointmentReminderAtHour({
+      type: TYPE_APPOINTMENT_REMINDER_1DAY,
+      content,
+      hour,
+      userId,
+    });
     inserted += 1;
   }
 
@@ -116,7 +75,7 @@ function reminderHour() {
 let lastFiredSlotKey = null;
 
 /** Every ~20s: at REMINDER_HOUR:00 fire once per calendar day (like medication-reminder scheduler). */
-function startAppointmentReminderScheduler(sequelize) {
+function startAppointmentReminderScheduler() {
   if (process.env.DISABLE_APPOINTMENT_REMINDERS === '1') {
     console.log('[appointment-reminder] scheduler disabled (DISABLE_APPOINTMENT_REMINDERS=1)');
     return;
@@ -135,7 +94,7 @@ function startAppointmentReminderScheduler(sequelize) {
     lastFiredSlotKey = key;
 
     try {
-      const result = await runAppointmentReminderDayBeforeSlot(sequelize, h);
+      const result = await runAppointmentReminderDayBeforeSlot(h);
       console.log('[appointment-reminder] slot', result);
     } catch (err) {
       console.error('[appointment-reminder] slot failed:', err?.message || err);

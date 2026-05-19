@@ -1,3 +1,5 @@
+const fs = require('fs');
+const path = require('path');
 const { Sequelize } = require('sequelize');
 
 // Cloud Run + Cloud SQL: set CLOUDSQL_INSTANCE_CONNECTION_NAME (or INSTANCE_CONNECTION_NAME)
@@ -10,11 +12,55 @@ const instanceConnectionName =
 
 const useCloudSqlSocket = Boolean(instanceConnectionName);
 
+/** TCP MySQL (e.g. Aiven): set DB_USE_SSL=1 when the provider requires TLS on the public endpoint. */
+const parseBool = (v, fallback = false) => {
+  if (v === undefined || v === null) return fallback;
+  const s = String(v).toLowerCase();
+  if (['1', 'true', 'yes', 'on'].includes(s)) return true;
+  if (['0', 'false', 'no', 'off'].includes(s)) return false;
+  return fallback;
+};
+const useTcpSsl = !useCloudSqlSocket && parseBool(process.env.DB_USE_SSL, false);
+const sslRejectUnauthorized = parseBool(process.env.DB_SSL_REJECT_UNAUTHORIZED, true);
+
+const resolveSslCa = () => {
+  const rawPath = process.env.DB_SSL_CA_PATH || process.env.DB_SSL_CA_FILE;
+  if (rawPath) {
+    const resolved = path.resolve(rawPath);
+    if (fs.existsSync(resolved)) {
+      return fs.readFileSync(resolved);
+    }
+    console.warn(`[db] DB_SSL_CA_PATH not found: ${resolved}`);
+  }
+  const inline = process.env.DB_SSL_CA;
+  if (inline) {
+    return inline.replace(/\\n/g, '\n');
+  }
+  return undefined;
+};
+
+const buildTcpSslOptions = () => {
+  if (!useTcpSsl) return {};
+  const ca = resolveSslCa();
+  const ssl = {
+    rejectUnauthorized: sslRejectUnauthorized,
+  };
+  if (ca) ssl.ca = ca;
+  return { ssl };
+};
+
 if (process.env.NODE_ENV !== 'production') {
+  const sslOpts = buildTcpSslOptions();
   console.log('[db]', {
     useCloudSqlSocket,
     hasInstanceName: Boolean(instanceConnectionName),
+    useTcpSsl,
+    sslRejectUnauthorized,
+    hasSslCa: Boolean(sslOpts.ssl?.ca),
   });
+  // #region agent log
+  fetch('http://host.docker.internal:7437/ingest/38be47be-90b8-4797-8d79-90b3ea2aebaa',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2d4e21'},body:JSON.stringify({sessionId:'2d4e21',location:'database.js:db-config',message:'Sequelize DB SSL config',data:{useCloudSqlSocket,useTcpSsl,sslRejectUnauthorized,hasSslCa:Boolean(sslOpts.ssl?.ca)},timestamp:Date.now(),hypothesisId:'A'})}).catch(()=>{});
+  // #endregion
 }
 
 const pool = {
@@ -37,6 +83,7 @@ const sequelize = useCloudSqlSocket
       host: process.env.DB_HOST || 'localhost',
       port: Number(process.env.DB_PORT) || 3306,
       dialect: 'mysql',
+      dialectOptions: buildTcpSslOptions(),
       logging: console.log,
       pool,
     });

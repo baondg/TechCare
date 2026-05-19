@@ -9,9 +9,9 @@ import { AdminLayout } from "@/components/admin-layout"
 import { Shield, Save, RefreshCw, AlertCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { emitSuccessToast } from "@/lib/success-toast-bus"
+import { apiClient } from "@/api/client"
 
 /** Must match backend CONFIG_DEFAULTS (systemConfigurationContract) for rate-limit keys */
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000"
 
 const RATE_LIMIT_FORM_DEFAULTS = {
   apiRateLimit: "100",
@@ -34,17 +34,15 @@ export default function RateLimitConfig() {
   const [config, setConfig] = useState({ ...RATE_LIMIT_FORM_DEFAULTS })
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<{ type: 'error', text: string } | null>(null)
-  const token = localStorage.getItem("authToken")
 
   useEffect(() => {
     const loadConfig = async () => {
       setLoading(true)
       try {
-        const response = await fetch(`${API_BASE}/api/system-config`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        const data = await response.json()
-        if (!response.ok || !data.success) throw new Error(data.error || "Failed to load rate limit config")
+        const data = await apiClient.get<{ success: boolean; config?: Record<string, string>; error?: string }>(
+          "/api/system-config"
+        )
+        if (!data.success) throw new Error(data.error || "Failed to load rate limit config")
         setConfig((prev) => ({
           ...prev,
           enabled: String(data.config.rateLimitEnabled).toLowerCase() === "true",
@@ -75,31 +73,23 @@ export default function RateLimitConfig() {
     setLoading(true)
     setMessage(null)
     try {
-      const response = await fetch(`${API_BASE}/api/system-config`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          rateLimitEnabled: config.enabled,
-          rateLimitIpBased: config.ipBasedLimit,
-          globalRateLimitRequests: Number(config.apiRateLimit),
-          globalRateLimitWindowSeconds: Number(config.apiTimeWindow),
-          chatbotRateLimitRequests: Number(config.chatbotRateLimit),
-          chatbotRateLimitWindowSeconds: Number(config.chatbotTimeWindow),
-          aiSymptomRateLimitRequests: Number(config.aiSymptomRateLimit),
-          aiSymptomRateLimitWindowSeconds: Number(config.aiSymptomTimeWindow),
-          appointmentRateLimitRequests: Number(config.appointmentRateLimit),
-          appointmentRateLimitWindowSeconds: Number(config.appointmentTimeWindow),
-          loginRateLimitRequests: Number(config.loginRateLimit),
-          loginRateLimitWindowSeconds: Number(config.loginTimeWindow),
-          registrationRateLimitRequests: Number(config.registrationRateLimit),
-          registrationRateLimitWindowSeconds: Number(config.registrationTimeWindow),
-        }),
+      const data = await apiClient.put<{ success: boolean; error?: string }>("/api/system-config", {
+        rateLimitEnabled: config.enabled,
+        rateLimitIpBased: config.ipBasedLimit,
+        globalRateLimitRequests: Number(config.apiRateLimit),
+        globalRateLimitWindowSeconds: Number(config.apiTimeWindow),
+        chatbotRateLimitRequests: Number(config.chatbotRateLimit),
+        chatbotRateLimitWindowSeconds: Number(config.chatbotTimeWindow),
+        aiSymptomRateLimitRequests: Number(config.aiSymptomRateLimit),
+        aiSymptomRateLimitWindowSeconds: Number(config.aiSymptomTimeWindow),
+        appointmentRateLimitRequests: Number(config.appointmentRateLimit),
+        appointmentRateLimitWindowSeconds: Number(config.appointmentTimeWindow),
+        loginRateLimitRequests: Number(config.loginRateLimit),
+        loginRateLimitWindowSeconds: Number(config.loginTimeWindow),
+        registrationRateLimitRequests: Number(config.registrationRateLimit),
+        registrationRateLimitWindowSeconds: Number(config.registrationTimeWindow),
       })
-      const data = await response.json()
-      if (!response.ok || !data.success) throw new Error(data.error || "Failed to save settings")
+      if (!data.success) throw new Error(data.error || "Failed to save settings")
       emitSuccessToast("Rate limit settings saved successfully!")
     } catch (error) {
       setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to save settings. Please try again.' })

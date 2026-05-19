@@ -135,7 +135,7 @@ export default function SymptomChecker() {
    * 1. Validate at least one symptom is selected
    * 2. Set loading state and clear previous results
    * 3. Convert symptoms to AI service format
-   * 4. Call analyzeSymptoms() from ai-service.ts
+   * 4. Call appointmentService.analyzeSymptomsPersisted(...)
    * 5. Update results and disclaimer from AI response
    * 6. Handle errors with user-friendly message
    * 

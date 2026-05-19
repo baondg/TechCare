@@ -178,7 +178,8 @@ export async function generatePrescriptionPdfBlob(opts: {
     .footer { margin-top: 18px; display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
     .advice { flex: 1; min-width: 0; color: #111111; }
     .sig { flex: 0 0 38%; text-align: right; color: #111111; }
-    .sig-box { border: 1px dashed #888888; min-height: 72px; margin: 10px 0 8px; margin-left: auto; max-width: 200px; background: #ffffff; }
+    .sig-box { border: 1px dashed #888888; min-height: 72px; margin: 10px 0 8px; margin-left: auto; max-width: 200px; background: #ffffff; display: flex; align-items: center; justify-content: center; box-sizing: border-box; padding: 4px; }
+    .sig-box img { display: block; max-width: 100%; max-height: 64px; object-fit: contain; }
   `
 
   const unsignedWatermark =
@@ -194,6 +195,12 @@ export async function generatePrescriptionPdfBlob(opts: {
   const signingLine =
     opts.signingTimeDisplay?.trim() != null && String(opts.signingTimeDisplay).trim() !== ""
       ? `<div style="font-size:11px;font-style:italic;margin-top:6px">${escapeHtml(String(opts.signingTimeDisplay).trim())}</div>`
+      : ""
+
+  const sigUrlRaw = opts.signatureDataUrl?.trim() ?? ""
+  const signatureBoxInner =
+    sigUrlRaw.length > 0
+      ? `<img src="${sigUrlRaw.replace(/"/g, "&quot;")}" alt="" style="max-width:100%;max-height:64px;object-fit:contain;display:block;" />`
       : ""
 
   const bodyHtml = `
@@ -229,7 +236,7 @@ export async function generatePrescriptionPdfBlob(opts: {
       </div>
       <div class="sig">
         <div style="font-weight:600">Bác sĩ</div>
-        <div class="sig-box" aria-hidden="true"></div>
+        <div class="sig-box" aria-hidden="true">${signatureBoxInner}</div>
         ${signingLine}
         <div>${signatureDoctorLine}</div>
       </div>
@@ -266,6 +273,20 @@ export async function generatePrescriptionPdfBlob(opts: {
   const body = idoc.body
   await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())))
   await new Promise<void>((r) => setTimeout(r, 80))
+  if (signatureBoxInner) {
+    const imgs = Array.from(body.querySelectorAll("img"))
+    await Promise.all(
+      imgs.map(
+        (img) =>
+          img.complete
+            ? Promise.resolve()
+            : new Promise<void>((resolve) => {
+                img.addEventListener("load", () => resolve(), { once: true })
+                img.addEventListener("error", () => resolve(), { once: true })
+              })
+      )
+    )
+  }
 
   const defaultName = `prescription-${slugFilenamePart(fullName)}.pdf`
   const filename = opts.filename || defaultName

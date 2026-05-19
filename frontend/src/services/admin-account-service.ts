@@ -1,62 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000"
-
-const getAuthHeader = () => {
-  const token = localStorage.getItem("authToken")
-  return {
-    "Content-Type": "application/json",
-    Authorization: token ? `Bearer ${token}` : "",
-  }
-}
-
-const getSafeRouteByRole = (role?: string): string => {
-  switch ((role || "").toLowerCase()) {
-    case "admin":
-      return "/admin/dashboard"
-    case "doctor":
-      return "/doctor/dashboard"
-    case "nurse":
-      return "/nurse/dashboard"
-    case "technician":
-      return "/technician/dashboard"
-    case "patient":
-      return "/patient/dashboard"
-    default:
-      return "/"
-  }
-}
-
-const handleAuthFailure = (status: number) => {
-  if (status === 403) {
-    try {
-      const user = JSON.parse(localStorage.getItem("user") || "null") as { role?: string } | null
-      window.location.href = getSafeRouteByRole(user?.role)
-      return
-    } catch {
-      window.location.href = "/"
-      return
-    }
-  }
-
-  localStorage.removeItem("authToken")
-  localStorage.removeItem("user")
-  localStorage.removeItem("sessionExpiresAt")
-  window.location.href = "/login"
-}
-
-async function apiRequest<T>(url: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    ...options,
-    headers: { ...getAuthHeader(), ...(options?.headers || {}) },
-  })
-  if (!res.ok) {
-    if (res.status === 401 || res.status === 403) {
-      handleAuthFailure(res.status)
-    }
-    const err = await res.json().catch(() => ({ message: res.statusText }))
-    throw new Error(err.message || "Request failed")
-  }
-  return res.json()
-}
+import { apiClient } from "@/api/client"
 
 export interface AdminAccountRow {
   id: number
@@ -99,6 +41,22 @@ export interface AdminDepartmentOption {
   name: string
 }
 
+export interface AdminAccountQuery {
+  page?: number
+  limit?: number
+  userId?: string
+  name?: string
+  username?: string
+  roleCode?: string
+  sex?: string
+  dob?: string
+  phone?: string
+  email?: string
+  enabled?: string
+  sortBy?: string
+  sortDirection?: "asc" | "desc"
+}
+
 export interface AdminDashboardSummary {
   totalUsers: number
   activeUsers: number
@@ -133,68 +91,60 @@ export interface AdminFeedbackRow {
 }
 
 export const adminAccountService = {
-  async getAccounts() {
-    return apiRequest<{ success: boolean; accounts: AdminAccountRow[] }>(
-      `${API_BASE_URL}/api/admin/accounts`
-    )
+  async getAccounts(query: AdminAccountQuery = {}) {
+    const params = new URLSearchParams()
+    Object.entries(query).forEach(([key, value]) => {
+      if (value === undefined || value === null) return
+      const normalized = String(value).trim()
+      if (!normalized) return
+      params.set(key, normalized)
+    })
+    const qs = params.toString()
+    return apiClient.get<{
+      success: boolean
+      accounts: AdminAccountRow[]
+      pagination: { page: number; limit: number; total: number; totalPages: number }
+    }>(`/api/admin/accounts${qs ? `?${qs}` : ""}`)
   },
 
   async getDepartments() {
-    return apiRequest<{ success: boolean; departments: AdminDepartmentOption[] }>(
-      `${API_BASE_URL}/api/admin/departments`
+    return apiClient.get<{ success: boolean; departments: AdminDepartmentOption[] }>(
+      "/api/admin/departments"
     )
   },
 
   async updateAccountStatus(id: number, status: boolean) {
-    return apiRequest<{ success: boolean; id: number; status: boolean }>(
-      `${API_BASE_URL}/api/admin/accounts/${id}/status`,
-      {
-        method: "PATCH",
-        body: JSON.stringify({ status }),
-      }
+    return apiClient.patch<{ success: boolean; id: number; status: boolean }>(
+      `/api/admin/accounts/${id}/status`,
+      { status }
     )
   },
 
   async createAccount(data: SaveAdminAccountPayload) {
-    return apiRequest<{ success: boolean; account: AdminAccountRow }>(
-      `${API_BASE_URL}/api/admin/accounts`,
-      {
-        method: "POST",
-        body: JSON.stringify(data),
-      }
-    )
+    return apiClient.post<{ success: boolean; account: AdminAccountRow }>("/api/admin/accounts", data)
   },
 
   async updateAccount(id: number, data: SaveAdminAccountPayload) {
-    return apiRequest<{ success: boolean; account: AdminAccountRow }>(
-      `${API_BASE_URL}/api/admin/accounts/${id}`,
-      {
-        method: "PATCH",
-        body: JSON.stringify(data),
-      }
+    return apiClient.patch<{ success: boolean; account: AdminAccountRow }>(
+      `/api/admin/accounts/${id}`,
+      data
     )
   },
 
   async getDashboardSummary() {
-    return apiRequest<{ success: boolean; summary: AdminDashboardSummary }>(
-      `${API_BASE_URL}/api/admin/dashboard-summary`
+    return apiClient.get<{ success: boolean; summary: AdminDashboardSummary }>(
+      "/api/admin/dashboard-summary"
     )
   },
 
   async getFeedbacks() {
-    return apiRequest<{ success: boolean; feedbacks: AdminFeedbackRow[] }>(
-      `${API_BASE_URL}/api/admin/feedbacks`
-    )
+    return apiClient.get<{ success: boolean; feedbacks: AdminFeedbackRow[] }>("/api/admin/feedbacks")
   },
 
   async updateFeedback(id: number, payload: { response?: string; status?: boolean }) {
-    return apiRequest<{ success: boolean; feedback: AdminFeedbackRow }>(
-      `${API_BASE_URL}/api/admin/feedbacks/${id}`,
-      {
-        method: "PATCH",
-        body: JSON.stringify(payload),
-      }
+    return apiClient.patch<{ success: boolean; feedback: AdminFeedbackRow }>(
+      `/api/admin/feedbacks/${id}`,
+      payload
     )
   },
 }
-

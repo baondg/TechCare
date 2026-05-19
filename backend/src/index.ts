@@ -9,6 +9,8 @@ import cors from 'cors';
 import path from 'path';
 import cookieParser from 'cookie-parser';
 import aiRoutes from './routes/ai';
+import { errorHandler } from './middleware/errorHandler';
+const { requestIdMiddleware } = require('./middleware/requestIdMiddleware');
 const authRoutes = require('./authorization/routes');
 const systemConfigRoutes = require('./routes/systemConfig');
 const appointmentRoutes = require('./routes/appointmentRoutes');
@@ -21,14 +23,11 @@ const workShiftRoutes = require('./routes/workShiftRoutes');
 const sessionMiddleware = require('./middleware/sessionMiddleware');
 const { globalRateLimit, appointmentRateLimit } = require('./middleware/rateLimitMiddleware');
 const sequelize = require('./common/database');
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { startMedicationReminderScheduler } = require('./services/medicationReminderNotifications');
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { startAppointmentReminderScheduler } = require('./services/appointmentReminderNotifications');
 
 const { getJwtSecret } = require('./security/jwtConfig');
 /* Sequelize — one entry point for model wiring (see models/associate.js + database_description.sql). */
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { applySequelizeAssociations } = require('./models/associate');
 applySequelizeAssociations();
 
@@ -46,6 +45,7 @@ const allowAnyOrigin = allowedOrigins.includes('*');
 
 // Middleware
 app.set('trust proxy', 1);
+app.use(requestIdMiddleware);
 app.use(
   cors(
     allowedOrigins.length > 0
@@ -108,14 +108,7 @@ app.get('/', (req: Request, res: Response) => {
   });
 });
 
-// Error handling middleware
-app.use((err: Error, req: Request, res: Response, next: Function) => {
-  console.error('Error:', err);
-  res.status(500).json({
-    error: 'Internal Server Error',
-    message: err.message
-  });
-});
+app.use(errorHandler);
 
 // Initialize database and start server
 async function startServer() {
@@ -135,8 +128,17 @@ async function startServer() {
         NODE_ENV: process.env.NODE_ENV ?? null,
       });
     }
+    // #region agent log
+    fetch('http://host.docker.internal:7437/ingest/38be47be-90b8-4797-8d79-90b3ea2aebaa',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2d4e21'},body:JSON.stringify({sessionId:'2d4e21',location:'index.ts:before-authenticate',message:'About to sequelize.authenticate',data:{port:PORT},timestamp:Date.now(),hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     await sequelize.authenticate();
+    // #region agent log
+    fetch('http://host.docker.internal:7437/ingest/38be47be-90b8-4797-8d79-90b3ea2aebaa',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2d4e21'},body:JSON.stringify({sessionId:'2d4e21',location:'index.ts:after-authenticate',message:'Database authenticate succeeded',data:{port:PORT},timestamp:Date.now(),hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     console.log('✅ Database connection ready');
+
+    const { ensureDoctorSignatureColumn } = require('./common/ensureDoctorSignatureColumn');
+    await ensureDoctorSignatureColumn(sequelize);
 
     const shouldAutoSync =
       process.env.AUTO_SYNC_DB === '1' ||
@@ -144,11 +146,8 @@ async function startServer() {
 
     if (shouldAutoSync) {
       // Dev convenience: bootstrap only auth/session tables required for login.
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const User = require('./models/Users');
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const Account = require('./models/Account');
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const Session = require('./models/Session');
       await User.sync({ alter: true });
       await Account.sync({ alter: true });
@@ -156,13 +155,20 @@ async function startServer() {
       console.log('✅ Core auth tables synchronized');
     }
 
-    startMedicationReminderScheduler(sequelize);
-    startAppointmentReminderScheduler(sequelize);
+    startMedicationReminderScheduler();
+    startAppointmentReminderScheduler();
 
     app.listen(PORT, () => {
       console.log(`🚀 Server is running on http://localhost:${PORT}`);
+      // #region agent log
+      fetch('http://host.docker.internal:7437/ingest/38be47be-90b8-4797-8d79-90b3ea2aebaa',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2d4e21'},body:JSON.stringify({sessionId:'2d4e21',location:'index.ts:listen',message:'HTTP server listening',data:{port:PORT},timestamp:Date.now(),hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
     });
   } catch (error) {
+    // #region agent log
+    const errMsg = error instanceof Error ? error.message : String(error);
+    fetch('http://host.docker.internal:7437/ingest/38be47be-90b8-4797-8d79-90b3ea2aebaa',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2d4e21'},body:JSON.stringify({sessionId:'2d4e21',location:'index.ts:start-failed',message:'Server start failed',data:{error:errMsg},timestamp:Date.now(),hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     console.error('❌ Failed to start server:', error);
     process.exit(1);
   }

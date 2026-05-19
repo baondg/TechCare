@@ -1,6 +1,6 @@
 // src/pages/reception/PatientManagement.tsx
 
-import { useState, useEffect, useMemo, useLayoutEffect } from "react"
+import { useState, useEffect, useMemo, useLayoutEffect, useCallback } from "react"
 import { createPortal } from "react-dom"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -9,9 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button"
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { UserPlus, Trash2, Save, X, Edit3, ArrowUp, ArrowDown, ArrowUpDown, Search, Calendar as CalendarIcon } from "lucide-react"
+import { UserPlus, Save, X, Edit3, ArrowUp, ArrowDown, ArrowUpDown, Search, Calendar as CalendarIcon } from "lucide-react"
 import { AdminLayout } from "@/components/admin-layout"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Switch } from "@/components/ui/switch"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
 import {
@@ -23,7 +24,7 @@ import {
 import { cn } from "@/lib/utils"
 import { usePauseableToast, type PauseableToastEntry } from "@/hooks/usePauseableToast"
 import { useTranslation } from "react-i18next"
-import { format, isValid, parse } from "date-fns"
+import { differenceInYears, format, isValid, parse, startOfDay } from "date-fns"
 import { enUS, vi } from "date-fns/locale"
 import { formatDdMmYyyyInput, parseDdMmYyyyStrict } from "@/lib/date-range"
 
@@ -77,6 +78,28 @@ function normalizeDobForStorage(value: string): string {
   const dmy = s.match(/^(\d{2})-(\d{2})-(\d{4})$/)
   if (dmy) return `${dmy[3]}-${dmy[2]}-${dmy[1]}`
   return s
+}
+
+/** Completed full years from today; null if missing or not a valid calendar Y-M-D. */
+function completedAgeYearsFromDob(dobRaw: string): number | null {
+  const ymd = normalizeDobForStorage(dobRaw)
+  if (!ymd || !/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return null
+  const birth = parse(ymd, "yyyy-MM-dd", new Date())
+  if (!isValid(birth)) return null
+  return differenceInYears(new Date(), birth)
+}
+
+/** Date of birth must be strictly before the current calendar day (local). */
+function isDobYmdBeforeToday(ymdRaw: string): boolean {
+  const ymd = normalizeDobForStorage(ymdRaw)
+  if (!ymd || !/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return false
+  const birth = parse(ymd, "yyyy-MM-dd", new Date())
+  if (!isValid(birth)) return false
+  return startOfDay(birth).getTime() < startOfDay(new Date()).getTime()
+}
+
+function isDateBeforeToday(d: Date): boolean {
+  return isValid(d) && startOfDay(d).getTime() < startOfDay(new Date()).getTime()
 }
 
 function mapAccountToPatientRow(a: AdminAccountRow): Patient {
@@ -140,6 +163,7 @@ export default function UserManagement() {
   const [departments, setDepartments] = useState<AdminDepartmentOption[]>([])
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)  // 
+  const [totalEntries, setTotalEntries] = useState(0)
 
   const [filters, setFilters] = useState({
     userId: "",
@@ -153,31 +177,56 @@ export default function UserManagement() {
     enabled: "",
   })
 
+  const [sortConfig, setSortConfig] = useState<{
+    key: keyof Patient | "no"
+    direction: "asc" | "desc"
+  } | null>(null)
+
+  const loadAccounts = useCallback(async (cancelRef: { cancelled: boolean }) => {
+    const sortBy =
+      sortConfig?.key === "no" || !sortConfig?.key ? "createdTime" : String(sortConfig.key)
+    const sortDirection = sortConfig?.direction || "desc"
+    const res = await adminAccountService.getAccounts({
+      page: currentPage,
+      limit: pageSize,
+      userId: filters.userId,
+      name: filters.name,
+      username: filters.username,
+      roleCode: filters.roleCode,
+      sex: filters.sex,
+      dob: filters.dob,
+      phone: filters.phone,
+      email: filters.email,
+      enabled: filters.enabled,
+      sortBy,
+      sortDirection,
+    })
+    if (cancelRef.cancelled) return
+    const rows = withCreatedByName((res.accounts || []).map(mapAccountToPatientRow))
+    setPatients(rows)
+    setTotalEntries(Number(res.pagination?.total || 0))
+    const pageAccountIds = new Set(rows.map((x) => x.accountId))
+    setSelectedAccountIds((prev) => prev.filter((id) => pageAccountIds.has(id)))
+    setSelectedPatient((prev) => {
+      if (!prev) return rows[0] || null
+      return rows.find((x) => x.accountId === prev.accountId) || rows[0] || null
+    })
+  }, [currentPage, pageSize, filters, sortConfig])
+
   useEffect(() => {
-    let cancelled = false
+    const cancelRef = { cancelled: false }
     void (async () => {
       try {
-        const res = await adminAccountService.getAccounts()
-        if (cancelled) return
-        const rows = withCreatedByName(
-          (res.accounts || [])
-            .filter((account) => account.status)
-            .map(mapAccountToPatientRow)
-        )
-        setPatients(rows)
-        setSelectedPatient((prev) => {
-          if (!prev) return rows[0] || null
-          return rows.find((x) => x.accountId === prev.accountId) || rows[0] || null
-        })
+        await loadAccounts(cancelRef)
       } catch (e) {
         console.error("Load accounts failed:", e)
         showError(e instanceof Error ? e.message : t("admin.accounts.failedLoadAccounts"))
       }
     })()
     return () => {
-      cancelled = true
+      cancelRef.cancelled = true
     }
-  }, [showError])
+  }, [loadAccounts, showError, t])
 
   useEffect(() => {
     let cancelled = false
@@ -201,27 +250,15 @@ export default function UserManagement() {
     }
   }, [selectedPatient, formMode])
 
-  const filteredPatients = useMemo(() => {
-    return patients.filter((p) =>
-      String(p.userId).includes(filters.userId.trim()) &&
-      p.name.toLowerCase().includes(filters.name.toLowerCase()) &&
-      p.username.toLowerCase().includes(filters.username.toLowerCase()) &&
-      (filters.roleCode === "" || p.roleCode === filters.roleCode) &&
-      (filters.sex === "" || p.sex === filters.sex) &&
-      p.dob.includes(filters.dob) &&
-      p.phone.includes(filters.phone) &&
-      p.email.toLowerCase().includes(filters.email.toLowerCase()) &&
-      (filters.enabled === "" ||
-        (filters.enabled === "active" ? p.enabled : !p.enabled))
-    )
-  }, [patients, filters])
-
-  const totalPages = Math.max(1, Math.ceil(filteredPatients.length / pageSize))
+  const totalPages = Math.max(1, Math.ceil(totalEntries / pageSize))
 
   useEffect(() => setCurrentPage(1), [filters])
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages)
+  }, [currentPage, totalPages])
 
   const startItem = (currentPage - 1) * pageSize + 1
-  const endItem = Math.min(currentPage * pageSize, filteredPatients.length)
+  const endItem = Math.min(currentPage * pageSize, totalEntries)
 
   type ColumnKey = "select" | "no" | "role" | "userId" | "name" | "username" | "sex" | "dob" | "phone" | "email" | "createdBy" | "enabled"
 
@@ -262,11 +299,6 @@ export default function UserManagement() {
     enabled: "w-[120px] min-w-[120px]",
   }
 
-  const [sortConfig, setSortConfig] = useState<{
-    key: SortKey
-    direction: "asc" | "desc"
-  } | null>(null)
-
   const handleSort = (key: SortKey) => {
     setSortConfig(prev => {
       if (prev?.key === key) {
@@ -279,47 +311,9 @@ export default function UserManagement() {
     })
   }
 
-  const sortedPatients = useMemo(() => {
-    if (!sortConfig) return filteredPatients
-
-    const { key, direction } = sortConfig
-
-    return [...filteredPatients].sort((a, b) => {
-      let aValue: any
-      let bValue: any
-
-      if (key === "no") {
-        aValue = a.id
-        bValue = b.id
-      } else {
-        aValue = a[key]
-        bValue = b[key]
-      }
-
-      if (aValue == null) return 1
-      if (bValue == null) return -1
-
-      if (typeof aValue === "string") {
-        return direction === "asc"
-          ? aValue.localeCompare(bValue)
-          : bValue.localeCompare(aValue)
-      }
-
-      return direction === "asc"
-        ? aValue > bValue ? 1 : -1
-        : aValue < bValue ? 1 : -1
-    })
-  }, [filteredPatients, sortConfig])
-
-
-  const paginatedPatients = useMemo(() => {
-    const start = (currentPage - 1) * pageSize
-    return sortedPatients.slice(start, start + pageSize)
-  }, [sortedPatients, currentPage, pageSize])
-
   const paginatedAccountIds = useMemo(
-    () => paginatedPatients.map((p) => p.accountId),
-    [paginatedPatients]
+    () => patients.map((p) => p.accountId),
+    [patients]
   )
   const allCurrentPageSelected =
     paginatedAccountIds.length > 0 && paginatedAccountIds.every((id) => selectedAccountIds.includes(id))
@@ -541,16 +535,23 @@ export default function UserManagement() {
   const activePatient = isEditing ? draftPatient : selectedPatient
   const canAdd = formMode === "view"
   const canEdit = formMode === "view" && selectedAccountIds.length === 1
-  const canEditFields = isEditing
+  /** Chỉ tạo mới được sửa hồ sơ; sửa user chỉ được bật/tắt hoạt động. */
+  const canEditProfileFields = formMode === "add"
+  const canToggleAccountStatus = formMode === "add" || formMode === "edit"
   const canSubmitOrCancel = isEditing && !savingAccount
-  const canDelete = formMode === "view" && selectedAccountIds.length > 0
-
+  const hasEditStatusChange =
+    formMode === "edit" &&
+    !!selectedPatient &&
+    !!draftPatient &&
+    draftPatient.enabled !== selectedPatient.enabled
+  const canSubmitForm = canSubmitOrCancel && (formMode === "add" || hasEditStatusChange)
   const calendarLocale = i18n.language?.startsWith("vi") ? vi : enUS
   const isViCalendar = i18n.language?.startsWith("vi")
   const dobCalendarClassName = cn(
     "p-3 sm:p-4",
     isViCalendar ? "[--cell-size:2.5rem] sm:[--cell-size:2.625rem]" : "[--cell-size:2.875rem] sm:[--cell-size:3.125rem]",
   )
+  const isDobCalendarDayDisabled = (d: Date) => startOfDay(d).getTime() >= startOfDay(new Date()).getTime()
 
   const activeDobYmd = useMemo(() => normalizeDobForStorage(activePatient?.dob || ""), [activePatient?.dob])
   const activeDobDate = useMemo(() => {
@@ -612,7 +613,40 @@ export default function UserManagement() {
   }
 
   const handleSubmit = async () => {
-    if (!draftPatient || !canSubmitOrCancel) return
+    if (!draftPatient || !canSubmitOrCancel || !canSubmitForm) return
+
+    if (formMode === "edit") {
+      if (!selectedPatient || !hasEditStatusChange) return
+      setSavingAccount(true)
+      try {
+        await adminAccountService.updateAccountStatus(draftPatient.userId, draftPatient.enabled)
+        await loadAccounts({ cancelled: false })
+        setFormMode("view")
+        setIsDetailModalOpen(false)
+        showSuccess(t("admin.accounts.statusUpdated"))
+      } catch (e) {
+        console.error("Update account status failed:", e)
+        showError(e instanceof Error ? e.message : "Failed to update account status")
+      } finally {
+        setSavingAccount(false)
+      }
+      return
+    }
+
+    const ageYears = completedAgeYearsFromDob(draftPatient.dob)
+    if (ageYears === null) {
+      showError(t("admin.accounts.invalidDob"))
+      return
+    }
+    if (!isDobYmdBeforeToday(draftPatient.dob)) {
+      showError(t("admin.accounts.dobMustBeBeforeToday"))
+      return
+    }
+    if (ageYears <= 1) {
+      showError(t("admin.accounts.ageMustBeGreaterThanOne"))
+      return
+    }
+
     setSavingAccount(true)
     try {
       const payload: SaveAdminAccountPayload = {
@@ -631,56 +665,14 @@ export default function UserManagement() {
         payload.doctorDepartmentIds = [...draftPatient.doctorDepartmentIds]
       }
 
-      const result =
-        formMode === "add"
-          ? await adminAccountService.createAccount(payload)
-          : await adminAccountService.updateAccount(draftPatient.accountId, payload)
-
-      const savedRow = mapAccountToPatientRow(result.account)
-      const existingMap = new Map<number, string>(
-        patients.map((p) => [p.userId, p.name || p.username || ""])
-      )
-      const creatorId = Number(savedRow.createdBy)
-      if (Number.isFinite(creatorId) && creatorId > 0) {
-        savedRow.createdBy = existingMap.get(creatorId)?.trim() || "System"
-      } else {
-        savedRow.createdBy = "System"
-      }
-      if (formMode === "add") {
-        setPatients((prev) => [savedRow, ...prev])
-      } else {
-        setPatients((prev) =>
-          prev.map((x) => (x.accountId === savedRow.accountId ? savedRow : x))
-        )
-      }
-      setSelectedPatient(savedRow)
-      setDraftPatient({ ...savedRow })
+      await adminAccountService.createAccount(payload)
+      await loadAccounts({ cancelled: false })
       setFormMode("view")
       setIsDetailModalOpen(false)
-      showSuccess(formMode === "add" ? "Account created successfully" : "Account updated successfully")
+      showSuccess("Account created successfully")
     } catch (e) {
       console.error("Save account failed:", e)
       showError(e instanceof Error ? e.message : "Failed to save account")
-    } finally {
-      setSavingAccount(false)
-    }
-  }
-
-  const handleDelete = async () => {
-    if (!canDelete) return
-    const ids = selectedAccountIds
-    if (!ids.length) return
-
-    setSavingAccount(true)
-    try {
-      await Promise.all(ids.map((id) => adminAccountService.updateAccountStatus(id, false)))
-      setPatients((prev) => prev.filter((p) => !ids.includes(p.accountId)))
-      setSelectedAccountIds((prev) => prev.filter((id) => !ids.includes(id)))
-      setSelectedPatient((prev) => (prev && ids.includes(prev.accountId) ? null : prev))
-      showSuccess(ids.length > 1 ? "Selected accounts deleted" : "Account deleted")
-    } catch (e) {
-      console.error("Delete account failed:", e)
-      showError(e instanceof Error ? e.message : "Failed to delete account")
     } finally {
       setSavingAccount(false)
     }
@@ -721,11 +713,6 @@ export default function UserManagement() {
             >
               <Edit3 className="w-4 h-4 mr-2" /> {t("admin.accounts.edit")}
             </Button>
-            <Button
-              className="btn-outline transition-transform duration-500 text-sm px-4 h-9"
-              disabled={!canDelete || savingAccount}
-              onClick={() => void handleDelete()}
-            ><Trash2 className="w-4 h-4 mr-2" /> {t("admin.accounts.delete")}</Button>
           </div>
         </div>
 
@@ -787,7 +774,7 @@ export default function UserManagement() {
                     >
                       <table className="table-fixed w-[1546px] caption-bottom text-sm">
                         <TableBody>
-                          {paginatedPatients.map((patient, idx) => (
+                          {patients.map((patient, idx) => (
                             <TableRow key={patient.id}
                               onClick={() => {
                                 setSelectedPatient(patient)
@@ -898,7 +885,7 @@ export default function UserManagement() {
 
                   {/* Render results */}
                   <div className="text-gray-700 whitespace-nowrap">
-                    Showing {startItem} to {endItem} of {filteredPatients.length} entries
+                    Showing {totalEntries === 0 ? 0 : startItem} to {endItem} of {totalEntries} entries
                   </div>
 
                   {/* Pagination */}
@@ -984,7 +971,7 @@ export default function UserManagement() {
                     <Input
                       id="name"
                       value={activePatient.name}
-                      disabled={!canEditFields}
+                      disabled={!canEditProfileFields}
                       className="bg-gray-50"
                       onChange={(e) => updateDraftField("name", e.target.value)}
                       onInput={(e) => updateDraftField("name", (e.target as HTMLInputElement).value)}
@@ -993,7 +980,7 @@ export default function UserManagement() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
-                    {canEditFields ? (
+                    {canEditProfileFields ? (
                       <Select
                         value={activePatient.roleCode || "PAT"}
                         onValueChange={(v) => {
@@ -1037,7 +1024,7 @@ export default function UserManagement() {
                     <Input
                       id="username"
                       value={activePatient.username}
-                      disabled={!canEditFields}
+                      disabled={!canEditProfileFields}
                       className="bg-gray-50"
                       onChange={(e) => updateDraftField("username", e.target.value)}
                       onInput={(e) => updateDraftField("username", (e.target as HTMLInputElement).value)}
@@ -1053,7 +1040,7 @@ export default function UserManagement() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Sex</label>
-                    {canEditFields ? (
+                    {canEditProfileFields ? (
                       <Select
                         value={activePatient.sex || "UNKNOWN"}
                         onValueChange={(v) =>
@@ -1082,7 +1069,7 @@ export default function UserManagement() {
                             type="button"
                             variant="ghost"
                             size="icon"
-                            disabled={!canEditFields}
+                            disabled={!canEditProfileFields}
                             className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2 rounded-md text-slate-500 shadow-none hover:bg-slate-100 hover:text-slate-800 disabled:opacity-50"
                             aria-label="Open date of birth calendar"
                           >
@@ -1098,8 +1085,10 @@ export default function UserManagement() {
                             locale={calendarLocale}
                             className={dobCalendarClassName}
                             selected={activeDobDate}
+                            disabled={isDobCalendarDayDisabled}
                             onSelect={(d) => {
-                              if (!d || !canEditFields) return
+                              if (!d || !canEditProfileFields) return
+                              if (!isDateBeforeToday(d)) return
                               updateDraftField("dob", format(d, "yyyy-MM-dd"))
                               setDobText(format(d, "dd/MM/yyyy"))
                             }}
@@ -1113,11 +1102,11 @@ export default function UserManagement() {
                         inputMode="numeric"
                         autoComplete="off"
                         placeholder="dd/mm/yyyy"
-                        disabled={!canEditFields}
+                        disabled={!canEditProfileFields}
                         className="w-full bg-gray-50 pr-10"
                         value={dobText}
                         onChange={(e) => {
-                          if (!canEditFields) return
+                          if (!canEditProfileFields) return
                           const nextText = formatDdMmYyyyInput(e.target.value)
                           setDobText(nextText)
                           if (nextText === "") {
@@ -1126,12 +1115,20 @@ export default function UserManagement() {
                           }
                           if (nextText.length === 10) {
                             const d = parseDdMmYyyyStrict(nextText)
-                            if (d) updateDraftField("dob", format(d, "yyyy-MM-dd"))
+                            if (d && isDateBeforeToday(d)) updateDraftField("dob", format(d, "yyyy-MM-dd"))
+                            else if (d && !isDateBeforeToday(d)) updateDraftField("dob", "")
                           }
                         }}
                         onBlur={() => {
-                          // If user leaves incomplete/invalid input, snap back to stored value.
-                          if (!canEditFields) return
+                          if (!canEditProfileFields) return
+                          if (dobText.length === 10) {
+                            const d = parseDdMmYyyyStrict(dobText)
+                            if (d && !isDateBeforeToday(d)) {
+                              setDobText("")
+                              updateDraftField("dob", "")
+                              return
+                            }
+                          }
                           if (dobText && (dobText.length !== 10 || !parseDdMmYyyyStrict(dobText))) {
                             setDobText(activeDobDate ? format(activeDobDate, "dd/MM/yyyy") : "")
                           }
@@ -1147,7 +1144,7 @@ export default function UserManagement() {
                     <Input
                       id="phone"
                       value={activePatient.phone}
-                      disabled={!canEditFields}
+                      disabled={!canEditProfileFields}
                       className="bg-gray-50"
                       onChange={(e) => updateDraftField("phone", e.target.value)}
                       onInput={(e) => updateDraftField("phone", (e.target as HTMLInputElement).value)}
@@ -1159,13 +1156,44 @@ export default function UserManagement() {
                     <Input
                       id="email"
                       value={activePatient.email}
-                      disabled={!canEditFields}
+                      disabled={!canEditProfileFields}
                       className="bg-gray-50"
                       onChange={(e) => updateDraftField("email", e.target.value)}
                       onInput={(e) => updateDraftField("email", (e.target as HTMLInputElement).value)}
                       onBlur={(e) => updateDraftField("email", e.target.value)}
                     />
                   </div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50/60 px-4 py-3">
+                  <div>
+                    <div className="text-sm font-medium text-gray-800">{t("admin.accounts.accountStatus")}</div>
+                    <p className="text-xs text-muted-foreground">{t("admin.accounts.accountStatusHint")}</p>
+                  </div>
+                  {canToggleAccountStatus ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-600">
+                        {activePatient.enabled ? t("admin.accounts.active") : t("admin.accounts.inactive")}
+                      </span>
+                      <Switch
+                        checked={activePatient.enabled}
+                        disabled={
+                          savingAccount ||
+                          (String(activePatient.roleCode || "").toUpperCase() === "ADM" && activePatient.enabled)
+                        }
+                        onCheckedChange={(v) => updateDraftField("enabled", v)}
+                        aria-label={t("admin.accounts.accountStatus")}
+                      />
+                    </div>
+                  ) : (
+                    <span
+                      className={
+                        activePatient.enabled ? "text-sm font-medium text-emerald-700" : "text-sm font-medium text-rose-700"
+                      }
+                    >
+                      {activePatient.enabled ? t("admin.accounts.active") : t("admin.accounts.inactive")}
+                    </span>
+                  )}
                 </div>
 
                 {activePatient.roleCode === "DOC" && (
@@ -1180,7 +1208,7 @@ export default function UserManagement() {
                       <label className="block text-sm font-medium text-gray-700 mb-2">Specifications</label>
                       <Textarea
                         value={activePatient.doctorSpecifications}
-                        disabled={!canEditFields}
+                        disabled={!canEditProfileFields}
                         className="bg-gray-50 min-h-[72px]"
                         placeholder="e.g. Cardiology, interventional procedures"
                         onChange={(e) => updateDraftField("doctorSpecifications", e.target.value)}
@@ -1192,7 +1220,7 @@ export default function UserManagement() {
                       <label className="block text-sm font-medium text-gray-700 mb-2">Qualifications</label>
                       <Textarea
                         value={activePatient.doctorQualifications}
-                        disabled={!canEditFields}
+                        disabled={!canEditProfileFields}
                         className="bg-gray-50 min-h-[72px]"
                         placeholder="e.g. MD, board certifications"
                         onChange={(e) => updateDraftField("doctorQualifications", e.target.value)}
@@ -1209,14 +1237,14 @@ export default function UserManagement() {
                           {departments.map((d) => (
                             <div
                               key={d.id}
-                              className={canEditFields ? "" : "pointer-events-none opacity-70"}
+                              className={canEditProfileFields ? "" : "pointer-events-none opacity-70"}
                             >
                               <Checkbox
                                 label={d.name}
                                 compact
                                 checked={activePatient.doctorDepartmentIds.includes(d.id)}
                                 onChange={() => {
-                                  if (canEditFields) toggleDoctorDepartment(d.id)
+                                  if (canEditProfileFields) toggleDoctorDepartment(d.id)
                                 }}
                               />
                             </div>
@@ -1241,7 +1269,7 @@ export default function UserManagement() {
                     <Button
                       size="sm"
                       className="btn-gradient text-sm h-8 px-3"
-                      disabled={!canSubmitOrCancel}
+                      disabled={!canSubmitForm}
                       onClick={() => void handleSubmit()}
                     >
                       <Save className="w-4 h-4 mr-1.5" /> Submit

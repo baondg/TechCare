@@ -6,8 +6,9 @@
  * =============================================================================
  * 
  * This component provides a conversational AI interface for patients to interact
- * with TechCare's medical assistant. It uses Google Gemini API for natural
- * language processing and response generation.
+ * with TechCare's medical assistant. Messages are sent via `appointmentService`
+ * to `POST /api/appointments/ai/chat` (Node backend: Groq or local OpenAI-compatible LLM;
+ * see `backend/src/routes/ai.ts` and AI_INTEGRATION.md).
  * 
  * FEATURES:
  * - Real-time chat interface with message history
@@ -20,8 +21,8 @@
  * ARCHITECTURE:
  * 1. User types message → handleSend() is triggered
  * 2. Message added to UI → Loading indicator shown
- * 3. Conversation history sent to AI service (ai-service.ts)
- * 4. AI service calls Gemini API with medical assistant context
+ * 3. Conversation history sent via `appointmentService.sendPatientChatMessage`
+ * 4. Backend runs the LLM and may persist recommendations for feedback
  * 5. Response received → Loading replaced with AI message
  * 
  * AI CAPABILITIES:
@@ -45,6 +46,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { appointmentService } from "@/services/appointment-service"
 import type { ChatMessage as AIMessage } from "@/types/ai-types"
 import { getReadableApiError } from "@/lib/utils"
+import { useTranslation } from "react-i18next"
 
 /**
  * Message type definition for chat messages
@@ -60,6 +62,7 @@ type Message = {
   content: string
   timestamp: Date
   isLoading?: boolean
+  isWelcome?: boolean
   recommendationId?: number | null
   feedback?: "accepted" | "rejected"
 }
@@ -79,16 +82,17 @@ type Message = {
  * @returns JSX.Element - The complete chatbot page wrapped in PatientLayout
  */
 export default function ChatbotPage() {
+  const { t, i18n } = useTranslation()
   // ==================== STATE MANAGEMENT ====================
   
   // Chat message history - initialized with welcome message from AI
-  const [messages, setMessages] = useState<Message[]>([
+  const [messages, setMessages] = useState<Message[]>(() => [
     {
       id: `msg-${Date.now()}-1`,
       role: "assistant",
-      content:
-        "Hello! I'm your TechCare AI assistant. I can help you with questions about your medications, appointments, and post-treatment care. How can I assist you today?",
+      content: t("patient.chatbot.welcomeMessage"),
       timestamp: new Date(),
+      isWelcome: true,
     },
   ])
   
@@ -118,6 +122,16 @@ export default function ChatbotPage() {
       }
     }
   }, [messages])
+
+  useEffect(() => {
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.isWelcome
+          ? { ...msg, content: t("patient.chatbot.welcomeMessage") }
+          : msg
+      )
+    )
+  }, [i18n.language, t])
 
   useEffect(() => {
     let mounted = true
@@ -202,9 +216,9 @@ export default function ChatbotPage() {
       let assistantText = response.message
       if (response.aiFallback) {
         const hint = response.aiHint?.trim()
-        assistantText += `\n\n—\nNote: the primary AI model may be temporarily unavailable; this is a fallback response.${
-          hint ? ` (${hint})` : ""
-        }`
+        assistantText += `\n\n—\n${t("patient.chatbot.fallbackNote", {
+          hint: hint ? ` (${hint})` : "",
+        })}`
       }
 
       // Remove loading message and add actual response
@@ -261,9 +275,9 @@ export default function ChatbotPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Bot className="h-5 w-5" />
-              Chat with AI Assistant
+              {t("patient.chatbot.title")}
             </CardTitle>
-            <CardDescription>Ask about medications, appointments, and health guidance</CardDescription>
+            <CardDescription>{t("patient.chatbot.description")}</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col h-[calc(100%-5rem)]">
             <ScrollArea className="flex-1 pr-4" ref={scrollAreaRef}>
@@ -282,7 +296,7 @@ export default function ChatbotPage() {
                             <div className="w-2 h-2 bg-foreground rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
                             <div className="w-2 h-2 bg-foreground rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
                           </div>
-                          <span className="text-sm opacity-70">Thinking...</span>
+                          <span className="text-sm opacity-70">{t("patient.chatbot.thinking")}</span>
                         </div>
                       ) : (
                         <>
@@ -323,7 +337,7 @@ export default function ChatbotPage() {
             <div className="flex gap-2 mt-4 pt-4 border-t">
               <Input
                 id="input"
-                placeholder="Type your question..."
+                placeholder={t("patient.chatbot.inputPlaceholder")}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onInput={(e) => setInput((e.target as HTMLInputElement).value)}
@@ -332,11 +346,11 @@ export default function ChatbotPage() {
                 disabled={isLoading}
               />
               <Select value={selectedModelId} onValueChange={setSelectedModelId} disabled={isLoading}>
-                <SelectTrigger className="w-[220px]" aria-label="Select AI model">
-                  <SelectValue placeholder="Choose model" />
+                <SelectTrigger className="w-[220px]" aria-label={t("patient.chatbot.selectModelAria")}>
+                  <SelectValue placeholder={t("patient.chatbot.chooseModel")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="auto">Auto (recommended)</SelectItem>
+                  <SelectItem value="auto">{t("patient.chatbot.autoRecommended")}</SelectItem>
                   {modelOptions.map((m) => (
                     <SelectItem key={m.id} value={String(m.id)}>
                       {m.name}
@@ -354,38 +368,38 @@ export default function ChatbotPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Quick Questions</CardTitle>
-            <CardDescription>Common topics I can help with</CardDescription>
+            <CardTitle>{t("patient.chatbot.quickQuestionsTitle")}</CardTitle>
+            <CardDescription>{t("patient.chatbot.quickQuestionsDescription")}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid gap-2 md:grid-cols-2">
               <Button
                 variant="outline"
                 className="justify-start bg-transparent"
-                onClick={() => setInput("What medications am I currently taking?")}
+                onClick={() => setInput(t("patient.chatbot.quickQuestionPrompts.medications"))}
               >
-                What medications am I taking?
+                {t("patient.chatbot.quickQuestionLabels.medications")}
               </Button>
               <Button
                 variant="outline"
                 className="justify-start bg-transparent"
-                onClick={() => setInput("When is my next appointment?")}
+                onClick={() => setInput(t("patient.chatbot.quickQuestionPrompts.nextAppointment"))}
               >
-                When is my next appointment?
+                {t("patient.chatbot.quickQuestionLabels.nextAppointment")}
               </Button>
               <Button
                 variant="outline"
                 className="justify-start bg-transparent"
-                onClick={() => setInput("How should I prepare for my checkup?")}
+                onClick={() => setInput(t("patient.chatbot.quickQuestionPrompts.checkupPreparation"))}
               >
-                How to prepare for checkup?
+                {t("patient.chatbot.quickQuestionLabels.checkupPreparation")}
               </Button>
               <Button
                 variant="outline"
                 className="justify-start bg-transparent"
-                onClick={() => setInput("What are the side effects of my medication?")}
+                onClick={() => setInput(t("patient.chatbot.quickQuestionPrompts.medicationSideEffects"))}
               >
-                Medication side effects?
+                {t("patient.chatbot.quickQuestionLabels.medicationSideEffects")}
               </Button>
             </div>
           </CardContent>

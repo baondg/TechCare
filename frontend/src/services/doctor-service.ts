@@ -10,6 +10,7 @@ const API_BASE_URL = (() => {
   return s.replace(/\/$/, '');
 })();
 import type { PatientMedicalRegimen } from './appointment-service';
+import type { RecoveryPredictionApiResponse } from '@/types/recovery-prediction';
 
 // ─── Helpers ───
 
@@ -583,6 +584,14 @@ export const doctorService = {
       success: boolean;
       prescriptions: Prescription[];
     }>(`${API_BASE_URL}/api/doctor/patients/${patientId}/prescriptions`);
+  },
+
+  /** Same contract as patient GET /api/appointments/ai/recovery-prediction — staff view for EMR patient. */
+  async getPatientRecoveryPrediction(patientId: number | string, options?: { refresh?: boolean }) {
+    const suffix = options?.refresh ? '?refresh=1' : '';
+    return apiRequest<RecoveryPredictionApiResponse>(
+      `${API_BASE_URL}/api/doctor/patients/${encodeURIComponent(String(patientId))}/recovery-prediction${suffix}`,
+    );
   },
 
   async createPrescription(patientId: number | string, data: {

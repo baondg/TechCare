@@ -7,7 +7,8 @@ import { Link } from "react-router-dom";
 import { CollapsibleSection } from "@/components/collapsible-section"
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { doctorService, type Prescription, type DoctorAppointment } from "@/services/doctor-service";
+import { doctorService, type Prescription, type DoctorAppointment } from "@/services/doctor-service"
+import { EmrPatientRecoveryPanel } from "@/components/emr-patient-recovery-panel"
 
 function appointmentStatusLabel(status: string | undefined): string {
   const s = String(status || "").trim()
@@ -86,11 +87,9 @@ export default function ViewingPatientDashboard() {
             </Card>
           </Link>
 
-          <Card className="col-span-3 card-feature card-feature-hover cursor-pointer h-full group border-r border-white/40 sticky top-16 bg-white/80 backdrop-blur-xl shadow-[4px_0_20px_rgba(0,0,0,0.05)] z-40">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between" />
-            </CardContent>
-          </Card>
+          <div className="col-span-3 border-r border-white/40 sticky top-16 z-40 space-y-2">
+            <EmrPatientRecoveryPanel patientId={patientId} />
+          </div>
         </div>
 
         {/* Upcoming Appointments Section */}

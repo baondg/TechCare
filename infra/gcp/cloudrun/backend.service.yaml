@@ -53,6 +53,11 @@ spec:
                   name: techcare-groq-api-key
                   key: latest
             - name: BENCHMARK_RATE_LIMIT_BYPASS
-              value: "1"
+              value: "0"
+            - name: INTERNAL_API_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: techcare-internal-api-secret
+                  key: latest
             - name: AUTO_SYNC_DB
               value: "0"

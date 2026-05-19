@@ -10,6 +10,7 @@ const User = require('../models/Users');
 const { createPatientAccountRecords } = require('../services/patientRegistrationService');
 const { normalizeRoleFromCode } = require('../security/roleMapping');
 const { getJwtSecret } = require('../security/jwtConfig');
+const { isAccountStatusActive } = require('../common/accountStatus');
 
 
 const SystemConfig = defineSystemConfig(sequelize);
@@ -209,14 +210,6 @@ exports.login = async (req, res) => {
         error: 'Invalid email or password' 
       });
     }
-
-    // Disabled accounts (ACCOUNT.status = 0) should behave like non-existent accounts.
-    if (String(user.status ?? '').trim() === '0') {
-      return res.status(401).json({
-        success: false,
-        error: 'Invalid username or password',
-      });
-    }
     
     // Verify password
     const isValidPassword = await verifyPassword(password, user.password);
@@ -227,6 +220,17 @@ exports.login = async (req, res) => {
       return res.status(401).json({ 
         success: false, 
         error: 'Invalid username or password.'
+      });
+    }
+
+    // Only after correct password: reveal deactivated state (same rules as authMiddleware)
+    const rawStatus = user.getDataValue ? user.getDataValue('status') : user.status;
+    if (!isAccountStatusActive(rawStatus)) {
+      return res.status(403).json({
+        success: false,
+        error:
+          'This account has been deactivated. Please contact your administrator if you need access.',
+        code: 'ACCOUNT_DEACTIVATED',
       });
     }
 

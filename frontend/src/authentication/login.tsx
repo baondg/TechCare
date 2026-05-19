@@ -1,4 +1,4 @@
-﻿import type React from "react";
+import type React from "react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,6 +8,14 @@ import { Activity, Eye, EyeOff, AlertCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTranslation } from "react-i18next";
 
@@ -17,6 +25,7 @@ export default function LoginPage() {
   // const [role, setRole] = useState<"patient" | "hospital staff" | "admin">("patient");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deactivatedOpen, setDeactivatedOpen] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const navigate = useNavigate();
@@ -44,7 +53,7 @@ export default function LoginPage() {
     const submittedUsername = String(formData.get("username") ?? "").trim() || username.trim();
     const submittedPassword = String(formData.get("password") ?? "") || password;
 
-    let result: { success: boolean; error?: string };
+    let result: { success: boolean; error?: string; code?: string };
     try {
       result = await login(submittedUsername, submittedPassword);
     } catch {
@@ -53,6 +62,11 @@ export default function LoginPage() {
     }
 
     if (!result.success) {
+      if (result.code === "ACCOUNT_DEACTIVATED") {
+        setError(null);
+        setDeactivatedOpen(true);
+        return;
+      }
       setError(result.error ?? t("auth.loginFailed"));
       return;
     }
@@ -93,6 +107,22 @@ export default function LoginPage() {
 
   return (
     <div className="h-screen w-full flex items-center justify-center p-4">
+      <Dialog open={deactivatedOpen} onOpenChange={setDeactivatedOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t("auth.accountDeactivatedTitle")}</DialogTitle>
+            <DialogDescription className="text-left text-base text-foreground/90">
+              {t("auth.accountDeactivatedMessage")}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" className="btn-gradient w-full sm:w-auto" onClick={() => setDeactivatedOpen(false)}>
+              {t("auth.accountDeactivatedOk")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div className="w-full max-w-md">
         <Link to="/" className="group flex items-center justify-center gap-2 mb-8">
           <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-linear-to-br from-[#06b6d4] to-[#0891b2] p-0.5 shadow-lg">

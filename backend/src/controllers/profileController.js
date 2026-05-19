@@ -57,6 +57,14 @@ function nullIfEmpty(value) {
   return s === '' ? null : s;
 }
 
+function isValidHumanName(value) {
+  const s = String(value || '').normalize('NFC').trim();
+  if (!s) return false;
+  if (/\d/u.test(s)) return false;
+  if (!/^[\p{L}\p{M}\s'-]+$/u.test(s)) return false;
+  return /[\p{L}]/u.test(s);
+}
+
 exports.getProfile = async (req, res) => {
   try {
     const userId = parseUserIdParam(req, res);
@@ -181,6 +189,18 @@ exports.updateProfile = async (req, res) => {
 
     const fnRaw = (firstName ?? req.body.first_name ?? '').toString().trim();
     const lnRaw = (lastName ?? req.body.last_name ?? '').toString().trim();
+    const relNameRaw = (relativeName ?? '').toString().trim();
+
+    if (!isValidHumanName(fnRaw)) {
+      return res.status(400).json({ message: 'Invalid first name' });
+    }
+    if (!isValidHumanName(lnRaw)) {
+      return res.status(400).json({ message: 'Invalid last name' });
+    }
+    if (!isValidHumanName(relNameRaw)) {
+      return res.status(400).json({ message: 'Invalid relative name' });
+    }
+
     let first = fnRaw;
     let last = lnRaw;
     if (!first && !last && fullName != null && String(fullName).trim()) {
@@ -208,7 +228,7 @@ exports.updateProfile = async (req, res) => {
     });
 
     if (patient) {
-      const relNameIn = nullIfEmpty(relativeName);
+      const relNameIn = nullIfEmpty(relNameRaw);
       const relTel = nullIfEmpty(relativePhone);
       const relEmail = nullIfEmpty(relativeEmail);
       const relNat = nullIfEmpty(relativeNationalId);
@@ -216,21 +236,10 @@ exports.updateProfile = async (req, res) => {
       const relSex =
         relativeSex === 'Male' ? 'M' : relativeSex === 'Female' ? 'F' : 'O';
 
-      let relative = await Relative.findOne({
-        where: { patient_id: patient.patient_id },
-      });
-
-      if (relative) {
-        await relative.update({
-          name: relNameIn || relative.name,
-          relationship: relRelationship,
-          dob: relativeDateOfBirth || null,
-          sex: relSex,
-          tel: relTel,
-          email: relEmail,
-          idcard: relNat,
-        });
-      } else if (relNameIn) {
+      if (relNameIn) {
+        // RELATIVE uses a composite PK (patient_id + name). To avoid stale rows
+        // being returned by future queries, keep exactly one relative row/patient.
+        await Relative.destroy({ where: { patient_id: patient.patient_id } });
         await Relative.create({
           patient_id: patient.patient_id,
           name: relNameIn,

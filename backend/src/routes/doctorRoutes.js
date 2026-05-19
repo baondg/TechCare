@@ -4,6 +4,10 @@ const doctorController = require('../controllers/doctorController');
 const authenticateToken = require('../middleware/authMiddleware');
 const { requireActiveEmrVisitForDoctorTech } = require('../middleware/emrActiveVisitMiddleware');
 const { authorizeCapability } = require('../middleware/authorizeCapability');
+const appointmentController = require('../controllers/appointmentController');
+const validateRequest = require('../middleware/validateRequest');
+const appointmentSchemas = require('../validators/appointmentSchemas');
+const { aiRecoveryRateLimit } = require('../middleware/rateLimitMiddleware');
 
 // All routes require authentication
 router.use(authenticateToken);
@@ -24,6 +28,12 @@ router.get('/dashboard/summary', doctorController.getDashboardSummary);
 // ─── Patients ───
 router.get('/patients', doctorController.getPatients);
 router.get('/patients/:patientId', doctorController.getPatient);
+router.get(
+  '/patients/:patientId/recovery-prediction',
+  validateRequest(appointmentSchemas.recoveryPredictionQuery),
+  aiRecoveryRateLimit,
+  appointmentController.getStaffPatientRecoveryPrediction
+);
 router.get('/patients/:patientId/regimen/active', doctorController.getActiveRegimenForPatient);
 router.get('/patients/:patientId/regimen/active/documents', doctorController.getActiveRegimenDocumentsForPatient);
 router.get('/patients/:patientId/medical-regimens', doctorController.getPatientMedicalRegimensForDoctor);

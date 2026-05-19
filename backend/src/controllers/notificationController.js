@@ -1,5 +1,4 @@
-const { QueryTypes } = require('sequelize');
-const sequelize = require('../common/database');
+const notificationService = require('../services/notificationService');
 
 /**
  * GET /api/notifications/unread-count
@@ -8,12 +7,8 @@ const sequelize = require('../common/database');
 exports.getUnreadCount = async (req, res) => {
   try {
     const userId = req.user.userId;
-    const [c] = await sequelize.query(
-      `SELECT COUNT(*) AS n FROM NOTIFICATION
-       WHERE user_id = :userId AND \`time\` <= NOW() AND status = 'unread'`,
-      { replacements: { userId }, type: QueryTypes.SELECT }
-    );
-    res.json({ count: Number(c?.n) || 0 });
+    const { count } = await notificationService.getUnreadCount(userId);
+    res.json({ count });
   } catch (error) {
     console.error('Unread count error:', error);
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
@@ -27,30 +22,8 @@ exports.getUnreadCount = async (req, res) => {
 exports.listNotifications = async (req, res) => {
   try {
     const userId = req.user.userId;
-    const rows = await sequelize.query(
-      `SELECT id, \`type\`, content, \`time\`, status
-       FROM NOTIFICATION
-       WHERE user_id = :userId AND \`time\` <= NOW()
-       ORDER BY \`time\` DESC
-       LIMIT 100`,
-      { replacements: { userId }, type: QueryTypes.SELECT }
-    );
-    const [c] = await sequelize.query(
-      `SELECT COUNT(*) AS n FROM NOTIFICATION
-       WHERE user_id = :userId AND \`time\` <= NOW() AND status = 'unread'`,
-      { replacements: { userId }, type: QueryTypes.SELECT }
-    );
-    res.json({
-      success: true,
-      notifications: rows.map((r) => ({
-        id: r.id,
-        type: r.type,
-        content: r.content,
-        time: r.time,
-        status: r.status,
-      })),
-      unreadCount: Number(c?.n) || 0,
-    });
+    const payload = await notificationService.listNotifications(userId);
+    res.json(payload);
   } catch (error) {
     console.error('List notifications error:', error);
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
@@ -63,12 +36,8 @@ exports.listNotifications = async (req, res) => {
 exports.markAllNotificationsRead = async (req, res) => {
   try {
     const userId = req.user.userId;
-    await sequelize.query(
-      `UPDATE NOTIFICATION SET status = 'read'
-       WHERE user_id = :userId AND status = 'unread'`,
-      { replacements: { userId }, type: QueryTypes.UPDATE }
-    );
-    res.json({ success: true });
+    const payload = await notificationService.markAllRead(userId);
+    res.json(payload);
   } catch (error) {
     console.error('Mark all notifications read error:', error);
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
@@ -82,15 +51,11 @@ exports.markNotificationRead = async (req, res) => {
   try {
     const userId = req.user.userId;
     const id = Number(req.params.id);
-    if (!Number.isFinite(id)) {
-      return res.status(400).json({ success: false, message: 'Invalid id' });
+    const out = await notificationService.markOneRead(userId, id);
+    if (!out.ok) {
+      return res.status(out.status).json(out.json);
     }
-    await sequelize.query(
-      `UPDATE NOTIFICATION SET status = 'read'
-       WHERE id = :id AND user_id = :userId`,
-      { replacements: { id, userId }, type: QueryTypes.UPDATE }
-    );
-    res.json({ success: true });
+    res.json(out.json);
   } catch (error) {
     console.error('Mark notification read error:', error);
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });

@@ -5222,7 +5222,8 @@ exports.getAppointments = async (req, res) => {
          '' AS notes,
          cr.name AS room,
          COALESCE(NULLIF(TRIM(dep.name), ''), NULLIF(TRIM(d.specifications), ''), '') AS department,
-         p.user_id AS patientId,
+         p.patient_id AS patientId,
+         p.user_id AS userId,
          COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), acc.username, CONCAT('patient#', p.user_id)) AS patientName
        FROM APPOINTMENT a
        JOIN PATIENT p ON p.patient_id = a.patient_id
@@ -5245,8 +5246,8 @@ exports.getAppointments = async (req, res) => {
         r.dbStatus === 'scheduled' && r.patientId != null && !confirmed;
       return {
         id: r.id,
-        userId: r.patientId,
-        patientId: r.patientId,
+        userId: Number(r.userId),
+        patientId: Number(r.patientId),
         patientName: r.patientName,
         doctor: req.user.username || '',
         assignedDoctorId: Number(doctorId),
@@ -5539,7 +5540,7 @@ exports.createPatientTransfer = async (req, res) => {
     await transaction.commit();
 
     if (clinicTransferToRoomId != null) {
-      await notifyDepartmentDoctorsInboundClinicTransfer(sequelize, {
+      await notifyDepartmentDoctorsInboundClinicTransfer({
         toRoomId: clinicTransferToRoomId,
         patientPk,
         reason: String(reason).trim(),
@@ -5729,7 +5730,7 @@ exports.coverAppointment = async (req, res) => {
          WHERE a.id = :id LIMIT 1`,
         { replacements: { id }, type: QueryTypes.SELECT }
       );
-      await notifyPatientAppointmentDoctorReassigned(sequelize, {
+      await notifyPatientAppointmentDoctorReassigned({
         patientId: Number(appt.patientId),
         dateVi: meta?.dateVi || '',
         timeVi: meta?.timeVi || '',
@@ -5740,7 +5741,7 @@ exports.coverAppointment = async (req, res) => {
       });
     }
 
-    await notifyDoctorReceivedCoverAppointment(sequelize, {
+    await notifyDoctorReceivedCoverAppointment({
       appointmentId: Number(id),
       previousDoctorLabel: oldDoctorLabel,
     });
@@ -5795,7 +5796,7 @@ exports.cancelAppointment = async (req, res) => {
       `UPDATE APPOINTMENT SET status = 'cancelled', cancellation_reason = :reason WHERE id = :id`,
       { replacements: { id, reason }, type: QueryTypes.UPDATE }
     );
-    await notifyPatientDoctorCover(sequelize, id, reason);
+    await notifyPatientDoctorCover(id, reason);
     res.json({ success: true, appointment: { id: Number(id), status: 'Cancelled' } });
   } catch (error) {
     console.error('Cancel appointment error:', error);
@@ -5855,7 +5856,7 @@ exports.declineAppointment = async (req, res) => {
        WHERE id = :id AND doctor_id = :doctorId`,
       { replacements: { id, doctorId, reason }, type: QueryTypes.UPDATE }
     );
-    await notifyPatientDoctorDeclinedBooking(sequelize, {
+    await notifyPatientDoctorDeclinedBooking({
       patientId: patientPk,
       doctorLabel,
       dateVi: appt.dateVi || '',
@@ -5900,7 +5901,7 @@ exports.confirmAppointment = async (req, res) => {
       `UPDATE APPOINTMENT SET doctor_confirmed = 1, status = 'scheduled' WHERE id = :id`,
       { replacements: { id }, type: QueryTypes.UPDATE }
     );
-    await notifyPatientDoctorAcceptedBooking(sequelize, id);
+    await notifyPatientDoctorAcceptedBooking(id);
     res.json({ success: true, appointment: { id: Number(id), status: 'Pending', doctorConfirmed: true } });
   } catch (error) {
     console.error('Confirm appointment error:', error);
@@ -6100,7 +6101,7 @@ exports.getDashboardSummary = async (req, res) => {
            a.status AS dbStatus,
            COALESCE(NULLIF(TRIM(dep.name), ''), NULLIF(TRIM(d.specifications), ''), '') AS department,
            cr.name AS room,
-           p.user_id AS patientId,
+           p.patient_id AS patientId,
            COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), acc.username, CONCAT('patient#', p.user_id)) AS patientName
          FROM APPOINTMENT a
          JOIN PATIENT p ON p.patient_id = a.patient_id
@@ -6118,7 +6119,7 @@ exports.getDashboardSummary = async (req, res) => {
       ),
       sequelize.query(
         `SELECT DISTINCT
-           p.user_id AS patientId,
+           p.patient_id AS patientId,
            COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), acc.username, CONCAT('patient#', p.user_id)) AS patientName,
            MAX(a.time) AS lastTime
          FROM APPOINTMENT a
@@ -6126,7 +6127,7 @@ exports.getDashboardSummary = async (req, res) => {
          JOIN USER u ON u.id = p.user_id
          LEFT JOIN ACCOUNT acc ON acc.user_id = p.user_id
          WHERE a.doctor_id = :doctorId
-         GROUP BY p.user_id, patientName
+         GROUP BY p.patient_id, patientName
          ORDER BY lastTime DESC
          LIMIT 5`,
         { replacements: { doctorId }, type: QueryTypes.SELECT }
@@ -6150,12 +6151,12 @@ exports.getDashboardSummary = async (req, res) => {
         time: r.time,
         department: r.department || '',
         room: r.room || '',
-        patientId: r.patientId,
+        patientId: Number(r.patientId),
         patientName: r.patientName,
         status: toUiStatus(r.dbStatus),
       })),
       recentPatients: (recentRows || []).map((r) => ({
-        patientId: r.patientId,
+        patientId: Number(r.patientId),
         patientName: r.patientName,
         lastTime: r.lastTime,
       })),

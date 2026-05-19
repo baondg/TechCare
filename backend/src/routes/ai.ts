@@ -1,11 +1,32 @@
 import { Router, Request, Response } from 'express';
 const router = Router();
+router.use((req: Request, _res: Response, next) => {
+  logAiHttp(req);
+  next();
+});
 const sequelize = require('../common/database');
 const defineSystemConfig = require('../models/SystemConfig');
 const authenticateToken = require('../middleware/authMiddleware');
 const { normalizeRoleFromCode } = require('../security/roleMapping');
 const SystemConfig = defineSystemConfig(sequelize);
 const { aiChatRateLimit, aiSymptomRateLimit, aiRecoveryRateLimit } = require('../middleware/rateLimitMiddleware');
+const { requireInternalApiSecret } = require('../middleware/requireInternalApiSecret');
+
+function logAiHttp(req: Request) {
+  const u = (req as { user?: { userId?: unknown; id?: unknown } }).user;
+  const uid = u?.userId ?? u?.id ?? null;
+  console.log(
+    JSON.stringify({
+      ts: new Date().toISOString(),
+      level: 'info',
+      msg: 'ai.http',
+      requestId: req.requestId ?? null,
+      method: req.method,
+      path: req.path,
+      userId: uid,
+    })
+  );
+}
 
 const requireAdmin = (req: any, res: Response, next: Function) => {
   if (!req.user || normalizeRoleFromCode(req.user.role) !== 'admin') {
@@ -72,6 +93,8 @@ interface ChatMessage {
 interface ChatRequest {
   messages: ChatMessage[];
   systemPrompt?: string;
+  /** From appointmentController: DB AI_MODEL.provider + version (API model id). */
+  preferredModel?: { provider?: string; modelApiId?: string };
 }
 
 // ============================================================
@@ -272,17 +295,17 @@ const loadAiModelRegistry = async () => {
   let defaults: Record<string, { provider: string; modelId: string }> = {};
   try {
     catalog = catalogConfig?.value ? JSON.parse(catalogConfig.value) : [];
-  } catch (_error) {
+  } catch {
     catalog = [];
   }
   try {
     models = modelConfig?.value ? JSON.parse(modelConfig.value) : [];
-  } catch (_error) {
+  } catch {
     models = [];
   }
   try {
     defaults = defaultsConfig?.value ? JSON.parse(defaultsConfig.value) : {};
-  } catch (_error) {
+  } catch {
     defaults = {};
   }
   return {
@@ -334,12 +357,49 @@ const resolveProviderAndModel = async (feature: string) => {
   return { provider: fallbackProvider, model: fallbackModel };
 };
 
-async function callAI(messages: ChatMessage[], feature: string, systemPrompt?: string): Promise<string> {
-  const { provider, model } = await resolveProviderAndModel(feature);
+type ResolvedModel = { provider: 'groq' | 'local'; model: string };
+
+async function callAI(
+  messages: ChatMessage[],
+  feature: string,
+  systemPrompt?: string,
+  resolvedOverride?: ResolvedModel
+): Promise<string> {
+  const { provider, model } = resolvedOverride || (await resolveProviderAndModel(feature));
   if (provider === 'groq') {
     return callGroqAPI(messages, systemPrompt, model);
   }
   return callLocalLLM(messages, systemPrompt, model);
+}
+
+function resolvePreferredChatModel(body: ChatRequest): ResolvedModel | null {
+  const preferred = body?.preferredModel;
+  if (!preferred || typeof preferred !== 'object') return null;
+  const p = String(preferred.provider || '').toLowerCase();
+  const modelApiId = String(preferred.modelApiId || '').trim();
+  if (!modelApiId || (p !== 'groq' && p !== 'local')) return null;
+  return { provider: p as 'groq' | 'local', model: modelApiId };
+}
+
+/** When AI_MODEL has provider but empty version, honor provider with env/registry default model for that provider. */
+async function resolveChatExecutionModel(body: ChatRequest): Promise<ResolvedModel> {
+  const direct = resolvePreferredChatModel(body);
+  if (direct) return direct;
+
+  const reg = await resolveProviderAndModel('chat');
+  const pref = body?.preferredModel;
+  if (!pref || typeof pref !== 'object') return reg;
+
+  const p = String(pref.provider || '').toLowerCase();
+  if (p !== 'groq' && p !== 'local') return reg;
+
+  if (p === reg.provider) return reg;
+
+  const envModel = getFeatureModelOverride('chat');
+  if (p === 'groq') {
+    return { provider: 'groq', model: envModel || getGroqConfig().model };
+  }
+  return { provider: 'local', model: envModel || getLocalLLMConfig().model };
 }
 
 // ============================================================
@@ -371,11 +431,12 @@ router.get('/chat', authenticateToken, requireAdmin, async (_req: Request, res: 
 });
 
 /**
- * POST /api/ai/chat — Chat with AI
+ * POST /api/ai/chat — Chat with AI (server-to-server; requires INTERNAL_API_SECRET in production)
  */
-router.post('/chat', aiChatRateLimit, async (req: Request, res: Response) => {
+router.post('/chat', requireInternalApiSecret, aiChatRateLimit, async (req: Request, res: Response) => {
   try {
-    const { messages, systemPrompt } = req.body as ChatRequest;
+    const body = req.body as ChatRequest;
+    const { messages, systemPrompt } = body;
 
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({
@@ -383,8 +444,8 @@ router.post('/chat', aiChatRateLimit, async (req: Request, res: Response) => {
       });
     }
 
-    const resolved = await resolveProviderAndModel('chat');
-    const reply = await callAI(messages, 'chat', systemPrompt);
+    const resolved = await resolveChatExecutionModel(body);
+    const reply = await callAI(messages, 'chat', systemPrompt, resolved);
 
     return res.json({
       message: reply,
@@ -413,10 +474,10 @@ router.post('/chat', aiChatRateLimit, async (req: Request, res: Response) => {
 
 /**
  * POST /api/ai/symptom-analysis
- * Used by appointmentController (patient symptom checker). No auth — only call from same backend.
+ * Used by appointmentController (patient symptom checker). Requires INTERNAL_API_SECRET in production.
  * Body: { symptoms: Array<{ name, severity, duration }>, patientContext?: object }
  */
-router.post('/symptom-analysis', aiSymptomRateLimit, async (req: Request, res: Response) => {
+router.post('/symptom-analysis', requireInternalApiSecret, aiSymptomRateLimit, async (req: Request, res: Response) => {
   let resolvedProvider: 'groq' | 'local' = getActiveProvider();
   try {
     const symptoms = req.body?.symptoms;
@@ -484,9 +545,10 @@ router.post('/symptom-analysis', aiSymptomRateLimit, async (req: Request, res: R
 
 /**
  * POST /api/ai/recovery-prediction
- * Internal: appointmentController. Body: { clinicalSummary?: object, patientContext?: object }
+ * Internal: appointmentController. Requires INTERNAL_API_SECRET in production.
+ * Body: { clinicalSummary?: object, patientContext?: object }
  */
-router.post('/recovery-prediction', aiRecoveryRateLimit, async (req: Request, res: Response) => {
+router.post('/recovery-prediction', requireInternalApiSecret, aiRecoveryRateLimit, async (req: Request, res: Response) => {
   let resolvedProvider: 'groq' | 'local' = getActiveProvider();
   try {
     const rawClinical = req.body?.clinicalSummary;

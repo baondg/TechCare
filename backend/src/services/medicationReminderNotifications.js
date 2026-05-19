@@ -1,68 +1,26 @@
-const { QueryTypes } = require('sequelize');
-const { isUnknownColumnError } = require('../common/prescriptionQueryCompat');
+const medicationReminderRepository = require('../repositories/medicationReminderRepository');
 
-const MAX_REMINDER_DAYS = 90;
+const MAX_REMINDER_DAYS = medicationReminderRepository.MAX_REMINDER_DAYS;
 const TYPE_MEDICATION_REMINDER = 'medication_reminder';
 /** Giờ nhắc (theo timezone của process Node / MySQL trên cùng máy chủ). Đặt biến môi trường TZ nếu cần (vd. Asia/Ho_Chi_Minh). */
 const REMINDER_HOURS = [7, 12, 18];
 
-const baseActiveRxFrom = `
-  FROM PATIENT p
-  INNER JOIN USER u ON u.id = p.user_id
-  INNER JOIN REGIMEN r ON r.patient_id = p.patient_id AND r.\`end\` IS NOT NULL
-  INNER JOIN TREATMENT t ON t.regimen_id = r.id
-  INNER JOIN \`ORDER\` o ON o.treatment_id = t.id
-  INNER JOIN MEDICAL_PRESCRIPTION rx ON rx.order_id = o.id
-  INNER JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id
-  INNER JOIN MEDICINE m ON m.id = pd.medicine_id
-  WHERE CHAR_LENGTH(TRIM(COALESCE(m.name, ''))) > 0
-    AND CURDATE() >= DATE(rx.time)
-`;
-
 /**
  * Các dòng đơn còn trong duration: từ ngày kê đơn (DATE(rx.time)), số ngày = duration dòng hoặc header, tối đa MAX_REMINDER_DAYS.
  */
-async function selectPatientsWithActivePrescriptionLines(sequelize) {
-  const maxDur = MAX_REMINDER_DAYS;
-  const sqlWithRxDur = `
-    SELECT DISTINCT p.patient_id AS patientId, u.id AS userId, m.name AS medicineName
-    ${baseActiveRxFrom}
-    AND DATEDIFF(CURDATE(), DATE(rx.time)) < LEAST(:maxDur, GREATEST(1,
-      COALESCE(NULLIF(pd.duration, 0), NULLIF(rx.duration, 0), 7)))
-  `;
-  const sqlLegacyPd = `
-    SELECT DISTINCT p.patient_id AS patientId, u.id AS userId, m.name AS medicineName
-    ${baseActiveRxFrom}
-    AND DATEDIFF(CURDATE(), DATE(rx.time)) < LEAST(:maxDur, GREATEST(1, COALESCE(NULLIF(pd.duration, 0), 7)))
-  `;
-  const sqlNoDurationCols = `
-    SELECT DISTINCT p.patient_id AS patientId, u.id AS userId, m.name AS medicineName
-    ${baseActiveRxFrom}
-    AND DATEDIFF(CURDATE(), DATE(rx.time)) < LEAST(:maxDur, 7)
-  `;
-
-  try {
-    return await sequelize.query(sqlWithRxDur, { replacements: { maxDur }, type: QueryTypes.SELECT });
-  } catch (e) {
-    if (!isUnknownColumnError(e)) throw e;
-    try {
-      return await sequelize.query(sqlLegacyPd, { replacements: { maxDur }, type: QueryTypes.SELECT });
-    } catch (e2) {
-      if (!isUnknownColumnError(e2)) throw e2;
-      return await sequelize.query(sqlNoDurationCols, { replacements: { maxDur }, type: QueryTypes.SELECT });
-    }
-  }
+async function selectPatientsWithActivePrescriptionLines() {
+  return medicationReminderRepository.selectPatientsWithActivePrescriptionLines();
 }
 
 /**
  * Một lần chạy tại khung 7:00 / 12:00 / 18:00: tạo thông báo cho bệnh nhân còn thuốc trong duration.
  */
-async function runMedicationReminderSlot(sequelize, hour) {
+async function runMedicationReminderSlot(hour) {
   if (!REMINDER_HOURS.includes(hour)) {
     return { skipped: true, reason: 'invalid_hour' };
   }
 
-  const rows = await selectPatientsWithActivePrescriptionLines(sequelize);
+  const rows = await selectPatientsWithActivePrescriptionLines();
   const byUser = new Map();
   for (const row of rows) {
     const uid = row.userId;
@@ -80,15 +38,10 @@ async function runMedicationReminderSlot(sequelize, hour) {
     const names = [...nameSet].sort();
     if (names.length === 0) continue;
 
-    const [dup] = await sequelize.query(
-      `SELECT id FROM NOTIFICATION
-       WHERE user_id = :userId AND type = :type
-       AND \`time\` = TIMESTAMP(DATE(NOW()), MAKETIME(:hour, 0, 0))
-       LIMIT 1`,
-      {
-        replacements: { userId, type: TYPE_MEDICATION_REMINDER, hour },
-        type: QueryTypes.SELECT,
-      }
+    const dup = await medicationReminderRepository.selectMedicationReminderDuplicateAtHour(
+      userId,
+      TYPE_MEDICATION_REMINDER,
+      hour
     );
     if (dup) {
       skippedDup += 1;
@@ -99,19 +52,12 @@ async function runMedicationReminderSlot(sequelize, hour) {
       ', '
     )}. Uống đúng liều và đúng giờ theo chỉ định.`;
 
-    await sequelize.query(
-      `INSERT INTO NOTIFICATION (\`type\`, content, \`time\`, status, user_id)
-       VALUES (:type, :content, TIMESTAMP(DATE(NOW()), MAKETIME(:hour, 0, 0)), 'unread', :userId)`,
-      {
-        replacements: {
-          type: TYPE_MEDICATION_REMINDER,
-          content,
-          hour,
-          userId,
-        },
-        type: QueryTypes.INSERT,
-      }
-    );
+    await medicationReminderRepository.insertMedicationReminderAtHour({
+      type: TYPE_MEDICATION_REMINDER,
+      content,
+      hour,
+      userId,
+    });
     inserted += 1;
   }
 
@@ -124,7 +70,7 @@ let lastFiredSlotKey = null;
  * Mỗi ~20s kiểm tra: đúng phút :00 và giờ 7/12/18 (theo đồng hồ máy chủ) thì chạy một lần.
  * Tắt: DISABLE_MEDICATION_REMINDERS=1
  */
-function startMedicationReminderScheduler(sequelize) {
+function startMedicationReminderScheduler() {
   if (process.env.DISABLE_MEDICATION_REMINDERS === '1') {
     console.log('[medication-reminder] scheduler disabled (DISABLE_MEDICATION_REMINDERS=1)');
     return;
@@ -141,7 +87,7 @@ function startMedicationReminderScheduler(sequelize) {
     lastFiredSlotKey = key;
 
     try {
-      const result = await runMedicationReminderSlot(sequelize, h);
+      const result = await runMedicationReminderSlot(h);
       console.log('[medication-reminder] slot', result);
     } catch (err) {
       console.error('[medication-reminder] slot failed:', err?.message || err);

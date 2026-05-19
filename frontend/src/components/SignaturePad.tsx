@@ -8,7 +8,7 @@
  *   • Returns base64 dataURL via onSave callback
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Eraser, Check, Upload, PenLine } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -25,6 +25,7 @@ interface SignaturePadProps {
 }
 
 export function SignaturePad({ onSave, onCancel, initialSignature, className }: SignaturePadProps) {
+  const uploadInputId = useId()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [isDrawing, setIsDrawing] = useState(false)
   const [hasDrawn, setHasDrawn] = useState(false)
@@ -133,22 +134,28 @@ export function SignaturePad({ onSave, onCancel, initialSignature, className }: 
         const ctx = canvas?.getContext('2d')
         if (!canvas || !ctx) return
         const rect = canvas.getBoundingClientRect()
+        const wCss = rect.width
+        const hCss = rect.height
         ctx.fillStyle = '#ffffff'
-        ctx.fillRect(0, 0, rect.width, rect.height)
+        ctx.fillRect(0, 0, wCss, hCss)
 
-        // Fit image within canvas
-        const scale = Math.min(rect.width / img.width, rect.height / img.height) * 0.8
+        // Fit image within canvas (logical CSS pixels — matches ctx scale from useEffect)
+        const scale = Math.min(wCss / img.width, hCss / img.height) * 0.8
         const w = img.width * scale
         const h = img.height * scale
-        const x = (rect.width - w) / 2
-        const y = (rect.height - h) / 2
+        const x = (wCss - w) / 2
+        const y = (hCss - h) / 2
         ctx.drawImage(img, x, y, w, h)
         setHasDrawn(true)
         setMode('draw')
       }
+      img.onerror = () => {
+        setHasDrawn(false)
+      }
       img.src = dataUrl
     }
     reader.readAsDataURL(file)
+    e.target.value = ''
   }, [])
 
   return (
@@ -177,60 +184,57 @@ export function SignaturePad({ onSave, onCancel, initialSignature, className }: 
         </Button>
       </div>
 
-      {mode === 'upload' ? (
-        <div className="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center">
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handleFileUpload}
-            className="hidden"
-            id="signature-upload"
-          />
-          <label
-            htmlFor="signature-upload"
-            className="cursor-pointer flex flex-col items-center gap-2 text-slate-500 hover:text-cyan-600 transition-colors"
-          >
-            <Upload className="h-8 w-8" />
-            <span className="text-sm font-medium">Click to upload signature image</span>
-            <span className="text-xs text-slate-400">PNG, JPG (max 2MB)</span>
-          </label>
-        </div>
-      ) : (
-        <>
-          {/* Canvas */}
-          <div className="relative border-2 border-slate-200 rounded-xl overflow-hidden bg-white">
-            <canvas
-              ref={canvasRef}
-              className="w-full cursor-crosshair touch-none"
-              style={{ height: 160 }}
-              onMouseDown={startDrawing}
-              onMouseMove={draw}
-              onMouseUp={stopDrawing}
-              onMouseLeave={stopDrawing}
-              onTouchStart={startDrawing}
-              onTouchMove={draw}
-              onTouchEnd={stopDrawing}
+      {/* Canvas must stay mounted in upload mode so handleFileUpload can draw onto it */}
+      <div className="relative border-2 border-slate-200 rounded-xl overflow-hidden bg-white">
+        <canvas
+          ref={canvasRef}
+          className={cn('w-full touch-none', mode === 'draw' ? 'cursor-crosshair' : 'cursor-default')}
+          style={{ height: 160 }}
+          onMouseDown={mode === 'draw' ? startDrawing : undefined}
+          onMouseMove={mode === 'draw' ? draw : undefined}
+          onMouseUp={mode === 'draw' ? stopDrawing : undefined}
+          onMouseLeave={mode === 'draw' ? stopDrawing : undefined}
+          onTouchStart={mode === 'draw' ? startDrawing : undefined}
+          onTouchMove={mode === 'draw' ? draw : undefined}
+          onTouchEnd={mode === 'draw' ? stopDrawing : undefined}
+        />
+        {mode === 'upload' ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center border-2 border-dashed border-slate-300 bg-white/95 p-6 text-center">
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleFileUpload}
+              className="sr-only"
+              id={uploadInputId}
             />
-            {!hasDrawn && (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <span className="text-slate-300 text-sm select-none">Sign here</span>
-              </div>
-            )}
+            <label
+              htmlFor={uploadInputId}
+              className="cursor-pointer flex flex-col items-center gap-2 text-slate-500 hover:text-cyan-600 transition-colors"
+            >
+              <Upload className="h-8 w-8" />
+              <span className="text-sm font-medium">Click to upload signature image</span>
+              <span className="text-xs text-slate-400">PNG, JPG</span>
+            </label>
           </div>
+        ) : !hasDrawn ? (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <span className="text-slate-300 text-sm select-none">Sign here</span>
+          </div>
+        ) : null}
+      </div>
 
-          {/* Clear */}
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={clearCanvas}
-            className="self-start text-slate-500 hover:text-red-500"
-          >
-            <Eraser className="h-4 w-4 mr-1" />
-            Clear
-          </Button>
-        </>
-      )}
+      {mode === 'draw' ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={clearCanvas}
+          className="self-start text-slate-500 hover:text-red-500"
+        >
+          <Eraser className="h-4 w-4 mr-1" />
+          Clear
+        </Button>
+      ) : null}
 
       {/* Action buttons */}
       <div className="flex gap-2 justify-end">

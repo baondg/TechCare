@@ -60,7 +60,10 @@ interface AuthContextType {
   user: User | null
   isLoading: boolean
   isAuthenticated: boolean
-  login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>
+  login: (
+    username: string,
+    password: string,
+  ) => Promise<{ success: boolean; error?: string; code?: string }>
   register: (userData: RegisterData) => Promise<{ success: boolean; error?: string }>
   logout: () => void
 }
@@ -158,32 +161,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user?.id])
 
-  const login = async (username: string, password: string): Promise<{ success: boolean; error?: string }> => {
+  const login = async (
+    username: string,
+    password: string,
+  ): Promise<{ success: boolean; error?: string; code?: string }> => {
     setIsLoading(true)
     try {
+      // #region agent log
+      fetch('http://127.0.0.1:7437/ingest/38be47be-90b8-4797-8d79-90b3ea2aebaa',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2d4e21'},body:JSON.stringify({sessionId:'2d4e21',location:'AuthContext.tsx:login',message:'Login fetch starting',data:{apiBase:API_BASE},timestamp:Date.now(),hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
       const res = await fetch(`${API_BASE}/api/auth/login`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
       })
-      let data: { success?: boolean; token?: string; user?: User; expiresAt?: string; error?: string } = {}
-      const contentType = res.headers.get('content-type') || ''
-
-      if (contentType.includes('application/json')) {
-        data = (await res.json()) as {
-          success?: boolean
-          token?: string
-          user?: User
-          expiresAt?: string
-          error?: string
+      let data: {
+        success?: boolean
+        token?: string
+        user?: User
+        expiresAt?: string
+        error?: string
+        code?: string
+      } = {}
+      const text = await res.text()
+      const trimmed = text?.trim() ?? ''
+      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+        try {
+          data = JSON.parse(trimmed) as typeof data
+        } catch {
+          data = { success: false, error: trimmed || `Unexpected server response (${res.status})` }
         }
+      } else if (trimmed) {
+        data = { success: false, error: trimmed }
       } else {
-        const text = await res.text()
-        data = {
-          success: false,
-          error: text?.trim() || `Unexpected server response (${res.status})`,
-        }
+        data = { success: false, error: `Unexpected server response (${res.status})` }
       }
 
       if (res.ok && data.success && data.token && data.user) {
@@ -199,8 +211,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         423: i18n.t('auth.loginFailed'),
         429: i18n.t('auth.loginFailed'),
       }
-      return { success: false, error: data.error ?? fallbackErrorByStatus[res.status] ?? i18n.t('auth.loginFailed') }
-    } catch {
+      return {
+        success: false,
+        error: data.error ?? fallbackErrorByStatus[res.status] ?? i18n.t('auth.loginFailed'),
+        code: data.code,
+      }
+    } catch (err) {
+      // #region agent log
+      fetch('http://127.0.0.1:7437/ingest/38be47be-90b8-4797-8d79-90b3ea2aebaa',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2d4e21'},body:JSON.stringify({sessionId:'2d4e21',location:'AuthContext.tsx:login-catch',message:'Login fetch failed',data:{apiBase:API_BASE,error:err instanceof Error?err.message:String(err)},timestamp:Date.now(),hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
       return { success: false, error: i18n.t('auth.unexpectedError') }
     } finally {
       setIsLoading(false)

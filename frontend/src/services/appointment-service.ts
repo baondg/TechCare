@@ -1,6 +1,9 @@
 import { apiClient } from '@/api/client';
 import type { LabTestDetail } from '@/services/doctor-service';
 import type { ChatMessage, SymptomAnalysisResponse, SymptomInput } from '@/types/ai-types';
+import type { RecoveryPrediction, RecoveryPredictionApiResponse } from '@/types/recovery-prediction';
+
+export type { RecoveryPrediction, RecoveryPredictionApiResponse };
 
 export interface Appointment {
   id: number;
@@ -146,24 +149,6 @@ export interface PatientDashboardSummary {
     doctor: string;
     status: string;
   }>;
-}
-
-export interface RecoveryPrediction {
-  daysMin: number;
-  daysMax: number;
-  confidence: 'low' | 'medium' | 'high';
-  note: string;
-  disclaimer: string;
-}
-
-export interface RecoveryPredictionApiResponse {
-  success: boolean;
-  eligible?: boolean;
-  prediction?: RecoveryPrediction;
-  cached?: boolean;
-  recommendationId?: number;
-  model?: { id: number | null; name: string; provider: string };
-  message?: string;
 }
 
 export interface PatientFeedback {

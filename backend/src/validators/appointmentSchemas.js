@@ -121,11 +121,40 @@ function aiChatBody(req) {
   }
 }
 
+const {
+  normalizeSymptomsForAi,
+  normalizeSymptomText,
+  SYMPTOM_SEVERITY_VALUES,
+  SYMPTOM_DURATION_VALUES,
+  MIN_CUSTOM_SYMPTOM_LENGTH,
+} = require('../lib/symptomNormalize');
+
 /** POST /ai/symptom-analysis */
 function aiSymptomAnalysisBody(req) {
   const symptoms = req.body?.symptoms;
   if (!Array.isArray(symptoms) || symptoms.length === 0) {
     throwHttp(400, 'symptoms is required');
+  }
+  for (let i = 0; i < symptoms.length; i++) {
+    const item = symptoms[i];
+    if (!item || typeof item !== 'object') {
+      throwHttp(400, `symptoms[${i}] must be an object`);
+    }
+    const name = normalizeSymptomText(item.name);
+    if (!name || name.length < MIN_CUSTOM_SYMPTOM_LENGTH) {
+      throwHttp(400, `symptoms[${i}].name is required`);
+    }
+    const severity = String(item.severity || '').trim();
+    if (!SYMPTOM_SEVERITY_VALUES.has(severity)) {
+      throwHttp(400, `symptoms[${i}].severity must be mild, moderate, or severe`);
+    }
+    const duration = String(item.duration || '').trim();
+    if (!SYMPTOM_DURATION_VALUES.has(duration)) {
+      throwHttp(400, `symptoms[${i}].duration is invalid`);
+    }
+  }
+  if (normalizeSymptomsForAi(symptoms).length === 0) {
+    throwHttp(400, 'No valid symptoms after normalization');
   }
 }
 
@@ -145,6 +174,16 @@ function nurseCheckInOptionsQuery(req) {
   const n = parseNursePatientNum(req.query?.patientId);
   if (!n) {
     throwHttp(400, 'patientId is required');
+  }
+  const pk = req.query?.patientPk;
+  if (pk != null && pk !== '') {
+    const pkn = Number(pk);
+    if (!Number.isFinite(pkn) || pkn <= 0) throwHttp(400, 'patientPk must be a positive number');
+  }
+  const appt = req.query?.appointmentId;
+  if (appt != null && appt !== '') {
+    const apptN = Number(appt);
+    if (!Number.isFinite(apptN) || apptN <= 0) throwHttp(400, 'appointmentId must be a positive number');
   }
 }
 

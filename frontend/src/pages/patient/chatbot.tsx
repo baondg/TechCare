@@ -39,7 +39,6 @@ import { useState, useRef, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { PatientLayout } from "@/components/patient-layout"
 import { Bot, Send, ThumbsUp, ThumbsDown } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -101,8 +100,6 @@ export default function ChatbotPage() {
   
   // Loading state - prevents multiple simultaneous requests
   const [isLoading, setIsLoading] = useState(false)
-  const [modelOptions, setModelOptions] = useState<Array<{ id: number; name: string; provider?: string; status?: string }>>([])
-  const [selectedModelId, setSelectedModelId] = useState<string>("auto")
   
   // Reference to scroll container for programmatic scrolling
   const scrollAreaRef = useRef<HTMLDivElement>(null)
@@ -132,25 +129,6 @@ export default function ChatbotPage() {
       )
     )
   }, [i18n.language, t])
-
-  useEffect(() => {
-    let mounted = true
-    const loadModels = async () => {
-      try {
-        const rows = await appointmentService.getPatientChatModels()
-        if (!mounted) return
-        const activeRows = rows.filter((m) => !m.status || String(m.status).toLowerCase() === "active")
-        setModelOptions(activeRows)
-      } catch {
-        if (!mounted) return
-        setModelOptions([])
-      }
-    }
-    void loadModels()
-    return () => {
-      mounted = false
-    }
-  }, [])
 
   // ==================== EVENT HANDLERS ====================
   
@@ -205,12 +183,10 @@ export default function ChatbotPage() {
           content: msg.content
         }))
 
-      // Call AI service
-      const parsedModelId = selectedModelId === "auto" ? null : Number(selectedModelId)
       const response = await appointmentService.sendPatientChatMessage(
         conversationHistory,
         currentInput,
-        Number.isFinite(parsedModelId) ? parsedModelId : null
+        null
       )
 
       let assistantText = response.message
@@ -345,20 +321,6 @@ export default function ChatbotPage() {
                 onKeyPress={(e) => e.key === "Enter" && !isLoading && handleSend()}
                 disabled={isLoading}
               />
-              <Select value={selectedModelId} onValueChange={setSelectedModelId} disabled={isLoading}>
-                <SelectTrigger className="w-[220px]" aria-label={t("patient.chatbot.selectModelAria")}>
-                  <SelectValue placeholder={t("patient.chatbot.chooseModel")} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="auto">{t("patient.chatbot.autoRecommended")}</SelectItem>
-                  {modelOptions.map((m) => (
-                    <SelectItem key={m.id} value={String(m.id)}>
-                      {m.name}
-                      {m.provider ? ` (${m.provider})` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
               <Button id="send" className="btn-gradient" onClick={handleSend} disabled={isLoading || !input.trim()}>
                 <Send className="h-4 w-4 mt-0.5 mr-0.5" />
               </Button>

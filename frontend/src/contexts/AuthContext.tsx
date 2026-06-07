@@ -167,9 +167,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   ): Promise<{ success: boolean; error?: string; code?: string }> => {
     setIsLoading(true)
     try {
-      // #region agent log
-      fetch('http://127.0.0.1:7437/ingest/38be47be-90b8-4797-8d79-90b3ea2aebaa',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2d4e21'},body:JSON.stringify({sessionId:'2d4e21',location:'AuthContext.tsx:login',message:'Login fetch starting',data:{apiBase:API_BASE},timestamp:Date.now(),hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
       const res = await fetch(`${API_BASE}/api/auth/login`, {
         method: 'POST',
         credentials: 'include',
@@ -217,9 +214,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         code: data.code,
       }
     } catch (err) {
-      // #region agent log
-      fetch('http://127.0.0.1:7437/ingest/38be47be-90b8-4797-8d79-90b3ea2aebaa',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2d4e21'},body:JSON.stringify({sessionId:'2d4e21',location:'AuthContext.tsx:login-catch',message:'Login fetch failed',data:{apiBase:API_BASE,error:err instanceof Error?err.message:String(err)},timestamp:Date.now(),hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
       return { success: false, error: i18n.t('auth.unexpectedError') }
     } finally {
       setIsLoading(false)

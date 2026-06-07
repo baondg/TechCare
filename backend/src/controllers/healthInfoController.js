@@ -108,7 +108,9 @@ exports.getHealthInfo = async (req, res) => {
       return res.status(404).json({ message: "Patient not found" });
     }
 
-    const records = patient.medicalRecords.map(buildResponseRecord);
+    const records = patient.medicalRecords
+      .map(buildResponseRecord)
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
     const allergyInfo = parseJSON(patient.allergic_info);
     const medicalHistory = parseJSON(patient.medical_history);

@@ -1,12 +1,21 @@
 const notificationService = require('../services/notificationService');
 
+function resolveUserId(req) {
+  const raw = req.user?.userId ?? req.user?.id;
+  const userId = Number(raw);
+  return Number.isFinite(userId) && userId > 0 ? userId : null;
+}
+
 /**
  * GET /api/notifications/unread-count
  * Lightweight poll target for notification badges (same filter as list).
  */
 exports.getUnreadCount = async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const userId = resolveUserId(req);
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
     const { count } = await notificationService.getUnreadCount(userId);
     res.json({ count });
   } catch (error) {
@@ -21,7 +30,10 @@ exports.getUnreadCount = async (req, res) => {
  */
 exports.listNotifications = async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const userId = resolveUserId(req);
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
     const payload = await notificationService.listNotifications(userId);
     res.json(payload);
   } catch (error) {
@@ -35,7 +47,10 @@ exports.listNotifications = async (req, res) => {
  */
 exports.markAllNotificationsRead = async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const userId = resolveUserId(req);
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
     const payload = await notificationService.markAllRead(userId);
     res.json(payload);
   } catch (error) {
@@ -49,7 +64,10 @@ exports.markAllNotificationsRead = async (req, res) => {
  */
 exports.markNotificationRead = async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const userId = resolveUserId(req);
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
     const id = Number(req.params.id);
     const out = await notificationService.markOneRead(userId, id);
     if (!out.ok) {

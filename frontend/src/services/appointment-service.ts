@@ -82,6 +82,7 @@ export interface NurseCheckInSlot {
 export interface NurseCheckInOptionsResponse {
   success: boolean;
   today: string;
+  todayTimezone?: string;
   patientBookings: NurseCheckInSlot[];
   openSlots: NurseCheckInSlot[];
 }
@@ -324,7 +325,16 @@ export const appointmentService = {
     return data.slots || [];
   },
 
-  async createOpenSlot(payload: { doctorId: number; date: string; time: string; roomId?: number; condition?: string }) {
+  async createOpenSlot(payload: {
+    doctorId: number;
+    date: string;
+    time: string;
+    roomId?: number;
+    condition?: string;
+    /** DEPARTMENT.name — used to pick/validate clinic room when roomId omitted */
+    department?: string;
+    departmentId?: number;
+  }) {
     return apiClient.post<{ success: boolean; slot: NurseOpenSlot }>('/api/appointments/open-slots', payload);
   },
 
@@ -479,9 +489,19 @@ export const appointmentService = {
     return analysis;
   },
 
-  async getNurseCheckInOptions(patientIdParam: string): Promise<NurseCheckInOptionsResponse> {
+  async getNurseCheckInOptions(
+    patientIdParam: string,
+    opts?: { patientPk?: number | null; appointmentId?: number | null }
+  ): Promise<NurseCheckInOptionsResponse> {
+    const params = new URLSearchParams({ patientId: patientIdParam });
+    if (opts?.patientPk != null && Number.isFinite(opts.patientPk) && opts.patientPk > 0) {
+      params.set('patientPk', String(opts.patientPk));
+    }
+    if (opts?.appointmentId != null && Number.isFinite(opts.appointmentId) && opts.appointmentId > 0) {
+      params.set('appointmentId', String(opts.appointmentId));
+    }
     return apiClient.get<NurseCheckInOptionsResponse>(
-      `/api/appointments/nurse/check-in-options?patientId=${encodeURIComponent(patientIdParam)}`
+      `/api/appointments/nurse/check-in-options?${params.toString()}`
     );
   },
 

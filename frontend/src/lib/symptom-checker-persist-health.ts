@@ -44,13 +44,15 @@ export function mergeHealthInfoSymptomText(existing: string, block: string): str
   return merged
 }
 
+export const HEALTH_INFO_SYMPTOMS_UPDATED_EVENT = "health-info-symptoms-updated"
+
 function asStringArray(v: unknown): string[] {
   if (Array.isArray(v)) return v.map((x) => String(x))
   if (typeof v === "string" && v.trim()) return [v]
   return []
 }
 
-function vitalPayloadFromHealthInfo(hi: HealthInfo, currentSymptoms: string) {
+export function vitalPayloadFromHealthInfo(hi: HealthInfo, currentSymptoms: string) {
   return {
     height: hi.height,
     weight: hi.weight,
@@ -76,7 +78,8 @@ function vitalPayloadFromHealthInfo(hi: HealthInfo, currentSymptoms: string) {
 }
 
 /**
- * Append structured symptom-checker lines to Health Info `currentSymptoms` (MEDICAL_RECORD.condition).
+ * Save the latest symptom-checker selection to Health Info `currentSymptoms` (MEDICAL_RECORD.condition).
+ * Replaces previous symptoms with the current check (does not append history).
  * Updates the latest draft row if present; otherwise creates a new record (e.g. after confirm).
  */
 export async function persistSymptomCheckerToHealthInfo(
@@ -84,23 +87,27 @@ export async function persistSymptomCheckerToHealthInfo(
 ): Promise<{ ok: boolean; error?: string }> {
   if (!symptoms.length) return { ok: false, error: "No symptoms to save." }
 
-  const block = formatSymptomCheckerBlock(symptoms)
+  const currentSymptoms = formatSymptomCheckerBlock(symptoms)
   const info = await healthInfoService.getHealthInfo()
   if (!info.success || !info.healthInfo) {
     return { ok: false, error: info.error || "Could not load Health Info." }
   }
 
   const hi = info.healthInfo
-  const merged = mergeHealthInfoSymptomText(hi.currentSymptoms ?? "", block)
-  const payload = vitalPayloadFromHealthInfo(hi, merged)
+  const payload = vitalPayloadFromHealthInfo(hi, currentSymptoms)
 
   const recordId = hi.id
   const isDraft = hi.status !== "confirmed"
+  let res
   if (recordId != null && Number.isFinite(Number(recordId)) && isDraft) {
-    const res = await healthInfoService.updateHealthInfo(Number(recordId), payload)
-    return res.success ? { ok: true } : { ok: false, error: res.error }
+    res = await healthInfoService.updateHealthInfo(Number(recordId), payload)
+  } else {
+    res = await healthInfoService.createHealthInfo(payload)
   }
 
-  const res = await healthInfoService.createHealthInfo(payload)
-  return res.success ? { ok: true } : { ok: false, error: res.error }
+  if (res.success) {
+    window.dispatchEvent(new CustomEvent(HEALTH_INFO_SYMPTOMS_UPDATED_EVENT))
+    return { ok: true }
+  }
+  return { ok: false, error: res.error }
 }

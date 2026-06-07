@@ -118,26 +118,45 @@ Important guidelines:
 // ============================================================
 // Medicine suggestion system prompt
 // ============================================================
-const MEDICINE_SUGGEST_PROMPT = `You are an expert clinical pharmacist AI assistant helping doctors prescribe medications.
+const MEDICINE_SUGGEST_PROMPT_VI = `Bạn là dược sĩ lâm sàng hỗ trợ bác sĩ kê đơn thuốc tại Việt Nam.
+Dựa trên chẩn đoán và triệu chứng (tiếng Việt), gợi ý thuốc phù hợp.
+
+QUAN TRỌNG: Chỉ trả về một mảng JSON hợp lệ. Không giải thích, không markdown, không text thừa.
+Mỗi phần tử phải có đúng các trường sau:
+[
+  {
+    "name": "Tên thuốc (vd: Paracetamol 500mg hoặc tên thường dùng tại VN)",
+    "quantity": "Số lượng (vd: 20)",
+    "unit": "Một trong: tablet, capsule, syrup, injection, drop, cream, ointment, powder, spray",
+    "usage": "Hướng dẫn cách dùng BẰNG TIẾNG VIỆT (vd: Uống 1 viên/lần, 2 lần/ngày, sau ăn)",
+    "note": "Ghi chú / cảnh báo BẰNG TIẾNG VIỆT (có thể để rỗng nếu không cần)"
+  }
+]
+
+Gợi ý 3–6 thuốc (điều trị nguyên nhân và triệu chứng).
+Trường "usage" và "note" bắt buộc dùng tiếng Việt có dấu.`;
+
+const MEDICINE_SUGGEST_PROMPT_EN = `You are an expert clinical pharmacist AI assistant helping doctors prescribe medications.
 Given a diagnosis and symptoms, suggest appropriate medications.
 
-IMPORTANT: You must respond ONLY with a valid JSON array. No explanation, no markdown, no extra text.
+IMPORTANT: Respond ONLY with a valid JSON array. No explanation, no markdown, no extra text.
 Each item must have exactly these fields:
 [
   {
     "name": "Medicine name (e.g. Paracetamol 500mg)",
     "quantity": "Recommended quantity (e.g. 20)",
     "unit": "One of: tablet, capsule, syrup, injection, drop, cream, ointment, powder, spray",
-    "usage": "Dosage instructions (e.g. 1 tablet every 6 hours after meals)",
+    "usage": "Dosage instructions",
     "note": "Important notes or warnings"
   }
 ]
 
-Suggest 3-6 medications including both causal treatment and symptomatic relief.
-Always include standard dosages and common warnings.`;
+Suggest 3-6 medications including both causal treatment and symptomatic relief.`;
 
 const SYMPTOM_ANALYSIS_PROMPT = `You are a cautious clinical triage assistant for TechCare.
 You receive (1) structured patient-reported symptoms (name, severity, duration) and (2) optional patientContext: demographics (sex, age), latest vitals from MEDICAL_RECORD, allergies, medical history, and recent medications.
+
+Symptom names are pre-normalized: preset symptoms use canonical English labels (e.g. Fever, Cough); free-text symptoms are trimmed patient wording.
 
 Use patientContext when present to refine differential reasoning and urgency (e.g. age, abnormal vitals, allergies, comorbidities, interacting meds). If a field is missing, do not assume a value.
 
@@ -478,9 +497,8 @@ router.post('/chat', requireInternalApiSecret, aiChatRateLimit, async (req: Requ
  * Body: { symptoms: Array<{ name, severity, duration }>, patientContext?: object }
  */
 router.post('/symptom-analysis', requireInternalApiSecret, aiSymptomRateLimit, async (req: Request, res: Response) => {
-  let resolvedProvider: 'groq' | 'local' = getActiveProvider();
+  const symptoms = req.body?.symptoms;
   try {
-    const symptoms = req.body?.symptoms;
     if (!Array.isArray(symptoms) || symptoms.length === 0) {
       return res.status(400).json({ error: 'symptoms array is required' });
     }
@@ -498,8 +516,13 @@ router.post('/symptom-analysis', requireInternalApiSecret, aiSymptomRateLimit, a
       '\nReturn only the JSON object as specified.',
     ].join('\n');
     const resolved = await resolveProviderAndModel('symptom-analysis');
-    resolvedProvider = resolved.provider;
-    const reply = await callAI([{ role: 'user', content: userContent }], 'symptom-analysis', SYMPTOM_ANALYSIS_PROMPT);
+    if (resolved.provider !== 'groq') {
+      return res.status(503).json({
+        error: 'AI symptom analysis requires Groq API',
+        hint: 'Set a valid GROQ_API_KEY in backend/.env (local LLM is not used for symptom analysis).',
+      });
+    }
+    const reply = await callAI([{ role: 'user', content: userContent }], 'symptom-analysis', SYMPTOM_ANALYSIS_PROMPT, resolved);
 
     let parsed: Record<string, unknown> = {};
     try {
@@ -524,6 +547,13 @@ router.post('/symptom-analysis', requireInternalApiSecret, aiSymptomRateLimit, a
       ? parsed.suggested_medication_type
       : [];
 
+    if (possible_conditions.length === 0) {
+      return res.status(502).json({
+        error: 'AI returned no symptom analysis results',
+        hint: 'Check GROQ_API_KEY and quota, then try again.',
+      });
+    }
+
     return res.json({
       possible_conditions,
       recommended_action,
@@ -535,10 +565,7 @@ router.post('/symptom-analysis', requireInternalApiSecret, aiSymptomRateLimit, a
     console.error('[AI] symptom-analysis error:', error?.message);
     return res.status(503).json({
       error: error?.message || 'Symptom analysis failed',
-      hint:
-        resolvedProvider === 'groq'
-          ? 'Check GROQ_API_KEY and quota.'
-          : 'Start Ollama (or your local OpenAI-compatible server) or set GROQ_API_KEY in backend/.env',
+      hint: 'Check GROQ_API_KEY is valid in backend/.env, then try again.',
     });
   }
 });
@@ -654,7 +681,8 @@ router.post('/recovery-prediction', requireInternalApiSecret, aiRecoveryRateLimi
  */
 router.post('/suggest-medicine', authenticateToken, requireClinicalStaff, async (req: Request, res: Response) => {
   try {
-    const { diagnosis, symptoms, patientInfo } = req.body;
+    const { diagnosis, symptoms, patientInfo, language } = req.body;
+    const useVietnamese = String(language || 'vi').toLowerCase().startsWith('vi');
 
     if (!diagnosis && !symptoms) {
       return res.status(400).json({
@@ -662,7 +690,14 @@ router.post('/suggest-medicine', authenticateToken, requireClinicalStaff, async 
       });
     }
 
-    const userMessage = `
+    const userMessage = useVietnamese
+      ? `
+Thông tin bệnh nhân: ${patientInfo || 'Chưa có'}
+Chẩn đoán của bác sĩ: ${diagnosis || 'Chưa có'}
+Triệu chứng / diễn biến: ${symptoms || 'Chưa có'}
+
+Hãy gợi ý thuốc phù hợp. Mọi hướng dẫn "usage" và "note" phải bằng tiếng Việt.`
+      : `
 Patient Information: ${patientInfo || 'Not provided'}
 Doctor's Diagnosis: ${diagnosis || 'Not provided'}
 Patient Symptoms: ${symptoms || 'Not provided'}
@@ -673,7 +708,7 @@ Based on the above, suggest appropriate medications.`;
     const reply = await callAI(
       [{ role: 'user', content: userMessage }],
       'suggest-medicine',
-      MEDICINE_SUGGEST_PROMPT
+      useVietnamese ? MEDICINE_SUGGEST_PROMPT_VI : MEDICINE_SUGGEST_PROMPT_EN
     );
 
     // Parse JSON from reply

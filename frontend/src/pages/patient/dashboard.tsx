@@ -1,15 +1,13 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   Calendar,
   Pill,
   Activity,
   Clock,
-  TrendingUp,
   ChevronRight,
   User,
   TestTube,
@@ -17,47 +15,13 @@ import {
 import { Link } from "react-router-dom"
 import { PatientLayout } from "@/components/patient-layout"
 import { CollapsibleSection } from "@/components/collapsible-section"
+import { RecoveryProgressComingSoon } from "@/components/recovery-progress-coming-soon"
 import { appointmentService, type PatientDashboardSummary } from "@/services/appointment-service"
 import { useTranslation } from "react-i18next"
-import { getReadableApiError, cn } from "@/lib/utils"
-import { RecoveryTimelineVisual } from "@/components/recovery-timeline-visual"
 
 export default function PatientDashboard() {
   const { t, i18n } = useTranslation()
   const [dashboard, setDashboard] = useState<PatientDashboardSummary | null>(null)
-  const recoverySectionRef = useRef<HTMLDivElement>(null)
-  const recoveryAutoLoadRef = useRef(false)
-  const [recoveryLoading, setRecoveryLoading] = useState(false)
-  const [recoveryError, setRecoveryError] = useState<string | null>(null)
-  const [recoveryPrediction, setRecoveryPrediction] = useState<RecoveryPrediction | null>(null)
-  const [recoveryViewed, setRecoveryViewed] = useState(false)
-
-  const loadRecovery = useCallback(
-    async (refresh: boolean) => {
-      setRecoveryLoading(true)
-      setRecoveryError(null)
-      try {
-        const data = await appointmentService.getRecoveryPrediction({ refresh })
-        if (data.eligible === false) {
-          setRecoveryPrediction(null)
-          setRecoveryError(null)
-          return
-        }
-        if (data.success && data.prediction) {
-          setRecoveryPrediction(data.prediction)
-        } else {
-          setRecoveryError(data.message || t("patient.dashboard.recoveryAiError"))
-          setRecoveryPrediction(null)
-        }
-      } catch (err) {
-        setRecoveryError(getReadableApiError(err))
-        setRecoveryPrediction(null)
-      } finally {
-        setRecoveryLoading(false)
-      }
-    },
-    [t]
-  )
 
   useEffect(() => {
     const load = async () => {
@@ -78,63 +42,10 @@ export default function PatientDashboard() {
   const prescriptionGroups = dashboard?.activePrescriptionsList ?? []
   const upcomingAppointments = dashboard?.upcomingAppointments || []
 
-  const recoveryEligible = useMemo(() => {
-    if (!dashboard?.summary) return false
-    const dx = dashboard.summary.currentDiagnosis
-    if (!dx) return false
-    const icd = String(dx.icd10 || "").trim().toUpperCase()
-    const interp = String(dx.interpretation || "").trim()
-    if (!icd && !interp) return false
-    if (icd === "Z00.0") return false
-    if (!icd && interp.toLowerCase() === "general examination") return false
-    const hasRx =
-      prescriptionGroups.length > 0 || (dashboard.summary.activePrescriptions ?? 0) > 0
-    return hasRx
-  }, [dashboard, prescriptionGroups])
-
-  useEffect(() => {
-    if (!recoveryEligible) {
-      recoveryAutoLoadRef.current = false
-      setRecoveryViewed(false)
-      setRecoveryPrediction(null)
-      setRecoveryError(null)
-    }
-  }, [recoveryEligible])
-
-  useEffect(() => {
-    if (!recoveryEligible) return
-    const el = recoverySectionRef.current
-    if (!el) return
-    const obs = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) {
-          if (!e.isIntersecting || recoveryAutoLoadRef.current) continue
-          recoveryAutoLoadRef.current = true
-          setRecoveryViewed(true)
-          void loadRecovery(false)
-        }
-      },
-      { root: null, rootMargin: "0px 0px 180px 0px", threshold: 0.08 }
-    )
-    obs.observe(el)
-    return () => obs.disconnect()
-  }, [loadRecovery, recoveryEligible])
-
   const nextApptLabel = useMemo(() => {
     if (!nextAppointment) return "—"
     return `${nextAppointment.date} ${String(nextAppointment.time).slice(0, 5)}`
   }, [nextAppointment])
-
-  const recoveryVisual = useMemo(() => {
-    if (!recoveryPrediction) return null
-    const { daysMin, daysMax } = recoveryPrediction
-    const mid = (daysMin + daysMax) / 2
-    const refCap = Math.max(42, daysMax, daysMin, 1)
-    const pct = Math.min(100, Math.max(0, (mid / refCap) * 100))
-    const numeratorDays = Math.max(1, Math.round(mid))
-    const denominatorDays = Math.round(refCap)
-    return { pct, numeratorDays, denominatorDays }
-  }, [recoveryPrediction])
 
   return (
     <PatientLayout>
@@ -207,7 +118,7 @@ export default function PatientDashboard() {
           </Link>
         </div>
 
-        <div className={cn("grid gap-6", recoveryEligible && "lg:grid-cols-2")}>
+        <div className="grid gap-6 lg:grid-cols-2">
           <CollapsibleSection
             title={t("patient.dashboard.activeMedications")}
             icon={<Pill className="h-5 w-5" />}
@@ -278,55 +189,7 @@ export default function PatientDashboard() {
             </Button>
           </CollapsibleSection>
 
-          {recoveryEligible ? (
-            <div ref={recoverySectionRef}>
-              <CollapsibleSection
-                title={t("patient.dashboard.recoveryProgress")}
-                icon={<TrendingUp className="h-5 w-5" />}
-                defaultOpen={true}
-              >
-                <Card className="card-feature-group overflow-hidden rounded-xl border border-slate-200/80 shadow-sm">
-                  <CardContent className="p-4 space-y-4">
-                    <div className="flex flex-wrap items-center justify-end gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="shrink-0"
-                        disabled={recoveryLoading}
-                        onClick={() => {
-                          setRecoveryViewed(true)
-                          void loadRecovery(true)
-                        }}
-                      >
-                        <RefreshCw className={`h-4 w-4 mr-2 ${recoveryLoading ? "animate-spin" : ""}`} />
-                        {t("patient.dashboard.recoveryRefresh")}
-                      </Button>
-                    </div>
-
-                    {recoveryViewed && recoveryLoading && !recoveryPrediction && (
-                      <p className="text-sm text-slate-600">{t("patient.dashboard.recoveryAiLoading")}</p>
-                    )}
-
-                    {recoveryError && (
-                      <Alert variant="destructive" className="border-red-200 bg-red-50">
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertDescription>{recoveryError}</AlertDescription>
-                      </Alert>
-                    )}
-
-                    {recoveryPrediction && recoveryVisual && (
-                      <RecoveryTimelineVisual
-                        pct={recoveryVisual.pct}
-                        numeratorDays={recoveryVisual.numeratorDays}
-                        denominatorDays={recoveryVisual.denominatorDays}
-                      />
-                    )}
-                  </CardContent>
-                </Card>
-              </CollapsibleSection>
-            </div>
-          ) : null}
+          <RecoveryProgressComingSoon />
         </div>
 
         <CollapsibleSection

@@ -45,17 +45,37 @@ type Props = {
   open: boolean
   onOpenChange: (open: boolean) => void
   patientIdParam: string | undefined
+  hintPatientPk?: number | null
+  hintAppointmentId?: number | null
+  hintTimeDisplay?: string | null
+  hintRoomName?: string | null
   onSuccess: (details: { appointmentId: number; startedAt: string; regimenId: number }) => void
 }
 
-export function NurseCheckInDialog({ open, onOpenChange, patientIdParam, onSuccess }: Props) {
+function hasBookedHint(hintAppointmentId?: number | null): boolean {
+  return hintAppointmentId != null && Number.isFinite(hintAppointmentId) && hintAppointmentId > 0
+}
+
+export function NurseCheckInDialog({
+  open,
+  onOpenChange,
+  patientIdParam,
+  hintPatientPk,
+  hintAppointmentId,
+  hintTimeDisplay,
+  hintRoomName,
+  onSuccess,
+}: Props) {
   const [loading, setLoading] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [today, setToday] = useState<string>("")
+  const [todayTimezone, setTodayTimezone] = useState<string>("")
   const [bookings, setBookings] = useState<NurseCheckInSlot[]>([])
   const [openSlots, setOpenSlots] = useState<NurseCheckInSlot[]>([])
   const [mode, setMode] = useState<Mode>("booked")
+
+  const bookedHint = hasBookedHint(hintAppointmentId)
 
   useEffect(() => {
     if (!open) {
@@ -63,6 +83,7 @@ export function NurseCheckInDialog({ open, onOpenChange, patientIdParam, onSucce
       setBookings([])
       setOpenSlots([])
       setToday("")
+      setTodayTimezone("")
       setMode("booked")
       return
     }
@@ -73,12 +94,16 @@ export function NurseCheckInDialog({ open, onOpenChange, patientIdParam, onSucce
       setLoading(true)
       setErr(null)
       try {
-        const r = await appointmentService.getNurseCheckInOptions(patientIdParam)
+        const r = await appointmentService.getNurseCheckInOptions(patientIdParam, {
+          patientPk: hintPatientPk ?? undefined,
+          appointmentId: hintAppointmentId ?? undefined,
+        })
         if (cancelled) return
         setToday(r.today || "")
         setBookings(r.patientBookings || [])
         setOpenSlots(r.openSlots || [])
-        setMode((r.patientBookings || []).length > 0 ? "booked" : "assignOpen")
+        const hasBookings = (r.patientBookings || []).length > 0
+        setMode(hasBookings || bookedHint ? "booked" : "assignOpen")
       } catch (e) {
         if (!cancelled) setErr(formatApiError(e))
       } finally {
@@ -89,7 +114,26 @@ export function NurseCheckInDialog({ open, onOpenChange, patientIdParam, onSucce
     return () => {
       cancelled = true
     }
-  }, [open, patientIdParam])
+  }, [open, patientIdParam, hintPatientPk, hintAppointmentId, bookedHint])
+
+  const displayBookings = useMemo((): NurseCheckInSlot[] => {
+    if (bookings.length > 0) return bookings
+    if (!bookedHint || !hintAppointmentId) return []
+    return [
+      {
+        id: hintAppointmentId,
+        slotTime: "",
+        timeDisplay: hintTimeDisplay || "",
+        dateDisplay: today || "",
+        doctorId: 0,
+        doctorName: "",
+        department: "",
+        roomId: null,
+        roomName: hintRoomName || "",
+        condition: "",
+      },
+    ]
+  }, [bookings, bookedHint, hintAppointmentId, hintTimeDisplay, hintRoomName, today])
 
   const finish = (appointmentId: number, regimenId: number) => {
     onSuccess({ appointmentId, startedAt: new Date().toISOString(), regimenId })
@@ -126,8 +170,8 @@ export function NurseCheckInDialog({ open, onOpenChange, patientIdParam, onSucce
 
   /** Picking another open slot = reschedule from the first listed booking today. */
   const handleAlternativeOpenSlot = async (toAppointmentId: number) => {
-    if (!patientIdParam || bookings.length === 0) return
-    const fromAppointmentId = bookings[0].id
+    if (!patientIdParam || displayBookings.length === 0) return
+    const fromAppointmentId = displayBookings[0].id
     if (!window.confirm("Move this patient to the selected slot? Their current booking will be released as an open slot.")) return
     setActionLoading(true)
     setErr(null)
@@ -174,13 +218,16 @@ export function NurseCheckInDialog({ open, onOpenChange, patientIdParam, onSucce
     </button>
   )
 
+  const effectiveMode = mode === "booked" || displayBookings.length > 0 ? "booked" : "assignOpen"
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Check-in — assign clinic room</DialogTitle>
           <DialogDescription>
-            Today ({today || "…"}): confirm an existing booking or assign an open slot. Times use the server date (CURDATE).
+            Today ({today || "…"}
+            {todayTimezone ? ` · ${todayTimezone}` : ""}): confirm an existing booking or assign an open slot.
           </DialogDescription>
         </DialogHeader>
 
@@ -195,13 +242,13 @@ export function NurseCheckInDialog({ open, onOpenChange, patientIdParam, onSucce
           </div>
         ) : (
           <div className="overflow-y-auto flex-1 space-y-4 pr-1 min-h-0">
-            {mode === "booked" && (
+            {effectiveMode === "booked" && (
               <>
-                {bookings.length === 0 ? null : (
+                {displayBookings.length === 0 ? null : (
                   <>
                     <p className="text-sm font-medium text-slate-700">Patient booking(s) today</p>
                     <div className="space-y-3">
-                      {bookings.map((b) => (
+                      {displayBookings.map((b) => (
                         <div
                           key={b.id}
                           className="rounded-lg border border-slate-200 bg-slate-50/80 p-3 flex flex-row items-start justify-between gap-3"
@@ -234,7 +281,7 @@ export function NurseCheckInDialog({ open, onOpenChange, patientIdParam, onSucce
                   </>
                 )}
 
-                {bookings.length > 0 && openSlotsSorted.length > 0 ? (
+                {displayBookings.length > 0 && openSlotsSorted.length > 0 ? (
                   <>
                     <Separator className="my-2" />
                     <div className="space-y-2">
@@ -243,7 +290,7 @@ export function NurseCheckInDialog({ open, onOpenChange, patientIdParam, onSucce
                         Unbooked times across the clinic — choosing one here is a reschedule: the patient moves to that
                         slot and the current booking above becomes open again.
                       </p>
-                      {bookings.length > 1 ? (
+                      {displayBookings.length > 1 ? (
                         <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-md px-2.5 py-2">
                           Several bookings today: picking a slot below only moves the patient from the{" "}
                           <span className="font-medium">first</span> booking in the list. Use{" "}
@@ -256,7 +303,7 @@ export function NurseCheckInDialog({ open, onOpenChange, patientIdParam, onSucce
                       </div>
                     </div>
                   </>
-                ) : bookings.length > 0 && openSlotsSorted.length === 0 ? (
+                ) : displayBookings.length > 0 && openSlotsSorted.length === 0 ? (
                   <>
                     <Separator className="my-2" />
                     <p className="text-xs text-slate-500">
@@ -267,7 +314,7 @@ export function NurseCheckInDialog({ open, onOpenChange, patientIdParam, onSucce
               </>
             )}
 
-            {mode === "assignOpen" && (
+            {effectiveMode === "assignOpen" && (
               <>
                 <p className="text-sm text-slate-600">
                   This patient has no scheduled appointment today. Pick an open slot to assign them (room &amp; time).

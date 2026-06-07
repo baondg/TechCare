@@ -1,4 +1,5 @@
 const { Op, QueryTypes } = require('sequelize');
+const crypto = require('crypto');
 const sequelize = require('../common/database');
 const {
   isUnknownColumnError,
@@ -26,11 +27,37 @@ const User = require('../models/Users');
 const HealthInfo = require('../models/MedicalRecord');
 const Patient = require('../models/Patient');
 const cacheService = require('../services/cacheService');
+const nurseCheckInRepository = require('../repositories/nurseCheckInRepository');
+const { encryptField, decryptField } = require('../common/fieldEncryption');
 
 // Hotpath cache: tuned for NFR load runs; override via env if needed.
 const PATIENT_RECORD_CACHE_TTL_SECONDS = Number(process.env.PATIENT_RECORD_CACHE_TTL_SECONDS || 30);
 const isHotpathProfilingEnabled = () => process.env.PROFILE_HOTPATHS === '1';
-const patientRecordCacheKey = (patientPk) => `doctor:patient_record:v1:${Number(patientPk)}`;
+const patientRecordCacheKey = (patientPk) => `doctor:patient_record:v2:${Number(patientPk)}`;
+
+async function buildTodayAppointmentForPatientPk(patientPk) {
+  const pk = Number(patientPk);
+  if (!Number.isFinite(pk) || pk <= 0) return null;
+  const booked = await nurseCheckInRepository.listNurseBookedTodayForPatient(pk);
+  const ar = booked?.[0];
+  if (!ar) return null;
+  const wallTimeRaw = ar.wallTime != null ? String(ar.wallTime).split('.')[0] : '';
+  const timeDisplay = wallTimeRaw.length >= 5 ? wallTimeRaw.slice(0, 5) : '';
+  const regimenId = ar.regimenId != null ? Number(ar.regimenId) : null;
+  let checkedIn = false;
+  if (Number.isFinite(regimenId) && regimenId > 0) {
+    const open = await nurseCheckInRepository.findOpenRegimenForPatient(regimenId, pk);
+    checkedIn = Boolean(open);
+  }
+  const roomId = ar.roomId != null ? Number(ar.roomId) : null;
+  return {
+    appointmentId: Number(ar.id),
+    timeDisplay,
+    checkedIn,
+    roomId: Number.isFinite(roomId) && roomId > 0 ? roomId : null,
+    roomName: ar.roomName != null ? String(ar.roomName) : '',
+  };
+}
 
 async function invalidatePatientRecordCache(patientPk) {
   const n = Number(patientPk);
@@ -98,6 +125,127 @@ const normalizeMedicalRecordStatus = (value) => {
   if (raw === 'confirmed' || raw === 'signed') return 'confirmed';
   return 'draft';
 };
+
+const BYT_PRESCRIPTION_TYPE = String(process.env.BYT_PRESCRIPTION_TYPE || 'C').trim().toUpperCase() === 'N'
+  ? 'N'
+  : String(process.env.BYT_PRESCRIPTION_TYPE || 'C').trim().toUpperCase() === 'H'
+    ? 'H'
+    : 'C';
+const BYT_FACILITY_CODE = String(process.env.BYT_FACILITY_CODE || 'TC001')
+  .trim()
+  .toUpperCase()
+  .replace(/[^A-Z0-9]/g, '')
+  .padEnd(5, '0')
+  .slice(0, 5);
+const BYT_FACILITY_PHONE = String(process.env.BYT_FACILITY_PHONE || '1900 1800').trim();
+const BYT_FACILITY_NAME = String(process.env.BYT_FACILITY_NAME || 'TechCare').trim();
+const BYT_FACILITY_ADDRESS = String(
+  process.env.BYT_FACILITY_ADDRESS || '268 Lý Thường Kiệt, phường Diên Hồng, Hồ Chí Minh'
+).trim();
+const BYT_DEFAULT_PATIENT_ADDRESS = BYT_FACILITY_ADDRESS;
+
+async function resolveBytDefaultsForPatient(sequelize, patientPk, bodyByt, patientDemo, ageMonths, transaction) {
+  const relRows = await sequelize.query(
+    `SELECT name, tel FROM RELATIVE WHERE patient_id = :pk LIMIT 1`,
+    { replacements: { pk: patientPk }, type: QueryTypes.SELECT, transaction }
+  );
+  const rel = relRows?.[0] || null;
+  const relPhone = String(rel?.tel || '').trim();
+  const relName = String(rel?.name || '').trim();
+  const patientPhone = String(patientDemo?.tel || '').trim();
+
+  let patientWeightKg = String(bodyByt?.patientWeightKg || '').trim();
+  if (!patientWeightKg) {
+    const mrRows = await sequelize.query(
+      `SELECT weight FROM MEDICAL_RECORD WHERE patient_id = :pk ORDER BY time DESC LIMIT 1`,
+      { replacements: { pk: patientPk }, type: QueryTypes.SELECT, transaction }
+    );
+    const w = mrRows?.[0]?.weight;
+    if (w != null && Number(w) > 0) patientWeightKg = String(w);
+  }
+
+  const contactPhone = String(bodyByt?.contactPhone || '').trim() || relPhone || patientPhone;
+  const guardianName =
+    ageMonths != null && ageMonths < 72 && relName
+      ? relName
+      : String(bodyByt?.guardianName || '').trim();
+
+  return {
+    facilityPhone: String(bodyByt?.facilityPhone || BYT_FACILITY_PHONE).trim() || BYT_FACILITY_PHONE,
+    contactPhone,
+    guardianName,
+    advice: String(bodyByt?.advice || '').trim(),
+    insuranceId: String(bodyByt?.insuranceId || '').trim(),
+    patientAddress:
+      String(bodyByt?.patientAddress || BYT_DEFAULT_PATIENT_ADDRESS).trim() || BYT_DEFAULT_PATIENT_ADDRESS,
+    patientWeightKg,
+  };
+}
+
+function randomBase36Lower(length) {
+  const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  const bytes = crypto.randomBytes(length * 2);
+  let out = '';
+  for (let i = 0; i < bytes.length && out.length < length; i += 1) {
+    out += alphabet[bytes[i] % alphabet.length];
+  }
+  return out.slice(0, length);
+}
+
+function isBytCodeShape(code) {
+  return /^[A-Z0-9]{5}[a-z0-9]{7}-[NHC]$/.test(String(code || ''));
+}
+
+function parsePrescriptionMetaNote(rawNote) {
+  const raw = String(rawNote || '').trim();
+  if (!raw) return { department: '', byt: null };
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return { department: raw, byt: null };
+    const department = typeof parsed.department === 'string' ? parsed.department : '';
+    const byt = parsed.byt && typeof parsed.byt === 'object' ? parsed.byt : null;
+    return { department, byt };
+  } catch {
+    return { department: raw, byt: null };
+  }
+}
+
+function buildPrescriptionMetaNote({ department, byt }) {
+  return JSON.stringify({
+    v: 2,
+    department: String(department || ''),
+    byt: byt && typeof byt === 'object' ? byt : {},
+  });
+}
+
+async function generateUniqueBytPrescriptionCode(sequelizeRef, { facilityCode, type, transaction }) {
+  const facility = String(facilityCode || BYT_FACILITY_CODE)
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+    .padEnd(5, '0')
+    .slice(0, 5);
+  const t = String(type || BYT_PRESCRIPTION_TYPE).toUpperCase() === 'N'
+    ? 'N'
+    : String(type || BYT_PRESCRIPTION_TYPE).toUpperCase() === 'H'
+      ? 'H'
+      : 'C';
+  for (let i = 0; i < 20; i += 1) {
+    const candidate = `${facility}${randomBase36Lower(7)}-${t}`;
+    const rows = await sequelizeRef.query(
+      `SELECT order_id
+       FROM MEDICAL_PRESCRIPTION
+       WHERE note LIKE :needle
+       LIMIT 1`,
+      {
+        replacements: { needle: `%${candidate}%` },
+        type: QueryTypes.SELECT,
+        ...(transaction ? { transaction } : {}),
+      }
+    );
+    if (!rows[0]) return candidate;
+  }
+  throw new Error('Unable to generate unique BYT prescription code');
+}
 
 function parseOptionalIntHealth(v) {
   if (v === undefined || v === null || v === '') return null;
@@ -1059,7 +1207,7 @@ exports.getPatient = async (req, res) => {
        LEFT JOIN ACCOUNT acc ON acc.user_id = u.id
        LEFT JOIN HEALTH_INSURANCE hi ON hi.patient_id = p.patient_id
        WHERE u.id = :routeId OR p.patient_id = :routeId
-       ORDER BY CASE WHEN p.patient_id = :routeId THEN 0 ELSE 1 END
+       ORDER BY CASE WHEN u.id = :routeId THEN 0 ELSE 1 END
        LIMIT 1`,
       { replacements: { routeId }, type: QueryTypes.SELECT }
     );
@@ -1080,19 +1228,23 @@ exports.getPatient = async (req, res) => {
         return res.json(cached);
       }
     }
-    const [latestDiagnosis, bmi, dept] = await Promise.all([
+    const [latestDiagnosis, bmi, dept, todayAppointment] = await Promise.all([
       getLatestDiagnosisByPatientPkFast(patientPk),
       getLatestBmiByPatientPkFast(patientPk),
       getCurrentDepartmentByPatientPkFast(patientPk),
+      buildTodayAppointmentForPatientPk(patientPk),
     ]);
 
     const responsePayload = {
       success: true,
       patient: {
         id: p.id,
+        patientPk: patientPk != null ? patientPk : null,
         username: p.username || "",
         firstName: p.first_name,
         lastName: p.last_name,
+        idCard: p.idcard || null,
+        phone: p.tel || null,
         gender: p.sex,
         dateOfBirth: p.dob || null,
         age: calculateAge(p.dob),
@@ -1108,7 +1260,8 @@ exports.getPatient = async (req, res) => {
         bmi: bmi,
         healthInsuranceId: p.healthInsuranceId || null,
         healthInsuranceExpiredDate: p.healthInsuranceExpiredDate || null,
-        bloodType: null
+        bloodType: null,
+        todayAppointment,
       }
     };
     if (cacheKey) {
@@ -1124,30 +1277,21 @@ exports.getPatient = async (req, res) => {
   }
 };
 
+const { resolvePatientPkFromRoute, parseOpRouteNumeric } = require('../common/resolvePatientRouteId');
+
 /**
- * PATIENT.patient_id from EMR route param (may be USER.id or PATIENT.patient_id in URL).
+ * PATIENT.patient_id from EMR route param (OP encodes USER.id from portal lists).
  */
 async function resolveCanonicalPatientIdFromEmrParam(patientIdParam) {
-  const n = Number(String(patientIdParam || '').replace(/^OP0*/i, ''));
-  if (!Number.isFinite(n) || n <= 0) return null;
-  const rows = await sequelize.query(
-    `SELECT patient_id FROM PATIENT WHERE patient_id = :n OR user_id = :n LIMIT 1`,
-    { replacements: { n }, type: QueryTypes.SELECT }
-  );
-  if (rows[0]?.patient_id != null) return Number(rows[0].patient_id);
+  const pk = await resolvePatientPkFromRoute(patientIdParam);
+  if (pk != null) return pk;
+  const n = parseOpRouteNumeric(patientIdParam);
   return n;
 }
 
 /** PATIENT.patient_id PK from OP… / numeric route (no fallback to raw n if no row). */
 async function resolvePatientPkFromOpRoute(patientIdParam, transaction) {
-  const n = Number(String(patientIdParam || '').replace(/^OP0*/i, ''));
-  if (!Number.isFinite(n) || n <= 0) return null;
-  const qOpts = { replacements: { n }, type: QueryTypes.SELECT, ...(transaction ? { transaction } : {}) };
-  const [row] = await sequelize.query(
-    'SELECT patient_id AS id FROM PATIENT WHERE patient_id = :n OR user_id = :n LIMIT 1',
-    qOpts
-  );
-  return row?.id != null ? Number(row.id) : null;
+  return resolvePatientPkFromRoute(patientIdParam, transaction);
 }
 
 /**
@@ -1338,6 +1482,9 @@ exports.closeOpenRegimenForPatient = async (req, res) => {
        WHERE patient_id = :pid AND \`end\` IS NULL`,
       { replacements: { pid }, type: QueryTypes.UPDATE }
     );
+    const nurseCheckInRepository = require('../repositories/nurseCheckInRepository');
+    await nurseCheckInRepository.completeAppointmentsForClosedRegimens(pid, closedRegimenIds);
+    await nurseCheckInRepository.clearAppointmentRegimenLinksForRegimenIds(pid, closedRegimenIds);
     return res.json({ success: true, regimenId, closedRegimenIds, closedCount: closedRegimenIds.length });
   } catch (error) {
     console.error('Close open regimen error:', error);
@@ -1534,11 +1681,14 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
            o.treatment_id AS treatmentId,
            rx.order_id AS orderId,
            rx.time AS prescribedAt,
+           rx.note AS prescriptionNote,
+           COALESCE(rx.duration, 7) AS prescriptionDuration,
            pd.no AS medNo,
            m.name,
            pd.quantity,
-           pd.\`usage\` AS frequency,
+           pd.\`usage\` AS usageText,
            pd.unit,
+           pd.note AS medNote,
            COALESCE(pd.duration, 7) AS lineDuration
          FROM MEDICAL_PRESCRIPTION rx
          JOIN \`ORDER\` o ON o.id = rx.order_id
@@ -1552,11 +1702,13 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
            o.treatment_id AS treatmentId,
            rx.order_id AS orderId,
            rx.time AS prescribedAt,
+           rx.note AS prescriptionNote,
            pd.no AS medNo,
            m.name,
            pd.quantity,
-           pd.\`usage\` AS frequency,
-           pd.unit
+           pd.\`usage\` AS usageText,
+           pd.unit,
+           pd.note AS medNote
          FROM MEDICAL_PRESCRIPTION rx
          JOIN \`ORDER\` o ON o.id = rx.order_id
          JOIN TREATMENT t ON t.id = o.treatment_id
@@ -1657,10 +1809,36 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
     const rxByOrder = new Map();
     for (const row of rxRows || []) {
       if (!rxByOrder.has(row.orderId)) {
+        const parsedMeta = parsePrescriptionMetaNote(row.prescriptionNote);
+        const rawBytCode = parsedMeta?.byt?.code;
+        const bytCode = isBytCodeShape(rawBytCode) ? String(rawBytCode) : null;
         rxByOrder.set(row.orderId, {
           id: row.orderId,
-          prescribedAt: row.prescribedAt,
+          prescribedAt: row.prescribedAt || null,
+          duration: Number(row.prescriptionDuration) || 7,
+          department: parsedMeta.department || '',
           signatureStatus: 'signed',
+          byt: {
+            code: bytCode,
+            prescriptionType:
+              String(parsedMeta?.byt?.prescriptionType || '').toUpperCase() === 'N'
+                ? 'N'
+                : String(parsedMeta?.byt?.prescriptionType || '').toUpperCase() === 'H'
+                  ? 'H'
+                  : 'C',
+            facilityCode: String(parsedMeta?.byt?.facilityCode || BYT_FACILITY_CODE),
+            facilityName: String(parsedMeta?.byt?.facilityName || BYT_FACILITY_NAME),
+            facilityAddress: String(parsedMeta?.byt?.facilityAddress || BYT_FACILITY_ADDRESS),
+            facilityPhone: String(parsedMeta?.byt?.facilityPhone || BYT_FACILITY_PHONE),
+            contactPhone: String(parsedMeta?.byt?.contactPhone || ''),
+            guardianName: String(parsedMeta?.byt?.guardianName || ''),
+            advice: String(parsedMeta?.byt?.advice || ''),
+            insuranceId: String(parsedMeta?.byt?.insuranceId || ''),
+            patientAddress: String(parsedMeta?.byt?.patientAddress || ''),
+            patientWeightKg: String(parsedMeta?.byt?.patientWeightKg || ''),
+            patientIdCard: String(parsedMeta?.byt?.patientIdCard || ''),
+            patientPhone: String(parsedMeta?.byt?.patientPhone || ''),
+          },
           medications: [],
         });
       }
@@ -1669,9 +1847,10 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
           id: `${row.orderId}-${row.medNo}`,
           name: row.name,
           quantity: String(row.quantity ?? ''),
-          frequency: row.frequency || '',
+          usage: row.usageText || '',
           unit: row.unit || '',
           duration: String(row.lineDuration != null ? row.lineDuration : 7),
+          note: row.medNote || '',
         });
       }
     }
@@ -1879,11 +2058,14 @@ exports.getPatientMedicalRegimensForDoctor = async (req, res) => {
            o.treatment_id AS treatmentId,
            rx.order_id AS orderId,
            rx.time AS prescribedAt,
+           rx.note AS prescriptionNote,
+           COALESCE(rx.duration, 7) AS prescriptionDuration,
            pd.no AS medNo,
            m.name,
            pd.quantity,
-           pd.\`usage\` AS frequency,
+           pd.\`usage\` AS usageText,
            pd.unit,
+           pd.note AS medNote,
            COALESCE(pd.duration, 7) AS lineDuration
          FROM MEDICAL_PRESCRIPTION rx
          JOIN \`ORDER\` o ON o.id = rx.order_id
@@ -1897,11 +2079,13 @@ exports.getPatientMedicalRegimensForDoctor = async (req, res) => {
            o.treatment_id AS treatmentId,
            rx.order_id AS orderId,
            rx.time AS prescribedAt,
+           rx.note AS prescriptionNote,
            pd.no AS medNo,
            m.name,
            pd.quantity,
-           pd.\`usage\` AS frequency,
-           pd.unit
+           pd.\`usage\` AS usageText,
+           pd.unit,
+           pd.note AS medNote
          FROM MEDICAL_PRESCRIPTION rx
          JOIN \`ORDER\` o ON o.id = rx.order_id
          JOIN TREATMENT t ON t.id = o.treatment_id
@@ -2385,11 +2569,14 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
            o.treatment_id AS treatmentId,
            rx.order_id AS orderId,
            rx.time AS prescribedAt,
+           rx.note AS prescriptionNote,
+           COALESCE(rx.duration, 7) AS prescriptionDuration,
            pd.no AS medNo,
            m.name,
            pd.quantity,
-           pd.\`usage\` AS frequency,
+           pd.\`usage\` AS usageText,
            pd.unit,
+           pd.note AS medNote,
            COALESCE(pd.duration, 7) AS lineDuration
          FROM MEDICAL_PRESCRIPTION rx
          JOIN \`ORDER\` o ON o.id = rx.order_id
@@ -2403,11 +2590,13 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
            o.treatment_id AS treatmentId,
            rx.order_id AS orderId,
            rx.time AS prescribedAt,
+           rx.note AS prescriptionNote,
            pd.no AS medNo,
            m.name,
            pd.quantity,
-           pd.\`usage\` AS frequency,
-           pd.unit
+           pd.\`usage\` AS usageText,
+           pd.unit,
+           pd.note AS medNote
          FROM MEDICAL_PRESCRIPTION rx
          JOIN \`ORDER\` o ON o.id = rx.order_id
          JOIN TREATMENT t ON t.id = o.treatment_id
@@ -2508,10 +2697,36 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
     const rxByOrder = new Map();
     for (const row of rxRows || []) {
       if (!rxByOrder.has(row.orderId)) {
+        const parsedMeta = parsePrescriptionMetaNote(row.prescriptionNote);
+        const rawBytCode = parsedMeta?.byt?.code;
+        const bytCode = isBytCodeShape(rawBytCode) ? String(rawBytCode) : null;
         rxByOrder.set(row.orderId, {
           id: row.orderId,
-          prescribedAt: row.prescribedAt,
+          prescribedAt: row.prescribedAt || null,
+          duration: Number(row.prescriptionDuration) || 7,
+          department: parsedMeta.department || '',
           signatureStatus: 'signed',
+          byt: {
+            code: bytCode,
+            prescriptionType:
+              String(parsedMeta?.byt?.prescriptionType || '').toUpperCase() === 'N'
+                ? 'N'
+                : String(parsedMeta?.byt?.prescriptionType || '').toUpperCase() === 'H'
+                  ? 'H'
+                  : 'C',
+            facilityCode: String(parsedMeta?.byt?.facilityCode || BYT_FACILITY_CODE),
+            facilityName: String(parsedMeta?.byt?.facilityName || BYT_FACILITY_NAME),
+            facilityAddress: String(parsedMeta?.byt?.facilityAddress || BYT_FACILITY_ADDRESS),
+            facilityPhone: String(parsedMeta?.byt?.facilityPhone || BYT_FACILITY_PHONE),
+            contactPhone: String(parsedMeta?.byt?.contactPhone || ''),
+            guardianName: String(parsedMeta?.byt?.guardianName || ''),
+            advice: String(parsedMeta?.byt?.advice || ''),
+            insuranceId: String(parsedMeta?.byt?.insuranceId || ''),
+            patientAddress: String(parsedMeta?.byt?.patientAddress || ''),
+            patientWeightKg: String(parsedMeta?.byt?.patientWeightKg || ''),
+            patientIdCard: String(parsedMeta?.byt?.patientIdCard || ''),
+            patientPhone: String(parsedMeta?.byt?.patientPhone || ''),
+          },
           medications: [],
         });
       }
@@ -2520,9 +2735,10 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
           id: `${row.orderId}-${row.medNo}`,
           name: row.name,
           quantity: String(row.quantity ?? ''),
-          frequency: row.frequency || '',
+          usage: row.usageText || '',
           unit: row.unit || '',
           duration: String(row.lineDuration != null ? row.lineDuration : 7),
+          note: row.medNote || '',
         });
       }
     }
@@ -2759,11 +2975,14 @@ exports.getPatientMedicalRegimensForDoctor = async (req, res) => {
            o.treatment_id AS treatmentId,
            rx.order_id AS orderId,
            rx.time AS prescribedAt,
+           rx.note AS prescriptionNote,
+           COALESCE(rx.duration, 7) AS prescriptionDuration,
            pd.no AS medNo,
            m.name,
            pd.quantity,
-           pd.\`usage\` AS frequency,
+           pd.\`usage\` AS usageText,
            pd.unit,
+           pd.note AS medNote,
            COALESCE(pd.duration, 7) AS lineDuration
          FROM MEDICAL_PRESCRIPTION rx
          JOIN \`ORDER\` o ON o.id = rx.order_id
@@ -2777,11 +2996,13 @@ exports.getPatientMedicalRegimensForDoctor = async (req, res) => {
            o.treatment_id AS treatmentId,
            rx.order_id AS orderId,
            rx.time AS prescribedAt,
+           rx.note AS prescriptionNote,
            pd.no AS medNo,
            m.name,
            pd.quantity,
-           pd.\`usage\` AS frequency,
-           pd.unit
+           pd.\`usage\` AS usageText,
+           pd.unit,
+           pd.note AS medNote
          FROM MEDICAL_PRESCRIPTION rx
          JOIN \`ORDER\` o ON o.id = rx.order_id
          JOIN TREATMENT t ON t.id = o.treatment_id
@@ -3060,11 +3281,14 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
            o.treatment_id AS treatmentId,
            rx.order_id AS orderId,
            rx.time AS prescribedAt,
+           rx.note AS prescriptionNote,
+           COALESCE(rx.duration, 7) AS prescriptionDuration,
            pd.no AS medNo,
            m.name,
            pd.quantity,
-           pd.\`usage\` AS frequency,
+           pd.\`usage\` AS usageText,
            pd.unit,
+           pd.note AS medNote,
            COALESCE(pd.duration, 7) AS lineDuration
          FROM MEDICAL_PRESCRIPTION rx
          JOIN \`ORDER\` o ON o.id = rx.order_id
@@ -3078,11 +3302,13 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
            o.treatment_id AS treatmentId,
            rx.order_id AS orderId,
            rx.time AS prescribedAt,
+           rx.note AS prescriptionNote,
            pd.no AS medNo,
            m.name,
            pd.quantity,
-           pd.\`usage\` AS frequency,
-           pd.unit
+           pd.\`usage\` AS usageText,
+           pd.unit,
+           pd.note AS medNote
          FROM MEDICAL_PRESCRIPTION rx
          JOIN \`ORDER\` o ON o.id = rx.order_id
          JOIN TREATMENT t ON t.id = o.treatment_id
@@ -3196,10 +3422,36 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
     const rxByOrder = new Map();
     for (const row of rxRows || []) {
       if (!rxByOrder.has(row.orderId)) {
+        const parsedMeta = parsePrescriptionMetaNote(row.prescriptionNote);
+        const rawBytCode = parsedMeta?.byt?.code;
+        const bytCode = isBytCodeShape(rawBytCode) ? String(rawBytCode) : null;
         rxByOrder.set(row.orderId, {
           id: row.orderId,
-          prescribedAt: row.prescribedAt,
+          prescribedAt: row.prescribedAt || null,
+          duration: Number(row.prescriptionDuration) || 7,
+          department: parsedMeta.department || '',
           signatureStatus: 'signed',
+          byt: {
+            code: bytCode,
+            prescriptionType:
+              String(parsedMeta?.byt?.prescriptionType || '').toUpperCase() === 'N'
+                ? 'N'
+                : String(parsedMeta?.byt?.prescriptionType || '').toUpperCase() === 'H'
+                  ? 'H'
+                  : 'C',
+            facilityCode: String(parsedMeta?.byt?.facilityCode || BYT_FACILITY_CODE),
+            facilityName: String(parsedMeta?.byt?.facilityName || BYT_FACILITY_NAME),
+            facilityAddress: String(parsedMeta?.byt?.facilityAddress || BYT_FACILITY_ADDRESS),
+            facilityPhone: String(parsedMeta?.byt?.facilityPhone || BYT_FACILITY_PHONE),
+            contactPhone: String(parsedMeta?.byt?.contactPhone || ''),
+            guardianName: String(parsedMeta?.byt?.guardianName || ''),
+            advice: String(parsedMeta?.byt?.advice || ''),
+            insuranceId: String(parsedMeta?.byt?.insuranceId || ''),
+            patientAddress: String(parsedMeta?.byt?.patientAddress || ''),
+            patientWeightKg: String(parsedMeta?.byt?.patientWeightKg || ''),
+            patientIdCard: String(parsedMeta?.byt?.patientIdCard || ''),
+            patientPhone: String(parsedMeta?.byt?.patientPhone || ''),
+          },
           medications: [],
         });
       }
@@ -3208,9 +3460,10 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
           id: `${row.orderId}-${row.medNo}`,
           name: row.name,
           quantity: String(row.quantity ?? ''),
-          frequency: row.frequency || '',
+          usage: row.usageText || '',
           unit: row.unit || '',
           duration: String(row.lineDuration != null ? row.lineDuration : 7),
+          note: row.medNote || '',
         });
       }
     }
@@ -4146,6 +4399,7 @@ exports.getPrescriptions = async (req, res) => {
     const sqlWithDuration = `SELECT
          rx.order_id,
          rx.time,
+         rx.note AS prescriptionNote,
          COALESCE(rx.duration, 7) AS prescriptionDuration,
          d.user_id AS doctorUserId,
          COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username, CONCAT('doctor#', d.user_id)) AS doctorName,
@@ -4155,7 +4409,7 @@ exports.getPrescriptions = async (req, res) => {
          COALESCE(pd.duration, 7) AS lineDuration,
          pd.usage,
          pd.unit,
-         pd.note
+         pd.note AS medNote
        FROM MEDICAL_PRESCRIPTION rx
        JOIN \`ORDER\` o ON o.id = rx.order_id
        JOIN TREATMENT t ON t.id = o.treatment_id
@@ -4171,6 +4425,7 @@ exports.getPrescriptions = async (req, res) => {
     const sqlLegacy = `SELECT
          rx.order_id,
          rx.time,
+         rx.note AS prescriptionNote,
          d.user_id AS doctorUserId,
          COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username, CONCAT('doctor#', d.user_id)) AS doctorName,
          pd.no AS medNo,
@@ -4178,7 +4433,7 @@ exports.getPrescriptions = async (req, res) => {
          pd.quantity,
          pd.usage,
          pd.unit,
-         pd.note
+         pd.note AS medNote
        FROM MEDICAL_PRESCRIPTION rx
        JOIN \`ORDER\` o ON o.id = rx.order_id
        JOIN TREATMENT t ON t.id = o.treatment_id
@@ -4202,15 +4457,39 @@ exports.getPrescriptions = async (req, res) => {
     for (const row of rows) {
       const key = row.order_id;
       if (!map.has(key)) {
+        const parsedMeta = parsePrescriptionMetaNote(row.prescriptionNote);
+        const rawBytCode = parsedMeta?.byt?.code;
+        const bytCode = isBytCodeShape(rawBytCode) ? String(rawBytCode) : null;
         map.set(key, {
           id: key,
           patientId: patientPk,
           doctorId: row.doctorUserId || req.user.userId,
           doctorName: row.doctorName || '',
-          department: 'General',
+          department: parsedMeta.department || 'General',
           duration: Number(row.prescriptionDuration) || 7,
           /** No MEDICAL_PRESCRIPTION.status column — saved Rx is final (UI treats as signed). */
           signatureStatus: 'signed',
+          byt: {
+            code: bytCode,
+            prescriptionType:
+              String(parsedMeta?.byt?.prescriptionType || '').toUpperCase() === 'N'
+                ? 'N'
+                : String(parsedMeta?.byt?.prescriptionType || '').toUpperCase() === 'H'
+                  ? 'H'
+                  : 'C',
+            facilityCode: String(parsedMeta?.byt?.facilityCode || BYT_FACILITY_CODE),
+            facilityName: String(parsedMeta?.byt?.facilityName || BYT_FACILITY_NAME),
+            facilityAddress: String(parsedMeta?.byt?.facilityAddress || BYT_FACILITY_ADDRESS),
+            facilityPhone: String(parsedMeta?.byt?.facilityPhone || BYT_FACILITY_PHONE),
+            contactPhone: String(parsedMeta?.byt?.contactPhone || ''),
+            guardianName: String(parsedMeta?.byt?.guardianName || ''),
+            advice: String(parsedMeta?.byt?.advice || ''),
+            insuranceId: String(parsedMeta?.byt?.insuranceId || ''),
+            patientAddress: String(parsedMeta?.byt?.patientAddress || ''),
+            patientWeightKg: String(parsedMeta?.byt?.patientWeightKg || ''),
+            patientIdCard: String(parsedMeta?.byt?.patientIdCard || ''),
+            patientPhone: String(parsedMeta?.byt?.patientPhone || ''),
+          },
           medications: [],
           createdAt: row.time,
           updatedAt: row.time
@@ -4224,7 +4503,7 @@ exports.getPrescriptions = async (req, res) => {
           duration: String(row.lineDuration != null ? row.lineDuration : 7),
           usage: row.usage || '',
           unit: row.unit || 'tablet',
-          note: row.note || ''
+          note: row.medNote || ''
         });
       }
     }
@@ -4232,7 +4511,7 @@ exports.getPrescriptions = async (req, res) => {
 
     res.json({ success: true, prescriptions });
   } catch (error) {
-    console.error('Get prescriptions error:', error);
+    console.error('Get prescriptions error:', error?.stack || error);
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -4250,8 +4529,55 @@ exports.createPrescription = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid patient id' });
     }
     const doctorUser = req.user;
-    const { department, medications, duration: bodyRxDuration } = req.body;
+    const { department, medications, duration: bodyRxDuration, byt: bodyBytRaw } = req.body;
     const headerDuration = normalizeMedicalPrescriptionDuration(bodyRxDuration);
+    const [patientDemo] = await sequelize.query(
+      `SELECT u.dob, u.idcard, u.tel
+       FROM PATIENT p
+       JOIN USER u ON u.id = p.user_id
+       WHERE p.patient_id = :patientId
+       LIMIT 1`,
+      { replacements: { patientId: patientPk }, type: QueryTypes.SELECT, transaction }
+    );
+    const dob = patientDemo?.dob ? new Date(patientDemo.dob) : null;
+    const ageMonths = dob && !Number.isNaN(dob.getTime())
+      ? Math.max(0, (new Date().getFullYear() - dob.getFullYear()) * 12 + (new Date().getMonth() - dob.getMonth()))
+      : null;
+    const bodyByt = bodyBytRaw && typeof bodyBytRaw === 'object' ? bodyBytRaw : {};
+    const generatedCode = await generateUniqueBytPrescriptionCode(sequelize, {
+      facilityCode: BYT_FACILITY_CODE,
+      type: BYT_PRESCRIPTION_TYPE,
+      transaction,
+    });
+    const bytDefaults = await resolveBytDefaultsForPatient(
+      sequelize,
+      patientPk,
+      bodyByt,
+      patientDemo,
+      ageMonths,
+      transaction
+    );
+    const bytMeta = {
+      code: generatedCode,
+      prescriptionType: BYT_PRESCRIPTION_TYPE,
+      facilityCode: BYT_FACILITY_CODE,
+      facilityName: String(bodyByt.facilityName || BYT_FACILITY_NAME).trim() || BYT_FACILITY_NAME,
+      facilityAddress: String(bodyByt.facilityAddress || BYT_FACILITY_ADDRESS).trim() || BYT_FACILITY_ADDRESS,
+      ...bytDefaults,
+      patientIdCard: String(patientDemo?.idcard || '').trim(),
+      patientPhone: String(patientDemo?.tel || '').trim(),
+    };
+    if (ageMonths != null && ageMonths < 72) {
+      if (!bytMeta.patientWeightKg) {
+        await transaction.rollback();
+        return res.status(400).json({ success: false, message: 'Patient weight is required for children under 72 months' });
+      }
+      if (!bytMeta.contactPhone) {
+        await transaction.rollback();
+        return res.status(400).json({ success: false, message: 'Contact phone is required for children under 72 months' });
+      }
+    }
+
 
     if (!medications || !Array.isArray(medications) || medications.length === 0) {
       await transaction.rollback();
@@ -4293,7 +4619,10 @@ exports.createPrescription = async (req, res) => {
     await insertMedicalPrescriptionCompat(sequelize, {
       orderId,
       duration: headerDuration,
-      note: department || '',
+      note: buildPrescriptionMetaNote({
+        department: department || '',
+        byt: bytMeta,
+      }),
       transaction,
     });
 
@@ -4366,6 +4695,7 @@ exports.createPrescription = async (req, res) => {
       department: department || '',
       duration: headerDuration,
       signatureStatus: 'signed',
+      byt: bytMeta,
       medications: meds,
       createdAt,
       updatedAt: createdAt
@@ -4394,7 +4724,7 @@ exports.updatePrescription = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid patient or prescription id' });
     }
 
-    const { department, medications, duration: bodyRxDuration } = req.body;
+    const { department, medications, duration: bodyRxDuration, byt: bodyBytRaw } = req.body;
     if (!medications || !Array.isArray(medications) || medications.length === 0) {
       await transaction.rollback();
       return res.status(400).json({ success: false, message: 'At least one medication is required' });
@@ -4426,10 +4756,48 @@ exports.updatePrescription = async (req, res) => {
       transaction
     });
 
+    const existingMetaRows = await sequelize.query(
+      'SELECT note FROM MEDICAL_PRESCRIPTION WHERE order_id = :orderId LIMIT 1',
+      { replacements: { orderId }, type: QueryTypes.SELECT, transaction }
+    );
+    const existingMeta = parsePrescriptionMetaNote(existingMetaRows[0]?.note);
+    const bodyByt = bodyBytRaw && typeof bodyBytRaw === 'object' ? bodyBytRaw : {};
+    const existingCode = isBytCodeShape(existingMeta?.byt?.code) ? String(existingMeta.byt.code) : null;
+    const bytMeta = {
+      code:
+        String(bodyByt.code || '').trim() && isBytCodeShape(bodyByt.code)
+          ? String(bodyByt.code).trim()
+          : existingCode || await generateUniqueBytPrescriptionCode(sequelize, {
+              facilityCode: BYT_FACILITY_CODE,
+              type: BYT_PRESCRIPTION_TYPE,
+              transaction,
+            }),
+      prescriptionType:
+        String(bodyByt.prescriptionType || existingMeta?.byt?.prescriptionType || BYT_PRESCRIPTION_TYPE).toUpperCase() === 'N'
+          ? 'N'
+          : String(bodyByt.prescriptionType || existingMeta?.byt?.prescriptionType || BYT_PRESCRIPTION_TYPE).toUpperCase() === 'H'
+            ? 'H'
+            : 'C',
+      facilityCode: String(existingMeta?.byt?.facilityCode || BYT_FACILITY_CODE),
+      facilityName: String(bodyByt.facilityName || existingMeta?.byt?.facilityName || BYT_FACILITY_NAME).trim() || BYT_FACILITY_NAME,
+      facilityAddress: String(bodyByt.facilityAddress || existingMeta?.byt?.facilityAddress || BYT_FACILITY_ADDRESS).trim() || BYT_FACILITY_ADDRESS,
+      facilityPhone: String(bodyByt.facilityPhone || existingMeta?.byt?.facilityPhone || BYT_FACILITY_PHONE).trim() || BYT_FACILITY_PHONE,
+      contactPhone: String(bodyByt.contactPhone || existingMeta?.byt?.contactPhone || '').trim(),
+      guardianName: String(bodyByt.guardianName || existingMeta?.byt?.guardianName || '').trim(),
+      advice: String(bodyByt.advice || existingMeta?.byt?.advice || '').trim(),
+      insuranceId: String(bodyByt.insuranceId || existingMeta?.byt?.insuranceId || '').trim(),
+      patientAddress: String(bodyByt.patientAddress || existingMeta?.byt?.patientAddress || '').trim(),
+      patientWeightKg: String(bodyByt.patientWeightKg || existingMeta?.byt?.patientWeightKg || '').trim(),
+      patientIdCard: String(existingMeta?.byt?.patientIdCard || '').trim(),
+      patientPhone: String(existingMeta?.byt?.patientPhone || '').trim(),
+    };
     await updateMedicalPrescriptionCompat(sequelize, {
       orderId,
       transaction,
-      setNote: department !== undefined ? department || '' : undefined,
+      setNote: buildPrescriptionMetaNote({
+        department: department !== undefined ? department || '' : existingMeta.department || '',
+        byt: bytMeta,
+      }),
       setDuration: headerDurationUpd != null ? headerDurationUpd : undefined,
     });
 
@@ -4496,9 +4864,10 @@ exports.updatePrescription = async (req, res) => {
       patientId: patientPk,
       doctorId: req.user.userId,
       doctorName,
-      department: department || '',
+      department: department !== undefined ? department || '' : existingMeta.department || '',
       duration: Number(metaRows[0]?.duration) || headerDurationUpd || 7,
       signatureStatus: 'signed',
+      byt: bytMeta,
       medications: meds,
       createdAt: updatedAt,
       updatedAt
@@ -5217,6 +5586,18 @@ exports.getAppointments = async (req, res) => {
          DATE(a.time) AS date,
          TIME(a.time) AS time,
          a.status AS dbStatus,
+         CASE
+           WHEN a.status IN ('completed', 'cancelled') THEN a.status
+           WHEN EXISTS (
+             SELECT 1 FROM REGIMEN r
+             WHERE r.patient_id = a.patient_id
+               AND r.\`end\` IS NOT NULL
+               AND DATE(a.time) = DATE(r.start)
+               AND a.time >= r.start
+               AND a.time <= r.\`end\`
+           ) THEN 'completed'
+           ELSE a.status
+         END AS effectiveStatus,
          COALESCE(a.doctor_confirmed, 1) AS doctorConfirmed,
          a.\`condition\` AS symptoms,
          '' AS notes,
@@ -5241,9 +5622,12 @@ exports.getAppointments = async (req, res) => {
     );
 
     const appointments = rows.map((r) => {
+      const effectiveStatus = String(r.effectiveStatus || r.dbStatus || '').toLowerCase();
       const confirmed = Number(r.doctorConfirmed) !== 0;
+      const isDone = effectiveStatus === 'completed';
+      const isCancelled = effectiveStatus === 'cancelled';
       const awaitingDoctorConfirmation =
-        r.dbStatus === 'scheduled' && r.patientId != null && !confirmed;
+        !isDone && !isCancelled && effectiveStatus === 'scheduled' && r.patientId != null && !confirmed;
       return {
         id: r.id,
         userId: Number(r.userId),
@@ -5259,7 +5643,8 @@ exports.getAppointments = async (req, res) => {
         notes: r.notes || '',
         doctorConfirmed: confirmed,
         awaitingDoctorConfirmation,
-        status: r.dbStatus === 'completed' ? 'Done' : r.dbStatus === 'cancelled' ? 'Cancelled' : 'Pending',
+        examined: isDone,
+        status: isDone ? 'Done' : isCancelled ? 'Cancelled' : 'Pending',
       };
     });
 
@@ -6102,6 +6487,7 @@ exports.getDashboardSummary = async (req, res) => {
            COALESCE(NULLIF(TRIM(dep.name), ''), NULLIF(TRIM(d.specifications), ''), '') AS department,
            cr.name AS room,
            p.patient_id AS patientId,
+           p.user_id AS userId,
            COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), acc.username, CONCAT('patient#', p.user_id)) AS patientName
          FROM APPOINTMENT a
          JOIN PATIENT p ON p.patient_id = a.patient_id
@@ -6120,6 +6506,7 @@ exports.getDashboardSummary = async (req, res) => {
       sequelize.query(
         `SELECT DISTINCT
            p.patient_id AS patientId,
+           p.user_id AS userId,
            COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), acc.username, CONCAT('patient#', p.user_id)) AS patientName,
            MAX(a.time) AS lastTime
          FROM APPOINTMENT a
@@ -6127,7 +6514,7 @@ exports.getDashboardSummary = async (req, res) => {
          JOIN USER u ON u.id = p.user_id
          LEFT JOIN ACCOUNT acc ON acc.user_id = p.user_id
          WHERE a.doctor_id = :doctorId
-         GROUP BY p.patient_id, patientName
+         GROUP BY p.patient_id, p.user_id, patientName
          ORDER BY lastTime DESC
          LIMIT 5`,
         { replacements: { doctorId }, type: QueryTypes.SELECT }
@@ -6152,11 +6539,13 @@ exports.getDashboardSummary = async (req, res) => {
         department: r.department || '',
         room: r.room || '',
         patientId: Number(r.patientId),
+        userId: Number(r.userId),
         patientName: r.patientName,
         status: toUiStatus(r.dbStatus),
       })),
       recentPatients: (recentRows || []).map((r) => ({
         patientId: Number(r.patientId),
+        userId: Number(r.userId),
         patientName: r.patientName,
         lastTime: r.lastTime,
       })),
@@ -6188,9 +6577,19 @@ exports.getSignature = async (req, res) => {
       { replacements: { doctorId }, type: QueryTypes.SELECT }
     );
 
+    let signature = row?.signature || null;
+    if (signature) {
+      try {
+        signature = decryptField(signature);
+      } catch (decryptErr) {
+        console.error('Decrypt signature error:', decryptErr);
+        return res.status(500).json({ success: false, message: 'Could not read signature' });
+      }
+    }
+
     return res.json({
       success: true,
-      signature: row?.signature || null,
+      signature,
     });
   } catch (error) {
     console.error('Get signature error:', error);
@@ -6211,9 +6610,23 @@ exports.saveSignature = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Doctor profile not found' });
     }
 
+    let storedSignature = signature || null;
+    if (storedSignature) {
+      try {
+        storedSignature = encryptField(storedSignature);
+      } catch (encryptErr) {
+        console.error('Encrypt signature error:', encryptErr);
+        const msg =
+          encryptErr instanceof Error && encryptErr.message.includes('IMAGE_ENCRYPTION_KEY')
+            ? 'Signature encryption is not configured on the server'
+            : 'Could not save signature';
+        return res.status(500).json({ success: false, message: msg });
+      }
+    }
+
     await sequelize.query(
       'UPDATE DOCTOR SET signature = :signature WHERE doctor_id = :doctorId',
-      { replacements: { signature: signature || null, doctorId }, type: QueryTypes.UPDATE }
+      { replacements: { signature: storedSignature, doctorId }, type: QueryTypes.UPDATE }
     );
 
     return res.json({ success: true });

@@ -14,30 +14,23 @@ import { appointmentService } from "@/services/appointment-service"
 import type { SymptomInput, SymptomAnalysisResult } from "@/types/ai-types"
 import { getReadableApiError } from "@/lib/utils"
 import { persistSymptomCheckerToHealthInfo } from "@/lib/symptom-checker-persist-health"
+import {
+  COMMON_SYMPTOM_KEYS,
+  isCommonSymptomKey,
+  MIN_CUSTOM_SYMPTOM_LENGTH,
+  normalizeSymptomsForAi,
+  resolveSymptomText,
+  type CommonSymptomKey,
+  type SelectedSymptomInput,
+} from "@/lib/symptom-normalize"
 
-interface SelectedSymptom {
-  name: string
-  severity: 'mild' | 'moderate' | 'severe'
-  duration: 'less24h' | '1to3days' | '3to7days' | 'moreThanWeek'
-}
-
-
-const commonSymptoms = [
-  "Fever",
-  "Cough",
-  "Sore Throat",
-  "Shortness of Breath",
-  "Chest Pain",
-  "Headache",
-  "Fatigue",
-  "Nausea",
-]
+type SelectedSymptom = SelectedSymptomInput
 
 const durationOptions = [
-  { value: "less24h", label: "Less than 24 hours", short: "< 1 day" },
-  { value: "1to3days", label: "1-3 days", short: "1-3 days" },
-  { value: "3to7days", label: "3-7 days", short: "3-7 days" },
-  { value: "moreThanWeek", label: "More than a week", short: "> 1 week" },
+  { value: "less24h" as const, short: "< 1 day" },
+  { value: "1to3days" as const, short: "1-3 days" },
+  { value: "3to7days" as const, short: "3-7 days" },
+  { value: "moreThanWeek" as const, short: "> 1 week" },
 ]
 
 // ==================== MAIN COMPONENT ====================
@@ -83,6 +76,12 @@ export default function SymptomChecker() {
   const [analysisError, setAnalysisError] = useState<string>("")
   const [healthInfoSyncMessage, setHealthInfoSyncMessage] = useState<"ok" | "err" | null>(null)
   const [healthInfoSyncDetail, setHealthInfoSyncDetail] = useState<string>("")
+  const [suggestOpen, setSuggestOpen] = useState(false)
+  const [pendingSuggestion, setPendingSuggestion] = useState<{
+    entered: string
+    key: CommonSymptomKey
+  } | null>(null)
+  const [otherSymptomError, setOtherSymptomError] = useState("")
 
   // ==================== EVENT HANDLERS ====================
 
@@ -152,11 +151,11 @@ export default function SymptomChecker() {
 
     try {
       // Convert selected symptoms to AI service format
-      const symptomsForAnalysis: SymptomInput[] = selectedSymptoms.map(s => ({
-        name: s.name,
-        severity: s.severity,
-        duration: s.duration
-      }))
+      const symptomsForAnalysis = normalizeSymptomsForAi(selectedSymptoms)
+      if (symptomsForAnalysis.length === 0) {
+        setAnalysisError(t("patient.symptomChecker.validation.tooShort"))
+        return
+      }
 
       // Call backend AI endpoint (persist into AI_RECOMMENDATION)
       const response = await appointmentService.analyzeSymptomsPersisted(symptomsForAnalysis)
@@ -172,7 +171,12 @@ export default function SymptomChecker() {
         )
       }
 
-      const sync = await persistSymptomCheckerToHealthInfo(selectedSymptoms)
+      const sync = await persistSymptomCheckerToHealthInfo(
+        selectedSymptoms.map((s) => ({
+          ...s,
+          name: symptomDisplayName(s.name),
+        }))
+      )
       if (sync.ok) {
         setHealthInfoSyncMessage("ok")
         setHealthInfoSyncDetail("")
@@ -197,11 +201,64 @@ export default function SymptomChecker() {
     }
   }
 
+  const durationLabel = (value: SelectedSymptom["duration"]) =>
+    t(`patient.symptomChecker.duration.${value}`)
+
+  const severityLabel = (value: SelectedSymptom["severity"]) =>
+    t(`patient.symptomChecker.selectedCard.severityLevels.${value}`)
+
+  const symptomDisplayName = (id: string) =>
+    isCommonSymptomKey(id) ? t(`patient.symptomChecker.commonSymptoms.${id}`) : id
+
   const handleAddOtherSymptom = () => {
-    const normalized = otherSymptomText.trim()
-    if (!normalized) return
-    openDialog(normalized)
+    const resolved = resolveSymptomText(otherSymptomText)
+    setOtherSymptomError("")
+
+    if (!resolved.cleaned) return
+
+    if (resolved.kind === "preset") {
+      openDialog(resolved.key)
+      setOtherSymptomText("")
+      return
+    }
+
+    if (resolved.kind === "suggest") {
+      setPendingSuggestion({ entered: resolved.cleaned, key: resolved.key })
+      setSuggestOpen(true)
+      return
+    }
+
+    if (resolved.cleaned.length < MIN_CUSTOM_SYMPTOM_LENGTH) {
+      setOtherSymptomError(t("patient.symptomChecker.validation.tooShort"))
+      return
+    }
+
+    openDialog(resolved.cleaned)
     setOtherSymptomText("")
+  }
+
+  const acceptSuggestion = () => {
+    if (!pendingSuggestion) return
+    openDialog(pendingSuggestion.key)
+    setOtherSymptomText("")
+    setOtherSymptomError("")
+    setPendingSuggestion(null)
+    setSuggestOpen(false)
+  }
+
+  const keepOriginalSuggestion = () => {
+    if (!pendingSuggestion) return
+    if (pendingSuggestion.entered.length < MIN_CUSTOM_SYMPTOM_LENGTH) {
+      setOtherSymptomError(t("patient.symptomChecker.validation.tooShort"))
+      setPendingSuggestion(null)
+      setSuggestOpen(false)
+      return
+    }
+    openDialog(pendingSuggestion.entered)
+    setOtherSymptomText("")
+    setOtherSymptomError("")
+    setPendingSuggestion(null)
+    setSuggestOpen(false)
   }
 
   return (
@@ -241,12 +298,14 @@ export default function SymptomChecker() {
               disabled={selectedSymptoms.length === 0 || isAnalyzing}
               className="min-w-56 text-lg py-5 bg-linear-to-br from-[#06b6d4] to-[#0891b2] text-white border-none hover:opacity-90 shadow-md transition-all hover:scale-105"
             >
-              {isAnalyzing ? "Analyzing..." : `Analyze (${selectedSymptoms.length} symptoms)`}
+              {isAnalyzing
+                ? t("patient.symptomChecker.analyzing")
+                : t("patient.symptomChecker.analyze", { count: selectedSymptoms.length })}
             </Button>
 
             {selectedSymptoms.length > 0 && (
               <Button size="lg" variant="outline" onClick={() => setSelectedSymptoms([])}>
-                Clear All
+                {t("patient.symptomChecker.clearAll")}
               </Button>
             )}
           </div>
@@ -259,35 +318,38 @@ export default function SymptomChecker() {
         {/* Symptom Grid */}
           <Card className="xl:col-span-6">
             <CardHeader>
-              <CardTitle>Select Your Symptoms</CardTitle>
+              <CardTitle>{t("patient.symptomChecker.selectSymptomsTitle")}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                {commonSymptoms.map((symptom) => {
-                  const isSelected = selectedSymptoms.some(s => s.name === symptom)
+                {COMMON_SYMPTOM_KEYS.map((symptomKey) => {
+                  const isSelected = selectedSymptoms.some((s) => s.name === symptomKey)
                   return (
                     <Button
-                      key={symptom}
+                      key={symptomKey}
                       variant={isSelected ? "default" : "outline"}
                       className={`min-h-[3.25rem] h-auto px-3 py-2 text-sm md:text-base font-medium leading-tight whitespace-normal break-words text-center transition-all ${
                         isSelected 
                           ? "bg-linear-to-br from-[#06b6d4] to-[#0891b2] text-white border-none ring-4 ring-[#06b6d4]/30 shadow-md" 
                           : "hover:border-[#06b6d4] hover:text-[#06b6d4] hover:bg-[#06b6d4]/5"
                       }`}
-                      onClick={() => openDialog(symptom)}
+                      onClick={() => openDialog(symptomKey)}
                     >
-                      {symptom}
+                      {t(`patient.symptomChecker.commonSymptoms.${symptomKey}`)}
                     </Button>
                   )
                 })}
               </div>
 
               <div className="mt-4 space-y-2">
-                <p className="text-sm font-medium text-slate-700">Other symptom</p>
+                <p className="text-sm font-medium text-slate-700">{t("patient.symptomChecker.otherSymptom")}</p>
                 <div className="flex flex-col sm:flex-row gap-2">
                   <input
                     value={otherSymptomText}
-                    onChange={(e) => setOtherSymptomText(e.target.value)}
+                    onChange={(e) => {
+                      setOtherSymptomText(e.target.value)
+                      if (otherSymptomError) setOtherSymptomError("")
+                    }}
                     onInput={(e) => setOtherSymptomText((e.target as HTMLInputElement).value)}
                     onBlur={(e) => setOtherSymptomText(e.target.value)}
                     onKeyDown={(e) => {
@@ -296,7 +358,7 @@ export default function SymptomChecker() {
                         handleAddOtherSymptom()
                       }
                     }}
-                    placeholder="Type your symptom (e.g., loss of appetite)"
+                    placeholder={t("patient.symptomChecker.otherSymptomPlaceholder")}
                     className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500"
                   />
                   <Button
@@ -306,9 +368,12 @@ export default function SymptomChecker() {
                     onClick={handleAddOtherSymptom}
                     disabled={!otherSymptomText.trim()}
                   >
-                    Add Other
+                    {t("patient.symptomChecker.addOther")}
                   </Button>
                 </div>
+                {otherSymptomError ? (
+                  <p className="text-sm text-red-600">{otherSymptomError}</p>
+                ) : null}
               </div>
             </CardContent>
           </Card>
@@ -319,25 +384,25 @@ export default function SymptomChecker() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Clock className="h-5 w-5" />
-                    Your Symptoms ({selectedSymptoms.length})
+                    {t("patient.symptomChecker.selectedCard.title")} ({selectedSymptoms.length})
                   </CardTitle>
                 </CardHeader>
               {selectedSymptoms.length > 0 && (
                 <CardContent>
                   <div className="flex flex-wrap gap-3">
                     {selectedSymptoms.map((s) => {
-                      const durationLabel = durationOptions.find(d => d.value === s.duration)?.short
+                      const durationShort = durationOptions.find(d => d.value === s.duration)?.short
                       return (
                         <Badge
                           key={s.name}
                           variant="secondary"
                           className={`text-sm py-2 px-4 font-medium ${getSeverityColor(s.severity)}`}
                         >
-                          <span className="font-semibold">{s.name}</span>
+                          <span className="font-semibold">{symptomDisplayName(s.name)}</span>
                           <span className="mx-1">•</span>
-                          <span className="uppercase">{s.severity}</span>
+                          <span className="uppercase">{severityLabel(s.severity)}</span>
                           <span className="mx-1">•</span>
-                          <span className="text-xs">{durationLabel}</span>
+                          <span className="text-xs">{durationShort}</span>
                           <button onClick={() => removeSymptom(s.name)} className="ml-2 hover:opacity-70">
                             <X className="h-3.5 w-3.5" />
                           </button>
@@ -458,20 +523,60 @@ export default function SymptomChecker() {
 
         
 
+        <Dialog
+          open={suggestOpen}
+          onOpenChange={(open) => {
+            setSuggestOpen(open)
+            if (!open) setPendingSuggestion(null)
+          }}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>{t("patient.symptomChecker.suggest.title")}</DialogTitle>
+              <DialogDescription className="text-base text-slate-700 pt-2">
+                {pendingSuggestion ? (
+                  <>
+                    {t("patient.symptomChecker.suggest.messagePrefix")}{" "}
+                    <strong className="font-semibold text-slate-900">
+                      {t(`patient.symptomChecker.commonSymptoms.${pendingSuggestion.key}`)}
+                    </strong>{" "}
+                    {t("patient.symptomChecker.suggest.messageMid")}{" "}
+                    <strong className="font-semibold text-slate-900">
+                      {pendingSuggestion.entered}
+                    </strong>
+                    ?
+                  </>
+                ) : null}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="grid grid-cols-2 gap-3 sm:gap-4">
+              <Button variant="outline" onClick={keepOriginalSuggestion}>
+                {t("patient.symptomChecker.suggest.keepOriginal")}
+              </Button>
+              <Button
+                onClick={acceptSuggestion}
+                className="bg-linear-to-br from-[#06b6d4] to-[#0891b2] text-white border-none hover:opacity-90"
+              >
+                {t("patient.symptomChecker.suggest.useSuggested")}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* Dialog settings */}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent className="sm:max-w-lg">
             <DialogHeader>
-              <DialogTitle className="text-xl">Tell us more about</DialogTitle>
+              <DialogTitle className="text-xl">{t("patient.symptomChecker.dialog.title")}</DialogTitle>
               <DialogDescription className="text-2xl font-bold text-primary">
-                {currentSymptom}
+                {symptomDisplayName(currentSymptom)}
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-8 py-4">
               {/* Severity */}
               <div>
-                <p className="font-semibold text-lg mb-4">How severe is it?</p>
+                <p className="font-semibold text-lg mb-4">{t("patient.symptomChecker.dialog.severityQuestion")}</p>
                 <div className="grid grid-cols-3 gap-3">
                   {(["mild", "moderate", "severe"] as const).map((level) => (
                     <Button
@@ -485,9 +590,9 @@ export default function SymptomChecker() {
                       onClick={() => setTempSeverity(level)}
                     >
                       <div>
-                        <div className="font-bold text-lg capitalize">{level}</div>
+                        <div className="font-bold text-lg">{severityLabel(level)}</div>
                         <div className="text-xs opacity-90">
-                          {level === "mild" ? "Noticeable" : level === "moderate" ? "Affects daily life" : "Very intense"}
+                          {t(`patient.symptomChecker.dialog.severityHint.${level}`)}
                         </div>
                       </div>
                     </Button>
@@ -497,7 +602,7 @@ export default function SymptomChecker() {
 
               {/* Duration */}
               <div>
-                <p className="font-semibold text-lg mb-4">How long have you had it?</p>
+                <p className="font-semibold text-lg mb-4">{t("patient.symptomChecker.dialog.durationQuestion")}</p>
                 <div className="grid grid-cols-2 gap-3">
                   {durationOptions.map((opt) => (
                     <Button
@@ -511,7 +616,7 @@ export default function SymptomChecker() {
                       onClick={() => setTempDuration(opt.value as SelectedSymptom["duration"])}
                     >
                       <Clock className="h-5 w-5 mr-3" />
-                      {opt.label}
+                      {durationLabel(opt.value)}
                     </Button>
                   ))}
                 </div>
@@ -520,10 +625,10 @@ export default function SymptomChecker() {
 
             <DialogFooter className="grid grid-cols-2 gap-4 mt-6">
               <Button variant="outline" onClick={() => setDialogOpen(false)} className="h-12 hover:bg-gray-100 hover:text-gray-900">
-                Cancel
+                {t("patient.symptomChecker.dialog.cancel")}
               </Button>
               <Button onClick={confirmSelection} className="h-12 bg-linear-to-br from-[#06b6d4] to-[#0891b2] text-white border-none hover:opacity-90 shadow-md">
-                Confirm
+                {t("patient.symptomChecker.dialog.confirm")}
               </Button>
             </DialogFooter>
           </DialogContent>

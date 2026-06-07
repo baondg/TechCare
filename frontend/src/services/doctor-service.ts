@@ -109,6 +109,8 @@ export interface Patient {
 export interface PatientDetail extends Patient {
   latestDiagnosis: { icd10: string; interpretation: string; department: string } | null;
   dateOfBirth?: string | null;
+  idCard?: string | null;
+  phone?: string | null;
   /** From PATIENT.in_department (enum in DB) */
   inDepartment?: string | null;
   /** HEALTH_INSURANCE.id */
@@ -198,6 +200,22 @@ export interface Prescription {
   duration?: number;
   /** API compatibility: always "signed" after save (no MEDICAL_PRESCRIPTION.status column). */
   signatureStatus: PrescriptionSignatureStatus;
+  byt?: {
+    code: string | null;
+    prescriptionType: 'N' | 'H' | 'C';
+    facilityCode: string;
+    facilityName?: string;
+    facilityAddress?: string;
+    facilityPhone: string;
+    contactPhone?: string;
+    guardianName?: string;
+    advice?: string;
+    insuranceId?: string;
+    patientAddress?: string;
+    patientWeightKg?: string;
+    patientIdCard?: string;
+    patientPhone?: string;
+  };
   medications: Medication[];
   createdAt: string;
   updatedAt: string;
@@ -271,6 +289,8 @@ export interface DoctorAppointment {
   doctorConfirmed?: boolean;
   /** Patient portal booking waiting for Accept / Decline */
   awaitingDoctorConfirmation?: boolean;
+  /** Visit closed (Finish examination); status should be Done */
+  examined?: boolean;
 }
 
 export interface DoctorDashboardSummary {
@@ -287,11 +307,13 @@ export interface DoctorDashboardSummary {
     department: string;
     room: string;
     patientId: number;
+    userId: number;
     patientName: string;
     status: string;
   }>;
   recentPatients: Array<{
     patientId: number;
+    userId: number;
     patientName: string;
     lastTime: string;
   }>;
@@ -385,14 +407,33 @@ export const doctorService = {
         prescriptions: Array<{
           id: number;
           prescribedAt: string;
+          duration?: number;
+          department?: string;
           signatureStatus: string;
+          byt?: {
+            code: string | null;
+            prescriptionType: 'N' | 'H' | 'C';
+            facilityCode: string;
+            facilityName?: string;
+            facilityAddress?: string;
+            facilityPhone: string;
+            contactPhone?: string;
+            guardianName?: string;
+            advice?: string;
+            insuranceId?: string;
+            patientAddress?: string;
+            patientWeightKg?: string;
+            patientIdCard?: string;
+            patientPhone?: string;
+          };
           medications: Array<{
             id: string;
             name: string;
             quantity: string;
-            frequency: string;
+            usage: string;
             unit: string;
             duration?: string;
+            note?: string;
           }>;
         }>;
         labTests: Array<{
@@ -598,6 +639,17 @@ export const doctorService = {
     department?: string;
     /** MEDICAL_PRESCRIPTION.duration (days); defaults on server if omitted. */
     duration?: number;
+    byt?: {
+      facilityPhone?: string;
+      facilityName?: string;
+      facilityAddress?: string;
+      contactPhone?: string;
+      guardianName?: string;
+      advice?: string;
+      insuranceId?: string;
+      patientAddress?: string;
+      patientWeightKg?: string;
+    };
     medications: Omit<Medication, 'id'>[];
   }) {
     return apiRequest<{
@@ -615,6 +667,17 @@ export const doctorService = {
     data: {
       department?: string;
       duration?: number;
+      byt?: {
+        code?: string;
+        prescriptionType?: 'N' | 'H' | 'C';
+        facilityPhone?: string;
+        contactPhone?: string;
+        guardianName?: string;
+        advice?: string;
+        insuranceId?: string;
+        patientAddress?: string;
+        patientWeightKg?: string;
+      };
       medications: Omit<Medication, 'id'>[];
     }
   ) {
@@ -886,6 +949,8 @@ export const doctorService = {
     diagnosis: string;
     symptoms: string;
     patientInfo?: string;
+    /** 'vi' (default) — AI returns usage/note in Vietnamese */
+    language?: string;
   }) {
     return apiRequest<{
       success: boolean;

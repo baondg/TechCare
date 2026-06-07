@@ -2,7 +2,7 @@
 
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Calendar, Pill, Clock, ChevronRight, User, TrendingUp } from "lucide-react"
+import { Calendar, Pill, Clock, ChevronRight, User, TrendingUp, Activity } from "lucide-react"
 import { Link } from "react-router-dom";
 import { CollapsibleSection } from "@/components/collapsible-section"
 import { useEffect, useMemo, useState } from "react";

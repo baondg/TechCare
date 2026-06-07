@@ -1,5 +1,11 @@
 const { QueryTypes } = require('sequelize');
 const sequelize = require('../common/database');
+const { getClinicTodayYmd } = require('../common/clinicDate');
+const { resolvePatientPkFromRoute } = require('../common/resolvePatientRouteId');
+
+function withClinicToday(replacements = {}) {
+  return { ...replacements, clinicToday: getClinicTodayYmd() };
+}
 
 const NURSE_APPT_SELECT = `
   SELECT
@@ -8,6 +14,7 @@ const NURSE_APPT_SELECT = `
     DATE_FORMAT(a.time, '%Y-%m-%d') AS wallDate,
     TIME_FORMAT(a.time, '%H:%i:%s') AS wallTime,
     a.\`condition\` AS conditionNote,
+    a.regimen_id AS regimenId,
     a.doctor_id AS doctorId,
     a.room_id AS roomId,
     COALESCE(NULLIF(TRIM(CONCAT(COALESCE(du.first_name,''), ' ', COALESCE(du.last_name,''))), ''), dacc.username) AS doctorName,
@@ -20,33 +27,76 @@ const NURSE_APPT_SELECT = `
   LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id
 `;
 
+/** APPOINTMENT.patient_id may be PATIENT.patient_id or legacy USER.id. */
+const SQL_A_PATIENT_MATCH = `(
+  a.patient_id = :patientId
+  OR a.patient_id = (
+    SELECT p.user_id FROM PATIENT p WHERE p.patient_id = :patientId LIMIT 1
+  )
+)`;
+
+const SQL_ROW_PATIENT_MATCH = `(
+  patient_id = :patientId
+  OR patient_id = (
+    SELECT p.user_id FROM PATIENT p WHERE p.patient_id = :patientId LIMIT 1
+  )
+)`;
+
 function qTx(transaction, base) {
   return transaction ? { ...base, transaction } : base;
 }
 
 async function findNursePatientPkFromNumeric(n) {
   if (!Number.isFinite(n) || n <= 0) return null;
+  return resolvePatientPkFromRoute(n);
+}
+
+async function findPatientPkExists(patientPk) {
+  const pk = Number(patientPk);
+  if (!Number.isFinite(pk) || pk <= 0) return null;
   const [row] = await sequelize.query(
-    'SELECT patient_id AS id FROM PATIENT WHERE patient_id = :n OR user_id = :n LIMIT 1',
-    { replacements: { n }, type: QueryTypes.SELECT }
+    'SELECT patient_id AS id FROM PATIENT WHERE patient_id = :pk LIMIT 1',
+    { replacements: { pk }, type: QueryTypes.SELECT }
   );
   return row?.id != null ? Number(row.id) : null;
 }
 
 async function selectCurDate() {
-  const todayRow = await sequelize.query('SELECT CURDATE() AS d', { type: QueryTypes.SELECT });
-  return todayRow[0]?.d ? String(todayRow[0].d).slice(0, 10) : new Date().toISOString().slice(0, 10);
+  return getClinicTodayYmd();
 }
 
 async function listNurseBookedTodayForPatient(patientId) {
   return sequelize.query(
     `${NURSE_APPT_SELECT}
-     WHERE a.patient_id = :patientId
-       AND a.status = 'scheduled'
-       AND DATE(a.time) = CURDATE()
+     WHERE a.status = 'scheduled'
+       AND DATE(a.time) = :clinicToday
+       AND (
+         a.patient_id = :patientId
+         OR a.patient_id = (
+           SELECT p.user_id FROM PATIENT p WHERE p.patient_id = :patientId LIMIT 1
+         )
+       )
      ORDER BY a.time ASC, a.id ASC`,
-    { replacements: { patientId }, type: QueryTypes.SELECT }
+    { replacements: withClinicToday({ patientId }), type: QueryTypes.SELECT }
   );
+}
+
+async function findNurseBookedTodayByAppointmentId(appointmentId, patientId) {
+  const [row] = await sequelize.query(
+    `${NURSE_APPT_SELECT}
+     WHERE a.id = :appointmentId
+       AND a.status = 'scheduled'
+       AND DATE(a.time) = :clinicToday
+       AND (
+         a.patient_id = :patientId
+         OR a.patient_id = (
+           SELECT p.user_id FROM PATIENT p WHERE p.patient_id = :patientId LIMIT 1
+         )
+       )
+     LIMIT 1`,
+    { replacements: withClinicToday({ appointmentId, patientId }), type: QueryTypes.SELECT }
+  );
+  return row || null;
 }
 
 async function listNurseOpenSlotsToday() {
@@ -54,9 +104,9 @@ async function listNurseOpenSlotsToday() {
     `${NURSE_APPT_SELECT}
      WHERE a.patient_id IS NULL
        AND a.status = 'scheduled'
-       AND DATE(a.time) = CURDATE()
+       AND DATE(a.time) = :clinicToday
      ORDER BY a.time ASC, a.id ASC`,
-    { type: QueryTypes.SELECT }
+    { replacements: withClinicToday(), type: QueryTypes.SELECT }
   );
 }
 
@@ -64,11 +114,11 @@ async function findNurseAcceptAppointment(appointmentId, patientId) {
   const [row] = await sequelize.query(
     `${NURSE_APPT_SELECT}
      WHERE a.id = :appointmentId
-       AND a.patient_id = :patientId
+       AND ${SQL_A_PATIENT_MATCH}
        AND a.status = 'scheduled'
-       AND DATE(a.time) = CURDATE()
+       AND DATE(a.time) = :clinicToday
      LIMIT 1`,
-    { replacements: { appointmentId, patientId }, type: QueryTypes.SELECT }
+    { replacements: withClinicToday({ appointmentId, patientId }), type: QueryTypes.SELECT }
   );
   return row || null;
 }
@@ -81,18 +131,21 @@ async function findClinicRoomIdExists(roomId) {
   return row || null;
 }
 
-async function updateNurseAppointmentRoomToday(appointmentId, patientId, roomId) {
+async function updateNurseAppointmentRoomToday(appointmentId, patientId, roomId, transaction) {
   await sequelize.query(
     `UPDATE APPOINTMENT SET room_id = :roomId
-     WHERE id = :appointmentId AND patient_id = :patientId
-       AND status = 'scheduled' AND DATE(\`time\`) = CURDATE()`,
-    { replacements: { roomId, appointmentId, patientId }, type: QueryTypes.UPDATE }
+     WHERE id = :appointmentId AND ${SQL_ROW_PATIENT_MATCH}
+       AND status = 'scheduled' AND DATE(\`time\`) = :clinicToday`,
+    qTx(transaction, {
+      replacements: withClinicToday({ roomId, appointmentId, patientId }),
+      type: QueryTypes.UPDATE,
+    })
   );
 }
 
 async function updateAppointmentRegimenId(appointmentId, patientId, regimenId, transaction) {
   await sequelize.query(
-    `UPDATE APPOINTMENT SET regimen_id = :regimenId WHERE id = :appointmentId AND patient_id = :patientId`,
+    `UPDATE APPOINTMENT SET regimen_id = :regimenId WHERE id = :appointmentId AND ${SQL_ROW_PATIENT_MATCH}`,
     qTx(transaction, { replacements: { regimenId, appointmentId, patientId }, type: QueryTypes.UPDATE })
   );
 }
@@ -104,9 +157,9 @@ async function findOpenSlotForAssignToday(appointmentId) {
      WHERE id = :appointmentId
        AND patient_id IS NULL
        AND status = 'scheduled'
-       AND DATE(\`time\`) = CURDATE()
+       AND DATE(\`time\`) = :clinicToday
      LIMIT 1`,
-    { replacements: { appointmentId }, type: QueryTypes.SELECT }
+    { replacements: withClinicToday({ appointmentId }), type: QueryTypes.SELECT }
   );
   return slot || null;
 }
@@ -141,11 +194,14 @@ async function findRescheduleSourceAppointmentToday(fromAppointmentId, patientId
     `SELECT id, patient_id AS patientId, \`condition\` AS cond, status
      FROM APPOINTMENT
      WHERE id = :fromAppointmentId
-       AND patient_id = :patientId
+       AND ${SQL_ROW_PATIENT_MATCH}
        AND status = 'scheduled'
-       AND DATE(\`time\`) = CURDATE()
+       AND DATE(\`time\`) = :clinicToday
      LIMIT 1`,
-    qTx(transaction, { replacements: { fromAppointmentId, patientId }, type: QueryTypes.SELECT })
+    qTx(transaction, {
+      replacements: withClinicToday({ fromAppointmentId, patientId }),
+      type: QueryTypes.SELECT,
+    })
   );
   return fromRow || null;
 }
@@ -157,9 +213,9 @@ async function findRescheduleTargetOpenToday(toAppointmentId, transaction) {
      WHERE id = :toAppointmentId
        AND patient_id IS NULL
        AND status = 'scheduled'
-       AND DATE(\`time\`) = CURDATE()
+       AND DATE(\`time\`) = :clinicToday
      LIMIT 1`,
-    qTx(transaction, { replacements: { toAppointmentId }, type: QueryTypes.SELECT })
+    qTx(transaction, { replacements: withClinicToday({ toAppointmentId }), type: QueryTypes.SELECT })
   );
   return toRow || null;
 }
@@ -168,7 +224,7 @@ async function clearPatientFromSlot(fromAppointmentId, patientId, transaction) {
   await sequelize.query(
     `UPDATE APPOINTMENT
      SET patient_id = NULL, \`condition\` = 'Open slot', regimen_id = NULL
-     WHERE id = :fromAppointmentId AND patient_id = :patientId`,
+     WHERE id = :fromAppointmentId AND ${SQL_ROW_PATIENT_MATCH}`,
     qTx(transaction, { replacements: { fromAppointmentId, patientId }, type: QueryTypes.UPDATE })
   );
 }
@@ -221,28 +277,74 @@ async function insertRegimenOpenEnd(patientId, diseaseId, transaction) {
   return Number(regimenId);
 }
 
-async function findOpenRegimenForPatient(regimenId, patientId) {
+async function findLatestOpenRegimenIdForPatient(patientId, transaction) {
+  const [active] = await sequelize.query(
+    `SELECT id FROM REGIMEN
+     WHERE patient_id = :patientId AND \`end\` IS NULL
+     ORDER BY \`start\` DESC, id DESC
+     LIMIT 1`,
+    qTx(transaction, { replacements: { patientId }, type: QueryTypes.SELECT })
+  );
+  return active?.id != null ? Number(active.id) : null;
+}
+
+async function findOpenRegimenForPatient(regimenId, patientId, transaction) {
   const [active] = await sequelize.query(
     `SELECT id FROM REGIMEN
      WHERE id = :regimenId AND patient_id = :patientId AND \`end\` IS NULL
      LIMIT 1`,
-    { replacements: { regimenId, patientId }, type: QueryTypes.SELECT }
+    qTx(transaction, { replacements: { regimenId, patientId }, type: QueryTypes.SELECT })
   );
   return active || null;
 }
 
-async function closeRegimenEndNow(regimenId, patientId) {
+async function clearAppointmentRegimenLinks(patientId, regimenId, transaction) {
+  await sequelize.query(
+    `UPDATE APPOINTMENT SET regimen_id = NULL
+     WHERE patient_id = :patientId AND regimen_id = :regimenId`,
+    qTx(transaction, { replacements: { patientId, regimenId }, type: QueryTypes.UPDATE })
+  );
+}
+
+async function completeAppointmentsForClosedRegimens(patientId, regimenIds, transaction) {
+  const ids = (regimenIds || []).map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0);
+  if (!ids.length) return;
+  const idCsv = ids.join(',');
+  await sequelize.query(
+    `UPDATE APPOINTMENT SET status = 'completed'
+     WHERE patient_id = :patientId
+       AND regimen_id IN (${idCsv})
+       AND status = 'scheduled'`,
+    qTx(transaction, { replacements: { patientId }, type: QueryTypes.UPDATE })
+  );
+}
+
+async function clearAppointmentRegimenLinksForRegimenIds(patientId, regimenIds, transaction) {
+  const ids = (regimenIds || []).map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0);
+  if (!ids.length) return;
+  const idCsv = ids.join(',');
+  await sequelize.query(
+    `UPDATE APPOINTMENT SET regimen_id = NULL
+     WHERE patient_id = :patientId AND regimen_id IN (${idCsv})`,
+    qTx(transaction, { replacements: { patientId }, type: QueryTypes.UPDATE })
+  );
+}
+
+async function closeRegimenEndNow(regimenId, patientId, transaction) {
   await sequelize.query(
     `UPDATE REGIMEN SET \`end\` = NOW()
      WHERE id = :regimenId AND patient_id = :patientId AND \`end\` IS NULL`,
-    { replacements: { regimenId, patientId }, type: QueryTypes.UPDATE }
+    qTx(transaction, { replacements: { regimenId, patientId }, type: QueryTypes.UPDATE })
   );
+  await clearAppointmentRegimenLinks(patientId, regimenId, transaction);
 }
 
 module.exports = {
   findNursePatientPkFromNumeric,
+  findPatientPkExists,
   selectCurDate,
   listNurseBookedTodayForPatient,
+  findNurseBookedTodayByAppointmentId,
   listNurseOpenSlotsToday,
   findNurseAcceptAppointment,
   findClinicRoomIdExists,
@@ -260,6 +362,10 @@ module.exports = {
   selectZ00Disease,
   insertZ00Disease,
   insertRegimenOpenEnd,
+  findLatestOpenRegimenIdForPatient,
   findOpenRegimenForPatient,
+  completeAppointmentsForClosedRegimens,
+  clearAppointmentRegimenLinks,
+  clearAppointmentRegimenLinksForRegimenIds,
   closeRegimenEndNow,
 };

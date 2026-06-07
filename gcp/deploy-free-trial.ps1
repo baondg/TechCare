@@ -77,6 +77,8 @@ param(
   [Parameter(Mandatory = $false)][string]$GroqApiKey = "",
   [Parameter(Mandatory = $false)][string]$GroqApiKeySecretName = "techcare-free-groq-api-key",
   [Parameter(Mandatory = $false)][string]$GroqModel = "llama-3.1-8b-instant",
+  [Parameter(Mandatory = $false)][string]$ImageEncryptionKey = "",
+  [Parameter(Mandatory = $false)][string]$ImageEncryptionKeySecretName = "techcare-free-image-encryption-key",
   [Parameter(Mandatory = $false)][switch]$SkipBuild,
 
   # Upstash / external Redis (TCP+TLS). Use rediss://default:TOKEN@host:6379 — not UPSTASH_REDIS_REST_*.
@@ -291,6 +293,11 @@ if (-not [string]::IsNullOrWhiteSpace($GroqApiKey)) {
   Set-GcpSecretNoNewline $GroqApiKeySecretName $GroqApiKey.Trim()
 }
 
+if (-not [string]::IsNullOrWhiteSpace($ImageEncryptionKey)) {
+  Write-Host "Creating/updating image encryption key secret '$ImageEncryptionKeySecretName'..."
+  Set-GcpSecretNoNewline $ImageEncryptionKeySecretName $ImageEncryptionKey.Trim()
+}
+
 if (-not [string]::IsNullOrWhiteSpace($RedisUrl)) {
   $trimRedis = $RedisUrl.Trim()
   $lower = $trimRedis.ToLowerInvariant()
@@ -362,6 +369,18 @@ if (-not [string]::IsNullOrWhiteSpace($GroqApiKey)) {
 if ($mountRedisUrl -and $redisSecretExists) {
   $backendSecrets += ",REDIS_URL=${RedisUrlSecretName}:latest"
 }
+$imageEncryptionSecretExists = $false
+if (-not [string]::IsNullOrWhiteSpace($ImageEncryptionKey)) {
+  try {
+    gcloud secrets describe $ImageEncryptionKeySecretName --project $ProjectId *> $null
+    $imageEncryptionSecretExists = $true
+  } catch {
+    $imageEncryptionSecretExists = $false
+  }
+  if ($imageEncryptionSecretExists) {
+    $backendSecrets += ",IMAGE_ENCRYPTION_KEY=${ImageEncryptionKeySecretName}:latest"
+  }
+}
 
 Write-Host "Deploying backend with scale-to-zero (no Cloud SQL/VPC on GCP; optional external Redis via secret)..."
 gcloud run deploy $BackendServiceName `
@@ -430,19 +449,36 @@ if (-not $frontendUrl) {
 }
 Write-Host "Frontend URL: $frontendUrl"
 
-$effectiveCorsOrigin = if (-not [string]::IsNullOrWhiteSpace($WebDomain)) {
-  "https://$($WebDomain.Trim().TrimStart('https://').TrimStart('http://').TrimEnd('/'))"
-} elseif (-not [string]::IsNullOrWhiteSpace($AllowedOrigins)) {
-  $AllowedOrigins
+$corsOrigins = [System.Collections.Generic.List[string]]::new()
+if (-not [string]::IsNullOrWhiteSpace($AllowedOrigins)) {
+  foreach ($part in ($AllowedOrigins -split ',')) {
+    $trimmed = $part.Trim()
+    if ($trimmed) { [void]$corsOrigins.Add($trimmed) }
+  }
 } else {
-  $frontendUrl
+  if ($frontendUrl) { [void]$corsOrigins.Add($frontendUrl) }
+  if (-not [string]::IsNullOrWhiteSpace($WebDomain)) {
+    $webHost = $WebDomain.Trim().TrimStart('https://').TrimStart('http://').TrimEnd('/')
+    if ($webHost) {
+      [void]$corsOrigins.Add("https://$webHost")
+      if ($webHost -notmatch '^www\.') {
+        [void]$corsOrigins.Add("https://www.$webHost")
+      }
+    }
+  }
 }
+$effectiveCorsOrigin = ($corsOrigins | Select-Object -Unique) -join ','
 if ($effectiveCorsOrigin -and $effectiveCorsOrigin -ne "*") {
   Write-Host "Updating backend CORS_ALLOWED_ORIGINS to $effectiveCorsOrigin"
+  $corsUpdateFlag = if ($effectiveCorsOrigin.Contains(',')) {
+    "^#^CORS_ALLOWED_ORIGINS=$effectiveCorsOrigin"
+  } else {
+    "CORS_ALLOWED_ORIGINS=$effectiveCorsOrigin"
+  }
   gcloud run services update $BackendServiceName `
     --project $ProjectId `
     --region $Region `
-    --update-env-vars "CORS_ALLOWED_ORIGINS=$effectiveCorsOrigin" | Out-Null
+    --update-env-vars $corsUpdateFlag | Out-Null
 }
 
 function Invoke-RunDomainMapping([string]$ServiceName, [string]$Domain) {

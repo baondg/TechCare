@@ -20,11 +20,18 @@ async function selectDoctorInfoByUserId(userId) {
 }
 
 async function insertCoverNotification({ userId, title, message, type, relatedId }) {
+  const headline = String(title || '').trim();
+  const body = String(message || '').trim();
+  let content = [headline, body].filter(Boolean).join(': ');
+  if (relatedId != null && String(relatedId).trim() !== '') {
+    content = content ? `${content} (#${relatedId})` : `#${relatedId}`;
+  }
+  if (!content) content = headline || body || 'Notification';
   await sequelize.query(
-    `INSERT INTO NOTIFICATION (user_id, title, message, type, is_read, related_id, created_at)
-     VALUES (:userId, :title, :message, :type, 0, :relatedId, NOW())`,
+    `INSERT INTO NOTIFICATION (\`type\`, content, \`time\`, status, user_id)
+     VALUES (:type, :content, NOW(), 'unread', :userId)`,
     {
-      replacements: { userId, title, message, type, relatedId },
+      replacements: { userId, type, content },
       type: QueryTypes.INSERT,
     }
   );

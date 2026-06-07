@@ -58,9 +58,6 @@ if (process.env.NODE_ENV !== 'production') {
     sslRejectUnauthorized,
     hasSslCa: Boolean(sslOpts.ssl?.ca),
   });
-  // #region agent log
-  fetch('http://host.docker.internal:7437/ingest/38be47be-90b8-4797-8d79-90b3ea2aebaa',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2d4e21'},body:JSON.stringify({sessionId:'2d4e21',location:'database.js:db-config',message:'Sequelize DB SSL config',data:{useCloudSqlSocket,useTcpSsl,sslRejectUnauthorized,hasSslCa:Boolean(sslOpts.ssl?.ca)},timestamp:Date.now(),hypothesisId:'A'})}).catch(()=>{});
-  // #endregion
 }
 
 const pool = {
@@ -69,6 +66,8 @@ const pool = {
   acquire: Number(process.env.DB_POOL_ACQUIRE_MS || 60000),
   idle: Number(process.env.DB_POOL_IDLE_MS || 10000),
 };
+
+const { syncMysqlClinicTimezone } = require('./clinicDate');
 
 const sequelize = useCloudSqlSocket
   ? new Sequelize(process.env.DB_NAME, process.env.DB_USER, process.env.DB_PASSWORD, {
@@ -87,5 +86,13 @@ const sequelize = useCloudSqlSocket
       logging: console.log,
       pool,
     });
+
+sequelize.addHook('afterConnect', async (connection) => {
+  try {
+    await syncMysqlClinicTimezone(connection);
+  } catch (err) {
+    console.warn('[db] clinic timezone sync skipped:', err?.message || err);
+  }
+});
 
 module.exports = sequelize;

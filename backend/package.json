@@ -16,6 +16,7 @@
     "seed:demo:reset": "node scripts/seed-demo.js --reset-demo-only",
     "seed:demo:fullreset": "node scripts/seed-demo.js --purge-all",
     "seed:patient:vitals-slots": "node scripts/seed-patient-vitals-and-slots.js",
+    "seed:work-shifts:jun-2026": "node scripts/seed-work-shifts-jun-2026.js",
     "db:backup": "node scripts/backup-restore.js backup",
     "db:restore": "node scripts/backup-restore.js restore",
     "db:indexes": "node scripts/ensure-performance-indexes.js",

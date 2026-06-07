@@ -71,7 +71,55 @@ async function createOpenSlot({ role, body }) {
   }
 
   const dateTime = `${date} ${time}:00`;
+  const departmentName = String(body?.department || '').trim();
+  const departmentIdRaw = Number(body?.departmentId);
+
+  let targetDepartmentId = null;
+  if (Number.isFinite(departmentIdRaw) && departmentIdRaw > 0) {
+    targetDepartmentId = await appointmentRepository.findDepartmentIdByPk(departmentIdRaw);
+    if (!targetDepartmentId) {
+      return {
+        ok: false,
+        status: 400,
+        json: { success: false, message: `Unknown department id: ${departmentIdRaw}` },
+      };
+    }
+  } else if (departmentName) {
+    targetDepartmentId = await appointmentRepository.findDepartmentIdByName(departmentName);
+    if (!targetDepartmentId) {
+      return {
+        ok: false,
+        status: 400,
+        json: { success: false, message: `Unknown department: ${departmentName}` },
+      };
+    }
+  }
+
   let resolvedRoomId = Number.isFinite(roomId) ? roomId : null;
+
+  if (resolvedRoomId && targetDepartmentId) {
+    const roomDeptId = await appointmentRepository.findClinicRoomDepartmentId(resolvedRoomId);
+    if (roomDeptId !== targetDepartmentId) {
+      return {
+        ok: false,
+        status: 400,
+        json: { success: false, message: 'Selected room does not belong to the chosen department' },
+      };
+    }
+  }
+
+  if (!resolvedRoomId && targetDepartmentId) {
+    resolvedRoomId = await appointmentRepository.findClinicRoomIdInDepartment(targetDepartmentId, doctorId);
+    if (!resolvedRoomId) {
+      const label = departmentName || `department #${targetDepartmentId}`;
+      return {
+        ok: false,
+        status: 400,
+        json: { success: false, message: `No clinic room in ${label}` },
+      };
+    }
+  }
+
   if (!resolvedRoomId) {
     resolvedRoomId = await appointmentRepository.findDoctorPrimaryRoomId(doctorId);
   }

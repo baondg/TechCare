@@ -43,8 +43,14 @@ import {
   type Prescription as ApiPrescription,
   type MedicineOption,
 } from "@/services/doctor-service"
-import { generatePrescriptionPdfBlob } from "@/lib/export-prescription-pdf"
-import { buildSigningTimeLine, signingLineFromIso, stampPdfWithExportFooter } from "@/lib/pdf-export-stamp"
+import {
+  buildAutoBytFields,
+  generatePrescriptionPdfBlob,
+  isPatientUnder72Months,
+} from "@/lib/export-prescription-pdf"
+import { medicationUnitLabelVi } from "@/lib/medication-units-vi"
+import { profileService } from "@/services/profile-service"
+import { stampPdfWithExportFooter } from "@/lib/pdf-export-stamp"
 import { usePauseableToast } from "@/hooks/usePauseableToast"
 import { PauseableCornerToastPortal } from "@/components/pauseable-corner-toast"
 import {
@@ -59,6 +65,9 @@ import { SignaturePad } from "@/components/SignaturePad"
 import { useEmrSession } from "@/contexts/emr-session-context"
 import { useTranslation } from "react-i18next"
 import type { TFunction } from "i18next"
+
+const EMR_PRESCRIPTION_DRAFT_STATE_EVENT = "emr:prescription-draft-state"
+const EMR_PRESCRIPTION_SAVED_EVENT = "emr:prescription-saved"
 
 type Medication = {
   name: string
@@ -86,6 +95,22 @@ type UiPrescription = {
   date: string
   doctor: string
   medications: Medication[]
+  byt?: {
+    code: string | null
+    prescriptionType: "N" | "H" | "C"
+    facilityCode: string
+    facilityName?: string
+    facilityAddress?: string
+    facilityPhone: string
+    contactPhone?: string
+    guardianName?: string
+    advice?: string
+    insuranceId?: string
+    patientAddress?: string
+    patientWeightKg?: string
+    patientIdCard?: string
+    patientPhone?: string
+  }
   isDraft?: boolean
 }
 
@@ -114,12 +139,30 @@ function formatDt(iso: string, localeTag: string) {
   }
 }
 
+function formatGenderVi(g: string | null | undefined): string {
+  const s = String(g ?? "").trim().toUpperCase()
+  if (s === "M" || s === "MALE") return "Nam"
+  if (s === "F" || s === "FEMALE") return "Nữ"
+  if (!s) return ""
+  return g ?? ""
+}
+
+function formatDiagnosisLine(
+  d: { icd10?: string; interpretation?: string } | null | undefined,
+  fallback: string
+): string {
+  if (!d) return fallback
+  const parts = [d.icd10, d.interpretation].map((s) => String(s ?? "").trim()).filter(Boolean)
+  return parts.length > 0 ? parts.join(" — ") : fallback
+}
+
 function mapApi(p: ApiPrescription, localeTag: string): UiPrescription {
   return {
     id: String(p.id),
     createdAt: p.createdAt,
     date: formatDt(p.createdAt, localeTag),
     doctor: p.doctorName,
+    byt: p.byt,
     medications: (p.medications || []).map((m) => ({
       name: m.name,
       quantity: m.quantity || "",
@@ -305,7 +348,7 @@ function buildUsageTypeaheadSuggestion(
 ): string | null {
   const n = formatDailyDoseFromQtyDuration(med.quantity, med.duration)
   if (n == null) return null
-  const unit = (med.unit || "tablet").trim() || "tablet"
+  const unit = medicationUnitLabelVi(med.unit || "tablet")
   return t("doctor.prescription.usageDailyPrefix", { amount: n, unit })
 }
 
@@ -408,6 +451,11 @@ export default function PatientPrescription() {
   const [signatureSaving, setSignatureSaving] = useState(false)
   const [openingSignatureEditor, setOpeningSignatureEditor] = useState(false)
   const signatureWaiterRef = useRef<{ resolve: (sig: string | null) => void } | null>(null)
+  const [patientDetail, setPatientDetail] = useState<Awaited<ReturnType<typeof doctorService.getPatient>>["patient"] | null>(null)
+  const [activeDiagnosis, setActiveDiagnosis] = useState<{
+    icd10: string
+    interpretation: string
+  } | null>(null)
 
   const releasePdfBlobUrl = useCallback((next: string | null) => {
     if (pdfBlobUrlRef.current && pdfBlobUrlRef.current !== next) {
@@ -434,6 +482,46 @@ export default function PatientPrescription() {
 
   const isEmptyMedication = (med: Medication) =>
     !med.name && !med.quantity && !med.usage && !med.note
+  const hasDraftContent = useMemo(
+    () => draftMeds.some((med) => !isEmptyMedication(med)),
+    [draftMeds]
+  )
+  const hasUnsavedPrescriptionDraft = isEditMode && hasDraftContent
+
+  useEffect(() => {
+    if (!patientId) return
+    window.dispatchEvent(
+      new CustomEvent(EMR_PRESCRIPTION_DRAFT_STATE_EVENT, {
+        detail: {
+          patientId: String(patientId),
+          hasUnsavedChanges: hasUnsavedPrescriptionDraft,
+          updatedAt: Date.now(),
+        },
+      })
+    )
+  }, [patientId, hasUnsavedPrescriptionDraft])
+
+  const resolveBytPayload = useCallback(async () => {
+    if (!patientId || !patientDetail) {
+      throw new Error(t("doctor.prescription.patientLoadFail"))
+    }
+    const [profile, healthRes] = await Promise.all([
+      profileService.getProfile(patientDetail.id).catch(() => null),
+      doctorService
+        .getHealthInfo(Number(String(patientId).replace(/^OP0*/i, "")))
+        .catch(() => ({ healthInfo: null })),
+    ])
+    return buildAutoBytFields({
+      dateOfBirth: patientDetail.dateOfBirth,
+      phone: patientDetail.phone,
+      healthInsuranceId: patientDetail.healthInsuranceId,
+      weightKg: healthRes?.healthInfo?.weight ?? null,
+      relative:
+        profile?.relativeName?.trim() || profile?.relativePhone?.trim()
+          ? { name: profile.relativeName, phone: profile.relativePhone }
+          : null,
+    })
+  }, [patientId, patientDetail, t])
 
   const load = useCallback(
     async (options?: { selectPrescriptionId?: string }) => {
@@ -471,6 +559,47 @@ export default function PatientPrescription() {
   useEffect(() => {
     load()
   }, [load])
+
+  useEffect(() => {
+    let alive = true
+    if (!patientId) return
+    ;(async () => {
+      try {
+        const [patientRes, diagRes] = await Promise.all([
+          doctorService.getPatient(patientId),
+          doctorService.getDiagnoses(patientId).catch(() => ({ success: false, diagnoses: [] as { icd10: string; interpretation: string; createdAt?: string }[] })),
+        ])
+        if (!alive) return
+        if (patientRes.success && patientRes.patient) {
+          setPatientDetail(patientRes.patient)
+        }
+        const list = diagRes.success && diagRes.diagnoses?.length ? diagRes.diagnoses : []
+        const latest =
+          list.length > 0
+            ? [...list].sort(
+                (a, b) =>
+                  new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+              )[0]
+            : patientRes.patient?.latestDiagnosis
+        if (latest?.icd10 || latest?.interpretation) {
+          setActiveDiagnosis({
+            icd10: latest.icd10 || "",
+            interpretation: latest.interpretation || "",
+          })
+        } else {
+          setActiveDiagnosis(null)
+        }
+      } catch {
+        if (alive) {
+          setPatientDetail(null)
+          setActiveDiagnosis(null)
+        }
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [patientId])
 
   const removeMedication = (index: number) => {
     setDraftMeds((prev) => {
@@ -586,16 +715,35 @@ export default function PatientPrescription() {
       showError("Only new prescriptions can be saved. Click Add to create a new one.")
       return
     }
+    if (isPatientUnder72Months(patientDetail?.dateOfBirth)) {
+      try {
+        const previewByt = await resolveBytPayload()
+        if (!previewByt.patientWeightKg) {
+          showError("Cập nhật cân nặng bệnh nhân trong Health Info (trẻ dưới 72 tháng)")
+          return
+        }
+        if (!previewByt.contactPhone) {
+          showError("Thiếu SĐT bệnh nhân hoặc người thân")
+          return
+        }
+      } catch (e) {
+        showError(e instanceof Error ? e.message : t("doctor.prescription.saveFail"))
+        return
+      }
+    }
     setSaving(true)
     try {
+      const byt = await resolveBytPayload()
       const lineDurations = meds.map((m) => {
         const n = parseInt(String(m.duration), 10)
         return Number.isFinite(n) && n >= 1 ? n : 7
       })
       const headerDuration = Math.max(...lineDurations, 1)
       const created = await doctorService.createPrescription(patientId, {
+        department: activeDiagnosis?.interpretation?.trim() || undefined,
         medications: meds,
         duration: headerDuration,
+        byt,
       })
       const newId =
         created.success && created.prescription?.id != null
@@ -603,6 +751,15 @@ export default function PatientPrescription() {
           : undefined
       await load(newId ? { selectPrescriptionId: newId } : undefined)
       setIsEditMode(false)
+      window.dispatchEvent(
+        new CustomEvent(EMR_PRESCRIPTION_SAVED_EVENT, {
+          detail: {
+            patientId: String(patientId),
+            prescriptionId: newId ?? null,
+            savedAt: Date.now(),
+          },
+        })
+      )
       showSuccess(t("doctor.prescription.saveSuccess"))
     } catch (e) {
       showError(e instanceof Error ? e.message : t("doctor.prescription.saveFail"))
@@ -625,7 +782,6 @@ export default function PatientPrescription() {
     !isEditMode && selectedCanInherit && !loading && !saving && mutationsAllowed
   const canCancelEdit = isEditMode && !loading
   const canSaveRx = isEditMode && !loading && mutationsAllowed
-
   // ── AI Suggest State ──
   const [aiSuggesting, setAiSuggesting] = useState(false)
 
@@ -633,18 +789,18 @@ export default function PatientPrescription() {
     if (!patientId || !selectedRx?.isDraft) return
     setAiSuggesting(true)
     try {
-      const patientRes = await doctorService.getPatient(patientId)
-      const patient = patientRes.patient
-      const diagnosis = patient?.latestDiagnosis
-        ? `${patient.latestDiagnosis.icd10} - ${patient.latestDiagnosis.interpretation}`
-        : t("doctor.prescription.generalConsultation")
+      const patient = patientDetail
+      const diagnosis = formatDiagnosisLine(
+        activeDiagnosis ?? patient?.latestDiagnosis ?? null,
+        t("doctor.prescription.generalConsultation")
+      )
       const na = t("doctor.prescription.patientInfoNa")
       const patientInfo = patient
         ? t("doctor.prescription.patientInfoLine", {
             ageLabel: t("doctor.prescription.patientInfoAge"),
             age: patient.age != null && String(patient.age).trim() !== "" ? String(patient.age) : na,
             genderLabel: t("doctor.prescription.patientInfoGender"),
-            gender: patient.gender?.trim() ? patient.gender : na,
+            gender: formatGenderVi(patient.gender) || na,
             bmiLabel: t("doctor.prescription.patientInfoBmi"),
             bmi: patient.bmi != null && String(patient.bmi).trim() !== "" ? String(patient.bmi) : na,
           })
@@ -654,6 +810,7 @@ export default function PatientPrescription() {
         diagnosis,
         symptoms: diagnosis,
         patientInfo,
+        language: i18n.language?.toLowerCase().startsWith("vi") ? "vi" : "en",
       })
 
       if (res.success && res.suggestions.length > 0) {
@@ -777,19 +934,28 @@ export default function PatientPrescription() {
       if (!res.success || !res.patient) {
         throw new Error(t("doctor.prescription.patientLoadFail"))
       }
+      const dxForPdf = activeDiagnosis ?? res.patient.latestDiagnosis
+      const patientForPdf = {
+        ...res.patient,
+        latestDiagnosis: dxForPdf
+          ? {
+              icd10: dxForPdf.icd10,
+              interpretation: dxForPdf.interpretation,
+              department: "department" in dxForPdf ? String(dxForPdf.department || "") : "",
+            }
+          : null,
+      }
       const dash = t("common.notAvailable")
-      const rxDate = selectedRx?.createdAt
-        ? formatDt(selectedRx.createdAt, localeTag)
-        : new Date().toLocaleString(localeTag)
+      const rxDateIso = selectedRx?.createdAt || new Date().toISOString()
       const rxDoctor =
         selectedRx?.doctor && selectedRx.doctor !== dash ? selectedRx.doctor : dash
       releasePdfBlobUrl(null)
-      /** Saved prescriptions always show doctor name on PDF (no separate sign step). */
-      const sigForPdf = selectedRx?.isDraft ? ("draft" as const) : ("signed" as const)
-      const signingTimeDisplay = new Date().toLocaleString(localeTag)
+      /** Export always shows doctor name + signature image when a signature is saved. */
+      const sigForPdf = "signed" as const
 
+      const autoByt = await resolveBytPayload()
       const { blob, filename } = await generatePrescriptionPdfBlob({
-        patient: res.patient,
+        patient: patientForPdf,
         medications: meds.map((m) => ({
           name: m.name,
           quantity: m.quantity,
@@ -798,11 +964,26 @@ export default function PatientPrescription() {
           usage: m.usage ?? "",
           note: m.note,
         })),
-        prescriptionDate: rxDate,
+        prescriptionDateIso: rxDateIso,
         doctorName: rxDoctor,
+        byt: {
+          code: selectedRx?.byt?.code || null,
+          prescriptionType: selectedRx?.byt?.prescriptionType || "C",
+          facilityCode: selectedRx?.byt?.facilityCode || "TC001",
+          facilityName: selectedRx?.byt?.facilityName || import.meta.env.VITE_BYT_FACILITY_NAME || "TechCare",
+          facilityAddress: selectedRx?.byt?.facilityAddress || import.meta.env.VITE_BYT_FACILITY_ADDRESS || "",
+          facilityPhone: autoByt.facilityPhone,
+          contactPhone: autoByt.contactPhone,
+          guardianName: autoByt.guardianName,
+          advice: selectedRx?.byt?.advice?.trim() || autoByt.advice,
+          insuranceId: autoByt.insuranceId || res.patient.healthInsuranceId || "",
+          patientAddress: autoByt.patientAddress,
+          patientWeightKg: autoByt.patientWeightKg,
+          patientIdCard: res.patient.idCard || selectedRx?.byt?.patientIdCard || "",
+          patientPhone: res.patient.phone || selectedRx?.byt?.patientPhone || "",
+        },
         signatureStatus: sigForPdf,
         signatureDataUrl: sigDataUrl,
-        signingTimeDisplay,
       })
       const url = URL.createObjectURL(blob)
       setPdfPreviewFilename(filename)
@@ -987,7 +1168,8 @@ export default function PatientPrescription() {
                       key={rx.id}
                       onClick={() => {
                         if (isEditMode) return
-                        setSelectedRx({ ...rx, isDraft: false })
+                        const picked = { ...rx, isDraft: false }
+                        setSelectedRx(picked)
                         setDraftMeds([])
                       }}
                       className={`border-t cursor-pointer ${
@@ -1072,7 +1254,14 @@ export default function PatientPrescription() {
           {!selectedRx ? (
             <p className="text-sm text-slate-500">{t("doctor.prescription.selectRowHint")}</p>
           ) : (
-            <div className="relative overflow-x-hidden border rounded-lg">
+            <div className="space-y-3">
+              {activeDiagnosis && (activeDiagnosis.icd10 || activeDiagnosis.interpretation) ? (
+                <p className="text-sm text-slate-700 rounded-md border border-slate-200 bg-slate-50/80 px-3 py-2">
+                  <span className="font-semibold">{t("doctor.prescription.activeDiagnosisLabel")}: </span>
+                  {formatDiagnosisLine(activeDiagnosis, t("doctor.prescription.diagnosisLineFallback"))}
+                </p>
+              ) : null}
+              <div className="relative overflow-x-hidden border rounded-lg">
               <Table className="relative z-0 w-full table-fixed text-xs">
                 <TableHeader>
                   <TableRow
@@ -1081,22 +1270,27 @@ export default function PatientPrescription() {
                         "linear-gradient(135deg, #06b6d4 0%, #0891b2 50%, #06b6d4 100%)",
                     }}
                   >
-                    <TableHead className="w-8 p-1.5 text-center text-white">No.</TableHead>
+                    <TableHead className="w-8 p-1.5 text-center text-white">
+                      {t("doctor.prescription.tableNo")}
+                    </TableHead>
                     <TableHead className="w-[18%] min-w-0 p-1.5 text-left text-white">
-                      Medication <span className="text-red-500">*</span>
+                      {t("doctor.prescription.medication")} <span className="text-red-500">*</span>
                     </TableHead>
                     <TableHead className="w-[9%] p-1.5 text-white">
-                      Qty <span className="text-red-500">*</span>
+                      {t("doctor.prescription.qty")} <span className="text-red-500">*</span>
                     </TableHead>
-                    <TableHead className="w-[10%] p-1.5 text-white">Unit</TableHead>
+                    <TableHead className="w-[10%] p-1.5 text-white">{t("doctor.prescription.unit")}</TableHead>
                     <TableHead className="w-[9%] p-1.5 text-white">
-                      Duration <span className="text-red-500">*</span>
+                      {t("doctor.prescription.duration")} <span className="text-red-500">*</span>
                     </TableHead>
                     <TableHead className="min-w-0 p-1.5 text-white">
-                      Usage <span className="text-red-500">*</span>
+                      {t("doctor.prescription.usage")} <span className="text-red-500">*</span>
                     </TableHead>
-                    <TableHead className="min-w-0 p-1.5 text-white">Note</TableHead>
-                    <TableHead className="w-7 p-1 text-center text-white" aria-label="Remove row" />
+                    <TableHead className="min-w-0 p-1.5 text-white">{t("doctor.prescription.note")}</TableHead>
+                    <TableHead
+                      className="w-7 p-1 text-center text-white"
+                      aria-label={t("doctor.prescription.removeRow")}
+                    />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1134,7 +1328,7 @@ export default function PatientPrescription() {
                             readOnly
                             disabled
                             className="h-7 w-full box-border cursor-not-allowed rounded border border-slate-200 bg-slate-100 px-1.5 text-xs leading-tight text-slate-700"
-                            value={med.unit}
+                            value={medicationUnitLabelVi(med.unit)}
                             title={t("doctor.prescription.unitFromCatalogHint")}
                           />
                         </TableCell>
@@ -1196,7 +1390,9 @@ export default function PatientPrescription() {
                         </TableCell>
                         <TableCell className="p-0.5 align-middle text-xs">{med.name}</TableCell>
                         <TableCell className="p-0.5 text-center align-middle text-xs">{med.quantity}</TableCell>
-                        <TableCell className="p-0.5 align-middle text-xs">{med.unit}</TableCell>
+                        <TableCell className="p-0.5 align-middle text-xs">
+                          {medicationUnitLabelVi(med.unit)}
+                        </TableCell>
                         <TableCell className="p-0.5 text-center align-middle text-xs tabular-nums">
                           {med.duration || t("common.notAvailable")}
                         </TableCell>
@@ -1218,6 +1414,7 @@ export default function PatientPrescription() {
                   </div>
                 </div>
               ) : null}
+            </div>
             </div>
           )}
         </CardContent>

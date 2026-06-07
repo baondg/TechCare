@@ -128,13 +128,7 @@ async function startServer() {
         NODE_ENV: process.env.NODE_ENV ?? null,
       });
     }
-    // #region agent log
-    fetch('http://host.docker.internal:7437/ingest/38be47be-90b8-4797-8d79-90b3ea2aebaa',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2d4e21'},body:JSON.stringify({sessionId:'2d4e21',location:'index.ts:before-authenticate',message:'About to sequelize.authenticate',data:{port:PORT},timestamp:Date.now(),hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     await sequelize.authenticate();
-    // #region agent log
-    fetch('http://host.docker.internal:7437/ingest/38be47be-90b8-4797-8d79-90b3ea2aebaa',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2d4e21'},body:JSON.stringify({sessionId:'2d4e21',location:'index.ts:after-authenticate',message:'Database authenticate succeeded',data:{port:PORT},timestamp:Date.now(),hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     console.log('✅ Database connection ready');
 
     const { ensureDoctorSignatureColumn } = require('./common/ensureDoctorSignatureColumn');
@@ -160,15 +154,8 @@ async function startServer() {
 
     app.listen(PORT, () => {
       console.log(`🚀 Server is running on http://localhost:${PORT}`);
-      // #region agent log
-      fetch('http://host.docker.internal:7437/ingest/38be47be-90b8-4797-8d79-90b3ea2aebaa',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2d4e21'},body:JSON.stringify({sessionId:'2d4e21',location:'index.ts:listen',message:'HTTP server listening',data:{port:PORT},timestamp:Date.now(),hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
     });
   } catch (error) {
-    // #region agent log
-    const errMsg = error instanceof Error ? error.message : String(error);
-    fetch('http://host.docker.internal:7437/ingest/38be47be-90b8-4797-8d79-90b3ea2aebaa',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2d4e21'},body:JSON.stringify({sessionId:'2d4e21',location:'index.ts:start-failed',message:'Server start failed',data:{error:errMsg},timestamp:Date.now(),hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     console.error('❌ Failed to start server:', error);
     process.exit(1);
   }

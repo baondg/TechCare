@@ -4,9 +4,18 @@ import { useState, useMemo, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
+import { PatientSymptomEntriesEditor } from "@/components/patient-symptom-entries-editor"
+import {
+  createEmptySymptomEntry,
+  parseHealthInfoSymptoms,
+  serializeSymptomEntries,
+  type SymptomEntry,
+} from "@/lib/health-info-symptoms"
+import { useTranslation } from "react-i18next"
 import { PatientLayout } from "@/components/patient-layout"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
+import { PatientHealthChartsHeader, PatientHealthChartsPanel } from "@/components/patient-health-charts"
+import { buildHealthChartData } from "@/lib/health-chart-data"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Activity, Heart, AlertCircle, FileText, Save, X, Loader2, Plus, Edit, Search, Copy, CheckCircle2, FileDown, Trash2 } from "lucide-react"
 import { PauseableCornerToastPortal } from "@/components/pauseable-corner-toast"
@@ -15,7 +24,6 @@ import { CollapsibleSection } from "@/components/collapsible-section"
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 import { useParams } from "react-router-dom"
 import { doctorService } from "@/services/doctor-service"
-import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, AreaChart, Area, ReferenceLine, ReferenceArea } from "recharts"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { generateHealthInfoTrackingPdfBlob } from "@/lib/export-health-info-tracking-pdf"
@@ -110,6 +118,7 @@ function InputList({
 }
 
 export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps) {
+  const { t } = useTranslation()
   const { toast, isExiting, showSuccess, showError, onMouseEnter, onMouseLeave } = usePauseableToast(2600)
   /** Doctors and nurses can edit patient health info on this page (same controls). */
   const allowHealthWrites = mode === "nurse" || mode === "doctor"
@@ -164,7 +173,8 @@ export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps)
   const [temperature, setTemperature] = useState("")
   const [spo2, setSpo2] = useState("")
   const [bloodType, setBloodType] = useState<string>(PATIENT_BLOOD_TYPE_UNSET)
-  const [symptoms, setSymptoms] = useState("")
+  const [symptomEntries, setSymptomEntries] = useState<SymptomEntry[]>([createEmptySymptomEntry()])
+  const symptomsSerialized = useMemo(() => serializeSymptomEntries(symptomEntries), [symptomEntries])
 
   // for filters
   const [filters, setFilters] = useState({
@@ -304,26 +314,8 @@ export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps)
   )
 
   const chartData = useMemo(() => {
-    const source = selectedRecords.length > 0
-      ? selectedRecords
-      : healthHistory
-
-    return [...source]
-      .sort((a, b) => a.updatedAt.getTime() - b.updatedAt.getTime())
-      .map((r) => {
-        const [sys, dia] = r.bloodPressure.split("/").map(Number)
-        return {
-          time: r.updatedAt.toLocaleString("vi-VN"),
-          heartRate: r.heartRate,
-          respiratoryRate: r.respiratoryRate,
-          spo2: r.spo2,
-          systolic: sys,
-          diastolic: dia,
-          bmi: r.bmi,
-          weight: r.weight,
-          height: r.height,
-        }
-      })
+    const source = selectedRecords.length > 0 ? selectedRecords : healthHistory
+    return buildHealthChartData(source)
   }, [selectedRecords, healthHistory])
 
   const handleSelectRecord = (record: HealthRecord, isChecked: boolean) => {
@@ -521,7 +513,7 @@ export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps)
         setRespiratoryRate("")
         setTemperature("")
         setSpo2("")
-        setSymptoms("")
+        setSymptomEntries([createEmptySymptomEntry()])
         setBloodType(defaults.bloodType || PATIENT_BLOOD_TYPE_UNSET)
         setDrugAllergies(defaults.drugAllergies)
         setFoodAllergies(defaults.foodAllergies)
@@ -567,7 +559,7 @@ export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps)
         setRespiratoryRate(info.respiratory_rate?.toString() || "")
         setTemperature(info.temperature?.toString() || "")
         setSpo2(info.spo2?.toString() || "")
-        setSymptoms(info.currentSymptoms ?? info.condition ?? "")
+        setSymptomEntries(parseHealthInfoSymptoms(String(info.currentSymptoms ?? info.condition ?? "")))
         
         // Set allergies (supports both flat fields and allergic_info object)
         setDrugAllergies(
@@ -780,7 +772,7 @@ const loadHealthHistory = async () => {
     setRespiratoryRate(record.respiratoryRate.toString())
     setTemperature(record.temperature.toString())
     setSpo2(record.spo2.toString())
-    setSymptoms(record.symptoms)
+    setSymptomEntries(parseHealthInfoSymptoms(record.symptoms))
 
     setSelectedRecord(record)
     setCurrentHealthInfoId(record.id)
@@ -809,7 +801,7 @@ const loadHealthHistory = async () => {
     setTemperature("")
     setSpo2("")
     setBloodType(PATIENT_BLOOD_TYPE_UNSET)
-    setSymptoms("")
+    setSymptomEntries([createEmptySymptomEntry()])
     setDrugAllergies([])
     setFoodAllergies([])
     setOtherAllergies([])
@@ -865,7 +857,7 @@ const loadHealthHistory = async () => {
         temperature: temperature ? parseFloat(temperature) : undefined,
         spo2: spo2 ? parseInt(spo2, 10) : undefined,
         ...(bloodTypePayload !== undefined ? { bloodType: bloodTypePayload } : {}),
-        currentSymptoms: symptoms,
+        currentSymptoms: symptomsSerialized,
         drugAllergies,
         foodAllergies,
         otherAllergies,
@@ -962,8 +954,8 @@ const loadHealthHistory = async () => {
 
         <Tabs defaultValue="records" className="w-full">
           <TabsList className="grid w-full max-w-md grid-cols-2">
-            <TabsTrigger value="records">Health Records</TabsTrigger>
-            <TabsTrigger value="charts">Charts</TabsTrigger>
+            <TabsTrigger value="records">{t("patient.healthInfo.tabRecords")}</TabsTrigger>
+            <TabsTrigger value="charts">{t("patient.healthInfo.tabCharts")}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="records" className="mt-4">
@@ -1289,460 +1281,352 @@ const loadHealthHistory = async () => {
             </div>
               </CardContent>
             </Card>
+
+            {(mode === "nurse" || mode === "doctor") && (
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-2xl font-bold">Health Information</h3>
+                  <p className="text-muted-foreground">Update patient health data before examination</p>
+                </div>
+                <div className="flex gap-3">
+                  <Button
+                    onClick={() => {
+                      if (!allowHealthWrites) return
+                      if (healthHistory.length > 0) {
+                        loadRecordToForm(healthHistory[0])
+                        setCurrentHealthInfoId(null)
+                      } else {
+                        clearForm()
+                      }
+                      setIsAdding(true)
+                      setIsEditing(true)
+                    }}
+                    disabled={isEditing || !allowHealthWrites}
+                    variant="outline"
+                    className="btn-outline flex items-center gap-2"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      if (!allowHealthWrites) return
+                      if (!selectedRecord) return
+                      setIsAdding(false)
+                      setIsEditing(true)
+                    }}
+                    disabled={!canEditSelected || !allowHealthWrites}
+                    variant="outline"
+                    className="btn-outline flex items-center gap-2"
+                  >
+                    <Edit className="h-4 w-4" />
+                    Edit
+                  </Button>
+                  <Button
+                    onClick={handleCopyRecord}
+                    disabled={!selectedRecord || !allowHealthWrites}
+                    className="btn-outline flex items-center gap-2"
+                  >
+                    <Copy className="h-4 w-4" />
+                    Inherit
+                  </Button>
+                  <Button
+                    onClick={handleSave}
+                    disabled={!isEditing || saving || !allowHealthWrites}
+                    className="btn-gradient flex items-center gap-2"
+                  >
+                    <Save className="h-4 w-4" />
+                    Save
+                  </Button>
+                  <Button
+                    onClick={async () => {
+                      if (!allowHealthWrites) return
+                      if (!selectedRecord) return
+                      try {
+                        await doctorService.confirmHealthInfo(patientId, selectedRecord.id)
+                        showSuccess("Health record confirmed successfully.")
+                        setSelectedRecord(null)
+                        await loadHealthHistory()
+                      } catch (err: any) {
+                        showError(err?.message || "Failed to confirm health record")
+                      }
+                    }}
+                    disabled={!canConfirmSelected || !allowHealthWrites}
+                    className="!bg-[#16a34a] hover:bg-green-700 text-white"
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                    Confirm
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      clearForm()
+                      setIsEditing(false)
+                      setIsAdding(false)
+                    }}
+                    disabled={!isEditing}
+                    variant="destructive"
+                    className="btn-outline flex items-center gap-2"
+                  >
+                    <X className="h-4 w-4" />
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* ------------------- VITAL SIGNS ------------------- */}
+            <CollapsibleSection
+              title="Vital Signs"
+              icon={<Activity className="h-5 w-5" />}
+              description="Your current vital measurements"
+              defaultOpen={true}
+            >
+              <div className="grid gap-4 md:grid-cols-2">
+                {/* Blood Pressure */}
+                <div className="space-y-2">
+                  <Label>Blood Pressure (mmHg)</Label>
+                  <div className="flex gap-2 text-sm font-normal bg-background text-muted-foreground">
+                    <div className="flex-1 min-w-0 space-y-0">
+                      <Input
+                        id="bpSys"
+                        value={bpSys}
+                        onChange={(e) => setBpSys(e.target.value)}
+                        onInput={(e) => setBpSys((e.target as HTMLInputElement).value)}
+                        onBlur={(e) => setBpSys(e.target.value)}
+                        disabled={!isEditing || !allowHealthWrites}
+                      />
+                      <VitalWarning message={vitalNumericError("bpSys", bpSys)} />
+                    </div>
+                    <div className="flex-1 min-w-0 space-y-0">
+                      <Input
+                        id="bpDia"
+                        value={bpDia}
+                        onChange={(e) => setBpDia(e.target.value)}
+                        onInput={(e) => setBpDia((e.target as HTMLInputElement).value)}
+                        onBlur={(e) => setBpDia(e.target.value)}
+                        disabled={!isEditing || !allowHealthWrites}
+                      />
+                      <VitalWarning message={vitalNumericError("bpDia", bpDia)} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Blood Oxygen */}
+                <div className="space-y-2 text-sm font-normal bg-background text-muted-foreground">
+                  <Label htmlFor="oxygen">Blood Oxygen (SpO2 %)</Label>
+                  <Input
+                    id="oxygen"
+                    value={spo2}
+                    onChange={(e) => setSpo2(e.target.value)}
+                    onInput={(e) => setSpo2((e.target as HTMLInputElement).value)}
+                    onBlur={(e) => setSpo2(e.target.value)}
+                    disabled={!isEditing || !allowHealthWrites}
+                  />
+                  <VitalWarning message={vitalNumericError("spo2", spo2)} />
+                </div>
+
+                {/* Temperature */}
+                <div className="space-y-2 text-sm font-normal bg-background text-muted-foreground">
+                  <Label htmlFor="temperature">Body Temperature (°C)</Label>
+                  <Input
+                    id="temperature"
+                    value={temperature}
+                    onChange={(e) => setTemperature(e.target.value)}
+                    onInput={(e) => setTemperature((e.target as HTMLInputElement).value)}
+                    onBlur={(e) => setTemperature(e.target.value)}
+                    disabled={!isEditing || !allowHealthWrites}
+                  />
+                  <VitalWarning message={vitalNumericError("temperature", temperature)} />
+                </div>
+
+                {/* Height */}
+                <div className="space-y-2 text-sm font-normal bg-background text-muted-foreground">
+                  <Label htmlFor="height">Height (cm)</Label>
+                  <Input
+                    id="height"
+                    value={height}
+                    onChange={(e) => setHeight(e.target.value)}
+                    onInput={(e) => setHeight((e.target as HTMLInputElement).value)}
+                    onBlur={(e) => setHeight(e.target.value)}
+                    disabled={!isEditing || !allowHealthWrites}
+                    type="number"
+                  />
+                  <VitalWarning message={vitalNumericError("height", height)} />
+                </div>
+
+                {/* Respiratory Rate */}
+                <div className="space-y-2 text-sm font-normal bg-background text-muted-foreground">
+                  <Label htmlFor="respiratory">Respiratory Rate (breaths/min)</Label>
+                  <Input
+                    id="respiratory"
+                    value={respiratoryRate}
+                    onChange={(e) => setRespiratoryRate(e.target.value)}
+                    onInput={(e) => setRespiratoryRate((e.target as HTMLInputElement).value)}
+                    onBlur={(e) => setRespiratoryRate(e.target.value)}
+                    disabled={!isEditing || !allowHealthWrites}
+                  />
+                  <VitalWarning message={vitalNumericError("respiratoryRate", respiratoryRate)} />
+                </div>
+
+                {/* Weight */}
+                <div className="space-y-2 text-sm font-normal bg-background text-muted-foreground">
+                  <Label htmlFor="weight">Weight (kg)</Label>
+                  <Input
+                    id="weight"
+                    value={weight}
+                    disabled={!isEditing || !allowHealthWrites}
+                    onChange={(e) => setWeight(e.target.value)}
+                    onInput={(e) => setWeight((e.target as HTMLInputElement).value)}
+                    onBlur={(e) => setWeight(e.target.value)}
+                    type="number"
+                  />
+                  <VitalWarning message={vitalNumericError("weight", weight)} />
+                </div>
+
+                {/* Heart Rate */}
+                <div className="space-y-2 text-sm font-normal bg-background text-muted-foreground">
+                  <Label htmlFor="heart-rate">Heart Rate (bpm)</Label>
+                  <Input
+                    id="heart-rate"
+                    value={heartRate}
+                    onChange={(e) => setHeartRate(e.target.value)}
+                    onInput={(e) => setHeartRate((e.target as HTMLInputElement).value)}
+                    onBlur={(e) => setHeartRate(e.target.value)}
+                    disabled={!isEditing || !allowHealthWrites}
+                  />
+                  <VitalWarning message={vitalNumericError("heartRate", heartRate)} />
+                </div>
+
+                {/* BMI */}
+                <div className="space-y-2 text-sm font-normal bg-background text-muted-foreground">
+                  <Label htmlFor="bmi">BMI</Label>
+                  <Input id="bmi" value={bmi} disabled />
+                </div>
+
+                {/* Blood Type */}
+                <div className="space-y-2">
+                  <Label>Blood Type</Label>
+                  <Select value={bloodType} onValueChange={setBloodType} disabled={!isEditing || !allowHealthWrites}>
+                    <SelectTrigger>
+                      <div className="text-sm font-normal bg-background text-muted-foreground">
+                        <SelectValue placeholder="Select blood type" />
+                      </div>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PATIENT_BLOOD_TYPES.map((bt) => (
+                        <SelectItem key={bt} value={bt}>
+                          {bt}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value={PATIENT_BLOOD_TYPE_UNSET}>Not specified</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CollapsibleSection>
+
+            {/* ------------------- ALLERGIC INFORMATION ------------------- */}
+            <CollapsibleSection
+              title="Allergic Information"
+              icon={<AlertCircle className="h-5 w-5" />}
+              description="List any known allergies"
+              defaultOpen={true}
+            >
+              <div className="space-y-4 text-sm font-normal bg-background text-muted-foreground">
+                <InputList
+                  label="Drug Allergies"
+                  values={drugAllergies}
+                  setValues={setDrugAllergies}
+                  disabled={!isEditing || !allowHealthWrites}
+                />
+                <InputList
+                  label="Food Allergies"
+                  values={foodAllergies}
+                  setValues={setFoodAllergies}
+                  disabled={!isEditing || !allowHealthWrites}
+                />
+                <InputList
+                  label="Other Allergies"
+                  values={otherAllergies}
+                  setValues={setOtherAllergies}
+                  disabled={!isEditing || !allowHealthWrites}
+                />
+              </div>
+            </CollapsibleSection>
+
+            {/* ------------------- CURRENT SYMPTOMS ------------------- */}
+            <CollapsibleSection
+              title={t("patient.healthInfo.sections.symptoms.title")}
+              icon={<Heart className="h-5 w-5" />}
+              description={t("patient.healthInfo.sections.symptoms.description")}
+              defaultOpen={true}
+            >
+              <div className="space-y-3">
+                <PatientSymptomEntriesEditor
+                  entries={symptomEntries}
+                  onChange={setSymptomEntries}
+                  disabled={!isEditing || !allowHealthWrites}
+                />
+              </div>
+            </CollapsibleSection>
+
+            {/* ------------------- MEDICAL HISTORY ------------------- */}
+            <CollapsibleSection
+              title="Medical History"
+              icon={<FileText className="h-5 w-5" />}
+              description="Your past medical conditions and treatments"
+              defaultOpen={true}
+            >
+              <div className="space-y-4 text-sm font-normal bg-background text-muted-foreground">
+                <InputList
+                  label="Chronic Conditions"
+                  values={chronicConditions}
+                  setValues={setChronicConditions}
+                  disabled={!isEditing || !allowHealthWrites}
+                />
+                <InputList
+                  label="Past Surgeries"
+                  values={pastSurgeries}
+                  setValues={setPastSurgeries}
+                  disabled={!isEditing || !allowHealthWrites}
+                />
+                <InputList
+                  label="Family Medical History"
+                  values={familyHistory}
+                  setValues={setFamilyHistory}
+                  disabled={!isEditing || !allowHealthWrites}
+                />
+                <InputList
+                  label="Previous Illnesses"
+                  values={pastIllnesses}
+                  setValues={setPastIllnesses}
+                  disabled={!isEditing || !allowHealthWrites}
+                />
+                <InputList
+                  label="Vaccinations"
+                  values={vaccinations}
+                  setValues={setVaccinations}
+                  disabled={!isEditing || !allowHealthWrites}
+                />
+                <InputList
+                  label="Substance Abuse"
+                  values={substanceAbuse}
+                  setValues={setSubstanceAbuse}
+                  disabled={!isEditing || !allowHealthWrites}
+                />
+              </div>
+            </CollapsibleSection>
           </TabsContent>
 
           <TabsContent value="charts" className="mt-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>
-                  Health Trends {selectedRecords.length > 0 && `(Selected ${selectedRecords.length} records)`}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-10">
-                <div className="h-[350px] w-full">
-                  <h3 className="font-semibold mb-2">Blood Pressure Trend (Systolic & Diastolic)</h3>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartData}>
-                      <XAxis dataKey="time" />
-                      <YAxis domain={[60,160]} />
-                      <Tooltip content={<CustomBPTooltip />} />
-                      <Legend />
-                      <Line type="monotone" dataKey="systolic" stroke="#ef4444" name="Systolic BP"/>
-                      <Line type="monotone" dataKey="diastolic" stroke="#3b82f6" name="Diastolic BP"/>
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-
-                <div className="h-[350px] w-full">
-                  <h3 className="font-semibold mb-2">Blood Oxygen (SpO₂)</h3>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={chartData}>
-                      <XAxis dataKey="time" />
-                      <YAxis domain={[80, 100]} />
-                      <Tooltip />
-                      <Legend />
-                      <ReferenceLine y={95} stroke="#ef4444" strokeDasharray="4 4" label="Normal ≥95%" />
-                      <Area type="monotone" dataKey="spo2" stroke="#facc15" fill="#fde68a" name="SpO₂ (%)" />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-
-                <div className="h-[350px] w-full">
-                  <h3 className="font-semibold mb-2">Respiratory Rate</h3>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={chartData}>
-                      <XAxis dataKey="time" />
-                      <YAxis domain={[10,30]} />
-                      <Tooltip />
-                      <Legend />
-                      <ReferenceArea y1={12} y2={20} fill="#d1fae5" label="Normal 12-20" />
-                      <Area type="monotone" dataKey="respiratoryRate" stroke="#10b981" fill="#a7f3d0" name="Respiratory Rate (breaths/min)" />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-
-                <div className="h-[350px] w-full">
-                  <h3 className="font-semibold mb-2">Heart Rate</h3>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={chartData}>
-                      <XAxis dataKey="time" />
-                      <YAxis domain={[40,120]} />
-                      <Tooltip />
-                      <Legend />
-                      <ReferenceArea y1={60} y2={100} fill="#dbeafe" label="Normal 60-100 bpm" />
-                      <Area type="monotone" dataKey="heartRate" stroke="#2563eb" fill="#93c5fd" name="Heart Rate (bpm)" />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-
-                <div className="h-[350px] w-full">
-                  <h3 className="font-semibold mb-2">BMI</h3>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={chartData}>
-                      <XAxis dataKey="time" />
-                      <YAxis domain={[15,40]} />
-                      <Tooltip />
-                      <Legend />
-                      <ReferenceArea y1={0} y2={18.5} fill="#fef3c7" label="Underweight" />
-                      <ReferenceArea y1={18.5} y2={24.9} fill="#d1fae5" label="Normal" />
-                      <ReferenceArea y1={25} y2={29.9} fill="#fef08a" label="Overweight" />
-                      <ReferenceArea y1={30} y2={40} fill="#fca5a5" label="Obese" />
-                      <Area type="monotone" dataKey="bmi" stroke="#06b6d4" fill="#bae6fd" name="BMI" />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-
-                <div className="h-[350px] w-full">
-                  <h3 className="font-semibold mb-2">Weight & Height</h3>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartData}>
-                      <XAxis dataKey="time" />
-                      <YAxis yAxisId="left" domain={[30,120]} />
-                      <YAxis yAxisId="right" orientation="right" domain={[100,210]} />
-                      <Tooltip />
-                      <Legend />
-                      <Line yAxisId="left" type="monotone" dataKey="weight" stroke="#f97316" name="Weight (kg)" />
-                      <Line yAxisId="right" type="monotone" dataKey="height" stroke="#2563eb" name="Height (cm)" />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
+            <Card className="border-slate-200/80 shadow-sm">
+              <PatientHealthChartsHeader selectedCount={selectedRecords.length} />
+              <CardContent>
+                <PatientHealthChartsPanel chartData={chartData} />
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
-
-
-        {(mode === "nurse" || mode === "doctor") && (
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-2xl font-bold">Health Information</h3>
-              <p className="text-muted-foreground">Update patient health data before examination</p>
-            </div>
-            <div className="flex gap-3">
-              <Button
-                onClick={() => {
-                  if (!allowHealthWrites) return
-                  if (healthHistory.length > 0) {
-                    loadRecordToForm(healthHistory[0])
-                    setCurrentHealthInfoId(null)
-                  } else {
-                    clearForm()
-                  }
-                  setIsAdding(true)
-                  setIsEditing(true)
-                }}
-                disabled={isEditing || !allowHealthWrites}
-                variant="outline"
-                className="btn-outline flex items-center gap-2"
-              >
-                <Plus className="h-4 w-4" />
-                Add
-              </Button>
-              <Button
-                onClick={() => {
-                  if (!allowHealthWrites) return
-                  if (!selectedRecord) return
-                  setIsAdding(false)
-                  setIsEditing(true)
-                }}
-                disabled={!canEditSelected || !allowHealthWrites}
-                variant="outline"
-                className="btn-outline flex items-center gap-2"
-              >
-                <Edit className="h-4 w-4" />
-                Edit
-              </Button>
-              <Button
-                onClick={handleCopyRecord}
-                disabled={!selectedRecord || !allowHealthWrites}
-                className="btn-outline flex items-center gap-2"
-              >
-                <Copy className="h-4 w-4" />
-                Inherit
-              </Button>
-              <Button
-                onClick={handleSave}
-                disabled={!isEditing || saving || !allowHealthWrites}
-                className="btn-gradient flex items-center gap-2"
-              >
-                <Save className="h-4 w-4" />
-                Save
-              </Button>
-              <Button
-                onClick={async () => {
-                  if (!allowHealthWrites) return
-                  if (!selectedRecord) return
-                  try {
-                    await doctorService.confirmHealthInfo(patientId, selectedRecord.id)
-                    showSuccess("Health record confirmed successfully.")
-                    setSelectedRecord(null)
-                    await loadHealthHistory()
-                  } catch (err: any) {
-                    showError(err?.message || "Failed to confirm health record")
-                  }
-                }}
-                disabled={!canConfirmSelected || !allowHealthWrites}
-                className="!bg-[#16a34a] hover:bg-green-700 text-white"
-              >
-                <CheckCircle2 className="h-4 w-4" />
-                Confirm
-              </Button>
-              <Button
-                onClick={() => {
-                  clearForm()
-                  setIsEditing(false)
-                  setIsAdding(false)
-                }}
-                disabled={!isEditing}
-                variant="destructive"
-                className="btn-outline flex items-center gap-2"
-              >
-                <X className="h-4 w-4" />
-                Cancel
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* ------------------- VITAL SIGNS ------------------- */}
-        <CollapsibleSection
-          title="Vital Signs"
-          icon={<Activity className="h-5 w-5" />}
-          description="Your current vital measurements"
-          defaultOpen={true}
-        >
-          <div className="grid gap-4 md:grid-cols-2">
-
-            {/* Blood Pressure */}
-            <div className="space-y-2">
-              <Label>Blood Pressure (mmHg)</Label>
-              <div className="flex gap-2 text-sm font-normal bg-background text-muted-foreground">
-                <div className="flex-1 min-w-0 space-y-0">
-                  <Input
-                    id="bpSys"
-                    value={bpSys}
-                    onChange={(e) => setBpSys(e.target.value)}
-                    onInput={(e) => setBpSys((e.target as HTMLInputElement).value)}
-                    onBlur={(e) => setBpSys(e.target.value)}
-                    disabled={!isEditing || !allowHealthWrites}
-                  />
-                  <VitalWarning message={vitalNumericError("bpSys", bpSys)} />
-                </div>
-                <div className="flex-1 min-w-0 space-y-0">
-                  <Input
-                    id="bpDia"
-                    value={bpDia}
-                    onChange={(e) => setBpDia(e.target.value)}
-                    onInput={(e) => setBpDia((e.target as HTMLInputElement).value)}
-                    onBlur={(e) => setBpDia(e.target.value)}
-                    disabled={!isEditing || !allowHealthWrites}
-                  />
-                  <VitalWarning message={vitalNumericError("bpDia", bpDia)} />
-                </div>
-              </div>
-            </div>
-
-            {/* Blood Oxygen */}
-            <div className="space-y-2 text-sm font-normal bg-background text-muted-foreground">
-              <Label htmlFor="oxygen">Blood Oxygen (SpO2 %)</Label>
-              <Input
-                id="oxygen"
-                value={spo2}
-                onChange={(e) => setSpo2(e.target.value)}
-                onInput={(e) => setSpo2((e.target as HTMLInputElement).value)}
-                onBlur={(e) => setSpo2(e.target.value)}
-                disabled={!isEditing || !allowHealthWrites}
-              />
-              <VitalWarning message={vitalNumericError("spo2", spo2)} />
-            </div>
-
-            {/* Temperature */}
-            <div className="space-y-2 text-sm font-normal bg-background text-muted-foreground">
-              <Label htmlFor="temperature">Body Temperature (°C)</Label>
-              <Input
-                id="temperature"
-                value={temperature}
-                onChange={(e) => setTemperature(e.target.value)}
-                onInput={(e) => setTemperature((e.target as HTMLInputElement).value)}
-                onBlur={(e) => setTemperature(e.target.value)}
-                disabled={!isEditing || !allowHealthWrites}
-              />
-              <VitalWarning message={vitalNumericError("temperature", temperature)} />
-            </div>
-
-            {/* Height */}
-            <div className="space-y-2 text-sm font-normal bg-background text-muted-foreground">
-              <Label htmlFor="height">Height (cm)</Label>
-              <Input 
-                id="height" 
-                value={height}
-                onChange={(e) => setHeight(e.target.value)}
-                onInput={(e) => setHeight((e.target as HTMLInputElement).value)}
-                onBlur={(e) => setHeight(e.target.value)}
-                disabled={!isEditing || !allowHealthWrites}
-                type="number" />
-              <VitalWarning message={vitalNumericError("height", height)} />
-            </div>
-
-            {/* Respiratory Rate */}
-            <div className="space-y-2 text-sm font-normal bg-background text-muted-foreground">
-              <Label htmlFor="respiratory">Respiratory Rate (breaths/min)</Label>
-              <Input
-                id="respiratory"
-                value={respiratoryRate}
-                onChange={(e) => setRespiratoryRate(e.target.value)}
-                onInput={(e) => setRespiratoryRate((e.target as HTMLInputElement).value)}
-                onBlur={(e) => setRespiratoryRate(e.target.value)}
-                disabled={!isEditing || !allowHealthWrites}
-              />
-              <VitalWarning message={vitalNumericError("respiratoryRate", respiratoryRate)} />
-            </div>
-
-            {/* Weight */}
-            <div className="space-y-2 text-sm font-normal bg-background text-muted-foreground">
-              <Label htmlFor="weight">Weight (kg)</Label>
-              <Input id="weight" 
-                value={weight}
-                disabled={!isEditing || !allowHealthWrites}
-                onChange={(e) => setWeight(e.target.value)}
-                onInput={(e) => setWeight((e.target as HTMLInputElement).value)}
-                onBlur={(e) => setWeight(e.target.value)}
-                type="number" />
-              <VitalWarning message={vitalNumericError("weight", weight)} />
-            </div>
-
-            {/* Heart Rate */}
-            <div className="space-y-2 text-sm font-normal bg-background text-muted-foreground">
-              <Label htmlFor="heart-rate">Heart Rate (bpm)</Label>
-              <Input
-                id="heart-rate"
-                value={heartRate}
-                onChange={(e) => setHeartRate(e.target.value)}
-                onInput={(e) => setHeartRate((e.target as HTMLInputElement).value)}
-                onBlur={(e) => setHeartRate(e.target.value)}
-                disabled={!isEditing || !allowHealthWrites}
-              />
-              <VitalWarning message={vitalNumericError("heartRate", heartRate)} />
-            </div>
-
-            {/* BMI */}
-            <div className="space-y-2 text-sm font-normal bg-background text-muted-foreground">
-              <Label htmlFor="bmi">BMI</Label>
-              <Input id="bmi" value={bmi} disabled />
-            </div>
-
-            {/* Blood Type */}
-            <div className="space-y-2 ">
-              <Label>Blood Type</Label>
-              <Select value={bloodType} onValueChange={setBloodType} disabled={!isEditing || !allowHealthWrites}>
-                <SelectTrigger>
-                <div className="text-sm font-normal bg-background text-muted-foreground">
-                    <SelectValue placeholder="Select blood type" />
-                </div>
-                </SelectTrigger>
-                <SelectContent>
-                  {PATIENT_BLOOD_TYPES.map((bt) => (
-                    <SelectItem key={bt} value={bt}>
-                      {bt}
-                    </SelectItem>
-                  ))}
-                  <SelectItem value={PATIENT_BLOOD_TYPE_UNSET}>Not specified</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-          </div>
-        </CollapsibleSection>
-
-        {/* ------------------- ALLERGIC INFORMATION ------------------- */}
-        <CollapsibleSection
-          title="Allergic Information"
-          icon={<AlertCircle className="h-5 w-5" />}
-          description="List any known allergies"
-          defaultOpen={true}
-        >
-          <div className="space-y-4 text-sm font-normal bg-background text-muted-foreground">
-
-            <InputList
-              label="Drug Allergies"
-              values={drugAllergies}
-              setValues={setDrugAllergies}
-              disabled={!isEditing || !allowHealthWrites}
-            />
-
-            <InputList
-              label="Food Allergies"
-              values={foodAllergies}
-              setValues={setFoodAllergies}
-              disabled={!isEditing || !allowHealthWrites}
-            />
-
-            <InputList
-              label="Other Allergies"
-              values={otherAllergies}
-              setValues={setOtherAllergies}
-              disabled={!isEditing || !allowHealthWrites}
-            />
-
-          </div>
-        </CollapsibleSection>
-
-
-        {/* ------------------- CURRENT SYMPTOMS ------------------- */}
-        <CollapsibleSection
-          title="Current Symptoms"
-          icon={<Heart className="h-5 w-5" />}
-          description="Record your current symptoms"
-          defaultOpen={true}
-        >
-          <div className="space-y-2">
-            <Label>Symptoms</Label>
-            <Textarea
-              id="symptoms"
-              value={symptoms}
-              onChange={(e) => setSymptoms(e.target.value)}
-              onInput={(e) => setSymptoms((e.target as HTMLTextAreaElement).value)}
-              onBlur={(e) => setSymptoms(e.target.value)}
-              disabled={!isEditing || !allowHealthWrites}
-              rows={4}
-              placeholder="Describe any current symptoms you are experiencing..."
-            />
-          </div>
-        </CollapsibleSection>
-
-        {/* ------------------- MEDICAL HISTORY ------------------- */}
-        <CollapsibleSection
-          title="Medical History"
-          icon={<FileText className="h-5 w-5" />}
-          description="Your past medical conditions and treatments"
-          defaultOpen={true}
-        >
-          <div className="space-y-4 text-sm font-normal bg-background text-muted-foreground">
-
-            <InputList
-              label="Chronic Conditions"
-              values={chronicConditions}
-              setValues={setChronicConditions}
-              disabled={!isEditing || !allowHealthWrites}
-            />
-
-            <InputList
-              label="Past Surgeries"
-              values={pastSurgeries}
-              setValues={setPastSurgeries}
-              disabled={!isEditing || !allowHealthWrites}
-            />
-
-            <InputList
-              label="Family Medical History"
-              values={familyHistory}
-              setValues={setFamilyHistory}
-              disabled={!isEditing || !allowHealthWrites}
-            />
-
-            <InputList
-              label="Previous Illnesses"
-              values={pastIllnesses}
-              setValues={setPastIllnesses}
-              disabled={!isEditing || !allowHealthWrites}
-            />
-
-            <InputList
-              label="Vaccinations"
-              values={vaccinations}
-              setValues={setVaccinations}
-              disabled={!isEditing || !allowHealthWrites}
-            />
-
-            <InputList
-              label="Substance Abuse"
-              values={substanceAbuse}
-              setValues={setSubstanceAbuse}
-              disabled={!isEditing || !allowHealthWrites}
-            />
-
-          </div>
-        </CollapsibleSection>
 
       </div>
       <PauseableCornerToastPortal
@@ -1753,22 +1637,4 @@ const loadHealthHistory = async () => {
       />
     </>
   )
-}
-
-function CustomBPTooltip({ active, payload, label }: any) {
-  if (active && payload && payload.length) {
-    // Tìm giá trị systolic và diastolic
-    const diastolic = payload.find((p: any) => p.dataKey === "diastolic")?.value
-    const systolic = payload.find((p: any) => p.dataKey === "systolic")?.value
-
-    return (
-      <div className="bg-white p-2 border rounded shadow-md text-sm">
-        <div className="font-semibold">{label}</div>
-        <div>Systolic BP: <span className="text-red-600">{systolic}</span></div>
-        <div>Diastolic BP: <span className="text-blue-600">{diastolic}</span></div>
-      </div>
-    )
-  }
-
-  return null
 }

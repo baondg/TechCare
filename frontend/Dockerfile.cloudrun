@@ -1,7 +1,7 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN npm ci
+RUN npm ci --include=dev --production=false
 
 FROM node:20-alpine AS build
 WORKDIR /app
@@ -9,9 +9,9 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 # Origin của API only (không có /api). Code đã tự thêm /api/... vào path.
 # Cloud Run: truyền https://techcare-backend-....run.app khi build.
-ARG VITE_API_BASE_URL=http://localhost:5000
+ARG VITE_API_BASE_URL=https://api.techcare.site
 ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
-RUN npm run build
+RUN npm install --no-save vite && npm run build
 
 FROM node:20-alpine AS runtime
 WORKDIR /app

@@ -40,8 +40,12 @@ services:
       - ./backend/.env
     environment:
       NODE_ENV: development
+      TZ: Asia/Ho_Chi_Minh
+      CLINIC_TIMEZONE: Asia/Ho_Chi_Minh
+      CLINIC_TZ_OFFSET: "+07:00"
       CHOKIDAR_USEPOLLING: "true"
       INTERNAL_API_SECRET: ${INTERNAL_API_SECRET:-local-dev-internal-ai-secret}
+      IMAGE_ENCRYPTION_KEY: ${IMAGE_ENCRYPTION_KEY:-8fBOlevEv5+y2+G5jSUycVjfWtM3TlHEMvzZu2EDDlE=}
       # DB_* come from ./backend/.env (e.g. Aiven). Use profile `local-db` for Compose MySQL instead.
       REDIS_URL: redis://redis:6379
       CLOUDSQL_INSTANCE_CONNECTION_NAME: ""

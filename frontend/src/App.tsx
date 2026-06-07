@@ -22,7 +22,6 @@ const RecordsPage = lazy(() => import("./pages/patient/records"))
 const SymptomCheckerPage = lazy(() => import("./pages/patient/symptomchecker"))
 const AdminDashboardPage = lazy(() => import("./pages/admin/dashboard"))
 const SystemConfig = lazy(() => import("./pages/admin/config"))
-const RateLimitConfig = lazy(() => import("./pages/admin/ratelimit"))
 const UserManagement = lazy(() => import("./pages/admin/accountMng"))
 const FeedbackManagement = lazy(() => import("./pages/admin/feedback"))
 const DoctorDashboard = lazy(() => import("./pages/doctor/dashboard"))
@@ -128,14 +127,7 @@ function App() {
             </ProtectedRoute>
           }
         />
-        <Route
-          path="/admin/ratelimit"
-          element={
-            <ProtectedRoute requiredRole="admin">
-              <RateLimitConfig />
-            </ProtectedRoute>
-          }
-        />
+        <Route path="/admin/ratelimit" element={<Navigate to="/admin/config" replace />} />
         <Route
           path="/admin/users"
           element={

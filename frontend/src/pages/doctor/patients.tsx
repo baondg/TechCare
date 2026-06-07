@@ -30,8 +30,6 @@ type Patient = {
   doctor: string
   /** PATIENT.in_department */
   department: string | null
-  recoverDays: number | null
-  recoverPercent: number | null
 }
 
 type ColumnKey = keyof Patient | "no"
@@ -42,30 +40,26 @@ type PatientStored = Omit<Patient, "latestVisit"> & {
 
 /** Percent widths for `table-fixed`; must sum to 100% so columns fill the card. */
 const columnWidthClassEn: Record<ColumnKey, string> = {
-  no: "w-[4%] min-w-0",
-  id: "w-[10%] min-w-0",
-  name: "w-[16%] min-w-0",
-  sex: "w-[7%] min-w-0",
-  age: "w-[6%] min-w-0",
-  latestVisit: "w-[10%] min-w-0",
-  diagnosis: "w-[14%] min-w-0",
-  doctor: "w-[13%] min-w-0",
-  recoverDays: "w-[10%] min-w-0",
-  recoverPercent: "w-[10%] min-w-0",
+  no: "w-[5%] min-w-0",
+  id: "w-[11%] min-w-0",
+  name: "w-[20%] min-w-0",
+  sex: "w-[8%] min-w-0",
+  age: "w-[7%] min-w-0",
+  latestVisit: "w-[12%] min-w-0",
+  diagnosis: "w-[17%] min-w-0",
+  doctor: "w-[20%] min-w-0",
 }
 
 /** Wider sex/age/last-visit columns for Vietnamese labels and filters. */
 const columnWidthClassVi: Record<ColumnKey, string> = {
-  no: "w-[3.5%] min-w-0",
-  id: "w-[9%] min-w-0",
-  name: "w-[14%] min-w-0",
-  sex: "w-[8.5%] min-w-0",
-  age: "w-[6.5%] min-w-0",
-  latestVisit: "w-[15%] min-w-0",
-  diagnosis: "w-[13%] min-w-0",
-  doctor: "w-[11.5%] min-w-0",
-  recoverDays: "w-[9.5%] min-w-0",
-  recoverPercent: "w-[9.5%] min-w-0",
+  no: "w-[4%] min-w-0",
+  id: "w-[10%] min-w-0",
+  name: "w-[18%] min-w-0",
+  sex: "w-[9%] min-w-0",
+  age: "w-[7%] min-w-0",
+  latestVisit: "w-[18%] min-w-0",
+  diagnosis: "w-[16%] min-w-0",
+  doctor: "w-[18%] min-w-0",
 }
 
 export default function DoctorPatients() {
@@ -73,7 +67,7 @@ export default function DoctorPatients() {
     const { t, i18n } = useTranslation()
     const isVi = Boolean(i18n.language?.toLowerCase().startsWith("vi"))
     const columnWidthClass = isVi ? columnWidthClassVi : columnWidthClassEn
-    const tableMinWidthClass = isVi ? "min-w-[1200px]" : "min-w-0"
+    const tableMinWidthClass = isVi ? "min-w-[1000px]" : "min-w-0"
     const [storedPatients, setStoredPatients] = useState<PatientStored[]>([])
 
     const [filters, setFilters] = useState({
@@ -81,8 +75,6 @@ export default function DoctorPatients() {
         name: "",
         sex: "All",
         age: "",
-        recoverDays: "",
-        recoverPercent: "",
         latestVisit: null as Date | null,
         diagnosis: "",
         doctor: "",
@@ -114,8 +106,6 @@ export default function DoctorPatients() {
         { key: "latestVisit", label: t("doctor.patients.colLatestVisit"), sortable: true },
         { key: "diagnosis", label: t("doctor.patients.colDiagnosis"), sortable: true },
         { key: "doctor", label: t("doctor.patients.colDoctor"), sortable: true },
-        { key: "recoverDays", label: t("doctor.patients.colRemainingDays"), sortable: true },
-        { key: "recoverPercent", label: t("doctor.patients.colProgress"), sortable: true },
       ],
       [t]
     )
@@ -149,8 +139,6 @@ export default function DoctorPatients() {
               diagnosisDescription: p.latestDiagnosis?.interpretation || "",
               doctor: p.doctor || "",
               department: p.inDepartment != null ? String(p.inDepartment) : null,
-              recoverDays: null,
-              recoverPercent: null,
             }))
 
             setStoredPatients(mapped)
@@ -167,12 +155,6 @@ export default function DoctorPatients() {
         return patients.filter(p => {
             const matchAge =
             !filters.age || p.age === Number(filters.age)
-
-            const matchRecoverDays =
-            !filters.recoverDays || p.recoverDays === Number(filters.recoverDays)
-
-            const matchRecoverPercent =
-            !filters.recoverPercent || p.recoverPercent === Number(filters.recoverPercent)
 
             const matchDepartment =
               filters.department === "All" ||
@@ -197,8 +179,6 @@ export default function DoctorPatients() {
             matchSex &&
             matchLatestVisit &&
             matchAge &&
-            matchRecoverDays &&
-            matchRecoverPercent &&
             matchDepartment
             )
         })
@@ -358,8 +338,6 @@ export default function DoctorPatients() {
                                 isVi && col.key === "latestVisit"
                                   ? "whitespace-normal leading-snug"
                                   : "whitespace-nowrap",
-                                col.key === "recoverDays" && "pr-5",
-                                col.key === "recoverPercent" && "pl-5",
                                 col.sortable && "cursor-pointer",
                                 columnWidthClass[col.key]
                               )}
@@ -377,8 +355,6 @@ export default function DoctorPatients() {
                               key={col.key}
                               className={cn(
                                 "px-3 py-2 align-middle",
-                                col.key === "recoverDays" && "pr-5",
-                                col.key === "recoverPercent" && "pl-5",
                                 columnWidthClass[col.key]
                               )}
                             >
@@ -491,27 +467,6 @@ export default function DoctorPatients() {
                                 </div>
                               )}
 
-                              {col.key === "recoverDays" && (
-                                <Input
-                                  type="number"
-                                  value={filters.recoverDays}
-                                  onChange={(e) =>
-                                    setFilters({ ...filters, recoverDays: e.target.value })
-                                  }
-                                  className="h-8 text-xs text-center border-slate-300 focus-visible:ring-1 focus-visible:ring-cyan-400"
-                                />
-                              )}
-
-                              {col.key === "recoverPercent" && (
-                                <Input
-                                  type="number"
-                                  value={filters.recoverPercent}
-                                  onChange={(e) =>
-                                    setFilters({ ...filters, recoverPercent: e.target.value })
-                                  }
-                                  className="h-8 text-xs text-center border-slate-300 focus-visible:ring-1 focus-visible:ring-cyan-400"
-                                />
-                              )}
                             </TableHead>
                           ) : null
                         )}
@@ -616,21 +571,6 @@ export default function DoctorPatients() {
                               </TableCell>
                             )}
 
-                            {visibleColumns.includes("recoverDays") && (
-                              <TableCell className={cn(columnWidthClass.recoverDays, "text-center pr-5")}>
-                                {patient.recoverDays != null
-                                  ? t("doctor.patients.remainingDays", { count: patient.recoverDays })
-                                  : t("common.notAvailable")}
-                              </TableCell>
-                            )}
-
-                            {visibleColumns.includes("recoverPercent") && (
-                              <TableCell className={cn(columnWidthClass.recoverPercent, "text-center pl-5")}>
-                                {patient.recoverPercent != null
-                                  ? `${patient.recoverPercent}%`
-                                  : t("common.notAvailable")}
-                              </TableCell>
-                            )}
                           </TableRow>
                         ))}
 

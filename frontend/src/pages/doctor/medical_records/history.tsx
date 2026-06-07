@@ -16,6 +16,7 @@ import { generateHealthInfoTrackingPdfBlob } from "@/lib/export-health-info-trac
 import { generateFollowUpReexamPdfBlob } from "@/lib/export-follow-up-reexam-pdf"
 import type { FollowUpReexamSlipInputs } from "@/lib/follow-up-reexam-slip-html"
 import { mergePdfBlobs } from "@/lib/merge-pdf-blobs"
+import { fetchDoctorSignatureForPdf } from "@/lib/fetch-doctor-signature-for-pdf"
 import { signingLineFromIso, stampPdfWithExportFooter } from "@/lib/pdf-export-stamp"
 import { Download, FileDown, Loader2, Printer, Stethoscope, User, Calendar, Building2, Activity } from "lucide-react"
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -167,6 +168,7 @@ export default function DoctorPatientHistoryPage() {
       const fullName = `${patient.lastName || ""} ${patient.firstName || ""}`.trim() || patient.username
       const ageStr = patient.age != null ? String(patient.age) : "—"
       const latestDiagnosisText = [v.icd10, v.interpretation].filter(Boolean).join(" — ") || "—"
+      const signatureDataUrl = await fetchDoctorSignatureForPdf()
 
       const blobs: Blob[] = []
       const hasEncounterSummary =
@@ -219,6 +221,7 @@ export default function DoctorPatientHistoryPage() {
           prescriptionDate: formatDateTime(rx.prescribedAt),
           doctorName: v.doctorName?.trim() || "—",
           signatureStatus: mapPrescriptionExportSignature(rx.signatureStatus),
+          signatureDataUrl,
           signingTimeDisplay: signingLineFromIso(rx.prescribedAt),
         })
         blobs.push(blob)

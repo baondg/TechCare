@@ -459,6 +459,59 @@ async function listDepartmentsCatalog() {
   );
 }
 
+async function findDepartmentIdByName(name) {
+  const trimmed = String(name || '').trim();
+  if (!trimmed) return null;
+  const [row] = await sequelize.query(
+    `SELECT id FROM DEPARTMENT WHERE LOWER(TRIM(name)) = LOWER(:name) LIMIT 1`,
+    { replacements: { name: trimmed }, type: QueryTypes.SELECT }
+  );
+  return row?.id != null ? Number(row.id) : null;
+}
+
+async function findDepartmentIdByPk(id) {
+  const n = Number(id);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  const [row] = await sequelize.query(
+    'SELECT id FROM DEPARTMENT WHERE id = :id LIMIT 1',
+    { replacements: { id: n }, type: QueryTypes.SELECT }
+  );
+  return row?.id != null ? Number(row.id) : null;
+}
+
+async function findClinicRoomDepartmentId(roomId) {
+  const n = Number(roomId);
+  if (!Number.isFinite(n)) return null;
+  const [row] = await sequelize.query(
+    'SELECT department_id AS departmentId FROM CLINIC_ROOM WHERE id = :roomId LIMIT 1',
+    { replacements: { roomId: n }, type: QueryTypes.SELECT }
+  );
+  return row?.departmentId != null ? Number(row.departmentId) : null;
+}
+
+/** Prefer doctor default room when it belongs to departmentId; else first room in that department. */
+async function findClinicRoomIdInDepartment(departmentId, doctorId) {
+  const deptId = Number(departmentId);
+  if (!Number.isFinite(deptId) || deptId <= 0) return null;
+  const docId = Number(doctorId);
+  if (Number.isFinite(docId) && docId > 0) {
+    const [pref] = await sequelize.query(
+      `SELECT cr.id
+       FROM DOCTOR d
+       INNER JOIN CLINIC_ROOM cr ON cr.id = d.room_id AND cr.department_id = :deptId
+       WHERE d.doctor_id = :doctorId
+       LIMIT 1`,
+      { replacements: { deptId, doctorId: docId }, type: QueryTypes.SELECT }
+    );
+    if (pref?.id != null) return Number(pref.id);
+  }
+  const [any] = await sequelize.query(
+    `SELECT id FROM CLINIC_ROOM WHERE department_id = :deptId ORDER BY id ASC LIMIT 1`,
+    { replacements: { deptId }, type: QueryTypes.SELECT }
+  );
+  return any?.id != null ? Number(any.id) : null;
+}
+
 module.exports = {
   normalizeDoctorInput,
   findPatientIdByUserId,
@@ -497,4 +550,8 @@ module.exports = {
   listDoctorRowsForBookingCatalog,
   listClinicRoomsCatalog,
   listDepartmentsCatalog,
+  findDepartmentIdByName,
+  findDepartmentIdByPk,
+  findClinicRoomDepartmentId,
+  findClinicRoomIdInDepartment,
 };

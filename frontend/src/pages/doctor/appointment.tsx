@@ -29,8 +29,11 @@ import { useTranslation } from "react-i18next"
 import { enUS, vi } from "date-fns/locale"
 import { cn } from "@/lib/utils"
 import { applyDdMmYyyyRangeTyping } from "@/lib/date-range"
+import { doctorPatientEmrPath } from "@/lib/patient-route-id"
 
 type AppointmentUiStatus = "Done" | "Upcoming" | "Confirmed" | "Cancelled"
+
+type DoctorAppointmentStatusFilter = "All" | "Awaiting" | "Accepted" | "Done" | "Cancelled"
 
 const normalizeAppointmentStatus = (status?: string): AppointmentUiStatus => {
   const value = String(status || "").trim().toLowerCase()
@@ -38,6 +41,27 @@ const normalizeAppointmentStatus = (status?: string): AppointmentUiStatus => {
   if (value === "confirmed") return "Confirmed"
   if (value === "cancelled" || value === "canceled" || value === "rejected") return "Cancelled"
   return "Upcoming"
+}
+
+function matchesDoctorStatusFilter(
+  appointment: DoctorAppointment,
+  filter: DoctorAppointmentStatusFilter,
+): boolean {
+  if (filter === "All") return true
+  const uiStatus = normalizeAppointmentStatus(appointment.status)
+  if (filter === "Done") return uiStatus === "Done" || appointment.examined === true
+  if (filter === "Cancelled") return uiStatus === "Cancelled"
+  if (filter === "Awaiting") return appointment.awaitingDoctorConfirmation === true
+  if (filter === "Accepted") {
+    return (
+      Boolean(appointment.patientId) &&
+      appointment.awaitingDoctorConfirmation !== true &&
+      appointment.examined !== true &&
+      uiStatus !== "Done" &&
+      uiStatus !== "Cancelled"
+    )
+  }
+  return true
 }
 
 function doctorDepartmentsList(d: DoctorOption): string[] {
@@ -80,6 +104,7 @@ export default function DoctorAppointmentsPage() {
   const [startDateValue, setStartDateValue] = useState<Date | undefined>()
   const [endDate, setEndDate] = useState("")
   const [endDateValue, setEndDateValue] = useState<Date | undefined>()
+  const [statusFilter, setStatusFilter] = useState<DoctorAppointmentStatusFilter>("All")
   const [doctorOptions, setDoctorOptions] = useState<DoctorOption[]>([])
   const [coverOpen, setCoverOpen] = useState(false)
   const [coverTarget, setCoverTarget] = useState<DoctorAppointment | null>(null)
@@ -140,8 +165,15 @@ export default function DoctorAppointmentsPage() {
         filtered = filtered.filter((app) => new Date(app.date) <= end)
       }
     }
+    if (statusFilter !== "All") {
+      filtered = filtered.filter((app) => matchesDoctorStatusFilter(app, statusFilter))
+    }
     return filtered
-  }, [appointments, startDate, endDate])
+  }, [appointments, startDate, endDate, statusFilter])
+
+  useEffect(() => {
+    setSelectedAppointmentIds([])
+  }, [statusFilter])
 
   const coverCandidates = useMemo(() => {
     const sourceAppointments = coverTarget
@@ -234,7 +266,23 @@ export default function DoctorAppointmentsPage() {
     <DoctorLayout>
       <div className="space-y-3 pt-3 md:space-y-4 md:pt-5">
         <Card className="rounded-xl border border-slate-200/70 bg-white shadow-none ring-1 ring-slate-900/[0.06]">
-          <CardContent className="flex flex-wrap items-center gap-3 p-4 md:flex-nowrap md:gap-4 md:p-5">
+          <CardContent className="flex flex-wrap items-center gap-3 p-4 md:gap-4 md:p-5">
+            <Select
+              value={statusFilter}
+              onValueChange={(value) => setStatusFilter(value as DoctorAppointmentStatusFilter)}
+            >
+              <SelectTrigger className="h-9 w-full min-w-[11rem] max-w-[13rem] rounded-lg border border-slate-200 bg-white text-sm shadow-none focus:ring-2 focus:ring-cyan-500/20">
+                <SelectValue placeholder="All statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="All">All statuses</SelectItem>
+                <SelectItem value="Awaiting">Awaiting confirmation</SelectItem>
+                <SelectItem value="Accepted">Accepted</SelectItem>
+                <SelectItem value="Done">Done</SelectItem>
+                <SelectItem value="Cancelled">Cancelled</SelectItem>
+              </SelectContent>
+            </Select>
+
             <div className="relative min-w-[10rem] max-w-xs flex-1">
               <Popover>
                 <PopoverTrigger asChild>
@@ -364,12 +412,14 @@ export default function DoctorAppointmentsPage() {
           ) : (
             filteredAppointments.map((appointment) => {
               const uiStatus = normalizeAppointmentStatus(appointment.status)
-              const awaiting = appointment.awaitingDoctorConfirmation === true
+              const isDone = uiStatus === "Done" || appointment.examined === true
+              const awaiting = !isDone && appointment.awaitingDoctorConfirmation === true
               const hasPatient = Boolean(appointment.patientId)
-              const isAcceptedSlot = hasPatient && !awaiting && uiStatus === "Upcoming"
-              const badgeLabel =
-                uiStatus === "Done" || uiStatus === "Cancelled"
-                  ? uiStatus
+              const isAcceptedSlot = hasPatient && !awaiting && !isDone && uiStatus === "Upcoming"
+              const badgeLabel = isDone
+                ? "Done"
+                : uiStatus === "Cancelled"
+                  ? "Cancelled"
                   : awaiting
                     ? "Awaiting confirmation"
                     : isAcceptedSlot
@@ -401,7 +451,7 @@ export default function DoctorAppointmentsPage() {
                           Patient:{" "}
                           {appointment.patientId ? (
                             <Link
-                              to={`/doctor/medical_records/${appointment.patientId}/dashboard`}
+                              to={doctorPatientEmrPath(appointment.userId, "dashboard")}
                               className="text-cyan-700 hover:underline"
                             >
                               {appointment.patientName || `Patient #${appointment.patientId}`}
@@ -426,8 +476,8 @@ export default function DoctorAppointmentsPage() {
                           <div
                             className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium
                           ${
-                            uiStatus === "Done"
-                              ? "bg-green-100 text-green-700"
+                            isDone
+                              ? "border border-emerald-200 bg-emerald-50 text-emerald-800"
                               : awaiting
                                 ? "bg-amber-100 text-amber-900"
                                 : isAcceptedSlot
@@ -439,9 +489,12 @@ export default function DoctorAppointmentsPage() {
                                       : "bg-gray-100 text-gray-700"
                           }`}
                           >
-                            {isAcceptedSlot ? (
+                            {isDone || isAcceptedSlot ? (
                               <>
-                                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden />
+                                <CheckCircle2
+                                  className={`h-4 w-4 shrink-0 ${isDone ? "text-emerald-700" : "text-emerald-600"}`}
+                                  aria-hidden
+                                />
                                 {badgeLabel}
                               </>
                             ) : (

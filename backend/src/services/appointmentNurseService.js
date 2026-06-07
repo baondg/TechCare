@@ -1,4 +1,5 @@
 const sequelize = require('../common/database');
+const { getClinicTimezone } = require('../common/clinicDate');
 const nurseCheckInRepository = require('../repositories/nurseCheckInRepository');
 const { notifyDoctorsAfterNurseReschedule } = require('./appointmentNotifications');
 
@@ -61,20 +62,57 @@ async function insertNurseVisitRegimenOpenEnd(patientId, transaction) {
   return nurseCheckInRepository.insertRegimenOpenEnd(patientId, diseaseId, transaction);
 }
 
+/** Reuse an existing open visit regimen when present; otherwise create one. */
+async function ensureNurseVisitRegimenOpenEnd(patientId, transaction) {
+  const existing = await nurseCheckInRepository.findLatestOpenRegimenIdForPatient(patientId, transaction);
+  if (existing != null) return existing;
+  return insertNurseVisitRegimenOpenEnd(patientId, transaction);
+}
+
+async function resolvePatientPkForNurseCheckIn(query) {
+  const hintPk = Number(query?.patientPk);
+  if (Number.isFinite(hintPk) && hintPk > 0) {
+    const exists = await nurseCheckInRepository.findPatientPkExists(hintPk);
+    if (exists != null) return exists;
+  }
+
+  const n = parseNursePatientId(query.patientId);
+  if (!n) return null;
+  return nurseCheckInRepository.findNursePatientPkFromNumeric(n);
+}
+
 async function getNurseCheckInOptions({ role, query }) {
   const denied = ensureNurseOrAdmin(role);
   if (denied) return denied;
 
-  const n = parseNursePatientId(query.patientId);
-  if (!n) {
+  if (!parseNursePatientId(query.patientId)) {
     return { ok: false, status: 400, json: { success: false, message: 'patientId is required' } };
   }
-  const patientId = await nurseCheckInRepository.findNursePatientPkFromNumeric(n);
+
+  const patientId = await resolvePatientPkForNurseCheckIn(query);
   if (!patientId) {
     return { ok: false, status: 404, json: { success: false, message: 'Patient not found' } };
   }
 
   const bookedRows = await nurseCheckInRepository.listNurseBookedTodayForPatient(patientId);
+  const bookedMap = new Map();
+  for (const row of bookedRows || []) {
+    bookedMap.set(Number(row.id), row);
+  }
+
+  const hintApptId = Number(query?.appointmentId);
+  if (Number.isFinite(hintApptId) && hintApptId > 0 && !bookedMap.has(hintApptId)) {
+    const extra = await nurseCheckInRepository.findNurseBookedTodayByAppointmentId(hintApptId, patientId);
+    if (extra) bookedMap.set(hintApptId, extra);
+  }
+
+  const mergedBooked = Array.from(bookedMap.values()).sort((a, b) => {
+    const ta = new Date(a.slotTime).getTime();
+    const tb = new Date(b.slotTime).getTime();
+    if (ta !== tb) return ta - tb;
+    return Number(a.id) - Number(b.id);
+  });
+
   const openRows = await nurseCheckInRepository.listNurseOpenSlotsToday();
   const today = await nurseCheckInRepository.selectCurDate();
 
@@ -84,7 +122,8 @@ async function getNurseCheckInOptions({ role, query }) {
     json: {
       success: true,
       today,
-      patientBookings: (bookedRows || []).map(mapNurseCheckInRow),
+      todayTimezone: getClinicTimezone(),
+      patientBookings: mergedBooked.map(mapNurseCheckInRow),
       openSlots: (openRows || []).map(mapNurseCheckInRow),
     },
   };
@@ -121,17 +160,47 @@ async function postNurseCheckInAccept({ role, body }) {
     if (!roomRow) {
       return { ok: false, status: 400, json: { success: false, message: 'Invalid clinic room' } };
     }
-    await nurseCheckInRepository.updateNurseAppointmentRoomToday(appointmentId, patientId, optionalRoomId);
   }
 
-  const regimenId = await insertNurseVisitRegimenOpenEnd(patientId);
-  await syncPatientInDeptFromAppointmentRoom(patientId, appointmentId);
-  await nurseCheckInRepository.updateAppointmentRegimenId(appointmentId, patientId, regimenId);
+  let regimenId;
+  await sequelize.transaction(async (transaction) => {
+    if (Number.isFinite(optionalRoomId) && optionalRoomId > 0) {
+      await nurseCheckInRepository.updateNurseAppointmentRoomToday(
+        appointmentId,
+        patientId,
+        optionalRoomId,
+        transaction
+      );
+    }
 
+    const linkedRegimenId = row.regimenId != null ? Number(row.regimenId) : null;
+    if (Number.isFinite(linkedRegimenId) && linkedRegimenId > 0) {
+      const stillOpen = await nurseCheckInRepository.findOpenRegimenForPatient(
+        linkedRegimenId,
+        patientId,
+        transaction
+      );
+      if (stillOpen) {
+        regimenId = linkedRegimenId;
+        return;
+      }
+    }
+
+    regimenId = await ensureNurseVisitRegimenOpenEnd(patientId, transaction);
+    await syncPatientInDeptFromAppointmentRoom(patientId, appointmentId, transaction);
+    await nurseCheckInRepository.updateAppointmentRegimenId(
+      appointmentId,
+      patientId,
+      regimenId,
+      transaction
+    );
+  });
+
+  const display = (await nurseCheckInRepository.getNurseAppointmentDisplay(appointmentId)) || row;
   return {
     ok: true,
     status: 200,
-    json: { success: true, appointment: mapNurseCheckInRow(row), regimenId },
+    json: { success: true, appointment: mapNurseCheckInRow(display), regimenId },
   };
 }
 
@@ -167,7 +236,7 @@ async function postNurseCheckInAssign({ role, body }) {
       if (Number(check?.patientId) !== patientId) {
         throw new Error('ASSIGN_CONFLICT');
       }
-      regimenId = await insertNurseVisitRegimenOpenEnd(patientId, transaction);
+      regimenId = await ensureNurseVisitRegimenOpenEnd(patientId, transaction);
       await syncPatientInDeptFromAppointmentRoom(patientId, appointmentId, transaction);
       await nurseCheckInRepository.updateAppointmentRegimenId(appointmentId, patientId, regimenId, transaction);
     });
@@ -239,7 +308,7 @@ async function postNurseCheckInReschedule({ role, body }) {
         throw new Error('RESCHEDULE_ASSIGN_FAILED');
       }
 
-      regimenId = await insertNurseVisitRegimenOpenEnd(patientId, transaction);
+      regimenId = await ensureNurseVisitRegimenOpenEnd(patientId, transaction);
       await syncPatientInDeptFromAppointmentRoom(patientId, toAppointmentId, transaction);
       await nurseCheckInRepository.updateAppointmentRegimenId(toAppointmentId, patientId, regimenId, transaction);
     });
@@ -305,7 +374,9 @@ async function postNurseRegimenCheckout({ role, body }) {
     };
   }
 
-  await nurseCheckInRepository.closeRegimenEndNow(regimenId, patientId);
+  await sequelize.transaction(async (transaction) => {
+    await nurseCheckInRepository.closeRegimenEndNow(regimenId, patientId, transaction);
+  });
   return { ok: true, status: 200, json: { success: true, regimenId } };
 }
 

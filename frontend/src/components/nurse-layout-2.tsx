@@ -48,13 +48,55 @@ const tabs = [
   { label: "Profile", value: "profile" },
 ]
 
+type TodayAppointment = {
+  appointmentId: number
+  timeDisplay: string
+  checkedIn: boolean
+  roomId: number | null
+  roomName: string
+}
+
+type PatientHeader = {
+  patientPk?: number | null
+  todayAppointment?: TodayAppointment | null
+  lastName?: string
+  firstName?: string
+  age?: number | string
+  gender?: string
+  bmi?: number | string | null
+  latestDiagnosis?: { icd10?: string; interpretation?: string } | null
+  inDepartment?: string | null
+  in_department?: string | null
+}
+
 export function NurseLayout2() {
   const navigate = useNavigate()
   const { tab = "dashboard", patientId } = useParams()
   const { t } = useTranslation()
-  const [patientData, setPatientData] = useState<any>(null)
+  const [patientData, setPatientData] = useState<PatientHeader | null>(null)
   const [visitSession, setVisitSession] = useState<StoredVisit | null>(() => readStoredVisit(patientId))
   const [checkInDialogOpen, setCheckInDialogOpen] = useState(false)
+  const [checkInPatientPk, setCheckInPatientPk] = useState<number | null>(null)
+  const [checkInAppointmentId, setCheckInAppointmentId] = useState<number | null>(null)
+  const [checkInAppointmentTime, setCheckInAppointmentTime] = useState<string | null>(null)
+  const [checkInRoomName, setCheckInRoomName] = useState<string | null>(null)
+
+  const openCheckInDialog = () => {
+    const appt = patientData?.todayAppointment
+    setCheckInPatientPk(patientData?.patientPk ?? null)
+    setCheckInAppointmentId(appt?.appointmentId ?? null)
+    setCheckInAppointmentTime(appt?.timeDisplay ?? null)
+    setCheckInRoomName(appt?.roomName ?? null)
+    setCheckInDialogOpen(true)
+  }
+
+  const closeCheckInDialog = () => {
+    setCheckInDialogOpen(false)
+    setCheckInPatientPk(null)
+    setCheckInAppointmentId(null)
+    setCheckInAppointmentTime(null)
+    setCheckInRoomName(null)
+  }
 
   const setActiveTab = (value: string) => {
     if (!patientId) return
@@ -108,7 +150,10 @@ export function NurseLayout2() {
           },
         })
         const data = await res.json()
-        if (data.success) setPatientData(data.patient)
+        if (data.success) {
+          const p = data.patient as PatientHeader
+          setPatientData(p)
+        }
       } catch (err) {
         console.error(err)
       }
@@ -120,13 +165,25 @@ export function NurseLayout2() {
     <NurseLayout>
       <NurseCheckInDialog
         open={checkInDialogOpen}
-        onOpenChange={setCheckInDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) closeCheckInDialog()
+          else setCheckInDialogOpen(true)
+        }}
         patientIdParam={patientId}
+        hintPatientPk={checkInPatientPk}
+        hintAppointmentId={checkInAppointmentId}
+        hintTimeDisplay={checkInAppointmentTime}
+        hintRoomName={checkInRoomName}
         onSuccess={({ appointmentId, startedAt, regimenId }) => {
           if (!patientId) return
           const next: StoredVisit = { startedAt, appointmentId, regimenId }
           writeStoredVisit(patientId, next)
           setVisitSession(next)
+          setPatientData((prev) =>
+            prev?.todayAppointment
+              ? { ...prev, todayAppointment: { ...prev.todayAppointment, checkedIn: true } }
+              : prev
+          )
         }}
       />
 
@@ -161,8 +218,12 @@ export function NurseLayout2() {
               <Button
                 type="button"
                 size="sm"
-                disabled={!patientId || !!visitSession}
-                onClick={() => setCheckInDialogOpen(true)}
+                disabled={
+                  !patientId ||
+                  !!visitSession ||
+                  Boolean(patientData?.todayAppointment?.checkedIn)
+                }
+                onClick={openCheckInDialog}
                 className="!bg-emerald-600 hover:!bg-emerald-700 text-white transition-transform duration-500 text-lg px-6 py-4 flex items-center gap-2"
               >
                 <LogIn className="h-4 w-4 shrink-0" />

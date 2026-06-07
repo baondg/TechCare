@@ -32,9 +32,16 @@ $groqKey = Get-EnvValueOptional "GROQ_API_KEY"
 if ($groqKey) { $deployParams.GroqApiKey = $groqKey }
 $groqModel = Get-EnvValueOptional "GROQ_MODEL"
 if ($groqModel) { $deployParams.GroqModel = $groqModel }
+$imageEncryptionKey = Get-EnvValueOptional "IMAGE_ENCRYPTION_KEY"
+if ($imageEncryptionKey) { $deployParams.ImageEncryptionKey = $imageEncryptionKey }
 if ($SkipBuild) { $deployParams.SkipBuild = $true }
 if ($ApiDomain) { $deployParams.ApiDomain = $ApiDomain }
 if ($WebDomain) { $deployParams.WebDomain = $WebDomain }
+$corsOrigins = Get-EnvValueOptional "CORS_ALLOWED_ORIGINS"
+if ($corsOrigins) { $deployParams.AllowedOrigins = $corsOrigins }
+elseif (-not $WebDomain) {
+  $deployParams.WebDomain = "www.techcare.site"
+}
 if (-not [string]::IsNullOrWhiteSpace($RedisUrl)) {
   $u = $RedisUrl.Trim()
   if ($u -match '^redis://') { $u = $u -replace '^redis://', 'rediss://' }

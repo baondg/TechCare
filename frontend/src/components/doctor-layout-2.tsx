@@ -44,6 +44,7 @@ import {
 } from "@/lib/follow-up-reexam-slip-html"
 import { generateFollowUpReexamPdfBlob } from "@/lib/export-follow-up-reexam-pdf"
 import { generatePrescriptionPdfBlob } from "@/lib/export-prescription-pdf"
+import { fetchDoctorSignatureForPdf } from "@/lib/fetch-doctor-signature-for-pdf"
 import { generateSurgeryPdfBlob } from "@/lib/export-surgery-pdf"
 import { generateBloodTestPdfBlob } from "@/lib/export-blood-test-pdf"
 import { generateHospitalTransferPdfBlob } from "@/lib/export-hospital-transfer-pdf"
@@ -52,7 +53,7 @@ import { buildSigningTimeLine, signingLineFromIso, stampPdfWithExportFooter } fr
 import { usePauseableToast } from "@/hooks/usePauseableToast"
 import { translatePatientInDepartment } from "@/lib/patient-departments"
 import { PauseableCornerToastPortal } from "@/components/pauseable-corner-toast"
-import { Loader2, ArrowRightLeft, AlertCircle, FileDown, Printer, Plus, Minus } from "lucide-react"
+import { Loader2, ArrowRightLeft, AlertCircle, FileDown, Plus, Minus } from "lucide-react"
 
 const tabs = [
   { label: "Dashboard", value: "dashboard" },
@@ -101,6 +102,8 @@ function formatDateTime(value: string | null | undefined, locale = "vi-VN") {
 
 const FOLLOW_UP_MINUTE_OPTIONS = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, "0"))
 const FOLLOW_UP_HOUR24_OPTIONS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"))
+const EMR_PRESCRIPTION_DRAFT_STATE_EVENT = "emr:prescription-draft-state"
+const EMR_PRESCRIPTION_SAVED_EVENT = "emr:prescription-saved"
 
 /** Parse `HH:mm` (24h) for follow-up UI: hour 0–23 and minute. */
 function parseFollowTime24hString(time24: string): { hour24: number; minute: number } {
@@ -182,6 +185,7 @@ export function DoctorLayout2() {
   const [finishWizardDocsLoading, setFinishWizardDocsLoading] = useState(false)
   const [finishWizardDocsError, setFinishWizardDocsError] = useState<string | null>(null)
   const [finishWizardDocs, setFinishWizardDocs] = useState<Awaited<ReturnType<typeof doctorService.getActiveRegimenDocuments>>["regimen"]>(null)
+  const [hasUnsavedPrescriptionDraft, setHasUnsavedPrescriptionDraft] = useState(false)
   const [slipPreviewZoom, setSlipPreviewZoom] = useState(0.48)
 
   const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false)
@@ -381,28 +385,65 @@ export function DoctorLayout2() {
     }
   }, [])
 
+  const loadFinishWizardDocuments = useCallback(async () => {
+    if (!patientId) return
+    setFinishWizardDocsLoading(true)
+    setFinishWizardDocsError(null)
+    try {
+      const r = await doctorService.getActiveRegimenDocuments(patientId)
+      setFinishWizardDocs(r.regimen)
+    } catch (e) {
+      setFinishWizardDocs(null)
+      setFinishWizardDocsError(e instanceof Error ? e.message : "Could not load regimen documents.")
+    } finally {
+      setFinishWizardDocsLoading(false)
+    }
+  }, [patientId])
+
   useEffect(() => {
     if (!finishWizardOpen || finishWizardStep !== 2 || !patientId) return
     let cancelled = false
     void (async () => {
-      setFinishWizardDocsLoading(true)
-      setFinishWizardDocsError(null)
       try {
-        const r = await doctorService.getActiveRegimenDocuments(patientId)
-        if (!cancelled) setFinishWizardDocs(r.regimen)
+        await loadFinishWizardDocuments()
       } catch (e) {
         if (!cancelled) {
           setFinishWizardDocs(null)
           setFinishWizardDocsError(e instanceof Error ? e.message : "Could not load regimen documents.")
         }
-      } finally {
-        if (!cancelled) setFinishWizardDocsLoading(false)
       }
     })()
     return () => {
       cancelled = true
     }
-  }, [finishWizardOpen, finishWizardStep, patientId])
+  }, [finishWizardOpen, finishWizardStep, patientId, loadFinishWizardDocuments])
+
+  useEffect(() => {
+    setHasUnsavedPrescriptionDraft(false)
+  }, [patientId])
+
+  useEffect(() => {
+    if (!patientId) return
+    const onDraftState = (evt: Event) => {
+      const detail = (evt as CustomEvent<{ patientId?: string; hasUnsavedChanges?: boolean }>).detail
+      if (!detail || String(detail.patientId || "") !== String(patientId)) return
+      setHasUnsavedPrescriptionDraft(Boolean(detail.hasUnsavedChanges))
+    }
+    const onPrescriptionSaved = (evt: Event) => {
+      const detail = (evt as CustomEvent<{ patientId?: string }>).detail
+      if (!detail || String(detail.patientId || "") !== String(patientId)) return
+      setHasUnsavedPrescriptionDraft(false)
+      if (finishWizardOpen && finishWizardStep === 2) {
+        void loadFinishWizardDocuments()
+      }
+    }
+    window.addEventListener(EMR_PRESCRIPTION_DRAFT_STATE_EVENT, onDraftState as EventListener)
+    window.addEventListener(EMR_PRESCRIPTION_SAVED_EVENT, onPrescriptionSaved as EventListener)
+    return () => {
+      window.removeEventListener(EMR_PRESCRIPTION_DRAFT_STATE_EVENT, onDraftState as EventListener)
+      window.removeEventListener(EMR_PRESCRIPTION_SAVED_EVENT, onPrescriptionSaved as EventListener)
+    }
+  }, [patientId, finishWizardOpen, finishWizardStep, loadFinishWizardDocuments])
 
   useEffect(() => {
     if (finishWizardOpen) setSlipPreviewZoom(0.48)
@@ -656,6 +697,10 @@ export function DoctorLayout2() {
 
   const submitFinishExamination = async () => {
     if (!patientId) return
+    if (hasUnsavedPrescriptionDraft) {
+      showError("Đơn thuốc đang có thay đổi chưa lưu. Vui lòng Save hoặc hủy draft trước khi Finish examination.")
+      return
+    }
     setFinishWizardStep(1)
     setFinishWizardChoice("none")
     setFinishWizardSaved(null)
@@ -1152,11 +1197,15 @@ export function DoctorLayout2() {
                         <div className="text-xs font-semibold text-slate-600">Prescriptions</div>
                         {finishWizardDocs.prescriptions.slice(0, 6).map((rx) => {
                           const key = `rx-${rx.id}`
+                          const rxCode = String(rx.byt?.code || "").trim()
                           return (
                             <div key={rx.id} className="flex items-center justify-between gap-2 rounded-md border bg-slate-50 px-3 py-2">
                               <div className="min-w-0">
                                 <div className="text-slate-800 font-medium truncate">Prescription</div>
-                                <div className="text-xs text-slate-600">{formatDateTime(rx.prescribedAt)}</div>
+                                <div className="text-xs text-slate-600">{rx.prescribedAt ? formatDateTime(rx.prescribedAt) : "—"}</div>
+                                {rxCode ? (
+                                  <div className="text-xs text-slate-600 truncate">Mã đơn: {rxCode}</div>
+                                ) : null}
                               </div>
                               <Button
                                 type="button"
@@ -1167,6 +1216,7 @@ export function DoctorLayout2() {
                                   if (!patientData) return
                                   setPdfGeneratingKey(key)
                                   try {
+                                    const signatureDataUrl = await fetchDoctorSignatureForPdf()
                                     const { blob, filename } = await generatePrescriptionPdfBlob({
                                       patient: patientData,
                                       medications: (rx.medications || []).map((m) => ({
@@ -1174,12 +1224,14 @@ export function DoctorLayout2() {
                                         quantity: m.quantity || "—",
                                         unit: m.unit || "tablet",
                                         duration: m.duration,
-                                        usage: m.frequency || "—",
-                                        note: "",
+                                        usage: m.usage || "—",
+                                        note: m.note || "",
                                       })),
-                                      prescriptionDate: formatDateTime(rx.prescribedAt),
+                                      byt: rx.byt,
+                                      prescriptionDate: rx.prescribedAt || undefined,
                                       doctorName: readSignedInDisplayName() || "—",
                                       signatureStatus: "signed",
+                                      signatureDataUrl,
                                       filename: `prescription-${rx.id}.pdf`,
                                       signingTimeDisplay: signingLineFromIso(rx.prescribedAt),
                                     })
@@ -1759,9 +1811,11 @@ export function DoctorLayout2() {
               size="sm"
               variant="outline"
               className="btn-outline transition-transform duration-500 text-base px-5 py-3"
-              disabled={!patientId || loading || !patientData || finishSubmitting || !visitActive}
+              disabled={!patientId || loading || !patientData || finishSubmitting || !visitActive || hasUnsavedPrescriptionDraft}
               title={
-                !visitActive
+                hasUnsavedPrescriptionDraft
+                  ? "Save hoặc hủy draft đơn thuốc trước khi Finish examination"
+                  : !visitActive
                   ? "No active visit to close"
                   : "Closes the open encounter (regimen) for this patient"
               }

@@ -106,9 +106,9 @@ async function getPortalPatients() {
     const idCsv = uniqPks.map((id) => Number(id)).join(',');
     const apptRows = await patientPortalRepository.listTodayScheduledAppointmentsForPatientIdCsv(idCsv);
     for (const ar of apptRows || []) {
-      const pid = Number(ar.patientId);
-      if (!Number.isFinite(pid)) continue;
-      if (!firstApptByPatientPk.has(pid)) firstApptByPatientPk.set(pid, ar);
+      const pkKey = Number(ar.mapPatientPk ?? ar.patientId);
+      if (!Number.isFinite(pkKey)) continue;
+      if (!firstApptByPatientPk.has(pkKey)) firstApptByPatientPk.set(pkKey, ar);
     }
   }
 
@@ -125,8 +125,7 @@ async function getPortalPatients() {
       const age = calculateDisplayAge(p.dob);
 
       const ap = patientPk != null ? firstApptByPatientPk.get(Number(patientPk)) : null;
-      const rid = ap?.regimenId != null ? Number(ap.regimenId) : null;
-      const checkedIn = Number.isFinite(rid) && rid > 0;
+      const checkedIn = ap != null && Number(ap.checkedIn) === 1;
       const appointmentDoctorName =
         ap?.appointmentDoctorName != null ? String(ap.appointmentDoctorName).trim() : '';
       const todayAppointment =
@@ -142,6 +141,8 @@ async function getPortalPatients() {
 
       return {
         id: Number(p.id),
+        userId: Number(p.id),
+        patientPk: patientPk != null ? Number(patientPk) : null,
         username: p.username || '',
         firstName: p.firstName || '',
         lastName: p.lastName || '',

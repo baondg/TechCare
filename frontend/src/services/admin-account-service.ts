@@ -9,6 +9,7 @@ export interface AdminAccountRow {
   status: boolean
   createdTime: string | null
   createdBy: number | null
+  createdByName?: string
   nationalId: string
   name: string
   sex: "Male" | "Female" | null
@@ -72,6 +73,15 @@ export interface AdminDashboardSummary {
     message: string
     createdTime: string | null
     status: "Enabled" | "Disabled" | string
+  }>
+  feedbackStats: {
+    total: number
+    pending: number
+    averageRating: number
+  }
+  signupsByDay: Array<{
+    date: string
+    count: number
   }>
 }
 

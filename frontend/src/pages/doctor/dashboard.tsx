@@ -17,6 +17,7 @@ import {
   startOfWeekMonday,
   toLocalIsoDate,
 } from "@/components/schedule-dashboard-controls"
+import { doctorPatientEmrPath } from "@/lib/patient-route-id"
 
 type AppointmentUiStatus = "Done" | "Upcoming" | "Confirmed" | "Cancelled"
 
@@ -162,7 +163,7 @@ export default function DoctorDashboard() {
                           <p className="font-medium">
                             {apt.patientId ? (
                               <Link
-                                to={`/doctor/medical_records/${apt.patientId}/dashboard`}
+                                to={doctorPatientEmrPath(apt.userId, "dashboard")}
                                 className="text-cyan-700 hover:underline"
                               >
                                 {apt.patientName || `Patient #${apt.patientId}`}
@@ -190,7 +191,7 @@ export default function DoctorDashboard() {
                         </span>
                         {apt.patientId ? (
                           <Button variant="outline" size="sm" asChild>
-                            <Link to={`/doctor/medical_records/${apt.patientId}/dashboard`}>View EMR</Link>
+                            <Link to={doctorPatientEmrPath(apt.userId, "dashboard")}>View EMR</Link>
                           </Button>
                         ) : null}
                       </div>
@@ -227,7 +228,7 @@ export default function DoctorDashboard() {
                     </p>
                   </div>
                   <Button variant="ghost" size="sm" asChild>
-                    <Link to={`/doctor/medical_records/${patient.patientId}/dashboard`}>View EMR</Link>
+                    <Link to={doctorPatientEmrPath(patient.userId, "dashboard")}>View EMR</Link>
                   </Button>
                 </div>
               ))}

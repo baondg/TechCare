@@ -37,7 +37,10 @@ type TodayAppointment = {
 }
 
 type Patient = {
+  /** OP route id (from USER.id) */
   id: string
+  userId: number
+  patientPk: number | null
   name: string
   sex: "M" | "F" | "O" | null
   age: string
@@ -47,8 +50,6 @@ type Patient = {
   doctor: string
   /** PATIENT.in_department */
   department: string | null
-  recoverDays: number | null
-  recoverPercent: number | null
   /** Today’s first scheduled slot (server CURDATE); null if none. */
   todayAppointment: TodayAppointment | null
 }
@@ -64,9 +65,7 @@ const columnWidthClassEn: Record<ColumnKey, string> = {
   latestVisit: "w-[10%] min-w-0",
   diagnosis: "w-[13%] min-w-0",
   doctor: "w-[11%] min-w-0",
-  recoverDays: "w-[8%] min-w-0",
-  recoverPercent: "w-[8%] min-w-0",
-  visitStatus: "w-[11%] min-w-0",
+  visitStatus: "w-[14%] min-w-0",
 }
 
 const columnWidthClassVi: Record<ColumnKey, string> = {
@@ -78,9 +77,7 @@ const columnWidthClassVi: Record<ColumnKey, string> = {
   latestVisit: "w-[14%] min-w-0",
   diagnosis: "w-[12%] min-w-0",
   doctor: "w-[10.5%] min-w-0",
-  recoverDays: "w-[7%] min-w-0",
-  recoverPercent: "w-[7%] min-w-0",
-  visitStatus: "w-[10%] min-w-0",
+  visitStatus: "w-[12%] min-w-0",
 }
 
 const ICD10_MAP: Record<string, string> = {
@@ -108,7 +105,7 @@ export default function NursePatients() {
     const { t, i18n } = useTranslation()
     const isVi = Boolean(i18n.language?.toLowerCase().startsWith("vi"))
     const columnWidthClass = isVi ? columnWidthClassVi : columnWidthClassEn
-    const tableMinWidthClass = isVi ? "min-w-[1240px]" : "min-w-[1180px]"
+    const tableMinWidthClass = isVi ? "min-w-[1080px]" : "min-w-[1020px]"
     const columns: {
       key: ColumnKey
       label: string
@@ -123,8 +120,6 @@ export default function NursePatients() {
         { key: "latestVisit", label: t("doctor.patients.colLatestVisit"), sortable: true },
         { key: "diagnosis", label: t("doctor.patients.colDiagnosis"), sortable: true },
         { key: "doctor", label: t("doctor.patients.colDoctor"), sortable: true },
-        { key: "recoverDays", label: t("doctor.patients.colRemainingDays"), sortable: true },
-        { key: "recoverPercent", label: t("doctor.patients.colProgress"), sortable: true },
         { key: "visitStatus", label: t("doctor.patients.status"), sortable: true },
       ],
       [t],
@@ -132,6 +127,29 @@ export default function NursePatients() {
     const [patients, setPatients] = useState<Patient[]>([])
     const [checkInDialogOpen, setCheckInDialogOpen] = useState(false)
     const [checkInPatientOpId, setCheckInPatientOpId] = useState<string | null>(null)
+    const [checkInPatientPk, setCheckInPatientPk] = useState<number | null>(null)
+    const [checkInAppointmentId, setCheckInAppointmentId] = useState<number | null>(null)
+    const [checkInAppointmentTime, setCheckInAppointmentTime] = useState<string | null>(null)
+    const [checkInRoomName, setCheckInRoomName] = useState<string | null>(null)
+
+    const openCheckInDialog = (patient: Patient) => {
+      setCheckInPatientOpId(patient.id)
+      setCheckInPatientPk(patient.patientPk)
+      const appt = patient.todayAppointment
+      setCheckInAppointmentId(appt?.appointmentId ?? null)
+      setCheckInAppointmentTime(appt?.timeDisplay ?? null)
+      setCheckInRoomName(appt?.roomName ?? null)
+      setCheckInDialogOpen(true)
+    }
+
+    const closeCheckInDialog = () => {
+      setCheckInDialogOpen(false)
+      setCheckInPatientOpId(null)
+      setCheckInPatientPk(null)
+      setCheckInAppointmentId(null)
+      setCheckInAppointmentTime(null)
+      setCheckInRoomName(null)
+    }
 
     const visitLocale = i18n.language?.startsWith("vi") ? "vi-VN" : "en-US"
 
@@ -161,8 +179,11 @@ export default function NursePatients() {
               roomName: String(raw.roomName || ""),
             }
           }
+          const userId = Number(p.userId ?? p.id)
           return {
-            id: "OP" + String(p.id).padStart(9, "0"),
+            id: "OP" + String(userId).padStart(9, "0"),
+            userId,
+            patientPk: p.patientPk != null ? Number(p.patientPk) : null,
             name: `${p.lastName || ""} ${p.firstName || ""}`.trim() || String(p.username || "") || `Patient #${p.id}`,
             sex: (p.gender as Patient["sex"]) || null,
             age: String(p.age || ""),
@@ -171,8 +192,6 @@ export default function NursePatients() {
             diagnosisDescription: (p.latestDiagnosis as { interpretation?: string } | null)?.interpretation || "",
             doctor: String(p.doctor || ""),
             department: p.inDepartment != null ? String(p.inDepartment) : null,
-            recoverDays: null,
-            recoverPercent: null,
             todayAppointment,
           }
         })
@@ -191,8 +210,6 @@ export default function NursePatients() {
         name: "",
         sex: "All",
         age: "",
-        recoverDays: "",
-        recoverPercent: "",
         latestVisit: null as Date | null,
         diagnosis: "",
         doctor: "",
@@ -208,12 +225,6 @@ export default function NursePatients() {
             const ageValue = parseInt(String(p.age || "").replace(/[^\d]/g, ""), 10)
             const matchAge =
             !filters.age || (!Number.isNaN(ageValue) && ageValue === Number(filters.age))
-
-            const matchRecoverDays =
-            !filters.recoverDays || p.recoverDays === Number(filters.recoverDays)
-
-            const matchRecoverPercent =
-            !filters.recoverPercent || p.recoverPercent === Number(filters.recoverPercent)
 
             const matchDepartment =
               filters.department === "All" ||
@@ -238,8 +249,6 @@ export default function NursePatients() {
             matchSex &&
             matchLatestVisit &&
             matchAge &&
-            matchRecoverDays &&
-            matchRecoverPercent &&
             matchDepartment
             )
         })
@@ -340,10 +349,14 @@ export default function NursePatients() {
       <NurseCheckInDialog
         open={checkInDialogOpen}
         onOpenChange={(open) => {
-          setCheckInDialogOpen(open)
-          if (!open) setCheckInPatientOpId(null)
+          if (!open) closeCheckInDialog()
+          else setCheckInDialogOpen(true)
         }}
         patientIdParam={checkInPatientOpId ?? undefined}
+        hintPatientPk={checkInPatientPk}
+        hintAppointmentId={checkInAppointmentId}
+        hintTimeDisplay={checkInAppointmentTime}
+        hintRoomName={checkInRoomName}
         onSuccess={({ appointmentId, startedAt, regimenId }) => {
           const key = checkInPatientOpId
           if (key) {
@@ -421,8 +434,6 @@ export default function NursePatients() {
                             className={cn(
                               "h-auto min-h-10 select-none px-3 py-2.5 align-middle text-white transition",
                               isVi && col.key === "latestVisit" ? "whitespace-normal leading-snug" : "whitespace-nowrap",
-                              col.key === "recoverDays" && "pr-5",
-                              col.key === "recoverPercent" && "pl-5",
                               col.sortable && "cursor-pointer",
                               columnWidthClass[col.key],
                             )}
@@ -438,12 +449,7 @@ export default function NursePatients() {
                         visibleColumns.includes(col.key) ? (
                           <TableHead
                             key={col.key}
-                            className={cn(
-                              "px-3 py-2 align-middle",
-                              col.key === "recoverDays" && "pr-5",
-                              col.key === "recoverPercent" && "pl-5",
-                              columnWidthClass[col.key],
-                            )}
+                            className={cn("px-3 py-2 align-middle", columnWidthClass[col.key])}
                           >
                             {col.key === "no" && null}
 
@@ -555,28 +561,6 @@ export default function NursePatients() {
                               </div>
                             )}
 
-                            {col.key === "recoverDays" && (
-                              <Input
-                                type="number"
-                                value={filters.recoverDays}
-                                onChange={(e) =>
-                                  setFilters({ ...filters, recoverDays: e.target.value })
-                                }
-                                className="h-8 text-xs text-center border-slate-300 focus-visible:ring-1 focus-visible:ring-cyan-400"
-                              />
-                            )}
-
-                            {col.key === "recoverPercent" && (
-                              <Input
-                                type="number"
-                                value={filters.recoverPercent}
-                                onChange={(e) =>
-                                  setFilters({ ...filters, recoverPercent: e.target.value })
-                                }
-                                className="h-8 text-xs text-center border-slate-300 focus-visible:ring-1 focus-visible:ring-cyan-400"
-                              />
-                            )}
-
                             {col.key === "visitStatus" && <span className="sr-only">Status filter</span>}
                           </TableHead>
                         ) : null
@@ -654,20 +638,6 @@ export default function NursePatients() {
                           <TableCell className={cn(columnWidthClass.doctor, "whitespace-nowrap overflow-hidden text-ellipsis")}>{patient.doctor}</TableCell>
                         )}
 
-                        {visibleColumns.includes("recoverDays") && (
-                          <TableCell className={cn(columnWidthClass.recoverDays, "text-center pr-5")}>
-                            {patient.recoverDays != null
-                              ? t("doctor.patients.remainingDays", { count: patient.recoverDays })
-                              : t("common.notAvailable")}
-                          </TableCell>
-                        )}
-
-                        {visibleColumns.includes("recoverPercent") && (
-                          <TableCell className={cn(columnWidthClass.recoverPercent, "text-center pl-5")}>
-                            {patient.recoverPercent != null ? `${patient.recoverPercent}%` : t("common.notAvailable")}
-                          </TableCell>
-                        )}
-
                         {visibleColumns.includes("visitStatus") && (
                           <TableCell
                             className={cn(columnWidthClass.visitStatus, "text-center align-middle")}
@@ -678,25 +648,36 @@ export default function NursePatients() {
                                 {t("doctor.patients.active")}
                               </span>
                             ) : patient.todayAppointment ? (
-                              <div className="relative flex min-h-9 items-center justify-center px-0.5">
-                                <span className="text-sm tabular-nums text-foreground group-hover:hidden">
+                              <div className="flex flex-col items-center justify-center gap-1.5 px-0.5 min-h-9">
+                                <span className="text-sm tabular-nums text-foreground">
                                   {patient.todayAppointment.timeDisplay || "—"}
                                 </span>
                                 <Button
                                   type="button"
                                   size="sm"
-                                  className="hidden h-8 whitespace-nowrap px-3 text-xs group-hover:inline-flex !bg-emerald-600 hover:!bg-emerald-700 text-white border-0 shadow-sm"
+                                  className="h-8 whitespace-nowrap px-3 text-xs !bg-emerald-600 hover:!bg-emerald-700 text-white border-0 shadow-sm"
                                   onClick={(e) => {
                                     e.stopPropagation()
-                                    if (!patient.todayAppointment) return
-                                    setCheckInPatientOpId(patient.id)
-                                    setCheckInDialogOpen(true)
+                                    openCheckInDialog(patient)
                                   }}
                                 >
                                   Check in
                                 </Button>
                               </div>
-                            ) : null}
+                            ) : (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-8 whitespace-nowrap px-3 text-xs border-emerald-300 text-emerald-800 hover:bg-emerald-50"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  openCheckInDialog(patient)
+                                }}
+                              >
+                                Walk-in
+                              </Button>
+                            )}
                           </TableCell>
                         )}
                       </TableRow>

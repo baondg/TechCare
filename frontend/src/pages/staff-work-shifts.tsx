@@ -589,13 +589,7 @@ export default function StaffWorkShiftsPage() {
               ) : null}
             </div>
 
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs text-muted-foreground tabular-nums">
-                API range:{" "}
-                <span className="font-medium text-foreground">
-                  {apiRange.startDate} → {apiRange.endDate}
-                </span>
-              </p>
+            <div className="flex justify-end">
               <Button type="button" variant="outline" className="gap-2 shrink-0" disabled={loading} onClick={() => void load()}>
                 <RefreshCcw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                 Refresh

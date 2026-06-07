@@ -8,8 +8,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { UserPlus, Save, X, Edit3, ArrowUp, ArrowDown, ArrowUpDown, Search, Calendar as CalendarIcon } from "lucide-react"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { UserPlus, Save, X, ArrowUp, ArrowDown, ArrowUpDown, Search, Calendar as CalendarIcon } from "lucide-react"
 import { AdminLayout } from "@/components/admin-layout"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Switch } from "@/components/ui/switch"
@@ -104,7 +104,8 @@ function isDateBeforeToday(d: Date): boolean {
 
 function mapAccountToPatientRow(a: AdminAccountRow): Patient {
   const createdByDisplay =
-    a.createdBy === null || a.createdBy === undefined ? "System" : String(a.createdBy)
+    a.createdByName?.trim() ||
+    (a.createdBy === null || a.createdBy === undefined ? "System" : String(a.createdBy))
 
   return {
     accountId: a.id,
@@ -127,20 +128,26 @@ function mapAccountToPatientRow(a: AdminAccountRow): Patient {
   }
 }
 
-function withCreatedByName(rows: Patient[]): Patient[] {
-  const nameByUserId = new Map<number, string>()
-  rows.forEach((row) => {
-    nameByUserId.set(row.userId, row.name || row.username || "")
-  })
-  return rows.map((row) => {
-    const creatorId = Number(row.createdBy)
-    const creatorName =
-      Number.isFinite(creatorId) && creatorId > 0 ? nameByUserId.get(creatorId) : ""
-    return {
-      ...row,
-      createdBy: creatorName?.trim() || "System",
-    }
-  })
+function departmentIdsEqual(a: number[], b: number[]): boolean {
+  if (a.length !== b.length) return false
+  const sortedA = [...a].sort((x, y) => x - y)
+  const sortedB = [...b].sort((x, y) => x - y)
+  return sortedA.every((id, i) => id === sortedB[i])
+}
+
+function hasProfileChangesBetween(original: Patient, draft: Patient): boolean {
+  if (original.name.trim() !== draft.name.trim()) return true
+  if (original.sex !== draft.sex) return true
+  if (normalizeDobForStorage(original.dob) !== normalizeDobForStorage(draft.dob)) return true
+  if (original.phone.trim() !== draft.phone.trim()) return true
+  if (original.email.trim() !== draft.email.trim()) return true
+  if (original.enabled !== draft.enabled) return true
+  if (original.roleCode === "DOC") {
+    if (original.doctorSpecifications.trim() !== draft.doctorSpecifications.trim()) return true
+    if (original.doctorQualifications.trim() !== draft.doctorQualifications.trim()) return true
+    if (!departmentIdsEqual(original.doctorDepartmentIds, draft.doctorDepartmentIds)) return true
+  }
+  return false
 }
 
 export default function UserManagement() {
@@ -156,7 +163,6 @@ export default function UserManagement() {
   const [patients, setPatients] = useState<Patient[]>([])
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null)
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
-  const [selectedAccountIds, setSelectedAccountIds] = useState<number[]>([])
   const [formMode, setFormMode] = useState<FormMode>("view")
   const [draftPatient, setDraftPatient] = useState<Patient | null>(null)
   const [savingAccount, setSavingAccount] = useState(false)
@@ -202,11 +208,9 @@ export default function UserManagement() {
       sortDirection,
     })
     if (cancelRef.cancelled) return
-    const rows = withCreatedByName((res.accounts || []).map(mapAccountToPatientRow))
+    const rows = (res.accounts || []).map(mapAccountToPatientRow)
     setPatients(rows)
     setTotalEntries(Number(res.pagination?.total || 0))
-    const pageAccountIds = new Set(rows.map((x) => x.accountId))
-    setSelectedAccountIds((prev) => prev.filter((id) => pageAccountIds.has(id)))
     setSelectedPatient((prev) => {
       if (!prev) return rows[0] || null
       return rows.find((x) => x.accountId === prev.accountId) || rows[0] || null
@@ -260,13 +264,12 @@ export default function UserManagement() {
   const startItem = (currentPage - 1) * pageSize + 1
   const endItem = Math.min(currentPage * pageSize, totalEntries)
 
-  type ColumnKey = "select" | "no" | "role" | "userId" | "name" | "username" | "sex" | "dob" | "phone" | "email" | "createdBy" | "enabled"
+  type ColumnKey = "no" | "role" | "userId" | "name" | "username" | "sex" | "dob" | "phone" | "email" | "createdBy" | "enabled"
 
   const columns: {
     key: ColumnKey
     label: string
   }[] = [
-    { key: "select", label: "" },
     { key: "no", label: t("admin.accounts.no") },
     { key: "role", label: t("admin.accounts.role") },
     { key: "userId", label: t("admin.accounts.userId") },
@@ -285,7 +288,6 @@ export default function UserManagement() {
   type SortKey = keyof Patient | "no"
 
   const columnWidthClass: Record<ColumnKey, string> = {
-    select: "w-[64px] min-w-[64px]",
     no: "w-[30px] min-w-[30px]",
     role: "w-[142px] min-w-[142px]",
     userId: "w-[130px] min-w-[130px]",
@@ -311,33 +313,6 @@ export default function UserManagement() {
     })
   }
 
-  const paginatedAccountIds = useMemo(
-    () => patients.map((p) => p.accountId),
-    [patients]
-  )
-  const allCurrentPageSelected =
-    paginatedAccountIds.length > 0 && paginatedAccountIds.every((id) => selectedAccountIds.includes(id))
-  const someCurrentPageSelected =
-    paginatedAccountIds.some((id) => selectedAccountIds.includes(id)) && !allCurrentPageSelected
-
-  const toggleSelectOne = (accountId: number, checked: boolean) => {
-    setSelectedAccountIds((prev) => {
-      if (checked) return prev.includes(accountId) ? prev : [...prev, accountId]
-      return prev.filter((id) => id !== accountId)
-    })
-  }
-
-  const toggleSelectAllCurrentPage = (checked: boolean) => {
-    setSelectedAccountIds((prev) => {
-      if (checked) {
-        const set = new Set([...prev, ...paginatedAccountIds])
-        return [...set]
-      }
-      const pageSet = new Set(paginatedAccountIds)
-      return prev.filter((id) => !pageSet.has(id))
-    })
-  }
-
   const SortIcon = ({ column }: { column: SortKey }) => {
     if (sortConfig?.key !== column) {
       return (
@@ -359,8 +334,6 @@ export default function UserManagement() {
 
   const renderFilterCell = (key: ColumnKey) => {
     switch (key) {
-      case "select":
-        return null
       case "no":
         return null
 
@@ -534,17 +507,17 @@ export default function UserManagement() {
   const isEditing = formMode === "add" || formMode === "edit"
   const activePatient = isEditing ? draftPatient : selectedPatient
   const canAdd = formMode === "view"
-  const canEdit = formMode === "view" && selectedAccountIds.length === 1
-  /** Chỉ tạo mới được sửa hồ sơ; sửa user chỉ được bật/tắt hoạt động. */
-  const canEditProfileFields = formMode === "add"
+  const canEditProfileFields = formMode === "add" || formMode === "edit"
+  const canEditRoleFields = formMode === "add"
   const canToggleAccountStatus = formMode === "add" || formMode === "edit"
   const canSubmitOrCancel = isEditing && !savingAccount
-  const hasEditStatusChange =
+  const hasEditProfileChange =
     formMode === "edit" &&
     !!selectedPatient &&
     !!draftPatient &&
-    draftPatient.enabled !== selectedPatient.enabled
-  const canSubmitForm = canSubmitOrCancel && (formMode === "add" || hasEditStatusChange)
+    hasProfileChangesBetween(selectedPatient, draftPatient)
+  const canSubmitForm =
+    canSubmitOrCancel && (formMode === "add" || hasEditProfileChange)
   const calendarLocale = i18n.language?.startsWith("vi") ? vi : enUS
   const isViCalendar = i18n.language?.startsWith("vi")
   const dobCalendarClassName = cn(
@@ -586,13 +559,10 @@ export default function UserManagement() {
     setIsDetailModalOpen(true)
   }
 
-  const startEdit = () => {
-    if (!canEdit) return
-    const editTarget = patients.find((p) => p.accountId === selectedAccountIds[0]) || null
-    if (!editTarget) return
+  const openUserEdit = (patient: Patient) => {
     setFormMode("edit")
-    setSelectedPatient(editTarget)
-    setDraftPatient({ ...editTarget })
+    setSelectedPatient(patient)
+    setDraftPatient({ ...patient })
     setIsDetailModalOpen(true)
   }
 
@@ -612,40 +582,27 @@ export default function UserManagement() {
     setIsDetailModalOpen(false)
   }
 
-  const handleSubmit = async () => {
-    if (!draftPatient || !canSubmitOrCancel || !canSubmitForm) return
-
-    if (formMode === "edit") {
-      if (!selectedPatient || !hasEditStatusChange) return
-      setSavingAccount(true)
-      try {
-        await adminAccountService.updateAccountStatus(draftPatient.userId, draftPatient.enabled)
-        await loadAccounts({ cancelled: false })
-        setFormMode("view")
-        setIsDetailModalOpen(false)
-        showSuccess(t("admin.accounts.statusUpdated"))
-      } catch (e) {
-        console.error("Update account status failed:", e)
-        showError(e instanceof Error ? e.message : "Failed to update account status")
-      } finally {
-        setSavingAccount(false)
-      }
-      return
-    }
-
-    const ageYears = completedAgeYearsFromDob(draftPatient.dob)
+  const validateDraftDob = (dob: string): boolean => {
+    const ageYears = completedAgeYearsFromDob(dob)
     if (ageYears === null) {
       showError(t("admin.accounts.invalidDob"))
-      return
+      return false
     }
-    if (!isDobYmdBeforeToday(draftPatient.dob)) {
+    if (!isDobYmdBeforeToday(dob)) {
       showError(t("admin.accounts.dobMustBeBeforeToday"))
-      return
+      return false
     }
     if (ageYears <= 1) {
       showError(t("admin.accounts.ageMustBeGreaterThanOne"))
-      return
+      return false
     }
+    return true
+  }
+
+  const handleSubmit = async () => {
+    if (!draftPatient || !canSubmitOrCancel || !canSubmitForm) return
+    if (!validateDraftDob(draftPatient.dob)) return
+    if (formMode === "edit" && (!selectedPatient || !hasEditProfileChange)) return
 
     setSavingAccount(true)
     try {
@@ -663,6 +620,15 @@ export default function UserManagement() {
         payload.doctorSpecifications = draftPatient.doctorSpecifications
         payload.doctorQualifications = draftPatient.doctorQualifications
         payload.doctorDepartmentIds = [...draftPatient.doctorDepartmentIds]
+      }
+
+      if (formMode === "edit") {
+        await adminAccountService.updateAccount(draftPatient.userId, payload)
+        await loadAccounts({ cancelled: false })
+        setFormMode("view")
+        setIsDetailModalOpen(false)
+        showSuccess(t("admin.accounts.profileUpdated"))
+        return
       }
 
       await adminAccountService.createAccount(payload)
@@ -705,14 +671,6 @@ export default function UserManagement() {
             >
               <UserPlus className="w-4 h-4 mr-2" /> {t("admin.accounts.add")}
             </Button>
-            <Button
-              size="sm"
-              className="btn-gradient transition-transform duration-500 text-sm px-4 h-9"
-              disabled={!canEdit}
-              onClick={startEdit}
-            >
-              <Edit3 className="w-4 h-4 mr-2" /> {t("admin.accounts.edit")}
-            </Button>
           </div>
         </div>
 
@@ -721,8 +679,8 @@ export default function UserManagement() {
             <CardContent className="p-0 overflow-hidden">
               <div className="flex flex-col rounded-xl border border-slate-200 bg-white overflow-hidden">
                 <div className="w-full overflow-x-auto">
-                  <div className="min-w-[1546px]">
-                    <table className="table-fixed w-[1546px] caption-bottom text-sm">
+                  <div className="min-w-[1482px]">
+                    <table className="table-fixed w-[1482px] caption-bottom text-sm">
                       <TableHeader
                         className="z-20 text-white"
                         style={{
@@ -734,15 +692,14 @@ export default function UserManagement() {
                             visibleColumns.includes(col.key) ? (
                               <TableHead
                                 key={col.key}
-                                onClick={col.key === "select" ? undefined : () => handleSort(col.key as SortKey)}
+                                onClick={() => handleSort(col.key as SortKey)}
                                 className={cn(
-                                  "select-none whitespace-nowrap text-white transition",
-                                  col.key !== "select" && "cursor-pointer",
-                                  columnWidthClass[col.key]
+                                  "cursor-pointer select-none whitespace-nowrap text-white transition",
+                                  columnWidthClass[col.key],
                                 )}
                               >
                                 {col.label}
-                                {col.key !== "select" && <SortIcon column={col.key as SortKey} />}
+                                <SortIcon column={col.key as SortKey} />
                               </TableHead>
                             ) : null
                           )}
@@ -751,16 +708,7 @@ export default function UserManagement() {
                           {columns.map(col =>
                             visibleColumns.includes(col.key) ? (
                               <TableHead key={col.key} className={`px-2 py-2 ${columnWidthClass[col.key]}`}>
-                                {col.key === "select" ? (
-                                  <Checkbox
-                                    checked={allCurrentPageSelected || someCurrentPageSelected}
-                                    label=""
-                                    compact
-                                    onChange={(checked) => toggleSelectAllCurrentPage(checked)}
-                                  />
-                                ) : (
-                                  renderFilterCell(col.key)
-                                )}
+                                {renderFilterCell(col.key)}
                               </TableHead>
                             ) : null
                           )}
@@ -772,33 +720,17 @@ export default function UserManagement() {
                       className="overflow-y-auto overflow-x-hidden overscroll-y-contain h-[360px]"
                       onWheel={(e) => e.stopPropagation()}
                     >
-                      <table className="table-fixed w-[1546px] caption-bottom text-sm">
+                      <table className="table-fixed w-[1482px] caption-bottom text-sm">
                         <TableBody>
                           {patients.map((patient, idx) => (
-                            <TableRow key={patient.id}
-                              onClick={() => {
-                                setSelectedPatient(patient)
-                                setFormMode("view")
-                                setDraftPatient({ ...patient })
-                                setIsDetailModalOpen(true)
-                              }}
-                              className={`cursor-pointer hover:bg-gray-100 ${
-                                selectedPatient?.id === patient.id ? "bg-cyan-50" : ""
-                              }`}
-                            >
-                              {visibleColumns.includes("select") && (
-                                <TableCell className={columnWidthClass.select}>
-                                  <div onClick={(e) => e.stopPropagation()}>
-                                    <Checkbox
-                                      checked={selectedAccountIds.includes(patient.accountId)}
-                                      label=""
-                                      compact
-                                      onChange={(checked) => toggleSelectOne(patient.accountId, checked)}
-                                    />
-                                  </div>
-                                </TableCell>
+                            <TableRow
+                              key={patient.accountId}
+                              onClick={() => openUserEdit(patient)}
+                              className={cn(
+                                "cursor-pointer hover:bg-gray-100",
+                                selectedPatient?.accountId === patient.accountId && isDetailModalOpen && "bg-cyan-50",
                               )}
-
+                            >
                               {visibleColumns.includes("no") && (
                                 <TableCell className={columnWidthClass.no}>{startItem + idx}</TableCell>
                               )}
@@ -955,16 +887,32 @@ export default function UserManagement() {
                 }
               }}
             >
-              <DialogContent className="w-[96vw] max-w-4xl max-h-[90vh] p-0 flex flex-col overflow-hidden">
+              <DialogContent
+                className="w-[96vw] max-w-4xl max-h-[90vh] p-0 flex flex-col overflow-hidden"
+                onOpenAutoFocus={(e) => e.preventDefault()}
+              >
                 <DialogHeader className="border-b px-6 py-4 shrink-0">
                   <div className="flex flex-wrap justify-between items-center gap-3">
                     <DialogTitle className="flex items-center gap-3">
                       <UserPlus className="w-6 h-6 text-gray-700" />
-                      {activePatient.roleCode === "DOC" ? "Doctor Account Information" : `${activePatient.role || "User"} Account Information`}
+                      {formMode === "add"
+                        ? t("admin.accounts.add")
+                        : formMode === "edit"
+                          ? t("admin.accounts.edit")
+                          : activePatient.roleCode === "DOC"
+                            ? "Doctor Account Information"
+                            : `${activePatient.role || "User"} Account Information`}
                     </DialogTitle>
+                    <DialogDescription className="sr-only">
+                      {formMode === "add"
+                        ? "Create a new user account"
+                        : formMode === "edit"
+                          ? "Edit user account status and details"
+                          : "View user account details"}
+                    </DialogDescription>
                   </div>
                 </DialogHeader>
-                <div className="space-y-5 px-6 py-5 overflow-y-auto">
+                <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain space-y-5 px-6 py-5">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
@@ -980,7 +928,7 @@ export default function UserManagement() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
-                    {canEditProfileFields ? (
+                    {canEditRoleFields ? (
                       <Select
                         value={activePatient.roleCode || "PAT"}
                         onValueChange={(v) => {
@@ -1199,11 +1147,6 @@ export default function UserManagement() {
                 {activePatient.roleCode === "DOC" && (
                   <div className="space-y-4 rounded-lg border border-slate-200 bg-slate-50/80 p-4">
                     <div className="text-sm font-semibold text-slate-800">Doctor profile</div>
-                    <p className="text-xs text-muted-foreground">
-                      Mapped to <code className="text-[11px]">DOCTOR.specifications</code>,{" "}
-                      <code className="text-[11px]">DOCTOR.qualifications</code>, and{" "}
-                      <code className="text-[11px]">DOCTOR_DEPARTMENT</code>.
-                    </p>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Specifications</label>
                       <Textarea

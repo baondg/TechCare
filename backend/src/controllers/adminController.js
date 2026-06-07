@@ -1,6 +1,7 @@
 const { QueryTypes } = require('sequelize');
 const sequelize = require('../common/database');
 const bcrypt = require('bcrypt');
+const { getClinicTodayYmd, getClinicTimezone, getClinicTzOffset } = require('../common/clinicDate');
 
 const ACCOUNT_ROLE_LABEL = {
   ADM: 'Admin',
@@ -11,6 +12,29 @@ const ACCOUNT_ROLE_LABEL = {
 };
 
 const ROLE_CODES = new Set(['ADM', 'PAT', 'DOC', 'NUR', 'TEC']);
+
+function buildSignupsByDay(clinicToday, signupRows) {
+  const countByDay = new Map();
+  for (const row of signupRows || []) {
+    const raw = row.day;
+    const key =
+      raw instanceof Date
+        ? raw.toISOString().slice(0, 10)
+        : String(raw || '').slice(0, 10);
+    if (key) countByDay.set(key, Number(row.count || 0));
+  }
+
+  const tz = getClinicTimezone();
+  const offset = getClinicTzOffset();
+  const base = new Date(`${clinicToday}T12:00:00${offset}`);
+  const days = [];
+  for (let i = 6; i >= 0; i -= 1) {
+    const d = new Date(base.getTime() - i * 86400000);
+    const date = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(d);
+    days.push({ date, count: countByDay.get(date) ?? 0 });
+  }
+  return days;
+}
 
 function toSexCode(sex) {
   if (sex === 'Male') return 'M';
@@ -48,6 +72,7 @@ function mapAccountRow(r) {
     status: r.status === 1 || r.status === true || r.status === '1',
     createdTime: r.createdTime || null,
     createdBy: r.createdBy ?? null,
+    createdByName: r.createdByName != null ? String(r.createdByName).trim() : '',
     nationalId: r.nationalId != null ? String(r.nationalId) : '',
     name: r.name || '',
     sex: r.sex === 'M' ? 'Male' : r.sex === 'F' ? 'Female' : null,
@@ -69,6 +94,10 @@ const ACCOUNT_SELECT_SQL = `
          a.status,
          a.created_time AS createdTime,
          a.created_by AS createdBy,
+         COALESCE(
+           NULLIF(TRIM(CONCAT(COALESCE(cu.first_name, ''), ' ', COALESCE(cu.last_name, ''))), ''),
+           ca.username
+         ) AS createdByName,
          u.idcard AS nationalId,
          COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username) AS name,
          u.sex AS sex,
@@ -83,7 +112,9 @@ const ACCOUNT_SELECT_SQL = `
           WHERE dd.doctor_id = d.doctor_id) AS doctorDepartmentIdsCsv
        FROM ACCOUNT a
        LEFT JOIN USER u ON u.id = a.user_id
-       LEFT JOIN DOCTOR d ON d.user_id = a.user_id`;
+       LEFT JOIN DOCTOR d ON d.user_id = a.user_id
+       LEFT JOIN ACCOUNT ca ON ca.user_id = a.created_by
+       LEFT JOIN USER cu ON cu.id = a.created_by`;
 
 function parseDoctorPayload(body, roleCode) {
   if (roleCode !== 'DOC') {
@@ -191,6 +222,33 @@ function normalizeAccountPayload(body) {
 
   return {
     data: { username, roleCode, name, dob, phone, email, enabled, sexCode, doctor },
+  };
+}
+
+function normalizeProfileUpdatePayload(body, roleCodeFromDb) {
+  const roleCode = String(roleCodeFromDb || '').trim().toUpperCase();
+  const name = String(body?.name || '').trim();
+  const dob = String(body?.dob || '').trim();
+  const phone = String(body?.phone || '').trim();
+  const email = String(body?.email || '').trim();
+  const enabled = body?.enabled === undefined ? true : !!body.enabled;
+  const sexCode = toSexCode(body?.sex);
+
+  if (!name) return { error: 'Name is required' };
+  if (!dob) return { error: 'Date of birth is required' };
+  const dobDate = parseDobYmdLocal(dob);
+  if (!dobDate) return { error: 'Invalid date of birth' };
+  const now = new Date();
+  const todayYmd = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  if (dob >= todayYmd) return { error: 'Date of birth must be before today (not today or a future date)' };
+  const ageYears = completedFullYearsBetween(dobDate, new Date());
+  if (ageYears <= 1) return { error: 'Age must be greater than 1 year' };
+  if (!phone) return { error: 'Phone number is required' };
+
+  const doctor = parseDoctorPayload(body, roleCode);
+
+  return {
+    data: { roleCode, name, dob, phone, email, enabled, sexCode, doctor },
   };
 }
 
@@ -360,6 +418,27 @@ exports.getDashboardSummary = async (req, res) => {
       { type: QueryTypes.SELECT }
     );
 
+    const clinicToday = getClinicTodayYmd();
+
+    const [feedbackRow] = await sequelize.query(
+      `SELECT
+         COUNT(*) AS total,
+         SUM(CASE WHEN f.status = 0 OR f.status = '0' THEN 1 ELSE 0 END) AS pending,
+         ROUND(AVG(NULLIF(f.rating, 0)), 1) AS averageRating
+       FROM FEEDBACK f`,
+      { type: QueryTypes.SELECT }
+    );
+
+    const signupRows = await sequelize.query(
+      `SELECT DATE(a.created_time) AS day, COUNT(*) AS count
+       FROM ACCOUNT a
+       WHERE DATE(a.created_time) >= DATE_SUB(:clinicToday, INTERVAL 6 DAY)
+         AND DATE(a.created_time) <= :clinicToday
+       GROUP BY DATE(a.created_time)
+       ORDER BY day ASC`,
+      { replacements: { clinicToday }, type: QueryTypes.SELECT }
+    );
+
     const dbHealthRows = await sequelize.query('SELECT 1 AS ok', { type: QueryTypes.SELECT });
     const dbConnected = !!dbHealthRows?.[0];
     const totalUsers = Number(countRow?.totalUsers || 0);
@@ -379,6 +458,14 @@ exports.getDashboardSummary = async (req, res) => {
       status: r.status === 1 || r.status === true || r.status === '1' ? 'Enabled' : 'Disabled',
     }));
 
+    const feedbackStats = {
+      total: Number(feedbackRow?.total || 0),
+      pending: Number(feedbackRow?.pending || 0),
+      averageRating: Number(feedbackRow?.averageRating || 0),
+    };
+
+    const signupsByDay = buildSignupsByDay(clinicToday, signupRows);
+
     return res.json({
       success: true,
       summary: {
@@ -388,6 +475,8 @@ exports.getDashboardSummary = async (req, res) => {
         systemStatus: dbConnected ? 'Healthy' : 'Degraded',
         roleBreakdown,
         recentActivity,
+        feedbackStats,
+        signupsByDay,
       },
     });
   } catch (error) {
@@ -486,13 +575,90 @@ exports.createAccount = async (req, res) => {
   }
 };
 
-/** Admins may only activate/deactivate accounts; profile changes use other flows. */
-exports.updateAccount = async (req, res) =>
-  res.status(403).json({
-    success: false,
-    message:
-      'Editing user profiles is not allowed. Use PATCH /accounts/:id/status with { "status": true|false } to activate or deactivate only.',
-  });
+/** Update user profile fields; username and role are read-only. */
+exports.updateAccount = async (req, res) => {
+  const tx = await sequelize.transaction();
+  try {
+    if (req.user.role !== 'admin') {
+      await tx.rollback();
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
+
+    const userId = Number(req.params.id);
+    if (!Number.isFinite(userId)) {
+      await tx.rollback();
+      return res.status(400).json({ success: false, message: 'Invalid account id' });
+    }
+
+    const [existing] = await sequelize.query(
+      'SELECT user_id AS userId, type, status FROM ACCOUNT WHERE user_id = :userId LIMIT 1',
+      { replacements: { userId }, type: QueryTypes.SELECT, transaction: tx }
+    );
+    if (!existing) {
+      await tx.rollback();
+      return res.status(404).json({ success: false, message: 'Account not found' });
+    }
+
+    const roleCode = String(existing.type || '').trim().toUpperCase();
+    const normalized = normalizeProfileUpdatePayload(req.body, roleCode);
+    if (normalized.error) {
+      await tx.rollback();
+      return res.status(400).json({ success: false, message: normalized.error });
+    }
+
+    const { name, dob, phone, email, enabled, sexCode, doctor } = normalized.data;
+    const { firstName, lastName } = splitName(name);
+    const nextStatus = enabled ? 1 : 0;
+
+    if (roleCode === 'ADM' && nextStatus === 0) {
+      await tx.rollback();
+      return res.status(403).json({ success: false, message: 'Cannot disable admin accounts.' });
+    }
+
+    await sequelize.query(
+      `UPDATE USER
+       SET sex = :sex, dob = :dob, tel = :tel, email = :email,
+           first_name = :firstName, last_name = :lastName
+       WHERE id = :userId`,
+      {
+        replacements: {
+          userId,
+          sex: sexCode,
+          dob,
+          tel: phone,
+          email: email || null,
+          firstName: firstName || null,
+          lastName: lastName || null,
+        },
+        type: QueryTypes.UPDATE,
+        transaction: tx,
+      }
+    );
+
+    await sequelize.query(
+      'UPDATE ACCOUNT SET status = :status WHERE user_id = :userId',
+      { replacements: { userId, status: nextStatus }, type: QueryTypes.UPDATE, transaction: tx }
+    );
+
+    if (roleCode === 'DOC') {
+      await syncDoctorProfile(sequelize, tx, userId, doctor);
+    }
+
+    const [updated] = await sequelize.query(
+      `${ACCOUNT_SELECT_SQL}
+       WHERE a.user_id = :userId
+       LIMIT 1`,
+      { replacements: { userId }, type: QueryTypes.SELECT, transaction: tx }
+    );
+
+    await tx.commit();
+    return res.json({ success: true, account: mapAccountRow(updated) });
+  } catch (error) {
+    await tx.rollback();
+    console.error('Update account error:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+  }
+};
 
 exports.updateAccountStatus = async (req, res) => {
   try {

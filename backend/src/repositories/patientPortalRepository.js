@@ -1,5 +1,6 @@
 const { QueryTypes } = require('sequelize');
 const sequelize = require('../common/database');
+const { getClinicTodayYmd } = require('../common/clinicDate');
 const { selectPrescriptionRowsWithDurationFallback } = require('../common/prescriptionQueryCompat');
 
 /** Match doctor EMR: clinical diagnosis rows only (not Rx/lab/surgery/transfer treatments). */
@@ -59,9 +60,14 @@ async function listTodayScheduledAppointmentsForPatientIdCsv(idCsv) {
   return sequelize.query(
     `SELECT
        a.patient_id AS patientId,
+       COALESCE(
+         (SELECT p.patient_id FROM PATIENT p WHERE p.patient_id = a.patient_id LIMIT 1),
+         (SELECT p.patient_id FROM PATIENT p WHERE p.user_id = a.patient_id LIMIT 1)
+       ) AS mapPatientPk,
        a.id AS appointmentId,
        TIME_FORMAT(a.time, '%H:%i') AS timeHm,
        a.regimen_id AS regimenId,
+       CASE WHEN r.id IS NOT NULL AND r.\`end\` IS NULL THEN 1 ELSE 0 END AS checkedIn,
        a.room_id AS roomId,
        COALESCE(cr.name, '') AS roomName,
        COALESCE(
@@ -70,15 +76,19 @@ async function listTodayScheduledAppointmentsForPatientIdCsv(idCsv) {
          ''
        ) AS appointmentDoctorName
      FROM APPOINTMENT a
+     LEFT JOIN REGIMEN r ON r.id = a.regimen_id AND r.patient_id = a.patient_id
      LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id
      LEFT JOIN DOCTOR d ON d.doctor_id = a.doctor_id
      LEFT JOIN USER du ON du.id = d.user_id
      LEFT JOIN ACCOUNT da ON da.user_id = d.user_id
-     WHERE DATE(a.time) = CURDATE()
+     WHERE DATE(a.time) = :clinicToday
        AND a.status = 'scheduled'
-       AND a.patient_id IN (${idCsv})
+       AND (
+         a.patient_id IN (${idCsv})
+         OR a.patient_id IN (SELECT p.user_id FROM PATIENT p WHERE p.patient_id IN (${idCsv}))
+       )
      ORDER BY a.patient_id ASC, a.time ASC, a.id ASC`,
-    { type: QueryTypes.SELECT }
+    { replacements: { clinicToday: getClinicTodayYmd() }, type: QueryTypes.SELECT }
   );
 }
 

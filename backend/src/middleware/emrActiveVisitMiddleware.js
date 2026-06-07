@@ -1,16 +1,6 @@
 const { QueryTypes } = require('sequelize');
 const sequelize = require('../common/database');
-
-async function resolveCanonicalPatientIdFromEmrParam(patientIdParam) {
-  const n = Number(String(patientIdParam || '').replace(/^OP0*/i, ''));
-  if (!Number.isFinite(n) || n <= 0) return null;
-  const rows = await sequelize.query(
-    'SELECT patient_id FROM PATIENT WHERE patient_id = :n OR user_id = :n LIMIT 1',
-    { replacements: { n }, type: QueryTypes.SELECT }
-  );
-  if (rows[0]?.patient_id != null) return Number(rows[0].patient_id);
-  return n;
-}
+const { resolvePatientPkFromRoute } = require('../common/resolvePatientRouteId');
 
 async function patientHasOpenRegimen(patientId) {
   const [row] = await sequelize.query(
@@ -43,7 +33,7 @@ async function requireActiveEmrVisitForDoctorTech(req, res, next) {
     const match = path.match(/^\/patients\/([^/]+)\//);
     if (!match) return next();
 
-    const pid = await resolveCanonicalPatientIdFromEmrParam(match[1]);
+    const pid = await resolvePatientPkFromRoute(match[1]);
     if (!pid) return next();
 
     const ok = await patientHasOpenRegimen(pid);

@@ -1,6 +1,7 @@
 const appointmentRepository = require('../repositories/appointmentRepository');
 const appointmentAiRepository = require('../repositories/appointmentAiRepository');
 const { INTERNAL_API_SECRET_HEADER } = require('../middleware/requireInternalApiSecret');
+const { normalizeSymptomsForAi } = require('../lib/symptomNormalize');
 
 const INTERNAL_API_BASE =
   process.env.BACKEND_INTERNAL_URL || `http://127.0.0.1:${Number(process.env.PORT) || 3000}`;
@@ -430,9 +431,13 @@ async function analyzeSymptomsAndSave(req, userId, body) {
   const patientId = await appointmentRepository.findPatientIdByUserId(userId);
   if (!patientId) return { status: 404, json: { success: false, message: 'Patient profile not found' } };
 
-  const symptoms = Array.isArray(body?.symptoms) ? body.symptoms : [];
+  const rawSymptoms = Array.isArray(body?.symptoms) ? body.symptoms : [];
+  const symptoms = normalizeSymptomsForAi(rawSymptoms);
   if (!symptoms.length) {
-    return { status: 400, json: { success: false, message: 'symptoms is required' } };
+    return {
+      status: 400,
+      json: { success: false, message: 'No valid symptoms after normalization' },
+    };
   }
 
   const model = await getActiveAiModel();

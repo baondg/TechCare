@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useState, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
@@ -18,7 +18,9 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useAppointments } from "@/hooks/useAppointments"
+import type { Appointment } from "@/services/appointment-service"
 import { format, parseISO, parse, isValid } from "date-fns"
 import { applyDdMmYyyyRangeTyping } from "@/lib/date-range"
 
@@ -29,6 +31,7 @@ export default function AppointmentsPage() {
   const [endDate, setEndDate] = useState("")
   const [endDateValue, setEndDateValue] = useState<Date | undefined>()
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
+  const [statusFilter, setStatusFilter] = useState<"All" | Appointment["status"]>("All")
 
   const formatDateInput = (value: string) => {
     const digits = value.replace(/\D/g, "").slice(0, 8)
@@ -67,8 +70,11 @@ export default function AppointmentsPage() {
         filtered = filtered.filter(app => new Date(app.date) <= end)
       }
     }
+    if (statusFilter !== "All") {
+      filtered = filtered.filter((app) => app.status === statusFilter)
+    }
     return filtered
-  }, [appointments, startDate, endDate])
+  }, [appointments, startDate, endDate, statusFilter])
 
   const handleBookAppointment = () => {
     navigate("/patient/appointments/book-appointment")
@@ -117,7 +123,19 @@ export default function AppointmentsPage() {
         {/* Filters Section */}
         <Card className="card-feature border-slate-200/60">
           <CardContent className="p-6">
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-4">
+              <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}>
+                <SelectTrigger className="h-12 w-[200px] text-base" aria-label="Filter by status">
+                  <SelectValue placeholder="All statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="All">All statuses</SelectItem>
+                  <SelectItem value="Upcoming">Upcoming</SelectItem>
+                  <SelectItem value="Pending">Awaiting doctor</SelectItem>
+                  <SelectItem value="Done">Done</SelectItem>
+                  <SelectItem value="Cancelled">Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
               <div className="relative flex-1 max-w-xs">
                 <Popover>
                   <PopoverTrigger asChild>
@@ -314,7 +332,9 @@ export default function AppointmentsPage() {
             </p>
           </DialogHeader>
           <div className="grid gap-2 py-2">
-            <Label htmlFor="cancel-reason">Reason</Label>
+            <Label htmlFor="cancel-reason">
+              Reason<span className="text-red-500"> *</span>
+            </Label>
             <Textarea
               id="cancel-reason"
               value={cancelReason}

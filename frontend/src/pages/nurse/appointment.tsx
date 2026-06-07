@@ -356,10 +356,23 @@ export default function NurseAppointmentsPage() {
           setSaving(false)
           return
         }
+        if (!String(row.department || "").trim()) {
+          setMessage("Select a department on every row.")
+          setSaving(false)
+          return
+        }
         if (!row.doctorId) {
           setMessage("Select a doctor on every row.")
           setSaving(false)
           return
+        }
+        if (row.roomId) {
+          const allowedRooms = roomsForDraftRow(row.department)
+          if (!allowedRooms.some((r) => String(r.id) === row.roomId)) {
+            setMessage("Selected room does not match the department on one of the rows.")
+            setSaving(false)
+            return
+          }
         }
         const startMin = toMinutes(ns)
         const endMin = ne ? toMinutes(ne) : startMin + 30
@@ -374,6 +387,7 @@ export default function NurseAppointmentsPage() {
             roomId: row.roomId ? Number(row.roomId) : undefined,
             date: row.date,
             time: toHHMM(m),
+            department: String(row.department).trim(),
           })
           created += 1
         }
@@ -535,6 +549,28 @@ export default function NurseAppointmentsPage() {
   const doctorsForDraftRow = (department: string) => {
     if (!department) return doctorOptions
     return doctorOptions.filter((d) => doctorWorksInDepartment(d, department))
+  }
+
+  const roomsForDraftRow = (department: string) => {
+    if (!department) return roomOptions
+    const norm = department.trim().toLowerCase()
+    return roomOptions.filter(
+      (r) => String(r.departmentName || "").trim().toLowerCase() === norm
+    )
+  }
+
+  const pickDefaultRoomIdForDraft = (department: string, doctorId: string): string => {
+    const deptRooms = roomsForDraftRow(department)
+    if (!deptRooms.length) return ""
+    const doc = doctorOptions.find((d) => String(d.id) === doctorId)
+    const doctorRoomName = String(doc?.room || "").trim().toLowerCase()
+    if (doctorRoomName) {
+      const matched = deptRooms.find(
+        (r) => String(r.name || "").trim().toLowerCase() === doctorRoomName
+      )
+      if (matched) return String(matched.id)
+    }
+    return String(deptRooms[0].id)
   }
 
   const visibleSlots = useMemo(
@@ -816,7 +852,7 @@ export default function NurseAppointmentsPage() {
                         <Select
                           value={row.department || undefined}
                           onValueChange={(v) => {
-                            updateDraftRow(row.id, { department: v, doctorId: "" })
+                            updateDraftRow(row.id, { department: v, doctorId: "", roomId: "" })
                           }}
                         >
                           <SelectTrigger id={fieldId("department")} name={isFirstRow ? "draftDepartmentFirst" : `draftDepartment-${row.id}`} aria-label={isFirstRow ? "Draft department first row" : `Draft department ${row.id}`} className="h-9 text-sm">
@@ -835,7 +871,13 @@ export default function NurseAppointmentsPage() {
                         <span className="mb-0.5 block text-[10px] font-medium text-slate-500">Doctor</span>
                         <Select
                           value={row.doctorId || undefined}
-                          onValueChange={(id) => updateDraftRow(row.id, { doctorId: id })}
+                          onValueChange={(id) => {
+                            const patch: Partial<SlotDraftRow> = { doctorId: id }
+                            if (row.department) {
+                              patch.roomId = pickDefaultRoomIdForDraft(row.department, id)
+                            }
+                            updateDraftRow(row.id, patch)
+                          }}
                         >
                           <SelectTrigger id={fieldId("doctor")} name={isFirstRow ? "draftDoctorFirst" : `draftDoctor-${row.id}`} aria-label={isFirstRow ? "Draft doctor first row" : `Draft doctor ${row.id}`} className="h-9 text-sm">
                             <SelectValue placeholder="Doctor" />
@@ -875,7 +917,7 @@ export default function NurseAppointmentsPage() {
                             <SelectValue placeholder="Room" />
                           </SelectTrigger>
                           <SelectContent>
-                            {roomOptions.map((room) => (
+                            {roomsForDraftRow(row.department).map((room) => (
                               <SelectItem key={`${row.id}-r-${room.id}`} value={String(room.id)}>
                                 {room.name}
                               </SelectItem>

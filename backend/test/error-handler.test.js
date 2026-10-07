@@ -85,3 +85,30 @@ test('malformed JSON body is a 400, not a 500', async () => {
     await server.close();
   }
 });
+
+test('internalErrorMessage replaces the generic 500 text but never exposes the error', () => {
+  const { internalErrorMessage } = require(path.join(DIST, 'middleware', 'errorHandler'));
+  const res = {
+    headersSent: false,
+    locals: {},
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(body) {
+      this.payload = body;
+      return this;
+    },
+  };
+  internalErrorMessage('Login failed. Please try again.')({}, res, () => {});
+  errorHandler(new Error('ER_ACCESS_DENIED for user root'), { requestId: 'r1', method: 'POST', path: '/login' }, res, () => {});
+  assert.equal(res.statusCode, 500);
+  assert.equal(res.payload.message, 'Login failed. Please try again.');
+  assert.equal(res.payload.error, 'Login failed. Please try again.');
+  assert.ok(!JSON.stringify(res.payload).includes('ER_ACCESS_DENIED'));
+
+  internalErrorMessage('Login failed. Please try again.')({}, res, () => {});
+  errorHandler(new BadRequestError('Username and password are required'), { requestId: 'r2' }, res, () => {});
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.payload.message, 'Username and password are required');
+});

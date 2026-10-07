@@ -1012,16 +1012,7 @@
       "status": 400,
       "message": "National ID / passport is required"
     },
-    "db": [
-      {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
-        "event": "rollback",
-        "tx": "tx1"
-      }
-    ]
+    "db": []
   },
   "signup, missing name": {
     "request": "POST /api/auth/signup",
@@ -1029,16 +1020,7 @@
       "status": 400,
       "message": "Password and name fields are required"
     },
-    "db": [
-      {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
-        "event": "rollback",
-        "tx": "tx1"
-      }
-    ]
+    "db": []
   },
   "signup, missing phone": {
     "request": "POST /api/auth/signup",
@@ -1046,16 +1028,7 @@
       "status": 400,
       "message": "Phone number is required"
     },
-    "db": [
-      {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
-        "event": "rollback",
-        "tx": "tx1"
-      }
-    ]
+    "db": []
   },
   "signup, missing dob": {
     "request": "POST /api/auth/signup",
@@ -1063,16 +1036,7 @@
       "status": 400,
       "message": "Date of birth is required"
     },
-    "db": [
-      {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
-        "event": "rollback",
-        "tx": "tx1"
-      }
-    ]
+    "db": []
   },
   "signup, bad email": {
     "request": "POST /api/auth/signup",
@@ -1080,16 +1044,7 @@
       "status": 400,
       "message": "Invalid email format"
     },
-    "db": [
-      {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
-        "event": "rollback",
-        "tx": "tx1"
-      }
-    ]
+    "db": []
   },
   "signup, weak password": {
     "request": "POST /api/auth/signup",
@@ -1097,16 +1052,7 @@
       "status": 400,
       "message": "Password must contain at least one uppercase letter"
     },
-    "db": [
-      {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
-        "event": "rollback",
-        "tx": "tx1"
-      }
-    ]
+    "db": []
   },
   "signup, national id taken": {
     "request": "POST /api/auth/signup",
@@ -1179,9 +1125,9 @@
           "username": "079123456789",
           "password": "<bcrypt>",
           "type": "PAT",
-          "user_id": 501,
           "created_time": "<now>",
-          "status": 1
+          "status": 1,
+          "user_id": 501
         },
         "tx": "tx1"
       },
@@ -1275,16 +1221,7 @@
       "status": 400,
       "message": "Password must be at least 8 characters long"
     },
-    "db": [
-      {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
-        "event": "rollback",
-        "tx": "tx1"
-      }
-    ]
+    "db": []
   },
   "register patient": {
     "request": "POST /api/auth/register-patient",
@@ -1334,10 +1271,10 @@
           "username": "079123456789",
           "password": "<bcrypt>",
           "type": "PAT",
-          "user_id": 502,
           "created_time": "<now>",
           "status": 1,
-          "created_by": 7
+          "created_by": 7,
+          "user_id": 502
         },
         "tx": "tx1"
       },
@@ -1413,10 +1350,10 @@
           "username": "079123456789",
           "password": "<bcrypt>",
           "type": "PAT",
-          "user_id": 500,
           "created_time": "<now>",
           "status": 1,
-          "created_by": 7
+          "created_by": 7,
+          "user_id": 500
         },
         "tx": "tx1"
       },

@@ -112,3 +112,11 @@ test('internalErrorMessage replaces the generic 500 text but never exposes the e
   assert.equal(res.statusCode, 400);
   assert.equal(res.payload.message, 'Username and password are required');
 });
+
+test('a 5xx AppError with expose: true sends its own (fixed) message', () => {
+  const exposed = run(errorHandler, new AppError('Could not read signature', 500, { expose: true }));
+  assert.equal(exposed.statusCode, 500);
+  assert.equal(exposed.payload.message, 'Could not read signature');
+  const hidden = run(errorHandler, new AppError('SELECT * FROM secrets failed', 500));
+  assert.equal(hidden.payload.message, 'Internal Server Error');
+});

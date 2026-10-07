@@ -224,10 +224,6 @@ async function updateAccountStatus(userId, status, transaction) {
   });
 }
 
-async function listDepartments() {
-  return sequelize.query('SELECT id, name FROM DEPARTMENT ORDER BY name ASC', { type: QueryTypes.SELECT });
-}
-
 /** Keeps only the ids that exist in DEPARTMENT. `ids` must already be positive integers. */
 async function filterExistingDepartmentIds(ids, transaction) {
   if (!ids.length) return [];
@@ -292,7 +288,6 @@ module.exports = {
   insertAccount,
   updateUserProfile,
   updateAccountStatus,
-  listDepartments,
   filterExistingDepartmentIds,
   findDoctorIdByUserId,
   updateDoctorProfile,

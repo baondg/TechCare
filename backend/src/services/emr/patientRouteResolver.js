@@ -1,5 +1,4 @@
-const { QueryTypes } = require('sequelize');
-const sequelize = require('../../common/database');
+const patientRepository = require('../../repositories/patientRepository');
 const { resolvePatientPkFromRoute, parseOpRouteNumeric } = require('../../common/resolvePatientRouteId');
 
 function parseRoutePatientId(patientId) {
@@ -29,11 +28,7 @@ async function resolvePatientPkFromOpRoute(patientIdParam, transaction) {
 async function resolvePatientPkFromRouteParam(patientIdParam, transaction) {
   const routeVal = parseRoutePatientId(patientIdParam);
   if (!routeVal) return null;
-  const rows = await sequelize.query(
-    `SELECT patient_id FROM PATIENT WHERE user_id = :v OR patient_id = :v LIMIT 1`,
-    { replacements: { v: routeVal }, type: QueryTypes.SELECT, transaction }
-  );
-  return rows[0]?.patient_id ?? null;
+  return patientRepository.findPatientPkByUserIdOrPk(routeVal, transaction);
 }
 
 module.exports = {

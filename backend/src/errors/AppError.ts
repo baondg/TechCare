@@ -7,13 +7,20 @@ export class AppError extends Error {
   statusCode: number;
   code?: string;
   details?: unknown;
+  /** 5xx only: send `message` instead of the generic text. Use for fixed, non-sensitive text. */
+  expose: boolean;
 
-  constructor(message: string, statusCode = 500, options: { code?: string; details?: unknown } = {}) {
+  constructor(
+    message: string,
+    statusCode = 500,
+    options: { code?: string; details?: unknown; expose?: boolean } = {}
+  ) {
     super(message);
     this.name = 'AppError';
     this.statusCode = Number.isFinite(Number(statusCode)) ? Number(statusCode) : 500;
     this.code = options.code;
     this.details = options.details;
+    this.expose = options.expose === true;
     if (Error.captureStackTrace) {
       Error.captureStackTrace(this, this.constructor);
     }

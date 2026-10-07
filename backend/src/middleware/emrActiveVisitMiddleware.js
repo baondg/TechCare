@@ -1,18 +1,6 @@
-const { QueryTypes } = require('sequelize');
-const sequelize = require('../common/database');
+const patientRepository = require('../repositories/patientRepository');
 const { resolvePatientPkFromRoute } = require('../common/resolvePatientRouteId');
 const logger = require('../common/logger');
-
-async function patientHasOpenRegimen(patientId) {
-  const [row] = await sequelize.query(
-    `SELECT id FROM REGIMEN
-     WHERE patient_id = :pid AND \`end\` IS NULL
-     ORDER BY \`start\` DESC, id DESC
-     LIMIT 1`,
-    { replacements: { pid: patientId }, type: QueryTypes.SELECT }
-  );
-  return !!row;
-}
 
 /**
  * Block POST/PUT/PATCH/DELETE under /patients/:patientId/* for doctor & technician
@@ -37,7 +25,7 @@ async function requireActiveEmrVisitForDoctorTech(req, res, next) {
     const pid = await resolvePatientPkFromRoute(match[1]);
     if (!pid) return next();
 
-    const ok = await patientHasOpenRegimen(pid);
+    const ok = await patientRepository.hasOpenRegimen(pid);
     if (!ok) {
       return res.status(403).json({
         success: false,

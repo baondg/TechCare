@@ -64,7 +64,11 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
   logger.error({ err, requestId: req.requestId, method: req.method, path: req.path }, 'Unhandled error');
   const status = op?.status ?? 500;
   const internalMessage =
-    typeof res.locals?.internalErrorMessage === 'string' ? res.locals.internalErrorMessage : INTERNAL_MESSAGE;
+    err instanceof AppError && err.expose
+      ? err.message
+      : typeof res.locals?.internalErrorMessage === 'string'
+        ? res.locals.internalErrorMessage
+        : INTERNAL_MESSAGE;
   res.status(status).json(body(status === 500 ? internalMessage : op!.message, req.requestId, op?.code ? { code: op.code } : {}));
 };
 

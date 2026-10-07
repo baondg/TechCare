@@ -503,18 +503,15 @@ async function ensurePatient(patientInput) {
   if (!existingAccount?.userId) {
     const tx = await sequelize.transaction();
     try {
-      const result = await createPatientAccountRecords(
+      const { user } = await createPatientAccountRecords(
         {
           ...patientInput,
           password: DEFAULT_PASSWORD,
         },
         { transaction: tx, createdByUserId: null }
       );
-      if (!result.ok) {
-        throw new Error(result.error);
-      }
       await tx.commit();
-      userId = Number(result.user.id);
+      userId = Number(user.id);
     } catch (error) {
       await tx.rollback();
       throw error;

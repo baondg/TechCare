@@ -1,349 +1,58 @@
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcrypt');
-const sequelize = require('../common/database');
-const defineSystemConfig = require('../models/SystemConfig');
-const { Op } = require('sequelize');
-const Account = require('../models/Account');
-const Session = require('../models/Session');
-const User = require('../models/Users');
-const { normalizeRoleFromCode } = require('../security/roleMapping');
-const { getJwtSecret } = require('../security/jwtConfig');
-const { isAccountStatusActive } = require('../common/accountStatus');
-const logger = require('../common/logger');
-const { clearRefreshCookie, generateAccessToken, generateRefreshToken, getRefreshTokenFromRequest, setRefreshCookie } = require('./sessionTokens');
+const authService = require('../services/auth/authService');
+const { asyncHandler } = require('../common/asyncHandler');
+const { AppError, BadRequestError } = require('../errors/AppError');
+const { clearRefreshCookie, getRefreshTokenFromRequest, setRefreshCookie } = require('./sessionTokens');
 
-const SystemConfig = defineSystemConfig(sequelize);
+/** POST /api/auth/login — body validated by `loginBody`. */
+exports.login = asyncHandler(async (req, res) => {
+  const { username, password, rememberMe } = req.body;
+  const session = await authService.login(
+    { username, password, rememberMe: !!rememberMe },
+    { ipAddress: req.ip || req.connection?.remoteAddress, userAgent: req.headers['user-agent'] }
+  );
+  setRefreshCookie(res, session.refreshToken, session.expiresAt);
+  res.json({
+    success: true,
+    user: session.user,
+    token: session.token,
+    expiresAt: session.expiresAt.toISOString(),
+  });
+});
 
-// Verify password
-const verifyPassword = async (password, hash) => {
-  return await bcrypt.compare(password, hash);
-};
+/** POST /api/auth/logout — `{ allDevices? }`; this device by default. */
+exports.logout = asyncHandler(async (req, res) => {
+  const allDevices = req.body?.allDevices || false;
+  await authService.logout({
+    userId: req.user?.userId,
+    token: req.headers.authorization?.replace('Bearer ', '') || req.body?.token,
+    refreshToken: getRefreshTokenFromRequest(req),
+    allDevices,
+  });
+  clearRefreshCookie(res);
+  res.json({
+    success: true,
+    message: allDevices ? 'Logged out from all devices' : 'Logged out successfully',
+  });
+});
 
-const getNumericConfig = async (key, fallback) => {
+/** POST /api/auth/refresh — refresh token from the cookie (or body); rotates it. */
+exports.refreshToken = asyncHandler(async (req, res) => {
+  const refreshToken = getRefreshTokenFromRequest(req);
+  if (!refreshToken) throw new BadRequestError('Refresh token is required');
+
+  let session;
   try {
-    const config = await SystemConfig.findOne({ where: { key } });
-    if (!config) return fallback;
-    const parsed = Number.parseInt(String(config.value), 10);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+    session = await authService.refresh(refreshToken);
   } catch (error) {
-    // Fail open for auth flow when optional config storage is unavailable.
-    return fallback;
+    // The cookie is dead (bad token, session gone or expired, account gone): drop it.
+    if (error instanceof AppError) clearRefreshCookie(res);
+    throw error;
   }
-};
+  setRefreshCookie(res, session.refreshToken, session.expiresAt);
+  res.json({ success: true, token: session.token, user: session.user });
+});
 
-exports.login = async (req, res) => {
-  try {
-    const { username, password, rememberMe = false } = req.body;
-    
-    if (!username || !password) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Username and password are required' 
-      });
-    }
-
-    const user = await Account.findOne({
-      attributes: ['user_id', 'username', 'password', 'type', 'created_by', 'created_time', 'status'],
-      where: { username },
-      include: [{
-        model: User,
-        attributes: ['first_name', 'last_name']
-      }]
-    });
-
-    if (!user) {
-      return res.status(401).json({ 
-        success: false, 
-        error: 'Invalid email or password' 
-      });
-    }
-    
-    // Verify password
-    const isValidPassword = await verifyPassword(password, user.password);
-
-    if (!isValidPassword) {
-      return res.status(401).json({ 
-        success: false, 
-        error: 'Invalid username or password.'
-      });
-    }
-
-    // Only after correct password: reveal deactivated state (same rules as authMiddleware)
-    const rawStatus = user.getDataValue ? user.getDataValue('status') : user.status;
-    if (!isAccountStatusActive(rawStatus)) {
-      return res.status(403).json({
-        success: false,
-        error:
-          'This account has been deactivated. Please contact your administrator if you need access.',
-        code: 'ACCOUNT_DEACTIVATED',
-      });
-    }
-
-    // Kiểm tra số lượng user đồng thời
-    // const config = await SystemConfig.findOne({ 
-    //   where: { key: 'maxConcurrentUsers' } 
-    // });
-    // const maxUsers = config ? parseInt(config.value) : 500;
-    
-    // Làm sạch session hết hạn
-    await Session.destroy({
-      where: {
-        expiresAt: {
-          [Op.lt]: new Date()
-        }
-      }
-    });
-    
-    // Đếm số session đang hoạt động
-    // const activeSessions = await Session.count({
-    //   where: {
-    //     expiresAt: {
-    //       [require('sequelize').Op.gt]: new Date()
-    //     }
-    //   }
-    // });
-    
-    // if (activeSessions >= maxUsers) {
-    //   return res.status(503).json({
-    //     success: false,
-    //     error: `Maximum concurrent users (${maxUsers}) reached. Please try again later.`
-    //   });
-    // }
-
-    // Lấy session timeout từ config
-    // const timeoutConfig = await SystemConfig.findOne({ 
-    //   where: { key: 'sessionTimeoutMinutes' } 
-    // });
-    // const timeoutMinutes = timeoutConfig ? parseInt(timeoutConfig.value) : 1440; // Default 24 hours
-
-    const timeoutMinutes = await getNumericConfig('sessionTimeoutMinutes', 30);
-    
-    // Xóa session cũ của user này nếu không có rememberMe hoặc là single session mode
-    // In production, you might want to keep multiple sessions
-    await Session.destroy({
-      where: { userId: user.user_id }
-    });
-        
-    // Generate tokens
-    const accessToken = generateAccessToken(username, user.user_id, user.type);
-    const refreshToken = generateRefreshToken(username, user.user_id);
-    
-    // Set expiry based on rememberMe
-    const expiresAt = new Date();
-    if (rememberMe) {
-      expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
-    } else {
-      expiresAt.setMinutes(expiresAt.getMinutes() + timeoutMinutes);
-    }
-    
-    // Create session with refresh token
-    await Session.create({
-      userId: user.user_id,
-      token: accessToken,
-      refreshToken: refreshToken,
-      expiresAt: expiresAt,
-      lastActivity: new Date(),
-      ipAddress: req.ip || req.connection?.remoteAddress,
-      userAgent: req.headers['user-agent']
-    });
-    
-    // Update last login when schema supports it.
-    try {
-      await user.update({ lastLogin: new Date() });
-    } catch (_error) {
-      // Ignore when legacy schema does not have last_login column.
-    }
-    // Normalize role names for RBAC capability checks.
-    const role = normalizeRoleFromCode(user.type) || 'patient';
-    
-    const profile = user.User || user.user;
-    const firstName = (profile?.first_name || '').trim();
-    const lastName = (profile?.last_name || '').trim();
-    const displayName = [lastName, firstName].filter(Boolean).join(' ').trim();
-
-    setRefreshCookie(res, refreshToken, expiresAt);
-    res.json({
-      success: true,
-      user: {
-        id: user.user_id,
-        username: user.username,
-        firstName: user.User?.first_name,
-        lastName: user.User?.last_name,
-        fullName: user.User ? `${user.User.last_name || ''} ${user.User.first_name || ''}`.trim() : null,
-        type: user.type,
-        role: role
-      },
-      token: accessToken,
-      expiresAt: expiresAt.toISOString()
-    });
-  } catch (err) {
-    logger.error({ err }, 'Login error');
-    res.status(500).json({ success: false, error: 'Login failed. Please try again.' });
-  }
-};
-
-exports.logout = async (req, res) => {
-  try {
-    const token = req.headers.authorization?.replace('Bearer ', '') || 
-                  req.body.token;
-    const refreshToken = getRefreshTokenFromRequest(req);
-    const { allDevices = false } = req.body;
-    
-    if (allDevices && req.user) {
-      // Logout from all devices
-      await Session.destroy({ where: { userId: req.user.userId } });
-    } else if (token) {
-      // Logout from current device only
-      await Session.destroy({ where: { token } });
-    } else if (refreshToken) {
-      await Session.destroy({ where: { refreshToken } });
-    }
-    clearRefreshCookie(res);
-    
-    res.json({
-      success: true,
-      message: allDevices ? 'Logged out from all devices' : 'Logged out successfully'
-    });
-  } catch (err) {
-    logger.error({ err }, 'Logout error');
-    res.status(500).json({ success: false, error: 'Logout failed' });
-  }
-};
-
-// Refresh access token using refresh token
-exports.refreshToken = async (req, res) => {
-  try {
-    const refreshToken = getRefreshTokenFromRequest(req);
-    
-    if (!refreshToken) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Refresh token is required' 
-      });
-    }
-    
-    // Verify refresh token
-    let decoded;
-    try {
-      decoded = jwt.verify(refreshToken, getJwtSecret());
-      if (decoded.type !== 'refresh') {
-        throw new Error('Invalid token type');
-      }
-    } catch (err) {
-      clearRefreshCookie(res);
-      return res.status(403).json({ 
-        success: false, 
-        error: 'Invalid or expired refresh token' 
-      });
-    }
-    
-    // Check if session exists with this refresh token
-    const session = await Session.findOne({ 
-      where: { 
-        refreshToken,
-        userId: decoded.userId 
-      } 
-    });
-    
-    if (!session) {
-      clearRefreshCookie(res);
-      return res.status(403).json({ 
-        success: false, 
-        error: 'Session not found or expired' 
-      });
-    }
-    
-    // Check if session is expired
-    if (new Date() > new Date(session.expiresAt)) {
-      await Session.destroy({ where: { id: session.id } });
-      clearRefreshCookie(res);
-      return res.status(403).json({ 
-        success: false, 
-        error: 'Session expired. Please login again.' 
-      });
-    }
-    
-    // Get user details
-    const user = await Account.findOne({ where: { user_id: decoded.userId } });
-    if (!user) {
-      clearRefreshCookie(res);
-      return res.status(404).json({
-        success: false,
-        error: 'User not found'
-      });
-    }
-
-    // Generate new access token + rotate refresh token
-    const newAccessToken = generateAccessToken(user.username, user.user_id, user.type);
-    const newRefreshToken = generateRefreshToken(user.username, user.user_id);
-    
-    // Update session with rotated refresh token
-    await session.update({
-      token: newAccessToken,
-      refreshToken: newRefreshToken,
-      lastActivity: new Date()
-    });
-    setRefreshCookie(res, newRefreshToken, session.expiresAt);
-    
-    res.json({
-      success: true,
-      token: newAccessToken,
-      user: {
-        id: user.user_id,
-        username: user.username,
-        type: user.type
-      }
-    });
-  } catch (err) {
-    logger.error({ err }, 'Token refresh error');
-    res.status(500).json({ success: false, error: 'Token refresh failed' });
-  }
-};
-
-// Get current user session info
-exports.getSession = async (req, res) => {
-  try {
-    if (!req.user) {
-      return res.status(401).json({ 
-        success: false, 
-        error: 'Not authenticated' 
-      });
-    }
-    
-    const user = await Account.findOne({ where: { user_id: req.user.userId } }, { // Use user_id (Users table ID) instead of PK (Account table ID)
-      attributes: ['user_id', 'username', 'type']
-    });
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        error: 'User not found'
-      });
-    }
-
-    // Get active sessions
-    const sessions = await Session.findAll({
-      where: {
-        userId: user.user_id, // This is correct, Session.userId == Users.id
-        expiresAt: {
-          [require('sequelize').Op.gt]: new Date()
-        }
-      },
-      attributes: ['id', 'lastActivity', 'ipAddress', 'userAgent', 'expiresAt'],
-      order: [['lastActivity', 'DESC']]
-    });
-
-    res.json({
-      success: true,
-      user: {
-        id: user.user_id,
-        username: user.username,
-        type: user.type
-      },
-      sessions: sessions.map(s => s.toJSON())
-    });
-  } catch (err) {
-    logger.error({ err }, 'Get session error');
-    res.status(500).json({ success: false, error: 'Failed to get session info' });
-  }
-};
+/** GET /api/auth/session — current account and its active sessions. */
+exports.getSession = asyncHandler(async (req, res) => {
+  res.json({ success: true, ...(await authService.getSessionInfo(req.user.userId)) });
+});

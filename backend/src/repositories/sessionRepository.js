@@ -22,6 +22,45 @@ async function listActiveSessions() {
   );
 }
 
+/** A user's unexpired sessions, most recently active first. */
+async function listActiveSessionsOfUser(userId) {
+  return Session.findAll({
+    where: {
+      userId,
+      expiresAt: { [Op.gt]: new Date() },
+    },
+    attributes: ['id', 'lastActivity', 'ipAddress', 'userAgent', 'expiresAt'],
+    order: [['lastActivity', 'DESC']],
+  });
+}
+
+/** @returns {Promise<Session | null>} the session holding this refresh token for this user */
+async function findSessionByRefreshToken(refreshToken, userId) {
+  return Session.findOne({ where: { refreshToken, userId } });
+}
+
+/** @param values { userId, token, refreshToken, expiresAt, lastActivity, ipAddress?, userAgent? } */
+async function createSession(values) {
+  return Session.create(values);
+}
+
+/** @param session a Session instance from this repository */
+async function updateSession(session, changes) {
+  await session.update(changes);
+}
+
+async function deleteExpiredSessions() {
+  return Session.destroy({ where: { expiresAt: { [Op.lt]: new Date() } } });
+}
+
+async function deleteSessionByToken(token) {
+  return Session.destroy({ where: { token } });
+}
+
+async function deleteSessionByRefreshToken(refreshToken) {
+  return Session.destroy({ where: { refreshToken } });
+}
+
 /** @returns {Promise<{ id, userId } | null>} */
 async function findSessionOwner(id) {
   return Session.findOne({ where: { id }, attributes: ['id', 'userId'] });
@@ -44,6 +83,13 @@ async function deleteSessionsExceptUsers(userIds) {
 
 module.exports = {
   listActiveSessions,
+  listActiveSessionsOfUser,
+  findSessionByRefreshToken,
+  createSession,
+  updateSession,
+  deleteExpiredSessions,
+  deleteSessionByToken,
+  deleteSessionByRefreshToken,
   findSessionOwner,
   deleteSession,
   deleteSessionsOfUser,

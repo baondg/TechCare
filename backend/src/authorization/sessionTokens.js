@@ -1,19 +1,7 @@
-const jwt = require('jsonwebtoken');
-const { getJwtSecret } = require('../security/jwtConfig');
+/** Refresh-token cookie handling (HTTP only; tokens are issued by services/auth/tokens). */
 const { config } = require('../config/env');
 
-const ACCESS_TOKEN_EXPIRY = '15m'; // Short-lived access token
-
-const REFRESH_TOKEN_EXPIRY = '7d'; // Long-lived refresh token
-
 const REFRESH_COOKIE_NAME = 'refreshToken';
-
-// Generate tokens
-const generateAccessToken = (username, userId, role) =>
-  jwt.sign({ username, userId, role, type: 'access' }, getJwtSecret(), { expiresIn: ACCESS_TOKEN_EXPIRY });
-
-const generateRefreshToken = (username, userId) =>
-  jwt.sign({ username, userId, type: 'refresh' }, getJwtSecret(), { expiresIn: REFRESH_TOKEN_EXPIRY });
 
 const resolveSameSite = () => {
   const raw = config.auth.refreshCookieSameSite;
@@ -57,8 +45,6 @@ const getRefreshTokenFromRequest = (req) => {
 
 module.exports = {
   clearRefreshCookie,
-  generateAccessToken,
-  generateRefreshToken,
   getRefreshTokenFromRequest,
   setRefreshCookie,
 };

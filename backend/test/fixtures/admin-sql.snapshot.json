@@ -593,16 +593,7 @@
       "status": 400,
       "message": "Name is required"
     },
-    "db": [
-      {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
-        "event": "rollback",
-        "tx": "tx1"
-      }
-    ]
+    "db": []
   },
   "create account, bad role": {
     "request": "POST /api/admin/accounts",
@@ -610,16 +601,7 @@
       "status": 400,
       "message": "Invalid role code"
     },
-    "db": [
-      {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
-        "event": "rollback",
-        "tx": "tx1"
-      }
-    ]
+    "db": []
   },
   "create account, future dob": {
     "request": "POST /api/admin/accounts",
@@ -627,16 +609,7 @@
       "status": 400,
       "message": "Date of birth must be before today (not today or a future date)"
     },
-    "db": [
-      {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
-        "event": "rollback",
-        "tx": "tx1"
-      }
-    ]
+    "db": []
   },
   "create account, db down": {
     "request": "POST /api/admin/accounts",
@@ -683,16 +656,7 @@
       "status": 400,
       "message": "Invalid account id"
     },
-    "db": [
-      {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
-        "event": "rollback",
-        "tx": "tx1"
-      }
-    ]
+    "db": []
   },
   "update account, not found": {
     "request": "PATCH /api/admin/accounts/42",

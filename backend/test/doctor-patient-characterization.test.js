@@ -5,10 +5,14 @@
  */
 process.env.TZ = 'UTC';
 
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const path = require('node:path');
 
 const { characterize, dbError } = require('./helpers/characterize');
 const { accessToken, fakeInstance } = require('./helpers/fakeDb');
+const { patientRecordCacheKey } = require('../dist/services/emr/patientRecordCache');
 
 const SNAPSHOT = path.join(__dirname, 'fixtures', 'doctor-patient-sql.snapshot.json');
 
@@ -78,7 +82,7 @@ const SCENARIOS = [
   ['patient, cache hit', 'GET', '/api/doctor/patients/OP0070', null, [
     [/FROM USER u LEFT JOIN PATIENT p/, [{ id: 70, patientPk: 7 }]],
   ], (s) => {
-    s.cache.set('doctor:patient_record:v1:7', { success: true, patient: { id: 70, cached: true } });
+    s.cache.set(patientRecordCacheKey(7), { success: true, patient: { id: 70, cached: true } });
     return DOCTOR;
   }],
   ['patient, user without PATIENT row', 'GET', '/api/doctor/patients/90', null, [
@@ -263,4 +267,13 @@ function scrubValue(key, value) {
 
 characterize('doctor patients / health info / diagnoses: same DB calls, same answers', SNAPSHOT, SCENARIOS, {
   scrubValue,
+});
+
+test('diagnosis writes invalidate the same cache key the patient record is cached under', () => {
+  const snapshot = JSON.parse(fs.readFileSync(SNAPSHOT, 'utf8'));
+  const keyOf = (scenario, event) => snapshot[scenario].db.find((c) => c.event === event)?.key;
+  const cachedUnder = keyOf('patient, full record (cache miss)', 'cache.set');
+  assert.ok(cachedUnder);
+  assert.equal(keyOf('create diagnosis, new disease + regimen, department by name', 'cache.del'), cachedUnder);
+  assert.equal(keyOf('update diagnosis, same disease', 'cache.del'), cachedUnder);
 });

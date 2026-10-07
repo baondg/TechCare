@@ -9,7 +9,7 @@ import cors from 'cors';
 import path from 'path';
 import cookieParser from 'cookie-parser';
 import aiRoutes from './routes/ai';
-import { errorHandler } from './middleware/errorHandler';
+import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 const { requestIdMiddleware } = require('./middleware/requestIdMiddleware');
 const authRoutes = require('./authorization/routes');
 const systemConfigRoutes = require('./routes/systemConfig');
@@ -103,6 +103,7 @@ app.get('/', (req: Request, res: Response) => {
   });
 });
 
+app.use(notFoundHandler);
 app.use(errorHandler);
 
 export default app;

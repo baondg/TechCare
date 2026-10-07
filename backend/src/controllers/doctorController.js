@@ -29,6 +29,7 @@ const Patient = require('../models/Patient');
 const cacheService = require('../services/cacheService');
 const nurseCheckInRepository = require('../repositories/nurseCheckInRepository');
 const { encryptField, decryptField } = require('../common/fieldEncryption');
+const { BadRequestError } = require('../errors/AppError');
 
 // Hotpath cache: tuned for NFR load runs; override via env if needed.
 const PATIENT_RECORD_CACHE_TTL_SECONDS = Number(process.env.PATIENT_RECORD_CACHE_TTL_SECONDS || 30);
@@ -266,22 +267,16 @@ function coerceMedicalRecordCreatePayload(body) {
     String(b.condition ?? b.currentSymptoms ?? b.symptoms ?? '').trim() || 'No symptoms recorded';
   const time = b.time ? new Date(b.time) : new Date();
   if (Number.isNaN(time.getTime())) {
-    const err = new Error('Invalid time');
-    err.statusCode = 400;
-    throw err;
+    throw new BadRequestError('Invalid time');
   }
 
   const height = Number(b.height);
   const weight = Number(b.weight);
   if (!Number.isFinite(height) || height < 0.1) {
-    const err = new Error('Height is required and must be a positive number');
-    err.statusCode = 400;
-    throw err;
+    throw new BadRequestError('Height is required and must be a positive number');
   }
   if (!Number.isFinite(weight) || weight < 0.1) {
-    const err = new Error('Weight is required and must be a positive number');
-    err.statusCode = 400;
-    throw err;
+    throw new BadRequestError('Weight is required and must be a positive number');
   }
 
   const sys = b.bloodPressureSys ?? b.blood_pressure_sys;

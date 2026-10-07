@@ -2,10 +2,11 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 
+const { startTestServer } = require('./helpers/app');
+
 const DIST = path.join(__dirname, '..', 'dist');
 const { errorHandler, notFoundHandler } = require(path.join(DIST, 'middleware', 'errorHandler'));
 const { AppError, BadRequestError, NotFoundError } = require(path.join(DIST, 'errors', 'AppError'));
-const { startTestServer } = require('./helpers/app');
 
 function run(handler, err, req = {}) {
   const res = {
@@ -47,8 +48,7 @@ test('legacy errors with statusCode 4xx keep their status and message', () => {
   assert.equal(res.payload.message, 'Invalid id');
 });
 
-test('unexpected errors return a generic 500 without leaking the message', (t) => {
-  t.mock.method(console, 'error', () => {});
+test('unexpected errors return a generic 500 without leaking the message', () => {
   const res = run(errorHandler, new Error("ER_NO_SUCH_TABLE: Table 'techcare.PATIENT' doesn't exist"));
   assert.equal(res.statusCode, 500);
   assert.equal(res.payload.message, 'Internal Server Error');
@@ -56,8 +56,7 @@ test('unexpected errors return a generic 500 without leaking the message', (t) =
   assert.equal(res.payload.requestId, 'req-test-1');
 });
 
-test('AppError with a 5xx status is logged and does not expose a generic 500 message', (t) => {
-  t.mock.method(console, 'error', () => {});
+test('AppError with a 5xx status is logged but its message is not exposed', () => {
   const res = run(errorHandler, new AppError('db exploded: password=hunter2', 500));
   assert.equal(res.statusCode, 500);
   assert.equal(res.payload.message, 'Internal Server Error');

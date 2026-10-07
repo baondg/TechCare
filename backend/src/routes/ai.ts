@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import logger from '../common/logger';
 const router = Router();
 router.use((req: Request, _res: Response, next) => {
   logAiHttp(req);
@@ -15,16 +16,9 @@ const { requireInternalApiSecret } = require('../middleware/requireInternalApiSe
 function logAiHttp(req: Request) {
   const u = (req as { user?: { userId?: unknown; id?: unknown } }).user;
   const uid = u?.userId ?? u?.id ?? null;
-  console.log(
-    JSON.stringify({
-      ts: new Date().toISOString(),
-      level: 'info',
-      msg: 'ai.http',
-      requestId: req.requestId ?? null,
-      method: req.method,
-      path: req.path,
-      userId: uid,
-    })
+  logger.info(
+    { requestId: req.requestId ?? null, method: req.method, path: req.path, userId: uid },
+    'ai.http'
   );
 }
 
@@ -218,7 +212,7 @@ async function callGroqAPI(messages: ChatMessage[], systemPrompt?: string, overr
     stream: false,
   };
 
-  console.log(`[AI] Calling Groq API with model "${config.model}"`);
+  logger.info(`[AI] Calling Groq API with model "${config.model}"`);
 
   const response = await fetch(url, {
     method: 'POST',
@@ -262,7 +256,7 @@ async function callLocalLLM(messages: ChatMessage[], systemPrompt?: string, over
     stream: false,
   };
 
-  console.log(`[AI] Calling local LLM at ${url} with model "${model}"`);
+  logger.info(`[AI] Calling local LLM at ${url} with model "${model}"`);
 
   const response = await fetch(url, {
     method: 'POST',
@@ -303,7 +297,7 @@ const loadAiModelRegistry = async () => {
     // Some deployments still use a legacy SYSTEM_CONFIGURATION schema without "key"/"value".
     // Fallback to env-based model resolution instead of failing AI endpoints.
     if (error?.original?.code === 'ER_BAD_FIELD_ERROR') {
-      console.warn('[AI] SYSTEM_CONFIGURATION key/value columns unavailable. Using env/default AI model config.');
+      logger.warn('[AI] SYSTEM_CONFIGURATION key/value columns unavailable. Using env/default AI model config.');
       return { catalog: [], models: [], defaults: {} };
     }
     throw error;
@@ -473,7 +467,7 @@ router.post('/chat', requireInternalApiSecret, aiChatRateLimit, async (req: Requ
       model: resolved.model,
     });
   } catch (error: any) {
-    console.error('[AI] Error:', error?.message);
+    logger.error({ err: error }, '[AI] Error');
 
     const userMessage =
       (req.body?.messages as ChatMessage[] | undefined)
@@ -531,7 +525,7 @@ router.post('/symptom-analysis', requireInternalApiSecret, aiSymptomRateLimit, a
         parsed = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
       }
     } catch (parseErr) {
-      console.error('[AI] symptom-analysis JSON parse failed:', parseErr);
+      logger.error({ err: parseErr }, '[AI] symptom-analysis JSON parse failed');
       return res.status(502).json({
         error: 'AI returned invalid JSON for symptom analysis',
         raw: reply.slice(0, 500),
@@ -562,7 +556,7 @@ router.post('/symptom-analysis', requireInternalApiSecret, aiSymptomRateLimit, a
       model: resolved.model,
     });
   } catch (error: any) {
-    console.error('[AI] symptom-analysis error:', error?.message);
+    logger.error({ err: error }, '[AI] symptom-analysis error');
     return res.status(503).json({
       error: error?.message || 'Symptom analysis failed',
       hint: 'Check GROQ_API_KEY is valid in backend/.env, then try again.',
@@ -609,7 +603,7 @@ router.post('/recovery-prediction', requireInternalApiSecret, aiRecoveryRateLimi
         parsed = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
       }
     } catch (parseErr) {
-      console.error('[AI] recovery-prediction JSON parse failed:', parseErr);
+      logger.error({ err: parseErr }, '[AI] recovery-prediction JSON parse failed');
       return res.status(502).json({
         error: 'AI returned invalid JSON for recovery prediction',
         raw: reply.slice(0, 500),
@@ -661,7 +655,7 @@ router.post('/recovery-prediction', requireInternalApiSecret, aiRecoveryRateLimi
       model: resolved.model,
     });
   } catch (error: any) {
-    console.error('[AI] recovery-prediction error:', error?.message);
+    logger.error({ err: error }, '[AI] recovery-prediction error');
     return res.status(503).json({
       error: error?.message || 'Recovery prediction failed',
       hint:
@@ -720,7 +714,7 @@ Based on the above, suggest appropriate medications.`;
         suggestions = JSON.parse(jsonMatch[0]);
       }
     } catch (parseErr) {
-      console.error('[AI] Failed to parse medicine suggestions JSON:', parseErr);
+      logger.error({ err: parseErr }, '[AI] Failed to parse medicine suggestions JSON');
     }
 
     return res.json({
@@ -731,7 +725,7 @@ Based on the above, suggest appropriate medications.`;
       model: resolved.model,
     });
   } catch (error: any) {
-    console.error('[AI] suggest-medicine error:', error?.message);
+    logger.error({ err: error }, '[AI] suggest-medicine error');
     return res.status(500).json({
       success: false,
       error: error?.message || 'Failed to get medicine suggestions',
@@ -807,7 +801,7 @@ Respond with a JSON object:
       model: resolved.model,
     });
   } catch (error: any) {
-    console.error('[AI] recommend-doctor error:', error?.message);
+    logger.error({ err: error }, '[AI] recommend-doctor error');
     return res.status(500).json({
       success: false,
       error: error?.message || 'Failed to get doctor recommendations',

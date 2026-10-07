@@ -30,6 +30,7 @@ const cacheService = require('../services/cacheService');
 const nurseCheckInRepository = require('../repositories/nurseCheckInRepository');
 const { encryptField, decryptField } = require('../common/fieldEncryption');
 const { BadRequestError } = require('../errors/AppError');
+const logger = require('../common/logger');
 
 // Hotpath cache: tuned for NFR load runs; override via env if needed.
 const PATIENT_RECORD_CACHE_TTL_SECONDS = Number(process.env.PATIENT_RECORD_CACHE_TTL_SECONDS || 30);
@@ -66,7 +67,7 @@ async function invalidatePatientRecordCache(patientPk) {
   try {
     await cacheService.del(patientRecordCacheKey(n));
   } catch (e) {
-    console.warn('[cache] failed to invalidate patient record cache:', e?.message || e);
+    logger.warn({ err: e }, '[cache] failed to invalidate patient record cache');
   }
 }
 
@@ -1149,7 +1150,7 @@ exports.getPatients = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Get patients error:', error);
+    logger.error({ err: error }, 'Get patients error');
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -1208,7 +1209,7 @@ exports.getPatient = async (req, res) => {
       const cached = await cacheService.getJson(cacheKey);
       if (cached) {
         if (isHotpathProfilingEnabled()) {
-          console.log('[perf][getPatient] cache_hit_ms=', Date.now() - routeStartedAt, 'patientPk=', patientPk);
+          logger.info({ ms: Date.now() - routeStartedAt, patientPk, cache: 'hit' }, 'perf.getPatient');
         }
         return res.json(cached);
       }
@@ -1253,11 +1254,11 @@ exports.getPatient = async (req, res) => {
       await cacheService.setJson(cacheKey, responsePayload, PATIENT_RECORD_CACHE_TTL_SECONDS);
     }
     if (isHotpathProfilingEnabled()) {
-      console.log('[perf][getPatient] cache_miss_ms=', Date.now() - routeStartedAt, 'patientPk=', patientPk);
+      logger.info({ ms: Date.now() - routeStartedAt, patientPk, cache: 'miss' }, 'perf.getPatient');
     }
     res.json(responsePayload);
   } catch (error) {
-    console.error('Get patient error:', error);
+    logger.error({ err: error }, 'Get patient error');
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -1427,7 +1428,7 @@ exports.getActiveRegimenForPatient = async (req, res) => {
       checkInRoom,
     });
   } catch (error) {
-    console.error('Get active regimen error:', error);
+    logger.error({ err: error }, 'Get active regimen error');
     return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -1472,7 +1473,7 @@ exports.closeOpenRegimenForPatient = async (req, res) => {
     await nurseCheckInRepository.clearAppointmentRegimenLinksForRegimenIds(pid, closedRegimenIds);
     return res.json({ success: true, regimenId, closedRegimenIds, closedCount: closedRegimenIds.length });
   } catch (error) {
-    console.error('Close open regimen error:', error);
+    logger.error({ err: error }, 'Close open regimen error');
     return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -1597,7 +1598,7 @@ exports.createHealthTrackingSlipForPatient = async (req, res) => {
     });
   } catch (error) {
     await transaction.rollback();
-    console.error('createHealthTrackingSlipForPatient error:', error);
+    logger.error({ err: error }, 'createHealthTrackingSlipForPatient error');
     return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -1706,7 +1707,7 @@ exports.createFollowUpReexamSlipForPatient = async (req, res) => {
     });
   } catch (error) {
     await transaction.rollback();
-    console.error('createFollowUpReexamSlipForPatient error:', error);
+    logger.error({ err: error }, 'createFollowUpReexamSlipForPatient error');
     return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -2047,7 +2048,7 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('getActiveRegimenDocumentsForPatient error:', error);
+    logger.error({ err: error }, 'getActiveRegimenDocumentsForPatient error');
     return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -2356,7 +2357,7 @@ exports.getPatientMedicalRegimensForDoctor = async (req, res) => {
 
     return res.json({ success: true, regimens });
   } catch (error) {
-    console.error('getPatientMedicalRegimensForDoctor error:', error);
+    logger.error({ err: error }, 'getPatientMedicalRegimensForDoctor error');
     return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -2393,7 +2394,8 @@ exports.getHealthInfo = async (req, res) => {
           ? JSON.parse(val)
           : val || {}
       } catch (e) {
-        console.error("Parse error:", e, val)
+        // Don't log `val`: it is patient allergy/history data.
+        logger.warn({ err: e }, 'Failed to parse patient JSON column');
         return {}
       }
     }
@@ -2408,7 +2410,7 @@ exports.getHealthInfo = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Get health info error:', error);
+    logger.error({ err: error }, 'Get health info error');
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -2445,7 +2447,7 @@ exports.getHealthInfoHistory = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Get health info history error:', error);
+    logger.error({ err: error }, 'Get health info history error');
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -2481,7 +2483,7 @@ exports.createHealthInfo = async (req, res) => {
 
     res.status(201).json({ success: true, healthInfo });
   } catch (error) {
-    console.error('Create health info error:', error);
+    logger.error({ err: error }, 'Create health info error');
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -2517,7 +2519,7 @@ exports.updateHealthInfo = async (req, res) => {
 
     res.json({ success: true, healthInfo });
   } catch (error) {
-    console.error('Update health info error:', error);
+    logger.error({ err: error }, 'Update health info error');
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -2546,7 +2548,7 @@ exports.deleteHealthInfo = async (req, res) => {
 
     res.json({ success: true, message: 'Health info record deleted' });
   } catch (error) {
-    console.error('Delete health info error:', error);
+    logger.error({ err: error }, 'Delete health info error');
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -2570,7 +2572,7 @@ exports.confirmHealthInfo = async (req, res) => {
     await healthInfo.update({ status: 'confirmed', time: new Date() });
     return res.json({ success: true, id: healthInfo.id, status: 'confirmed' });
   } catch (error) {
-    console.error('Confirm health info error:', error);
+    logger.error({ err: error }, 'Confirm health info error');
     return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -2597,7 +2599,7 @@ exports.getDiseaseCodes = async (req, res) => {
     );
     res.json({ success: true, diseases: rows });
   } catch (error) {
-    console.error('Get disease codes error:', error);
+    logger.error({ err: error }, 'Get disease codes error');
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -2622,7 +2624,7 @@ exports.getMedicines = async (req, res) => {
     );
     res.json({ success: true, medicines: rows });
   } catch (error) {
-    console.error('Get medicines error:', error);
+    logger.error({ err: error }, 'Get medicines error');
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -2650,7 +2652,7 @@ exports.getTechnicians = async (req, res) => {
 
     res.json({ success: true, technicians: rows });
   } catch (error) {
-    console.error('Get technicians error:', error);
+    logger.error({ err: error }, 'Get technicians error');
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -2673,7 +2675,7 @@ exports.getDepartments = async (req, res) => {
     }));
     res.json({ success: true, departments });
   } catch (error) {
-    console.error('Get departments error:', error);
+    logger.error({ err: error }, 'Get departments error');
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -2716,7 +2718,7 @@ exports.getDiagnoses = async (req, res) => {
 
     res.json({ success: true, diagnoses });
   } catch (error) {
-    console.error('Get diagnoses error:', error);
+    logger.error({ err: error }, 'Get diagnoses error');
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -2782,7 +2784,7 @@ exports.createDiagnosis = async (req, res) => {
     res.status(201).json({ success: true, diagnosis });
   } catch (error) {
     await transaction.rollback();
-    console.error('Create diagnosis error:', error);
+    logger.error({ err: error }, 'Create diagnosis error');
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -2899,7 +2901,7 @@ exports.updateDiagnosis = async (req, res) => {
     res.json({ success: true, diagnosis });
   } catch (error) {
     await transaction.rollback();
-    console.error('Update diagnosis error:', error);
+    logger.error({ err: error }, 'Update diagnosis error');
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -3033,7 +3035,7 @@ exports.getPrescriptions = async (req, res) => {
 
     res.json({ success: true, prescriptions });
   } catch (error) {
-    console.error('Get prescriptions error:', error?.stack || error);
+    logger.error({ err: error }, 'Get prescriptions error');
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -3227,7 +3229,7 @@ exports.createPrescription = async (req, res) => {
     res.status(201).json({ success: true, prescription });
   } catch (error) {
     await transaction.rollback();
-    console.error('Create prescription error:', error);
+    logger.error({ err: error }, 'Create prescription error');
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -3400,7 +3402,7 @@ exports.updatePrescription = async (req, res) => {
     res.json({ success: true, prescription });
   } catch (error) {
     await transaction.rollback();
-    console.error('Update prescription error:', error);
+    logger.error({ err: error }, 'Update prescription error');
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -3444,7 +3446,7 @@ exports.getLabTests = async (req, res) => {
     );
     res.json({ success: true, labTests: rows });
   } catch (error) {
-    console.error('Get lab tests error:', error);
+    logger.error({ err: error }, 'Get lab tests error');
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -3552,7 +3554,7 @@ exports.createLabTest = async (req, res) => {
     res.status(201).json({ success: true, labTest });
   } catch (error) {
     await transaction.rollback();
-    console.error('Create lab test error:', error);
+    logger.error({ err: error }, 'Create lab test error');
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -3648,7 +3650,7 @@ exports.updateLabTest = async (req, res) => {
     }
     res.json({ success: true, labTest: { id: Number(id), testType, testDate, technicianName, resultSummary, fileUrl, note } });
   } catch (error) {
-    console.error('Update lab test error:', error);
+    logger.error({ err: error }, 'Update lab test error');
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -3694,7 +3696,7 @@ exports.getLabTestDetails = async (req, res) => {
 
     res.json({ success: true, details });
   } catch (error) {
-    console.error('Get lab test details error:', error);
+    logger.error({ err: error }, 'Get lab test details error');
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -3733,7 +3735,7 @@ exports.uploadLabAttachment = async (req, res) => {
     const fileUrl = `/uploads/lab/${outName}`;
     return res.json({ success: true, fileUrl, fileName: outName });
   } catch (error) {
-    console.error('Upload lab attachment error:', error);
+    logger.error({ err: error }, 'Upload lab attachment error');
     return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -3786,7 +3788,7 @@ exports.getSurgeries = async (req, res) => {
     );
     res.json({ success: true, surgeries });
   } catch (error) {
-    console.error('Get surgeries error:', error);
+    logger.error({ err: error }, 'Get surgeries error');
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -3912,7 +3914,7 @@ exports.createSurgery = async (req, res) => {
     res.status(201).json({ success: true, surgery });
   } catch (error) {
     await transaction.rollback();
-    console.error('Create surgery error:', error);
+    logger.error({ err: error }, 'Create surgery error');
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -4059,7 +4061,7 @@ exports.updateSurgery = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Update surgery error:', error);
+    logger.error({ err: error }, 'Update surgery error');
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -4172,7 +4174,7 @@ exports.getAppointments = async (req, res) => {
 
     res.json({ success: true, appointments });
   } catch (error) {
-    console.error('Get doctor appointments error:', error);
+    logger.error({ err: error }, 'Get doctor appointments error');
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -4257,7 +4259,7 @@ exports.createAppointment = async (req, res) => {
     };
     res.status(201).json({ success: true, appointment });
   } catch (error) {
-    console.error('Create appointment error:', error);
+    logger.error({ err: error }, 'Create appointment error');
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -4468,7 +4470,7 @@ exports.createPatientTransfer = async (req, res) => {
     });
   } catch (error) {
     await transaction.rollback();
-    console.error('Create patient transfer error:', error);
+    logger.error({ err: error }, 'Create patient transfer error');
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -4658,7 +4660,7 @@ exports.coverAppointment = async (req, res) => {
       appointment: { id: Number(id), doctorId: coverDoctorId, roomId: roomIdNum },
     });
   } catch (error) {
-    console.error('Cover appointment error:', error);
+    logger.error({ err: error }, 'Cover appointment error');
     return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -4706,7 +4708,7 @@ exports.cancelAppointment = async (req, res) => {
     await notifyPatientDoctorCover(id, reason);
     res.json({ success: true, appointment: { id: Number(id), status: 'Cancelled' } });
   } catch (error) {
-    console.error('Cancel appointment error:', error);
+    logger.error({ err: error }, 'Cancel appointment error');
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -4773,7 +4775,7 @@ exports.declineAppointment = async (req, res) => {
     });
     res.json({ success: true, appointment: { id: Number(id), status: 'Open' } });
   } catch (error) {
-    console.error('Decline appointment error:', error);
+    logger.error({ err: error }, 'Decline appointment error');
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -4811,7 +4813,7 @@ exports.confirmAppointment = async (req, res) => {
     await notifyPatientDoctorAcceptedBooking(id);
     res.json({ success: true, appointment: { id: Number(id), status: 'Pending', doctorConfirmed: true } });
   } catch (error) {
-    console.error('Confirm appointment error:', error);
+    logger.error({ err: error }, 'Confirm appointment error');
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -5073,7 +5075,7 @@ exports.getDashboardSummary = async (req, res) => {
       })),
     });
   } catch (error) {
-    console.error('Get dashboard summary error:', error);
+    logger.error({ err: error }, 'Get dashboard summary error');
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -5104,7 +5106,7 @@ exports.getSignature = async (req, res) => {
       try {
         signature = decryptField(signature);
       } catch (decryptErr) {
-        console.error('Decrypt signature error:', decryptErr);
+        logger.error({ err: decryptErr }, 'Decrypt signature error');
         return res.status(500).json({ success: false, message: 'Could not read signature' });
       }
     }
@@ -5114,7 +5116,7 @@ exports.getSignature = async (req, res) => {
       signature,
     });
   } catch (error) {
-    console.error('Get signature error:', error);
+    logger.error({ err: error }, 'Get signature error');
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -5137,7 +5139,7 @@ exports.saveSignature = async (req, res) => {
       try {
         storedSignature = encryptField(storedSignature);
       } catch (encryptErr) {
-        console.error('Encrypt signature error:', encryptErr);
+        logger.error({ err: encryptErr }, 'Encrypt signature error');
         const msg =
           encryptErr instanceof Error && encryptErr.message.includes('IMAGE_ENCRYPTION_KEY')
             ? 'Signature encryption is not configured on the server'
@@ -5153,7 +5155,7 @@ exports.saveSignature = async (req, res) => {
 
     return res.json({ success: true });
   } catch (error) {
-    console.error('Save signature error:', error);
+    logger.error({ err: error }, 'Save signature error');
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };

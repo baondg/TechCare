@@ -1,4 +1,5 @@
 const notificationService = require('../services/notificationService');
+const logger = require('../common/logger');
 
 function resolveUserId(req) {
   const raw = req.user?.userId ?? req.user?.id;
@@ -19,7 +20,7 @@ exports.getUnreadCount = async (req, res) => {
     const { count } = await notificationService.getUnreadCount(userId);
     res.json({ count });
   } catch (error) {
-    console.error('Unread count error:', error);
+    logger.error({ err: error }, 'Unread count error');
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -37,7 +38,7 @@ exports.listNotifications = async (req, res) => {
     const payload = await notificationService.listNotifications(userId);
     res.json(payload);
   } catch (error) {
-    console.error('List notifications error:', error);
+    logger.error({ err: error }, 'List notifications error');
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -54,7 +55,7 @@ exports.markAllNotificationsRead = async (req, res) => {
     const payload = await notificationService.markAllRead(userId);
     res.json(payload);
   } catch (error) {
-    console.error('Mark all notifications read error:', error);
+    logger.error({ err: error }, 'Mark all notifications read error');
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -75,7 +76,7 @@ exports.markNotificationRead = async (req, res) => {
     }
     res.json(out.json);
   } catch (error) {
-    console.error('Mark notification read error:', error);
+    logger.error({ err: error }, 'Mark notification read error');
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };

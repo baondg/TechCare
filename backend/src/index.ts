@@ -1,5 +1,6 @@
 // `./app` loads .env before anything else — keep it the first import.
 import app from './app';
+import logger from './common/logger';
 const sequelize = require('./common/database');
 const { startMedicationReminderScheduler } = require('./services/medicationReminderNotifications');
 const { startAppointmentReminderScheduler } = require('./services/appointmentReminderNotifications');
@@ -12,7 +13,7 @@ async function startServer() {
   try {
     getJwtSecret();
     if (process.env.NODE_ENV !== 'production') {
-      console.log('[startup]', {
+      logger.info({
         DB_HOST: process.env.DB_HOST ?? null,
         DB_PORT: process.env.DB_PORT ?? null,
         hasDB_NAME: Boolean(process.env.DB_NAME),
@@ -23,10 +24,10 @@ async function startServer() {
           process.env.INSTANCE_CONNECTION_NAME ??
           null,
         NODE_ENV: process.env.NODE_ENV ?? null,
-      });
+      }, '[startup] environment');
     }
     await sequelize.authenticate();
-    console.log('✅ Database connection ready');
+    logger.info('Database connection ready');
 
     const { ensureDoctorSignatureColumn } = require('./common/ensureDoctorSignatureColumn');
     await ensureDoctorSignatureColumn(sequelize);
@@ -43,17 +44,17 @@ async function startServer() {
       await User.sync({ alter: true });
       await Account.sync({ alter: true });
       await Session.sync({ alter: true });
-      console.log('✅ Core auth tables synchronized');
+      logger.info('Core auth tables synchronized');
     }
 
     startMedicationReminderScheduler();
     startAppointmentReminderScheduler();
 
     app.listen(PORT, () => {
-      console.log(`🚀 Server is running on http://localhost:${PORT}`);
+      logger.info({ port: PORT }, 'Server listening');
     });
   } catch (error) {
-    console.error('❌ Failed to start server:', error);
+    logger.fatal({ err: error }, 'Failed to start server');
     process.exit(1);
   }
 }

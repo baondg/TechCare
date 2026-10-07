@@ -8,6 +8,9 @@
 const path = require('node:path');
 const fs = require('node:fs');
 
+// Keep test output readable; set LOG_LEVEL=debug to see app logs while debugging a test.
+process.env.LOG_LEVEL = process.env.LOG_LEVEL || 'silent';
+
 const DIST_APP = path.join(__dirname, '..', '..', 'dist', 'app.js');
 
 function loadApp() {

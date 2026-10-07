@@ -12,6 +12,7 @@ const {
   isLegacySystemConfigSchemaError,
   parsePositiveInt,
 } = require('../config/systemConfigurationContract');
+const logger = require('../common/logger');
 
 // In-memory rate limit store
 const rateLimitStore = new Map();
@@ -98,13 +99,13 @@ async function getRedisClient() {
     if (requireRedisWhenDistributed()) {
       throw createDistributedRateLimitConfigError(`${reason} Configure REDIS_URL or disable distributed mode.`);
     }
-    console.warn(`[rate-limit] ${reason} Distributed rate limit disabled; using memory store.`);
+    logger.warn(`[rate-limit] ${reason} Distributed rate limit disabled; using memory store.`);
     redisDisabled = true;
     return null;
   }
   const client = createClient({ url });
   client.on('error', (err) => {
-    console.warn('[rate-limit] redis error:', err?.message || err);
+    logger.warn({ err }, '[rate-limit] redis error');
   });
   try {
     await client.connect();
@@ -116,7 +117,7 @@ async function getRedisClient() {
         `Unable to connect to Redis (${error?.message || 'unknown error'}).`
       );
     }
-    console.warn('[rate-limit] redis unavailable, fallback to memory store');
+    logger.warn('[rate-limit] redis unavailable, fallback to memory store');
     redisDisabled = true;
     return null;
   }
@@ -347,7 +348,7 @@ const buildRateLimiter = (scope, defaults, message) => async (req, res, next) =>
     res.setHeader('X-RateLimit-Reset', new Date(record.resetTime).toISOString());
     return next();
   } catch (error) {
-    console.error('Rate limit error:', error);
+    logger.error({ err: error }, 'Rate limit error');
     return next();
   }
 };

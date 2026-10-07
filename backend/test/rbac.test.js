@@ -1,10 +1,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { RBAC_MATRIX, isRoleAllowed } = require('../src/security/rbacMatrix');
-const { authorizeCapability } = require('../src/middleware/authorizeCapability');
-const { normalizeRoleFromCode } = require('../src/security/roleMapping');
-const contract = require('../src/config/systemConfigurationContract');
+const { RBAC_MATRIX, isRoleAllowed } = require('../dist/security/rbacMatrix');
+const { authorizeCapability } = require('../dist/middleware/authorizeCapability');
+const { normalizeRoleFromCode } = require('../dist/security/roleMapping');
+const contract = require('../dist/config/systemConfigurationContract');
 
 function createMockRes() {
   return {

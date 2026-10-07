@@ -11,6 +11,7 @@ const { createPatientAccountRecords } = require('../services/patientRegistration
 const { normalizeRoleFromCode } = require('../security/roleMapping');
 const { getJwtSecret } = require('../security/jwtConfig');
 const { isAccountStatusActive } = require('../common/accountStatus');
+const logger = require('../common/logger');
 
 
 const SystemConfig = defineSystemConfig(sequelize);
@@ -136,7 +137,7 @@ exports.register = async (req, res) => {
         expiresAt: expiresAt.toISOString()
       });
   } catch (err) {
-    console.error('Registration error:', err?.message || err, err?.original?.sqlMessage || '');
+    logger.error({ err, sqlMessage: err?.original?.sqlMessage }, 'Registration error');
     res.status(500).json({ success: false, error: 'Registration failed. Please try again.' });
   }
 }
@@ -178,7 +179,7 @@ exports.registerPatientByNurse = async (req, res) => {
       username: account.username,
     });
   } catch (err) {
-    console.error('Nurse register patient error:', err?.message || err, err?.original?.sqlMessage || '');
+    logger.error({ err, sqlMessage: err?.original?.sqlMessage }, 'Nurse register patient error');
     res.status(500).json({ success: false, error: 'Registration failed. Please try again.' });
   }
 };
@@ -213,8 +214,6 @@ exports.login = async (req, res) => {
     
     // Verify password
     const isValidPassword = await verifyPassword(password, user.password);
-    // console.log("INPUT PASSWORD:", password);
-    // console.log("PASSWORD MATCH:", isValidPassword);
 
     if (!isValidPassword) {
       return res.status(401).json({ 
@@ -332,7 +331,7 @@ exports.login = async (req, res) => {
       expiresAt: expiresAt.toISOString()
     });
   } catch (err) {
-    console.error('Login error:', err);
+    logger.error({ err }, 'Login error');
     res.status(500).json({ success: false, error: 'Login failed. Please try again.' });
   }
 };
@@ -360,7 +359,7 @@ exports.logout = async (req, res) => {
       message: allDevices ? 'Logged out from all devices' : 'Logged out successfully'
     });
   } catch (err) {
-    console.error('Logout error:', err);
+    logger.error({ err }, 'Logout error');
     res.status(500).json({ success: false, error: 'Logout failed' });
   }
 };
@@ -450,7 +449,7 @@ exports.refreshToken = async (req, res) => {
       }
     });
   } catch (err) {
-    console.error('Token refresh error:', err);
+    logger.error({ err }, 'Token refresh error');
     res.status(500).json({ success: false, error: 'Token refresh failed' });
   }
 };
@@ -498,7 +497,7 @@ exports.getSession = async (req, res) => {
       sessions: sessions.map(s => s.toJSON())
     });
   } catch (err) {
-    console.error('Get session error:', err);
+    logger.error({ err }, 'Get session error');
     res.status(500).json({ success: false, error: 'Failed to get session info' });
   }
 };

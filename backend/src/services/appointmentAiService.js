@@ -2,6 +2,7 @@ const appointmentRepository = require('../repositories/appointmentRepository');
 const appointmentAiRepository = require('../repositories/appointmentAiRepository');
 const { INTERNAL_API_SECRET_HEADER } = require('../middleware/requireInternalApiSecret');
 const { normalizeSymptomsForAi } = require('../lib/symptomNormalize');
+const logger = require('../common/logger');
 
 const INTERNAL_API_BASE =
   process.env.BACKEND_INTERNAL_URL || `http://127.0.0.1:${Number(process.env.PORT) || 3000}`;
@@ -21,16 +22,14 @@ function internalAiFetchHeaders() {
 
 function logAiOrchestration(req, feature, data) {
   const uid = req?.user?.userId ?? req?.user?.id ?? null;
-  console.log(
-    JSON.stringify({
-      ts: new Date().toISOString(),
-      level: 'info',
-      msg: 'ai.orchestration',
+  logger.info(
+    {
       requestId: req?.requestId ?? null,
       feature,
       userId: uid,
       ...data,
-    })
+    },
+    'ai.orchestration'
   );
 }
 
@@ -96,7 +95,7 @@ async function buildPatientContextForSymptomAnalysis(patientId) {
     currentMedications = medRows.map((r) => String(r.name || '').trim()).filter(Boolean);
     currentMedications = [...new Set(currentMedications)].slice(0, 15);
   } catch (e) {
-    console.warn('buildPatientContextForSymptomAnalysis: currentMedications query skipped:', e?.message || e);
+    logger.warn({ err: e }, 'buildPatientContextForSymptomAnalysis: currentMedications query skipped');
   }
 
   const allergies = parsePatientJsonField(pRow?.allergicInfo);
@@ -215,7 +214,7 @@ async function buildClinicalSummaryForRecovery(patientId) {
       }))
       .filter((x) => x.medicines.length > 0);
   } catch (e) {
-    console.warn('buildClinicalSummaryForRecovery: medications query skipped:', e?.message || e);
+    logger.warn({ err: e }, 'buildClinicalSummaryForRecovery: medications query skipped');
   }
 
   const out = {};
@@ -464,9 +463,9 @@ async function analyzeSymptomsAndSave(req, userId, body) {
       body: JSON.stringify({ symptoms, patientContext }),
     });
   } catch (upstreamError) {
-    console.error(
-      `[analyzeSymptomsAndSave] Cannot reach ${MEDAI_SYMPTOM_ENDPOINT}:`,
-      upstreamError?.message || upstreamError
+    logger.error(
+      { err: upstreamError },
+      `[analyzeSymptomsAndSave] Cannot reach ${MEDAI_SYMPTOM_ENDPOINT}`
     );
     return {
       status: 503,
@@ -479,10 +478,14 @@ async function analyzeSymptomsAndSave(req, userId, body) {
   }
   const aiData = await aiResp.json().catch(() => ({}));
   if (!aiResp.ok) {
-    console.error(
-      `[analyzeSymptomsAndSave] Upstream ${aiResp.status} from ${MEDAI_SYMPTOM_ENDPOINT}:`,
-      aiData?.error || aiData?.message || '(no body)',
-      aiData?.hint ? `hint=${aiData.hint}` : ''
+    logger.error(
+      {
+        upstreamStatus: aiResp.status,
+        endpoint: MEDAI_SYMPTOM_ENDPOINT,
+        upstreamError: aiData?.error || aiData?.message || '(no body)',
+        hint: aiData?.hint,
+      },
+      '[analyzeSymptomsAndSave] Upstream error from medAI'
     );
     return {
       status: 503,
@@ -625,9 +628,9 @@ async function recoveryPredictionForPatient(req, patientId, refresh) {
       body: JSON.stringify({ clinicalSummary, patientContext }),
     });
   } catch (upstreamError) {
-    console.error(
-      `[getRecoveryPrediction] Cannot reach ${MEDAI_RECOVERY_ENDPOINT}:`,
-      upstreamError?.message || upstreamError
+    logger.error(
+      { err: upstreamError },
+      `[getRecoveryPrediction] Cannot reach ${MEDAI_RECOVERY_ENDPOINT}`
     );
     return {
       status: 503,
@@ -641,10 +644,14 @@ async function recoveryPredictionForPatient(req, patientId, refresh) {
 
   const aiData = await aiResp.json().catch(() => ({}));
   if (!aiResp.ok) {
-    console.error(
-      `[getRecoveryPrediction] Upstream ${aiResp.status} from ${MEDAI_RECOVERY_ENDPOINT}:`,
-      aiData?.error || aiData?.message || '(no body)',
-      aiData?.hint ? `hint=${aiData.hint}` : ''
+    logger.error(
+      {
+        upstreamStatus: aiResp.status,
+        endpoint: MEDAI_RECOVERY_ENDPOINT,
+        upstreamError: aiData?.error || aiData?.message || '(no body)',
+        hint: aiData?.hint,
+      },
+      '[getRecoveryPrediction] Upstream error from medAI'
     );
     return {
       status: 503,

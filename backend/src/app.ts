@@ -10,6 +10,7 @@ import path from 'path';
 import cookieParser from 'cookie-parser';
 import aiRoutes from './routes/ai';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
+import { requestLogger } from './middleware/requestLogger';
 const { requestIdMiddleware } = require('./middleware/requestIdMiddleware');
 const authRoutes = require('./authorization/routes');
 const systemConfigRoutes = require('./routes/systemConfig');
@@ -44,6 +45,7 @@ const allowAnyOrigin = allowedOrigins.includes('*');
 // Middleware
 app.set('trust proxy', 1);
 app.use(requestIdMiddleware);
+app.use(requestLogger);
 app.use(
   cors(
     allowedOrigins.length > 0

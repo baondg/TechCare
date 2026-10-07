@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const logger = require('../common/logger');
 
 const INTERNAL_API_SECRET_HEADER = 'x-internal-api-secret';
 
@@ -6,7 +7,7 @@ function requireInternalApiSecret(req, res, next) {
   const secret = String(process.env.INTERNAL_API_SECRET || '').trim();
   if (!secret) {
     if (process.env.NODE_ENV === 'production') {
-      console.error('[security] INTERNAL_API_SECRET is required in production for internal AI routes');
+      logger.error('[security] INTERNAL_API_SECRET is required in production for internal AI routes');
       return res.status(500).json({
         error: 'Server misconfiguration',
         hint: 'Set INTERNAL_API_SECRET (e.g. Secret Manager techcare-internal-api-secret) for Cloud Run.',

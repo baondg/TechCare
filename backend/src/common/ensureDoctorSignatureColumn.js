@@ -2,6 +2,7 @@
  * Idempotent: ensure DOCTOR.signature exists for prescription PDF / profile features.
  */
 const { QueryTypes } = require('sequelize');
+const logger = require('./logger');
 
 async function columnExists(sequelize, tableName, columnName) {
   const rows = await sequelize.query(
@@ -26,7 +27,7 @@ async function tableExists(sequelize, tableName) {
  */
 async function ensureDoctorSignatureColumn(sequelize) {
   if (!(await tableExists(sequelize, 'DOCTOR'))) {
-    console.warn(
+    logger.warn(
       '[db] DOCTOR table missing; skip signature column migration. Import schema (e.g. database_description.sql) or run migrations.'
     );
     return;
@@ -34,7 +35,7 @@ async function ensureDoctorSignatureColumn(sequelize) {
   const exists = await columnExists(sequelize, 'DOCTOR', 'signature');
   if (exists) return;
   await sequelize.query('ALTER TABLE DOCTOR ADD COLUMN signature LONGTEXT NULL');
-  console.log('[db] Added column DOCTOR.signature');
+  logger.info('[db] Added column DOCTOR.signature');
 }
 
 module.exports = { ensureDoctorSignatureColumn };

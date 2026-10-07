@@ -1,5 +1,6 @@
 import type { ErrorRequestHandler, RequestHandler } from 'express';
 import { AppError } from '../errors/AppError';
+import logger from '../common/logger';
 
 /**
  * Standard error body. `error` and `message` carry the same text: older clients read
@@ -60,7 +61,7 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
   }
 
   // Unexpected: never leak internals (SQL, stack, PHI in messages) to the client.
-  console.error('Unhandled error', { requestId: req.requestId, method: req.method, path: req.path, err });
+  logger.error({ err, requestId: req.requestId, method: req.method, path: req.path }, 'Unhandled error');
   const status = op?.status ?? 500;
   res.status(status).json(body(status === 500 ? INTERNAL_MESSAGE : op!.message, req.requestId, op?.code ? { code: op.code } : {}));
 };

@@ -2,6 +2,7 @@ const { QueryTypes } = require('sequelize');
 const sequelize = require('../common/database');
 const bcrypt = require('bcrypt');
 const { getClinicTodayYmd, getClinicTimezone, getClinicTzOffset } = require('../common/clinicDate');
+const logger = require('../common/logger');
 
 const ACCOUNT_ROLE_LABEL = {
   ADM: 'Admin',
@@ -264,7 +265,7 @@ exports.listDepartments = async (req, res) => {
     }));
     res.json({ success: true, departments });
   } catch (error) {
-    console.error('List departments error:', error);
+    logger.error({ err: error }, 'List departments error');
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -382,7 +383,7 @@ exports.getAccounts = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Get accounts error:', error);
+    logger.error({ err: error }, 'Get accounts error');
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -480,7 +481,7 @@ exports.getDashboardSummary = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Get admin dashboard summary error:', error);
+    logger.error({ err: error }, 'Get admin dashboard summary error');
     return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -570,7 +571,7 @@ exports.createAccount = async (req, res) => {
     return res.status(201).json({ success: true, account: mapAccountRow(created) });
   } catch (error) {
     await tx.rollback();
-    console.error('Create account error:', error);
+    logger.error({ err: error }, 'Create account error');
     return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -655,7 +656,7 @@ exports.updateAccount = async (req, res) => {
     return res.json({ success: true, account: mapAccountRow(updated) });
   } catch (error) {
     await tx.rollback();
-    console.error('Update account error:', error);
+    logger.error({ err: error }, 'Update account error');
     return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -691,7 +692,7 @@ exports.updateAccountStatus = async (req, res) => {
 
     res.json({ success: true, id: userId, status: !!next });
   } catch (error) {
-    console.error('Update account status error:', error);
+    logger.error({ err: error }, 'Update account status error');
     res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -741,7 +742,7 @@ exports.getFeedbacks = async (req, res) => {
       feedbacks: (rows || []).map(mapFeedbackRow),
     });
   } catch (error) {
-    console.error('Get admin feedbacks error:', error);
+    logger.error({ err: error }, 'Get admin feedbacks error');
     return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
@@ -808,7 +809,7 @@ exports.updateFeedback = async (req, res) => {
 
     return res.json({ success: true, feedback: mapFeedbackRow(updated) });
   } catch (error) {
-    console.error('Update admin feedback error:', error);
+    logger.error({ err: error }, 'Update admin feedback error');
     return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };

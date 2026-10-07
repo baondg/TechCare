@@ -1,4 +1,5 @@
 const express = require('express');
+const logger = require('../common/logger');
 const router = express.Router();
 
 // POST /api/chatbot — OpenRouter proxy using server-side OPENROUTER_API_KEY only
@@ -42,7 +43,7 @@ router.post('/', async (req, res) => {
       reply: data.choices?.[0]?.message?.content || data.reply || data.message || 'No response from AI',
     });
   } catch (err) {
-    console.error('OpenRouter call failed:', err);
+    logger.error({ err }, 'OpenRouter call failed');
     return res.status(500).json({ error: 'Failed to call OpenRouter', detail: err.message });
   }
 });

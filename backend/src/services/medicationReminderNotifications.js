@@ -1,4 +1,5 @@
 const medicationReminderRepository = require('../repositories/medicationReminderRepository');
+const logger = require('../common/logger');
 
 const MAX_REMINDER_DAYS = medicationReminderRepository.MAX_REMINDER_DAYS;
 const TYPE_MEDICATION_REMINDER = 'medication_reminder';
@@ -72,7 +73,7 @@ let lastFiredSlotKey = null;
  */
 function startMedicationReminderScheduler() {
   if (process.env.DISABLE_MEDICATION_REMINDERS === '1') {
-    console.log('[medication-reminder] scheduler disabled (DISABLE_MEDICATION_REMINDERS=1)');
+    logger.info('[medication-reminder] scheduler disabled (DISABLE_MEDICATION_REMINDERS=1)');
     return;
   }
 
@@ -88,13 +89,13 @@ function startMedicationReminderScheduler() {
 
     try {
       const result = await runMedicationReminderSlot(h);
-      console.log('[medication-reminder] slot', result);
+      logger.info({ result }, '[medication-reminder] slot');
     } catch (err) {
-      console.error('[medication-reminder] slot failed:', err?.message || err);
+      logger.error({ err }, '[medication-reminder] slot failed');
     }
   }, 20_000);
 
-  console.log(
+  logger.info(
     `[medication-reminder] scheduler on: ${REMINDER_HOURS.join(', ')}:00 daily (server local time; set TZ if needed)`
   );
 }

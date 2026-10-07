@@ -1,3 +1,4 @@
+const logger = require('../common/logger');
 const memoryCache = new Map();
 
 let redisClient = null;
@@ -29,13 +30,13 @@ async function getRedisClient() {
         },
       });
       client.on('error', (err) => {
-        console.warn('[cache] redis error:', err?.message || err);
+        logger.warn({ err }, '[cache] redis error');
       });
       await client.connect();
       redisClient = client;
       return client;
     })().catch((err) => {
-      console.warn('[cache] redis unavailable, fallback to memory:', err?.message || err);
+      logger.warn({ err }, '[cache] redis unavailable, fallback to memory');
       redisDisabled = true;
       redisConnectPromise = null;
       return null;

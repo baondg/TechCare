@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { Sequelize } = require('sequelize');
+const logger = require('./logger');
 
 // Cloud Run + Cloud SQL: set CLOUDSQL_INSTANCE_CONNECTION_NAME (or INSTANCE_CONNECTION_NAME)
 // to project:region:instance and add the instance under the service "Connections" tab.
@@ -30,7 +31,7 @@ const resolveSslCa = () => {
     if (fs.existsSync(resolved)) {
       return fs.readFileSync(resolved);
     }
-    console.warn(`[db] DB_SSL_CA_PATH not found: ${resolved}`);
+    logger.warn(`[db] DB_SSL_CA_PATH not found: ${resolved}`);
   }
   const inline = process.env.DB_SSL_CA;
   if (inline) {
@@ -51,14 +52,17 @@ const buildTcpSslOptions = () => {
 
 if (process.env.NODE_ENV !== 'production') {
   const sslOpts = buildTcpSslOptions();
-  console.log('[db]', {
+  logger.info({
     useCloudSqlSocket,
     hasInstanceName: Boolean(instanceConnectionName),
     useTcpSsl,
     sslRejectUnauthorized,
     hasSslCa: Boolean(sslOpts.ssl?.ca),
-  });
+  }, '[db] connection options');
 }
+
+/** SQL text includes inlined replacement values (patient data) — only at LOG_LEVEL=debug. */
+const logSql = (sql) => logger.debug({ sql }, 'db.query');
 
 const pool = {
   max: Number(process.env.DB_POOL_MAX || 30),
@@ -75,7 +79,7 @@ const sequelize = useCloudSqlSocket
       dialectOptions: {
         socketPath: `/cloudsql/${instanceConnectionName}`,
       },
-      logging: console.log,
+      logging: logSql,
       pool,
     })
   : new Sequelize(process.env.DB_NAME, process.env.DB_USER, process.env.DB_PASSWORD, {
@@ -83,7 +87,7 @@ const sequelize = useCloudSqlSocket
       port: Number(process.env.DB_PORT) || 3306,
       dialect: 'mysql',
       dialectOptions: buildTcpSslOptions(),
-      logging: console.log,
+      logging: logSql,
       pool,
     });
 
@@ -91,7 +95,7 @@ sequelize.addHook('afterConnect', async (connection) => {
   try {
     await syncMysqlClinicTimezone(connection);
   } catch (err) {
-    console.warn('[db] clinic timezone sync skipped:', err?.message || err);
+    logger.warn({ err }, '[db] clinic timezone sync skipped');
   }
 });
 

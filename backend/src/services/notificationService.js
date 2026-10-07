@@ -1,4 +1,5 @@
 const userNotificationRepository = require('../repositories/userNotificationRepository');
+const logger = require('../common/logger');
 
 function isDbUnavailableError(error) {
   const code = error?.original?.code || error?.parent?.code || error?.code;
@@ -25,7 +26,7 @@ async function getUnreadCount(userId) {
     return { count };
   } catch (error) {
     if (isDbUnavailableError(error)) {
-      console.warn('[notifications] DB unavailable for unread count:', error.message);
+      logger.warn({ err: error }, '[notifications] DB unavailable for unread count');
       return { count: 0, degraded: true };
     }
     throw error;
@@ -49,7 +50,7 @@ async function listNotifications(userId) {
     };
   } catch (error) {
     if (isDbUnavailableError(error)) {
-      console.warn('[notifications] DB unavailable for list:', error.message);
+      logger.warn({ err: error }, '[notifications] DB unavailable for list');
       return emptyInboxPayload();
     }
     throw error;

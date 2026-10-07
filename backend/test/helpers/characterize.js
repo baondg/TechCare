@@ -1,9 +1,11 @@
 /**
  * Shared runner for HTTP characterization tests over the fake DB (see fakeDb.js).
  *
- * A scenario is `[name, method, path, body, rules, setup?]`. For each one the runner records the
- * SQL the handler sent, the transaction events and the HTTP answer, then compares the whole set
- * with a committed snapshot. Regenerate with `UPDATE_SNAPSHOTS=1 npm test` and review the diff.
+ * A scenario is `[name, method, path, body, rules, setup?]`. `setup(state)` may return
+ * `{ headers }` to add request headers (`Authorization: null` sends none). For each scenario the
+ * runner records the SQL / model calls the handler made, transaction events, and the HTTP answer
+ * (status, body or error text, Set-Cookie), then compares the whole set with a committed snapshot.
+ * Regenerate with `UPDATE_SNAPSHOTS=1 npm test` and review the diff.
  */
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -24,10 +26,16 @@ const dbError = () => Object.assign(new Error('boom'), { name: 'SequelizeDatabas
 const legacySchemaError = () =>
   Object.assign(new Error('Unknown column'), { name: 'SequelizeDatabaseError', original: { code: 'ER_BAD_FIELD_ERROR' } });
 
-/** Strip values that change per run (time, bcrypt salt) so the snapshot is stable. */
-function scrub(value) {
+const JWT = /eyJ[\w-]+\.[\w-]+\.[\w-]+/g;
+const HAS_JWT = /eyJ[\w-]+\.[\w-]+\.[\w-]+/;
+
+/** Strip values that change per run (time, bcrypt salt, JWTs) so the snapshot is stable. */
+function scrub(value, custom = () => undefined) {
   return JSON.parse(
     JSON.stringify(value, (key, v) => {
+      const replaced = custom(key, v);
+      if (replaced !== undefined) return replaced;
+      if (typeof v === 'string' && HAS_JWT.test(v)) return v.replace(JWT, '<jwt>');
       if (key === 'password' && typeof v === 'string' && v.startsWith('$2')) return '<bcrypt>';
       if (key === 'idcard') return '<idcard>';
       if (key === 'clinicToday') return '<today>';
@@ -39,19 +47,36 @@ function scrub(value) {
   );
 }
 
-/** Error bodies are compared by status + text: the standard AppError shape is an intended change. */
-function describeResponse(status, body) {
-  if (status < 400) return { status, body };
+/**
+ * Error bodies are compared by status + text (+ `code` when it is one the client acts on): the
+ * standard AppError shape is an intended change.
+ */
+function describeResponse(res, body, codes) {
+  const cookie = res.headers.get('set-cookie');
+  const extra = cookie ? { cookie: cookie.replace(/Expires=(?!Thu, 01 Jan 1970)[^;]+/g, 'Expires=<date>') } : {};
+  if (res.status < 400) return { status: res.status, body, ...extra };
   const text = body?.message ?? body?.error ?? null;
-  // 5xx text is generic either way; only its presence matters.
-  return { status, message: status >= 500 ? String(text).toLowerCase() : text };
+  return {
+    status: res.status,
+    // Lower-cased so only wording, not capitalisation, of generic 5xx text matters.
+    message: res.status >= 500 ? String(text).toLowerCase() : text,
+    ...(codes.includes(body?.code) ? { code: body.code } : {}),
+    ...extra,
+  };
 }
 
 /**
  * Registers one node:test case that runs every scenario and checks it against `snapshotPath`.
  * @param {(rules: Array) => Array} [prepareRules] last-minute rule rewrite (e.g. today's date)
+ * @param {(key: string, value: unknown) => unknown} [scrubValue] extra scrubbing; undefined = default
+ * @param {string[]} [codes] error `code`s worth pinning (clients branch on them)
  */
-function characterize(title, snapshotPath, scenarios, { prepareRules = (rules) => rules } = {}) {
+function characterize(
+  title,
+  snapshotPath,
+  scenarios,
+  { prepareRules = (rules) => rules, scrubValue, codes = [] } = {}
+) {
   let server;
   let db;
 
@@ -72,19 +97,24 @@ function characterize(title, snapshotPath, scenarios, { prepareRules = (rules) =
     for (const [name, method, urlPath, body, rules, setup] of scenarios) {
       db.reset();
       db.state.rules = prepareRules(rules);
-      if (setup) setup(db.state);
+      const extraHeaders = (setup && setup(db.state))?.headers || {};
 
+      const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...extraHeaders };
+      for (const key of Object.keys(headers)) if (headers[key] == null) delete headers[key];
       const res = await fetch(`${server.baseUrl}${urlPath}`, {
         method,
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers,
         body: body == null ? undefined : JSON.stringify(body),
       });
       const json = await res.json();
-      actual[name] = scrub({
-        request: `${method} ${urlPath}`,
-        response: describeResponse(res.status, json),
-        db: db.state.calls.filter((c) => !c.sql || !IGNORED_SQL.some((re) => re.test(c.sql))),
-      });
+      actual[name] = scrub(
+        {
+          request: `${method} ${urlPath}`,
+          response: describeResponse(res, json, codes),
+          db: db.state.calls.filter((c) => !c.sql || !IGNORED_SQL.some((re) => re.test(c.sql))),
+        },
+        scrubValue
+      );
     }
 
     if (process.env.UPDATE_SNAPSHOTS === '1' || !fs.existsSync(snapshotPath)) {

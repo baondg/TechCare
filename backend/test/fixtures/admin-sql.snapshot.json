@@ -1,0 +1,1613 @@
+{
+  "dashboard summary": {
+    "request": "GET /api/admin/dashboard-summary",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "summary": {
+          "totalUsers": 10,
+          "activeUsers": 7,
+          "inactiveUsers": 3,
+          "systemStatus": "Healthy",
+          "roleBreakdown": [
+            {
+              "roleCode": "PAT",
+              "roleLabel": "Patient",
+              "total": 6
+            },
+            {
+              "roleCode": "XYZ",
+              "roleLabel": "XYZ",
+              "total": 1
+            }
+          ],
+          "recentActivity": [
+            {
+              "id": 3,
+              "message": "Account '#3' (Nurse) created",
+              "createdTime": null,
+              "status": "Enabled"
+            }
+          ],
+          "feedbackStats": {
+            "total": 4,
+            "pending": 2,
+            "averageRating": 3.5
+          },
+          "signupsByDay": [
+            {
+              "date": "<date>",
+              "count": 0
+            },
+            {
+              "date": "<date>",
+              "count": 0
+            },
+            {
+              "date": "<date>",
+              "count": 0
+            },
+            {
+              "date": "<date>",
+              "count": 0
+            },
+            {
+              "date": "<date>",
+              "count": 0
+            },
+            {
+              "date": "<date>",
+              "count": 0
+            },
+            {
+              "date": "<date>",
+              "count": 2
+            }
+          ]
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `key` AS configKey, value FROM SYSTEM_CONFIGURATION WHERE `key` IN (:keys)",
+        "replacements": {
+          "keys": [
+            "rateLimitEnabled",
+            "rateLimitIpBased",
+            "globalRateLimitRequests",
+            "globalRateLimitWindowSeconds"
+          ]
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT rate_limit AS rateLimit, access_limit AS accessLimit FROM SYSTEM_CONFIGURATION ORDER BY time DESC, id DESC LIMIT 1",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT COUNT(*) AS totalUsers, SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END) AS activeUsers FROM ACCOUNT",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT type, COUNT(*) AS total FROM ACCOUNT GROUP BY type ORDER BY total DESC",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT a.user_id AS id, a.username, a.type, a.status, a.created_time AS createdTime FROM ACCOUNT a ORDER BY a.created_time DESC, a.user_id DESC LIMIT 6",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT COUNT(*) AS total, SUM(CASE WHEN f.status = 0 OR f.status = '0' THEN 1 ELSE 0 END) AS pending, ROUND(AVG(NULLIF(f.rating, 0)), 1) AS averageRating FROM FEEDBACK f",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT DATE(a.created_time) AS day, COUNT(*) AS count FROM ACCOUNT a WHERE DATE(a.created_time) >= DATE_SUB(:clinicToday, INTERVAL 6 DAY) AND DATE(a.created_time) <= :clinicToday GROUP BY DATE(a.created_time) ORDER BY day ASC",
+        "replacements": {
+          "clinicToday": "<today>"
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT 1 AS ok",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "dashboard summary, db down": {
+    "request": "GET /api/admin/dashboard-summary",
+    "response": {
+      "status": 500,
+      "message": "internal server error"
+    },
+    "db": [
+      {
+        "sql": "SELECT COUNT(*) AS totalUsers, SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END) AS activeUsers FROM ACCOUNT",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "list departments": {
+    "request": "GET /api/admin/departments",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "departments": [
+          {
+            "id": 2,
+            "name": "ER"
+          },
+          {
+            "id": 1,
+            "name": ""
+          }
+        ]
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT id, name FROM DEPARTMENT ORDER BY name ASC",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "list departments, db down": {
+    "request": "GET /api/admin/departments",
+    "response": {
+      "status": 500,
+      "message": "internal server error"
+    },
+    "db": [
+      {
+        "sql": "SELECT id, name FROM DEPARTMENT ORDER BY name ASC",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "list accounts, defaults": {
+    "request": "GET /api/admin/accounts",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "accounts": [
+          {
+            "id": 42,
+            "userId": 42,
+            "username": "jdoe",
+            "roleCode": "DOC",
+            "role": "Doctor",
+            "status": true,
+            "createdTime": "2026-01-02T03:04:05.000Z",
+            "createdBy": 1,
+            "createdByName": "Root Admin",
+            "nationalId": "000000000042",
+            "name": "John Doe",
+            "sex": "Male",
+            "dob": "1990-05-06",
+            "phone": "0900000000",
+            "email": "j@example.com",
+            "doctorId": 7,
+            "doctorSpecifications": "Cardiology",
+            "doctorQualifications": "MD",
+            "doctorDepartmentIds": [
+              3,
+              4
+            ]
+          }
+        ],
+        "pagination": {
+          "page": 1,
+          "limit": 10,
+          "total": 1,
+          "totalPages": 1
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT COUNT(*) AS total FROM ACCOUNT a LEFT JOIN USER u ON u.id = a.user_id",
+        "replacements": {
+          "limit": 10,
+          "offset": 0
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT a.user_id AS userId, a.username, a.type, a.status, a.created_time AS createdTime, a.created_by AS createdBy, COALESCE( NULLIF(TRIM(CONCAT(COALESCE(cu.first_name, ''), ' ', COALESCE(cu.last_name, ''))), ''), ca.username ) AS createdByName, u.idcard AS nationalId, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username) AS name, u.sex AS sex, u.dob AS dob, u.tel AS phone, u.email AS email, d.doctor_id AS doctorId, d.specifications AS doctorSpecifications, d.qualifications AS doctorQualifications, (SELECT GROUP_CONCAT(dd.department_id ORDER BY dd.department_id) FROM DOCTOR_DEPARTMENT dd WHERE dd.doctor_id = d.doctor_id) AS doctorDepartmentIdsCsv FROM ACCOUNT a LEFT JOIN USER u ON u.id = a.user_id LEFT JOIN DOCTOR d ON d.user_id = a.user_id LEFT JOIN ACCOUNT ca ON ca.user_id = a.created_by LEFT JOIN USER cu ON cu.id = a.created_by ORDER BY a.created_time DESC, a.user_id DESC LIMIT :limit OFFSET :offset",
+        "replacements": {
+          "limit": 10,
+          "offset": 0
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "list accounts, every filter + sort": {
+    "request": "GET /api/admin/accounts?page=2&limit=500&sortBy=name&sortDirection=ASC&userId=4&name=Jo&username=jd&roleCode=doc&sex=Male&dob=1990&phone=090&email=ex&enabled=active",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "accounts": [],
+        "pagination": {
+          "page": 2,
+          "limit": 100,
+          "total": 250,
+          "totalPages": 3
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT COUNT(*) AS total FROM ACCOUNT a LEFT JOIN USER u ON u.id = a.user_id WHERE CAST(a.user_id AS CHAR) LIKE :userId AND COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username) LIKE :name AND a.username LIKE :username AND a.type = :roleCode AND u.sex = :sex AND CAST(u.dob AS CHAR) LIKE :dob AND u.tel LIKE :phone AND u.email LIKE :email AND a.status = 1",
+        "replacements": {
+          "limit": 100,
+          "offset": 100,
+          "userId": "%4%",
+          "name": "%Jo%",
+          "username": "%jd%",
+          "roleCode": "DOC",
+          "sex": "M",
+          "dob": "%1990%",
+          "phone": "%090%",
+          "email": "%ex%"
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT a.user_id AS userId, a.username, a.type, a.status, a.created_time AS createdTime, a.created_by AS createdBy, COALESCE( NULLIF(TRIM(CONCAT(COALESCE(cu.first_name, ''), ' ', COALESCE(cu.last_name, ''))), ''), ca.username ) AS createdByName, u.idcard AS nationalId, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username) AS name, u.sex AS sex, u.dob AS dob, u.tel AS phone, u.email AS email, d.doctor_id AS doctorId, d.specifications AS doctorSpecifications, d.qualifications AS doctorQualifications, (SELECT GROUP_CONCAT(dd.department_id ORDER BY dd.department_id) FROM DOCTOR_DEPARTMENT dd WHERE dd.doctor_id = d.doctor_id) AS doctorDepartmentIdsCsv FROM ACCOUNT a LEFT JOIN USER u ON u.id = a.user_id LEFT JOIN DOCTOR d ON d.user_id = a.user_id LEFT JOIN ACCOUNT ca ON ca.user_id = a.created_by LEFT JOIN USER cu ON cu.id = a.created_by WHERE CAST(a.user_id AS CHAR) LIKE :userId AND COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username) LIKE :name AND a.username LIKE :username AND a.type = :roleCode AND u.sex = :sex AND CAST(u.dob AS CHAR) LIKE :dob AND u.tel LIKE :phone AND u.email LIKE :email AND a.status = 1 ORDER BY COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username) ASC, a.user_id DESC LIMIT :limit OFFSET :offset",
+        "replacements": {
+          "limit": 100,
+          "offset": 100,
+          "userId": "%4%",
+          "name": "%Jo%",
+          "username": "%jd%",
+          "roleCode": "DOC",
+          "sex": "M",
+          "dob": "%1990%",
+          "phone": "%090%",
+          "email": "%ex%"
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "list accounts, junk params fall back": {
+    "request": "GET /api/admin/accounts?page=abc&limit=-3&sortBy=password&sortDirection=sideways&roleCode=ROOT&sex=Other&enabled=inactive",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "accounts": [],
+        "pagination": {
+          "page": 1,
+          "limit": 10,
+          "total": 0,
+          "totalPages": 1
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT COUNT(*) AS total FROM ACCOUNT a LEFT JOIN USER u ON u.id = a.user_id WHERE a.status = 0",
+        "replacements": {
+          "limit": 10,
+          "offset": 0
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT a.user_id AS userId, a.username, a.type, a.status, a.created_time AS createdTime, a.created_by AS createdBy, COALESCE( NULLIF(TRIM(CONCAT(COALESCE(cu.first_name, ''), ' ', COALESCE(cu.last_name, ''))), ''), ca.username ) AS createdByName, u.idcard AS nationalId, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username) AS name, u.sex AS sex, u.dob AS dob, u.tel AS phone, u.email AS email, d.doctor_id AS doctorId, d.specifications AS doctorSpecifications, d.qualifications AS doctorQualifications, (SELECT GROUP_CONCAT(dd.department_id ORDER BY dd.department_id) FROM DOCTOR_DEPARTMENT dd WHERE dd.doctor_id = d.doctor_id) AS doctorDepartmentIdsCsv FROM ACCOUNT a LEFT JOIN USER u ON u.id = a.user_id LEFT JOIN DOCTOR d ON d.user_id = a.user_id LEFT JOIN ACCOUNT ca ON ca.user_id = a.created_by LEFT JOIN USER cu ON cu.id = a.created_by WHERE a.status = 0 ORDER BY a.created_time DESC, a.user_id DESC LIMIT :limit OFFSET :offset",
+        "replacements": {
+          "limit": 10,
+          "offset": 0
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "list accounts, db down": {
+    "request": "GET /api/admin/accounts",
+    "response": {
+      "status": 500,
+      "message": "internal server error"
+    },
+    "db": [
+      {
+        "sql": "SELECT COUNT(*) AS total FROM ACCOUNT a LEFT JOIN USER u ON u.id = a.user_id",
+        "replacements": {
+          "limit": 10,
+          "offset": 0
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "create patient account": {
+    "request": "POST /api/admin/accounts",
+    "response": {
+      "status": 201,
+      "body": {
+        "success": true,
+        "account": {
+          "id": 101,
+          "userId": 101,
+          "username": "jdoe",
+          "roleCode": "PAT",
+          "role": "Patient",
+          "status": true,
+          "createdTime": "2026-01-02T03:04:05.000Z",
+          "createdBy": 1,
+          "createdByName": "Root Admin",
+          "nationalId": "000000000042",
+          "name": "John Doe",
+          "sex": "Male",
+          "dob": "1990-05-06",
+          "phone": "0900000000",
+          "email": "j@example.com",
+          "doctorId": null,
+          "doctorSpecifications": "Cardiology",
+          "doctorQualifications": "MD",
+          "doctorDepartmentIds": []
+        }
+      }
+    },
+    "db": [
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT user_id AS userId FROM ACCOUNT WHERE username = :username LIMIT 1",
+        "replacements": {
+          "username": "newbie"
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "INSERT INTO USER (idcard, sex, dob, tel, email, first_name, last_name) VALUES (:idcard, :sex, :dob, :tel, :email, :firstName, :lastName)",
+        "replacements": {
+          "idcard": "<idcard>",
+          "sex": "M",
+          "dob": "1995-01-01",
+          "tel": "0911111111",
+          "email": null,
+          "firstName": "Nguyen Van",
+          "lastName": "An"
+        },
+        "type": "INSERT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "INSERT INTO ACCOUNT (user_id, username, password, type, created_by, status) VALUES (:userId, :username, :password, :type, :createdBy, :status)",
+        "replacements": {
+          "userId": 101,
+          "username": "newbie",
+          "password": "<bcrypt>",
+          "type": "PAT",
+          "createdBy": 1,
+          "status": 1
+        },
+        "type": "INSERT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT a.user_id AS userId, a.username, a.type, a.status, a.created_time AS createdTime, a.created_by AS createdBy, COALESCE( NULLIF(TRIM(CONCAT(COALESCE(cu.first_name, ''), ' ', COALESCE(cu.last_name, ''))), ''), ca.username ) AS createdByName, u.idcard AS nationalId, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username) AS name, u.sex AS sex, u.dob AS dob, u.tel AS phone, u.email AS email, d.doctor_id AS doctorId, d.specifications AS doctorSpecifications, d.qualifications AS doctorQualifications, (SELECT GROUP_CONCAT(dd.department_id ORDER BY dd.department_id) FROM DOCTOR_DEPARTMENT dd WHERE dd.doctor_id = d.doctor_id) AS doctorDepartmentIdsCsv FROM ACCOUNT a LEFT JOIN USER u ON u.id = a.user_id LEFT JOIN DOCTOR d ON d.user_id = a.user_id LEFT JOIN ACCOUNT ca ON ca.user_id = a.created_by LEFT JOIN USER cu ON cu.id = a.created_by WHERE a.user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 101
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "event": "commit",
+        "tx": "tx1"
+      }
+    ]
+  },
+  "create doctor account syncs DOCTOR + departments": {
+    "request": "POST /api/admin/accounts",
+    "response": {
+      "status": 201,
+      "body": {
+        "success": true,
+        "account": {
+          "id": 42,
+          "userId": 42,
+          "username": "jdoe",
+          "roleCode": "DOC",
+          "role": "Doctor",
+          "status": true,
+          "createdTime": "2026-01-02T03:04:05.000Z",
+          "createdBy": 1,
+          "createdByName": "Root Admin",
+          "nationalId": "000000000042",
+          "name": "John Doe",
+          "sex": "Male",
+          "dob": "1990-05-06",
+          "phone": "0900000000",
+          "email": "j@example.com",
+          "doctorId": 7,
+          "doctorSpecifications": "Cardiology",
+          "doctorQualifications": "MD",
+          "doctorDepartmentIds": [
+            3,
+            4
+          ]
+        }
+      }
+    },
+    "db": [
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT user_id AS userId FROM ACCOUNT WHERE username = :username LIMIT 1",
+        "replacements": {
+          "username": "newbie"
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "INSERT INTO USER (idcard, sex, dob, tel, email, first_name, last_name) VALUES (:idcard, :sex, :dob, :tel, :email, :firstName, :lastName)",
+        "replacements": {
+          "idcard": "<idcard>",
+          "sex": "F",
+          "dob": "1995-01-01",
+          "tel": "0911111111",
+          "email": "doc@example.com",
+          "firstName": "Nguyen Van",
+          "lastName": "An"
+        },
+        "type": "INSERT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "INSERT INTO ACCOUNT (user_id, username, password, type, created_by, status) VALUES (:userId, :username, :password, :type, :createdBy, :status)",
+        "replacements": {
+          "userId": 102,
+          "username": "newbie",
+          "password": "<bcrypt>",
+          "type": "DOC",
+          "createdBy": 1,
+          "status": 0
+        },
+        "type": "INSERT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT id FROM DEPARTMENT WHERE id IN (3,4)",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT doctor_id AS doctorId FROM DOCTOR WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 102
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "INSERT INTO DOCTOR (user_id, qualifications, specifications, room_id) VALUES (:userId, :q, :s, NULL)",
+        "replacements": {
+          "userId": 102,
+          "q": "MD",
+          "s": "Cardiology"
+        },
+        "type": "INSERT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "DELETE FROM DOCTOR_DEPARTMENT WHERE doctor_id = :doctorId",
+        "replacements": {
+          "doctorId": 55
+        },
+        "type": "DELETE",
+        "tx": "tx1"
+      },
+      {
+        "sql": "INSERT INTO DOCTOR_DEPARTMENT (doctor_id, department_id) VALUES (:doctorId, :depId)",
+        "replacements": {
+          "doctorId": 55,
+          "depId": 3
+        },
+        "type": "INSERT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT a.user_id AS userId, a.username, a.type, a.status, a.created_time AS createdTime, a.created_by AS createdBy, COALESCE( NULLIF(TRIM(CONCAT(COALESCE(cu.first_name, ''), ' ', COALESCE(cu.last_name, ''))), ''), ca.username ) AS createdByName, u.idcard AS nationalId, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username) AS name, u.sex AS sex, u.dob AS dob, u.tel AS phone, u.email AS email, d.doctor_id AS doctorId, d.specifications AS doctorSpecifications, d.qualifications AS doctorQualifications, (SELECT GROUP_CONCAT(dd.department_id ORDER BY dd.department_id) FROM DOCTOR_DEPARTMENT dd WHERE dd.doctor_id = d.doctor_id) AS doctorDepartmentIdsCsv FROM ACCOUNT a LEFT JOIN USER u ON u.id = a.user_id LEFT JOIN DOCTOR d ON d.user_id = a.user_id LEFT JOIN ACCOUNT ca ON ca.user_id = a.created_by LEFT JOIN USER cu ON cu.id = a.created_by WHERE a.user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 102
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "event": "commit",
+        "tx": "tx1"
+      }
+    ]
+  },
+  "create account, duplicate username": {
+    "request": "POST /api/admin/accounts",
+    "response": {
+      "status": 400,
+      "message": "Username already exists"
+    },
+    "db": [
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT user_id AS userId FROM ACCOUNT WHERE username = :username LIMIT 1",
+        "replacements": {
+          "username": "newbie"
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "event": "rollback",
+        "tx": "tx1"
+      }
+    ]
+  },
+  "create account, missing name": {
+    "request": "POST /api/admin/accounts",
+    "response": {
+      "status": 400,
+      "message": "Name is required"
+    },
+    "db": [
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "event": "rollback",
+        "tx": "tx1"
+      }
+    ]
+  },
+  "create account, bad role": {
+    "request": "POST /api/admin/accounts",
+    "response": {
+      "status": 400,
+      "message": "Invalid role code"
+    },
+    "db": [
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "event": "rollback",
+        "tx": "tx1"
+      }
+    ]
+  },
+  "create account, future dob": {
+    "request": "POST /api/admin/accounts",
+    "response": {
+      "status": 400,
+      "message": "Date of birth must be before today (not today or a future date)"
+    },
+    "db": [
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "event": "rollback",
+        "tx": "tx1"
+      }
+    ]
+  },
+  "create account, db down": {
+    "request": "POST /api/admin/accounts",
+    "response": {
+      "status": 500,
+      "message": "internal server error"
+    },
+    "db": [
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT user_id AS userId FROM ACCOUNT WHERE username = :username LIMIT 1",
+        "replacements": {
+          "username": "newbie"
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "INSERT INTO USER (idcard, sex, dob, tel, email, first_name, last_name) VALUES (:idcard, :sex, :dob, :tel, :email, :firstName, :lastName)",
+        "replacements": {
+          "idcard": "<idcard>",
+          "sex": "M",
+          "dob": "1995-01-01",
+          "tel": "0911111111",
+          "email": null,
+          "firstName": "Nguyen Van",
+          "lastName": "An"
+        },
+        "type": "INSERT",
+        "tx": "tx1"
+      },
+      {
+        "event": "rollback",
+        "tx": "tx1"
+      }
+    ]
+  },
+  "update account, bad id": {
+    "request": "PATCH /api/admin/accounts/abc",
+    "response": {
+      "status": 400,
+      "message": "Invalid account id"
+    },
+    "db": [
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "event": "rollback",
+        "tx": "tx1"
+      }
+    ]
+  },
+  "update account, not found": {
+    "request": "PATCH /api/admin/accounts/42",
+    "response": {
+      "status": 404,
+      "message": "Account not found"
+    },
+    "db": [
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT user_id AS userId, type, status FROM ACCOUNT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 42
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "event": "rollback",
+        "tx": "tx1"
+      }
+    ]
+  },
+  "update account, cannot disable admin": {
+    "request": "PATCH /api/admin/accounts/42",
+    "response": {
+      "status": 403,
+      "message": "Cannot disable admin accounts."
+    },
+    "db": [
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT user_id AS userId, type, status FROM ACCOUNT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 42
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "event": "rollback",
+        "tx": "tx1"
+      }
+    ]
+  },
+  "update account, invalid dob": {
+    "request": "PATCH /api/admin/accounts/42",
+    "response": {
+      "status": 400,
+      "message": "Invalid date of birth"
+    },
+    "db": [
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT user_id AS userId, type, status FROM ACCOUNT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 42
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "event": "rollback",
+        "tx": "tx1"
+      }
+    ]
+  },
+  "update doctor account": {
+    "request": "PATCH /api/admin/accounts/42",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "account": {
+          "id": 42,
+          "userId": 42,
+          "username": "jdoe",
+          "roleCode": "DOC",
+          "role": "Doctor",
+          "status": true,
+          "createdTime": "2026-01-02T03:04:05.000Z",
+          "createdBy": 1,
+          "createdByName": "Root Admin",
+          "nationalId": "000000000042",
+          "name": "John Doe",
+          "sex": "Male",
+          "dob": "1990-05-06",
+          "phone": "0900000000",
+          "email": "j@example.com",
+          "doctorId": 7,
+          "doctorSpecifications": "Cardiology",
+          "doctorQualifications": "MD",
+          "doctorDepartmentIds": [
+            3,
+            4
+          ]
+        }
+      }
+    },
+    "db": [
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT user_id AS userId, type, status FROM ACCOUNT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 42
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "UPDATE USER SET sex = :sex, dob = :dob, tel = :tel, email = :email, first_name = :firstName, last_name = :lastName WHERE id = :userId",
+        "replacements": {
+          "userId": 42,
+          "sex": "M",
+          "dob": "1995-01-01",
+          "tel": "0911111111",
+          "email": null,
+          "firstName": "Solo",
+          "lastName": null
+        },
+        "type": "UPDATE",
+        "tx": "tx1"
+      },
+      {
+        "sql": "UPDATE ACCOUNT SET status = :status WHERE user_id = :userId",
+        "replacements": {
+          "userId": 42,
+          "status": 1
+        },
+        "type": "UPDATE",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT id FROM DEPARTMENT WHERE id IN (4)",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT doctor_id AS doctorId FROM DOCTOR WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 42
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "UPDATE DOCTOR SET qualifications = :q, specifications = :s WHERE doctor_id = :doctorId",
+        "replacements": {
+          "q": null,
+          "s": null,
+          "doctorId": 7
+        },
+        "type": "UPDATE",
+        "tx": "tx1"
+      },
+      {
+        "sql": "DELETE FROM DOCTOR_DEPARTMENT WHERE doctor_id = :doctorId",
+        "replacements": {
+          "doctorId": 7
+        },
+        "type": "DELETE",
+        "tx": "tx1"
+      },
+      {
+        "sql": "INSERT INTO DOCTOR_DEPARTMENT (doctor_id, department_id) VALUES (:doctorId, :depId)",
+        "replacements": {
+          "doctorId": 7,
+          "depId": 4
+        },
+        "type": "INSERT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT a.user_id AS userId, a.username, a.type, a.status, a.created_time AS createdTime, a.created_by AS createdBy, COALESCE( NULLIF(TRIM(CONCAT(COALESCE(cu.first_name, ''), ' ', COALESCE(cu.last_name, ''))), ''), ca.username ) AS createdByName, u.idcard AS nationalId, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username) AS name, u.sex AS sex, u.dob AS dob, u.tel AS phone, u.email AS email, d.doctor_id AS doctorId, d.specifications AS doctorSpecifications, d.qualifications AS doctorQualifications, (SELECT GROUP_CONCAT(dd.department_id ORDER BY dd.department_id) FROM DOCTOR_DEPARTMENT dd WHERE dd.doctor_id = d.doctor_id) AS doctorDepartmentIdsCsv FROM ACCOUNT a LEFT JOIN USER u ON u.id = a.user_id LEFT JOIN DOCTOR d ON d.user_id = a.user_id LEFT JOIN ACCOUNT ca ON ca.user_id = a.created_by LEFT JOIN USER cu ON cu.id = a.created_by WHERE a.user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 42
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "event": "commit",
+        "tx": "tx1"
+      }
+    ]
+  },
+  "update account, db down": {
+    "request": "PATCH /api/admin/accounts/42",
+    "response": {
+      "status": 500,
+      "message": "internal server error"
+    },
+    "db": [
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT user_id AS userId, type, status FROM ACCOUNT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 42
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "UPDATE USER SET sex = :sex, dob = :dob, tel = :tel, email = :email, first_name = :firstName, last_name = :lastName WHERE id = :userId",
+        "replacements": {
+          "userId": 42,
+          "sex": "M",
+          "dob": "1995-01-01",
+          "tel": "0911111111",
+          "email": null,
+          "firstName": "Nguyen Van",
+          "lastName": "An"
+        },
+        "type": "UPDATE",
+        "tx": "tx1"
+      },
+      {
+        "event": "rollback",
+        "tx": "tx1"
+      }
+    ]
+  },
+  "account status, bad id": {
+    "request": "PATCH /api/admin/accounts/x/status",
+    "response": {
+      "status": 400,
+      "message": "Invalid account id"
+    },
+    "db": []
+  },
+  "account status, not found": {
+    "request": "PATCH /api/admin/accounts/42/status",
+    "response": {
+      "status": 404,
+      "message": "Account not found"
+    },
+    "db": [
+      {
+        "sql": "SELECT user_id AS userId, type FROM ACCOUNT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 42
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "account status, cannot disable admin": {
+    "request": "PATCH /api/admin/accounts/42/status",
+    "response": {
+      "status": 403,
+      "message": "Cannot disable admin accounts."
+    },
+    "db": [
+      {
+        "sql": "SELECT user_id AS userId, type FROM ACCOUNT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 42
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "account status, disable patient": {
+    "request": "PATCH /api/admin/accounts/42/status",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "id": 42,
+        "status": false
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT user_id AS userId, type FROM ACCOUNT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 42
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "UPDATE ACCOUNT SET status = :status WHERE user_id = :userId",
+        "replacements": {
+          "userId": 42,
+          "status": 0
+        },
+        "type": "UPDATE",
+        "tx": null
+      }
+    ]
+  },
+  "list feedbacks": {
+    "request": "GET /api/admin/feedbacks",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "feedbacks": [
+          {
+            "id": 5,
+            "userId": 42,
+            "username": "jdoe",
+            "userName": "jdoe",
+            "roleCode": "PAT",
+            "role": "Patient",
+            "type": "bug",
+            "content": "Slow page",
+            "rating": 4,
+            "time": "2026-02-03T00:00:00.000Z",
+            "status": false,
+            "response": ""
+          }
+        ]
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT f.id, f.user_id AS userId, f.type, f.content, f.rating, f.time, f.status, f.response, a.username, a.type AS roleCode, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username) AS userName FROM FEEDBACK f LEFT JOIN ACCOUNT a ON a.user_id = f.user_id LEFT JOIN USER u ON u.id = f.user_id ORDER BY f.time DESC, f.id DESC",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "list feedbacks, db down": {
+    "request": "GET /api/admin/feedbacks",
+    "response": {
+      "status": 500,
+      "message": "internal server error"
+    },
+    "db": [
+      {
+        "sql": "SELECT f.id, f.user_id AS userId, f.type, f.content, f.rating, f.time, f.status, f.response, a.username, a.type AS roleCode, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username) AS userName FROM FEEDBACK f LEFT JOIN ACCOUNT a ON a.user_id = f.user_id LEFT JOIN USER u ON u.id = f.user_id ORDER BY f.time DESC, f.id DESC",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "update feedback, bad id": {
+    "request": "PATCH /api/admin/feedbacks/abc",
+    "response": {
+      "status": 400,
+      "message": "Invalid feedback id"
+    },
+    "db": []
+  },
+  "update feedback, nothing to update": {
+    "request": "PATCH /api/admin/feedbacks/5",
+    "response": {
+      "status": 400,
+      "message": "Nothing to update"
+    },
+    "db": []
+  },
+  "update feedback, not found": {
+    "request": "PATCH /api/admin/feedbacks/5",
+    "response": {
+      "status": 404,
+      "message": "Feedback not found"
+    },
+    "db": [
+      {
+        "sql": "SELECT id FROM FEEDBACK WHERE id = :id LIMIT 1",
+        "replacements": {
+          "id": 5
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "update feedback, response + status": {
+    "request": "PATCH /api/admin/feedbacks/5",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "feedback": {
+          "id": 5,
+          "userId": 42,
+          "username": "jdoe",
+          "userName": "jdoe",
+          "roleCode": "PAT",
+          "role": "Patient",
+          "type": "bug",
+          "content": "Slow page",
+          "rating": 4,
+          "time": "2026-02-03T00:00:00.000Z",
+          "status": true,
+          "response": "Thanks!"
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT id FROM FEEDBACK WHERE id = :id LIMIT 1",
+        "replacements": {
+          "id": 5
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "UPDATE FEEDBACK SET response = :response, status = :status WHERE id = :id",
+        "replacements": {
+          "id": 5,
+          "response": "Thanks!",
+          "status": 1
+        },
+        "type": "UPDATE",
+        "tx": null
+      },
+      {
+        "sql": "SELECT f.id, f.user_id AS userId, f.type, f.content, f.rating, f.time, f.status, f.response, a.username, a.type AS roleCode, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username) AS userName FROM FEEDBACK f LEFT JOIN ACCOUNT a ON a.user_id = f.user_id LEFT JOIN USER u ON u.id = f.user_id WHERE f.id = :id LIMIT 1",
+        "replacements": {
+          "id": 5
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "update feedback, blank response clears it": {
+    "request": "PATCH /api/admin/feedbacks/5",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "feedback": {
+          "id": 5,
+          "userId": 42,
+          "username": "jdoe",
+          "userName": "jdoe",
+          "roleCode": "PAT",
+          "role": "Patient",
+          "type": "bug",
+          "content": "Slow page",
+          "rating": 4,
+          "time": "2026-02-03T00:00:00.000Z",
+          "status": false,
+          "response": ""
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT id FROM FEEDBACK WHERE id = :id LIMIT 1",
+        "replacements": {
+          "id": 5
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "UPDATE FEEDBACK SET response = :response WHERE id = :id",
+        "replacements": {
+          "id": 5,
+          "response": null
+        },
+        "type": "UPDATE",
+        "tx": null
+      },
+      {
+        "sql": "SELECT f.id, f.user_id AS userId, f.type, f.content, f.rating, f.time, f.status, f.response, a.username, a.type AS roleCode, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username) AS userName FROM FEEDBACK f LEFT JOIN ACCOUNT a ON a.user_id = f.user_id LEFT JOIN USER u ON u.id = f.user_id WHERE f.id = :id LIMIT 1",
+        "replacements": {
+          "id": 5
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "list features": {
+    "request": "GET /api/system-config/features",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "stats": {
+          "total": 2,
+          "enabled": 1,
+          "disabled": 1
+        },
+        "features": [
+          {
+            "id": 1,
+            "name": "chat",
+            "status": 1,
+            "featureGroup": "ai",
+            "systemId": 1
+          },
+          {
+            "id": 2,
+            "name": "x",
+            "status": 0,
+            "featureGroup": "ai",
+            "systemId": 1
+          }
+        ]
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT id, name, status, feature_group AS featureGroup, system_id AS systemId FROM FEATURE ORDER BY feature_group ASC, name ASC, id ASC",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "list features, db down": {
+    "request": "GET /api/system-config/features",
+    "response": {
+      "status": 500,
+      "message": "internal server error"
+    },
+    "db": [
+      {
+        "sql": "SELECT id, name, status, feature_group AS featureGroup, system_id AS systemId FROM FEATURE ORDER BY feature_group ASC, name ASC, id ASC",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "feature status, bad id": {
+    "request": "PUT /api/system-config/features/0/status",
+    "response": {
+      "status": 400,
+      "message": "Invalid feature id"
+    },
+    "db": []
+  },
+  "feature status, bad status": {
+    "request": "PUT /api/system-config/features/1/status",
+    "response": {
+      "status": 400,
+      "message": "Status must be boolean (0/1 or true/false)"
+    },
+    "db": []
+  },
+  "feature status, not found": {
+    "request": "PUT /api/system-config/features/1/status",
+    "response": {
+      "status": 404,
+      "message": "Feature not found"
+    },
+    "db": [
+      {
+        "sql": "UPDATE FEATURE SET status = :status WHERE id = :id",
+        "replacements": {
+          "status": 0,
+          "id": 1
+        },
+        "type": "UPDATE",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id, name, status, feature_group AS featureGroup, system_id AS systemId FROM FEATURE WHERE id = :id LIMIT 1",
+        "replacements": {
+          "id": 1
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "feature status, enable": {
+    "request": "PUT /api/system-config/features/1/status",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "feature": {
+          "id": 1,
+          "name": "chat",
+          "status": 1,
+          "featureGroup": "ai",
+          "systemId": 1
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "UPDATE FEATURE SET status = :status WHERE id = :id",
+        "replacements": {
+          "status": 1,
+          "id": 1
+        },
+        "type": "UPDATE",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id, name, status, feature_group AS featureGroup, system_id AS systemId FROM FEATURE WHERE id = :id LIMIT 1",
+        "replacements": {
+          "id": 1
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "list sessions": {
+    "request": "GET /api/system-config/sessions",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "sessions": [
+          {
+            "id": 3,
+            "userId": 42,
+            "lastActivity": null,
+            "expiresAt": null,
+            "ipAddress": "::1",
+            "userAgent": "ua",
+            "roleCode": "PAT"
+          }
+        ],
+        "total": 1
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT s.id, s.userId, s.lastActivity, s.expiresAt, s.ipAddress, s.userAgent, COALESCE(a.type, '') AS roleCode FROM SESSION s LEFT JOIN ACCOUNT a ON a.user_id = s.userId WHERE s.expiresAt > NOW() ORDER BY s.lastActivity DESC LIMIT 500",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "list sessions, db down": {
+    "request": "GET /api/system-config/sessions",
+    "response": {
+      "status": 500,
+      "message": "internal server error"
+    },
+    "db": [
+      {
+        "sql": "SELECT s.id, s.userId, s.lastActivity, s.expiresAt, s.ipAddress, s.userAgent, COALESCE(a.type, '') AS roleCode FROM SESSION s LEFT JOIN ACCOUNT a ON a.user_id = s.userId WHERE s.expiresAt > NOW() ORDER BY s.lastActivity DESC LIMIT 500",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "revoke session, bad id": {
+    "request": "DELETE /api/system-config/sessions/-1",
+    "response": {
+      "status": 400,
+      "message": "Invalid session id"
+    },
+    "db": []
+  },
+  "revoke session, not found": {
+    "request": "DELETE /api/system-config/sessions/3",
+    "response": {
+      "status": 404,
+      "message": "Session not found"
+    },
+    "db": [
+      {
+        "event": "Session.findOne",
+        "where": {
+          "id": 3
+        }
+      }
+    ]
+  },
+  "revoke session, own session": {
+    "request": "DELETE /api/system-config/sessions/3",
+    "response": {
+      "status": 403,
+      "message": "Cannot revoke your own session."
+    },
+    "db": [
+      {
+        "event": "Session.findOne",
+        "where": {
+          "id": 3
+        }
+      }
+    ]
+  },
+  "revoke session, admin target": {
+    "request": "DELETE /api/system-config/sessions/3",
+    "response": {
+      "status": 403,
+      "message": "Cannot revoke admin sessions."
+    },
+    "db": [
+      {
+        "event": "Session.findOne",
+        "where": {
+          "id": 3
+        }
+      },
+      {
+        "sql": "SELECT type FROM ACCOUNT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 42
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "revoke session, ok": {
+    "request": "DELETE /api/system-config/sessions/3",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "message": "Session revoked successfully"
+      }
+    },
+    "db": [
+      {
+        "event": "Session.findOne",
+        "where": {
+          "id": 3
+        }
+      },
+      {
+        "sql": "SELECT type FROM ACCOUNT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 42
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "Session.destroy",
+        "where": {
+          "id": 3
+        }
+      }
+    ]
+  },
+  "revoke session, already gone": {
+    "request": "DELETE /api/system-config/sessions/3",
+    "response": {
+      "status": 404,
+      "message": "Session not found"
+    },
+    "db": [
+      {
+        "event": "Session.findOne",
+        "where": {
+          "id": 3
+        }
+      },
+      {
+        "sql": "SELECT type FROM ACCOUNT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 42
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "Session.destroy",
+        "where": {
+          "id": 3
+        }
+      }
+    ]
+  },
+  "revoke all, bad userId": {
+    "request": "POST /api/system-config/sessions/revoke-all",
+    "response": {
+      "status": 400,
+      "message": "Invalid userId"
+    },
+    "db": []
+  },
+  "revoke all, own user": {
+    "request": "POST /api/system-config/sessions/revoke-all",
+    "response": {
+      "status": 403,
+      "message": "Cannot revoke your own sessions."
+    },
+    "db": []
+  },
+  "revoke all, admin user": {
+    "request": "POST /api/system-config/sessions/revoke-all",
+    "response": {
+      "status": 403,
+      "message": "Cannot revoke admin sessions."
+    },
+    "db": [
+      {
+        "sql": "SELECT type FROM ACCOUNT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 42
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "revoke all for one user": {
+    "request": "POST /api/system-config/sessions/revoke-all",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "message": "Sessions revoked successfully",
+        "revokedCount": 2
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT type FROM ACCOUNT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 42
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "Session.destroy",
+        "where": {
+          "userId": 42
+        }
+      }
+    ]
+  },
+  "revoke all non-admin sessions": {
+    "request": "POST /api/system-config/sessions/revoke-all",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "message": "Sessions revoked successfully",
+        "revokedCount": 5
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT user_id AS userId FROM ACCOUNT WHERE type = 'ADM'",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "Session.destroy",
+        "where": {
+          "userId": {
+            "[notIn]": [
+              1,
+              8,
+              2
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "revoke all, no admins": {
+    "request": "POST /api/system-config/sessions/revoke-all",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "message": "Sessions revoked successfully",
+        "revokedCount": 1
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT user_id AS userId FROM ACCOUNT WHERE type = 'ADM'",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "Session.destroy",
+        "where": {}
+      }
+    ]
+  },
+  "revoke all, db down": {
+    "request": "POST /api/system-config/sessions/revoke-all",
+    "response": {
+      "status": 500,
+      "message": "internal server error"
+    },
+    "db": [
+      {
+        "sql": "SELECT user_id AS userId FROM ACCOUNT WHERE type = 'ADM'",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  }
+}

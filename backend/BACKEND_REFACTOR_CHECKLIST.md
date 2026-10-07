@@ -144,6 +144,14 @@ SQL đã chuyển khỏi controller; controller chỉ còn HTTP (`asyncHandler`)
 | `services/emr/bytPrescription.js` | Cấu hình cơ sở + sinh / parse mã đơn thuốc BYT |
 | `services/emr/patientRecordCache.js` | Cache hồ sơ bệnh nhân (invalidate khi sửa chẩn đoán) |
 
-Bước B (cần integration test với MySQL): chuyển SQL từ controllers/doctor/* và services/emr/* xuống `repositories/`, áp dụng `asyncHandler` + `validate`, tách tiếp 2 handler lớn của `regimenController` (~300 dòng mỗi cái).
+Bước B — chuyển SQL từ controllers/doctor/* và services/emr/* xuống `repositories/`, áp dụng `asyncHandler` + `validate`, kiểm chứng bằng characterization test (DB giả). Làm theo đợt:
+
+- [x] **Đợt 1** — catalog / dashboard / chữ ký + helper dùng chung: `repositories/{catalog,doctorDashboard,staff,patient}Repository.js`, `services/emr/{catalogService,doctorDashboardService,signatureService}.js`; `staffIdentity`, `patientRouteResolver`, `common/resolvePatientRouteId`, `emrActiveVisitMiddleware` không còn SQL. Test: `test/doctor-catalog-characterization.test.js`.
+- [ ] **Đợt 2** — `patientController`, `healthInfoController`, `diagnosisController` (+ `services/emr/treatmentService`).
+- [ ] **Đợt 3** — `prescriptionController` (+ `bytPrescription`), `labTestController`, `surgeryController`.
+- [ ] **Đợt 4** — `controllers/doctor/appointmentController.js`.
+- [ ] **Đợt 5** — `regimenController` (tách tiếp 2 handler ~300 dòng).
+- `staffIdentity.resolveDoctorDisplayName(req)` vẫn nhận `req` — đổi sang `(user)` khi refactor diagnosis / prescription (đợt 2–3).
+- `AppError(..., 500, { expose: true })` cho câu báo 5xx cố định mà người dùng cần thấy (vd. "Could not read signature").
 - **`prescriptionQueryCompat.js`** giữ SQL dùng chung cho đơn thuốc (đã là lớp compat).
 - **`src/index.ts`** vẫn truyền `sequelize` cho model/`SystemConfig`; scheduler dùng DB qua repository.

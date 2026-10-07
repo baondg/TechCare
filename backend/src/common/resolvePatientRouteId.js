@@ -1,5 +1,4 @@
-const { QueryTypes } = require('sequelize');
-const sequelize = require('./database');
+const patientRepository = require('../repositories/patientRepository');
 
 function parseOpRouteNumeric(patientIdParam) {
   const n = Number(String(patientIdParam ?? '').replace(/^OP0*/i, ''));
@@ -7,46 +6,24 @@ function parseOpRouteNumeric(patientIdParam) {
   return n;
 }
 
-function qTx(transaction, base) {
-  return transaction ? { ...base, transaction } : base;
-}
-
+/** PATIENT.patient_id for an OP… / numeric route param: tried as USER.id first, then as patient_id. */
 async function resolvePatientPkFromRoute(patientIdParam, transaction) {
   const n = parseOpRouteNumeric(patientIdParam);
   if (n == null) return null;
-
-  const [byUser] = await sequelize.query(
-    'SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1',
-    qTx(transaction, { replacements: { n }, type: QueryTypes.SELECT })
+  return (
+    (await patientRepository.findPatientPkByUserId(n, transaction)) ??
+    patientRepository.findPatientPk(n, transaction)
   );
-  if (byUser?.id != null) return Number(byUser.id);
-
-  const [byPk] = await sequelize.query(
-    'SELECT patient_id AS id FROM PATIENT WHERE patient_id = :n LIMIT 1',
-    qTx(transaction, { replacements: { n }, type: QueryTypes.SELECT })
-  );
-  if (byPk?.id != null) return Number(byPk.id);
-
-  return null;
 }
 
+/** USER.id of the patient for an OP… / numeric route param (same lookup order). */
 async function resolveUserIdFromRoute(patientIdParam, transaction) {
   const n = parseOpRouteNumeric(patientIdParam);
   if (n == null) return null;
-
-  const [row] = await sequelize.query(
-    'SELECT user_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1',
-    qTx(transaction, { replacements: { n }, type: QueryTypes.SELECT })
+  return (
+    (await patientRepository.findPatientUserId(n, transaction)) ??
+    patientRepository.findUserIdByPatientPk(n, transaction)
   );
-  if (row?.id != null) return Number(row.id);
-
-  const [byPk] = await sequelize.query(
-    'SELECT user_id AS id FROM PATIENT WHERE patient_id = :n LIMIT 1',
-    qTx(transaction, { replacements: { n }, type: QueryTypes.SELECT })
-  );
-  if (byPk?.id != null) return Number(byPk.id);
-
-  return null;
 }
 
 module.exports = {

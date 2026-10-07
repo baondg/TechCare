@@ -1,6 +1,7 @@
 const bcrypt = require('bcrypt');
 const sequelize = require('../../common/database');
 const accountRepository = require('../../repositories/accountRepository');
+const catalogRepository = require('../../repositories/catalogRepository');
 const { config } = require('../../config/env');
 const { BadRequestError, ForbiddenError, NotFoundError } = require('../../errors/AppError');
 const { ROLE_CODES } = require('../../validators/adminSchemas');
@@ -167,7 +168,7 @@ async function inTransaction(work) {
 }
 
 async function listDepartments() {
-  const rows = await accountRepository.listDepartments();
+  const rows = await catalogRepository.listDepartments();
   return rows.map((r) => ({ id: Number(r.id), name: String(r.name || '') }));
 }
 

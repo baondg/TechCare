@@ -131,7 +131,8 @@ SQL đã chuyển khỏi controller; controller chỉ còn HTTP (`asyncHandler`)
 - [x] Nhóm 1 — `appointmentPatientService`, `appointmentFeedbackService`, `appointmentCatalogService`, chi tiết xét nghiệm portal: trả dữ liệu + throw `AppError`. Test: `test/appointment-patient-characterization.test.js` (44 kịch bản).
 - [ ] Nhóm 2 — `appointmentSlotService`, `appointmentNurseService` (vẫn `{ status, json }` + tự kiểm tra role).
 - [ ] Nhóm 3 — `appointmentAiService`.
-- ⚠️ `GET /api/appointments/patients` (danh sách bệnh nhân portal) chỉ cần đăng nhập — bệnh nhân cũng gọi được.
+- [x] Sửa: `GET /api/appointments/patients` (mọi bệnh nhân + chẩn đoán gần nhất) chỉ cho nhân viên EMR (`doctor.emr.read`); trước đây bệnh nhân nào cũng gọi được.
+- Frontend: `pages/technician/patients.tsx` gọi cứng `http://localhost:3000/api/appointments/patients` (hỏng khi deploy). `getPortalPatients` truy vấn N+1 (mỗi bệnh nhân 2 truy vấn).
 
 ## Follow-up (broader backend — khối lớn, làm dần)
 

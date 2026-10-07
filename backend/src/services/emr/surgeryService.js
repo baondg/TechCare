@@ -149,18 +149,25 @@ async function updateSurgery(patientIdParam, id, body) {
   const surgeon = await resolveSurgeon(surgeonDoctorId, typedSurgeonName);
   const nextResult = result !== undefined ? result : cur.result;
 
-  await surgeryRepository.updateSurgery(id, {
-    type: nextType,
-    start: range.start,
-    end: range.end,
-    duration: range.duration,
-    urgency: nextUrgency,
-    surgeon: surgeon ? surgeon.id : cur.surgeon != null ? Number(cur.surgeon) : null,
-    result: nextResult,
+  // One transaction: SURGERY and its PROCEDURE_ row (type, note) change together.
+  const noteFinal = await inTransaction(async (transaction) => {
+    await surgeryRepository.updateSurgery(
+      id,
+      {
+        type: nextType,
+        start: range.start,
+        end: range.end,
+        duration: range.duration,
+        urgency: nextUrgency,
+        surgeon: surgeon ? surgeon.id : cur.surgeon != null ? Number(cur.surgeon) : null,
+        result: nextResult,
+      },
+      transaction
+    );
+    await orderRepository.updateProcedureType(id, procedureType(nextType), transaction);
+    if (note !== undefined) await orderRepository.updateProcedureNote(id, note, transaction);
+    return orderRepository.findProcedureNote(id, transaction);
   });
-  await orderRepository.updateProcedureType(id, procedureType(nextType));
-  if (note !== undefined) await orderRepository.updateProcedureNote(id, note);
-  const noteFinal = await orderRepository.findProcedureNote(id);
 
   return {
     id: Number(id),

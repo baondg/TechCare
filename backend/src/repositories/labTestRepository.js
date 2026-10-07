@@ -66,46 +66,51 @@ async function insertLabTest({ id, time, type, technicianId, result, note, attac
   });
 }
 
-async function updateTechnician(id, technicianId) {
+async function updateTechnician(id, technicianId, transaction) {
   await sequelize.query('UPDATE TEST SET technician_id = :technicianId WHERE id = :id', {
     replacements: { id, technicianId },
     type: QueryTypes.UPDATE,
+    transaction,
   });
 }
 
 /** null `type` / `time` keep the stored value. */
-async function updateTypeAndTime(id, { type, time }) {
+async function updateTypeAndTime(id, { type, time }, transaction) {
   await sequelize.query('UPDATE TEST SET type = COALESCE(:type, type), time = COALESCE(:time, time) WHERE id = :id', {
     replacements: { id, type, time },
     type: QueryTypes.UPDATE,
+    transaction,
   });
 }
 
-async function updateNote(id, note) {
+async function updateNote(id, note, transaction) {
   await sequelize.query('UPDATE TEST SET note = :note WHERE id = :id', {
     replacements: { id, note },
     type: QueryTypes.UPDATE,
+    transaction,
   });
 }
 
-async function updateAttachmentUrl(id, fileUrl) {
+async function updateAttachmentUrl(id, fileUrl, transaction) {
   await sequelize.query('UPDATE TEST SET attachment_url = :fileUrl WHERE id = :id', {
     replacements: { id, fileUrl },
     type: QueryTypes.UPDATE,
+    transaction,
   });
 }
 
 /** TEST.result and the TEST_DETAIL summary line (created when missing). */
-async function updateResultSummary(id, result) {
+async function updateResultSummary(id, result, transaction) {
   await sequelize.query('UPDATE TEST SET result = :result WHERE id = :id', {
     replacements: { id, result },
     type: QueryTypes.UPDATE,
+    transaction,
   });
   await sequelize.query(
     `INSERT INTO TEST_DETAIL (test_id, no, \`index\`, result)
      VALUES (:id, 1, 'summary', :result)
      ON DUPLICATE KEY UPDATE result = VALUES(result)`,
-    { replacements: { id, result: result || '' }, type: QueryTypes.INSERT }
+    { replacements: { id, result: result || '' }, type: QueryTypes.INSERT, transaction }
   );
 }
 

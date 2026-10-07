@@ -3313,13 +3313,17 @@
         "tx": null
       },
       {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
         "sql": "UPDATE TEST SET technician_id = :technicianId WHERE id = :id",
         "replacements": {
           "id": "701",
           "technicianId": null
         },
         "type": "UPDATE",
-        "tx": null
+        "tx": "tx1"
       },
       {
         "sql": "UPDATE PROCEDURE_ SET technician_id = :technicianId WHERE order_id = :id",
@@ -3328,7 +3332,7 @@
           "technicianId": null
         },
         "type": "UPDATE",
-        "tx": null
+        "tx": "tx1"
       },
       {
         "sql": "UPDATE TEST SET type = COALESCE(:type, type), time = COALESCE(:time, time) WHERE id = :id",
@@ -3338,7 +3342,7 @@
           "time": "2026-10-02 10:00:00"
         },
         "type": "UPDATE",
-        "tx": null
+        "tx": "tx1"
       },
       {
         "sql": "UPDATE TEST SET note = :note WHERE id = :id",
@@ -3347,7 +3351,7 @@
           "note": "redo"
         },
         "type": "UPDATE",
-        "tx": null
+        "tx": "tx1"
       },
       {
         "sql": "UPDATE PROCEDURE_ SET note = :note WHERE order_id = :id",
@@ -3356,7 +3360,7 @@
           "note": "redo"
         },
         "type": "UPDATE",
-        "tx": null
+        "tx": "tx1"
       },
       {
         "sql": "UPDATE TEST SET attachment_url = :fileUrl WHERE id = :id",
@@ -3365,7 +3369,7 @@
           "fileUrl": null
         },
         "type": "UPDATE",
-        "tx": null
+        "tx": "tx1"
       },
       {
         "sql": "UPDATE TEST SET result = :result WHERE id = :id",
@@ -3374,7 +3378,7 @@
           "result": ""
         },
         "type": "UPDATE",
-        "tx": null
+        "tx": "tx1"
       },
       {
         "sql": "INSERT INTO TEST_DETAIL (test_id, no, `index`, result) VALUES (:id, 1, 'summary', :result) ON DUPLICATE KEY UPDATE result = VALUES(result)",
@@ -3383,7 +3387,11 @@
           "result": ""
         },
         "type": "INSERT",
-        "tx": null
+        "tx": "tx1"
+      },
+      {
+        "event": "commit",
+        "tx": "tx1"
       }
     ]
   },
@@ -3441,13 +3449,17 @@
         "tx": null
       },
       {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
         "sql": "UPDATE TEST SET technician_id = :technicianId WHERE id = :id",
         "replacements": {
           "id": "701",
           "technicianId": 9
         },
         "type": "UPDATE",
-        "tx": null
+        "tx": "tx1"
       },
       {
         "sql": "UPDATE PROCEDURE_ SET technician_id = :technicianId WHERE order_id = :id",
@@ -3456,7 +3468,11 @@
           "technicianId": 9
         },
         "type": "UPDATE",
-        "tx": null
+        "tx": "tx1"
+      },
+      {
+        "event": "commit",
+        "tx": "tx1"
       }
     ]
   },
@@ -3491,13 +3507,17 @@
         "tx": null
       },
       {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
         "sql": "UPDATE TEST SET technician_id = :technicianId WHERE id = :id",
         "replacements": {
           "id": "701",
           "technicianId": 12
         },
         "type": "UPDATE",
-        "tx": null
+        "tx": "tx1"
       },
       {
         "sql": "UPDATE PROCEDURE_ SET technician_id = :technicianId WHERE order_id = :id",
@@ -3506,7 +3526,7 @@
           "technicianId": 12
         },
         "type": "UPDATE",
-        "tx": null
+        "tx": "tx1"
       },
       {
         "sql": "UPDATE TEST SET type = COALESCE(:type, type), time = COALESCE(:time, time) WHERE id = :id",
@@ -3516,7 +3536,11 @@
           "time": null
         },
         "type": "UPDATE",
-        "tx": null
+        "tx": "tx1"
+      },
+      {
+        "event": "commit",
+        "tx": "tx1"
       }
     ]
   },
@@ -3561,13 +3585,21 @@
         "tx": null
       },
       {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
         "sql": "UPDATE TEST SET note = :note WHERE id = :id",
         "replacements": {
           "id": "701",
           "note": "x"
         },
         "type": "UPDATE",
-        "tx": null
+        "tx": "tx1"
+      },
+      {
+        "event": "rollback",
+        "tx": "tx1"
       }
     ]
   },
@@ -4810,6 +4842,10 @@
         "tx": null
       },
       {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
         "sql": "UPDATE SURGERY SET type = :type, start = :start, end = :end, duration = :duration, urgency = :urgency, surgeon = :surgeon, result = :result WHERE id = :id",
         "replacements": {
           "id": "801",
@@ -4822,7 +4858,7 @@
           "result": "r"
         },
         "type": "UPDATE",
-        "tx": null
+        "tx": "tx1"
       },
       {
         "sql": "UPDATE PROCEDURE_ SET type = :ptype WHERE order_id = :id",
@@ -4831,7 +4867,7 @@
           "ptype": "Day Surgery"
         },
         "type": "UPDATE",
-        "tx": null
+        "tx": "tx1"
       },
       {
         "sql": "SELECT note FROM PROCEDURE_ WHERE order_id = :id LIMIT 1",
@@ -4839,7 +4875,11 @@
           "id": "801"
         },
         "type": "SELECT",
-        "tx": null
+        "tx": "tx1"
+      },
+      {
+        "event": "commit",
+        "tx": "tx1"
       }
     ]
   },
@@ -4897,6 +4937,10 @@
         "tx": null
       },
       {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
         "sql": "UPDATE SURGERY SET type = :type, start = :start, end = :end, duration = :duration, urgency = :urgency, surgeon = :surgeon, result = :result WHERE id = :id",
         "replacements": {
           "id": "801",
@@ -4909,7 +4953,7 @@
           "result": null
         },
         "type": "UPDATE",
-        "tx": null
+        "tx": "tx1"
       },
       {
         "sql": "UPDATE PROCEDURE_ SET type = :ptype WHERE order_id = :id",
@@ -4918,7 +4962,7 @@
           "ptype": "Day Surgery"
         },
         "type": "UPDATE",
-        "tx": null
+        "tx": "tx1"
       },
       {
         "sql": "UPDATE PROCEDURE_ SET note = :note WHERE order_id = :id",
@@ -4927,7 +4971,7 @@
           "note": "new"
         },
         "type": "UPDATE",
-        "tx": null
+        "tx": "tx1"
       },
       {
         "sql": "SELECT note FROM PROCEDURE_ WHERE order_id = :id LIMIT 1",
@@ -4935,7 +4979,11 @@
           "id": "801"
         },
         "type": "SELECT",
-        "tx": null
+        "tx": "tx1"
+      },
+      {
+        "event": "commit",
+        "tx": "tx1"
       }
     ]
   },

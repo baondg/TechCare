@@ -26,32 +26,36 @@ async function insertProcedure({ orderId, note, technicianId, doctorId, type }, 
   );
 }
 
-async function updateProcedureNote(orderId, note) {
+async function updateProcedureNote(orderId, note, transaction) {
   await sequelize.query('UPDATE PROCEDURE_ SET note = :note WHERE order_id = :id', {
     replacements: { id: orderId, note },
     type: QueryTypes.UPDATE,
+    transaction,
   });
 }
 
-async function updateProcedureTechnician(orderId, technicianId) {
+async function updateProcedureTechnician(orderId, technicianId, transaction) {
   await sequelize.query('UPDATE PROCEDURE_ SET technician_id = :technicianId WHERE order_id = :id', {
     replacements: { id: orderId, technicianId },
     type: QueryTypes.UPDATE,
+    transaction,
   });
 }
 
-async function updateProcedureType(orderId, type) {
+async function updateProcedureType(orderId, type, transaction) {
   await sequelize.query('UPDATE PROCEDURE_ SET type = :ptype WHERE order_id = :id', {
     replacements: { id: orderId, ptype: type },
     type: QueryTypes.UPDATE,
+    transaction,
   });
 }
 
 /** PROCEDURE_.note of an order, or null. */
-async function findProcedureNote(orderId) {
+async function findProcedureNote(orderId, transaction) {
   const rows = await sequelize.query('SELECT note FROM PROCEDURE_ WHERE order_id = :id LIMIT 1', {
     replacements: { id: orderId },
     type: QueryTypes.SELECT,
+    transaction,
   });
   return rows[0]?.note ?? null;
 }

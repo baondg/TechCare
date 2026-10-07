@@ -134,31 +134,34 @@ async function updateLabTest(patientIdParam, id, user, body) {
   }
 
   const technicianIdWasProvided = technicianId !== undefined;
-  if (technicianIdWasProvided || isTechnician(user)) {
-    let technicianIdResolved;
-    if (technicianIdWasProvided) {
-      technicianIdResolved = technicianId === null ? null : toTechnicianId(technicianId);
-    } else {
-      technicianIdResolved = await getTechnicianIdByUserId(user.userId, null);
-    }
-    await labTestRepository.updateTechnician(id, technicianIdResolved ?? null);
-    await orderRepository.updateProcedureTechnician(id, technicianIdResolved ?? null);
+  let technicianIdResolved;
+  if (technicianIdWasProvided) {
+    technicianIdResolved = technicianId === null ? null : toTechnicianId(technicianId);
+  } else if (isTechnician(user)) {
+    technicianIdResolved = await getTechnicianIdByUserId(user.userId, null);
   }
 
-  if (testType !== undefined || testDate !== undefined) {
-    await labTestRepository.updateTypeAndTime(id, { type: testType || null, time: testDateSql || null });
-  }
-  if (note !== undefined) {
-    await labTestRepository.updateNote(id, note);
-    // Backward compatibility: some older rows still keep the note on PROCEDURE_.
-    await orderRepository.updateProcedureNote(id, note);
-  }
-  if (fileUrl !== undefined) {
-    await labTestRepository.updateAttachmentUrl(id, fileUrl);
-  }
-  if (resultSummary !== undefined) {
-    await labTestRepository.updateResultSummary(id, resultSummary ?? null);
-  }
+  // One transaction: TEST, its PROCEDURE_ row and the summary detail change together.
+  await inTransaction(async (transaction) => {
+    if (technicianIdWasProvided || isTechnician(user)) {
+      await labTestRepository.updateTechnician(id, technicianIdResolved ?? null, transaction);
+      await orderRepository.updateProcedureTechnician(id, technicianIdResolved ?? null, transaction);
+    }
+    if (testType !== undefined || testDate !== undefined) {
+      await labTestRepository.updateTypeAndTime(id, { type: testType || null, time: testDateSql || null }, transaction);
+    }
+    if (note !== undefined) {
+      await labTestRepository.updateNote(id, note, transaction);
+      // Backward compatibility: some older rows still keep the note on PROCEDURE_.
+      await orderRepository.updateProcedureNote(id, note, transaction);
+    }
+    if (fileUrl !== undefined) {
+      await labTestRepository.updateAttachmentUrl(id, fileUrl, transaction);
+    }
+    if (resultSummary !== undefined) {
+      await labTestRepository.updateResultSummary(id, resultSummary ?? null, transaction);
+    }
+  });
   return { id: Number(id), testType, testDate, technicianName, resultSummary, fileUrl, note };
 }
 

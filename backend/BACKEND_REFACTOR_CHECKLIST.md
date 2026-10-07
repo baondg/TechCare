@@ -106,12 +106,19 @@ SQL đã chuyển khỏi controller; controller chỉ còn HTTP (`asyncHandler`)
 - [x] `internalErrorMessage(msg)` (`middleware/errorHandler.ts`) giữ câu báo 500 thân thiện cho các màn hình hiển thị nguyên `error` của server (login, đăng ký…) — vẫn không lộ lỗi thật.
 - [x] **`test/auth-characterization.test.js`** — 37 kịch bản.
 
+## AI (`/api/ai/*`, G3 bước B — xong)
+
+- [x] `routes/ai.ts` chỉ còn khai báo route; `controllers/aiController.ts` (HTTP) · `services/ai/aiService.ts` (chat, phân tích triệu chứng, dự đoán hồi phục, gợi ý thuốc, gợi ý bác sĩ).
+- [x] Quyền: `authorizeCapability('ai.models.inspect' | 'ai.clinical.assist', { message })` thay cho `requireAdmin` / `requireClinicalStaff` (giữ nguyên câu báo lỗi).
+- [x] `llmClient.loadAiModelRegistry` đọc qua `systemConfigRepository`; recovery / suggest-medicine / recommend-doctor không còn đọc registry 2 lần.
+- [x] Lỗi riêng của AI (`502` + `raw`, `503` + `hint`, chat `200` + `fallback`) giữ nguyên qua `AiResponseError` — `appointmentAiService` đọc các trường này.
+- [x] **`test/ai-characterization.test.js`** — 33 kịch bản, LLM được giả lập (fetch ra ngoài bị chặn và ghi lại).
+
 ## Follow-up (broader backend — khối lớn, làm dần)
 
-- `routes/ai.ts` (route + middleware) · `services/ai/llmClient.ts` (Groq / local LLM, chọn model) · `services/ai/prompts.ts`.
 - [x] `CONFIG_DEFAULTS` / `NUMERIC_CONFIG_RULES` chỉ còn ở `config/systemConfigurationContract.js` (lấy theo giá trị của trang admin: appointment 60/60, không có `aiRecovery*` / `aiModelCatalog`).
 - ⚠️ `rateLimitMiddleware.js` `SCOPE_CONFIG_KEYS.aiRecovery` đọc key `aiSymptom*` — scope aiRecovery không có cấu hình riêng (mặc định cứng 8/60s).
-- `routes/ai.ts` vẫn tự kiểm tra role (`requireAdmin`, `requireClinicalStaff`) thay vì `authorizeCapability`; `adminRoutes.js` / `systemConfig.js` cũng vậy.
+- `adminRoutes.js` / `systemConfig.js` vẫn tự kiểm tra role (`requireAdmin`) thay vì `authorizeCapability`.
 - ⚠️ `accountService.createAccount` vẫn rơi về mật khẩu mặc định cứng `Test@1234` khi thiếu `DEFAULT_ACCOUNT_PASSWORD`.
 
 ## Doctor / EMR (G3 — bước A: tách controller theo miền)

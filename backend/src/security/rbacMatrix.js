@@ -6,6 +6,8 @@ const RBAC_MATRIX = Object.freeze({
   'appointments.write.self': ['patient'],
   'appointments.manage.open_slots': ['admin', 'nurse'],
   'appointments.nurse.checkin': ['admin', 'nurse'],
+  'ai.models.inspect': ['admin'],
+  'ai.clinical.assist': ['doctor', 'admin'],
 });
 
 function normalizeRole(role) {

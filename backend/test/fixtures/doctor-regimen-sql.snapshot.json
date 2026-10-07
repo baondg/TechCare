@@ -719,12 +719,16 @@
         "tx": null
       },
       {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
         "sql": "UPDATE REGIMEN SET `end` = NOW() WHERE patient_id = :pid AND `end` IS NULL",
         "replacements": {
           "pid": 7
         },
         "type": "UPDATE",
-        "tx": null
+        "tx": "tx1"
       },
       {
         "sql": "UPDATE APPOINTMENT SET status = 'completed' WHERE patient_id = :patientId AND regimen_id IN (99,98) AND status = 'scheduled'",
@@ -732,7 +736,7 @@
           "patientId": 7
         },
         "type": "UPDATE",
-        "tx": null
+        "tx": "tx1"
       },
       {
         "sql": "UPDATE APPOINTMENT SET regimen_id = NULL WHERE patient_id = :patientId AND regimen_id IN (99,98)",
@@ -740,7 +744,11 @@
           "patientId": 7
         },
         "type": "UPDATE",
-        "tx": null
+        "tx": "tx1"
+      },
+      {
+        "event": "commit",
+        "tx": "tx1"
       }
     ]
   },
@@ -768,12 +776,20 @@
         "tx": null
       },
       {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
         "sql": "UPDATE REGIMEN SET `end` = NOW() WHERE patient_id = :pid AND `end` IS NULL",
         "replacements": {
           "pid": 7
         },
         "type": "UPDATE",
-        "tx": null
+        "tx": "tx1"
+      },
+      {
+        "event": "rollback",
+        "tx": "tx1"
       }
     ]
   },

@@ -3,77 +3,20 @@ const bcrypt = require('bcrypt');
 const sequelize = require('../common/database');
 const defineSystemConfig = require('../models/SystemConfig');
 const { Op } = require('sequelize');
-
 const Account = require('../models/Account');
 const Session = require('../models/Session');
 const User = require('../models/Users');
-const { createPatientAccountRecords } = require('../services/patientRegistrationService');
 const { normalizeRoleFromCode } = require('../security/roleMapping');
 const { getJwtSecret } = require('../security/jwtConfig');
 const { isAccountStatusActive } = require('../common/accountStatus');
 const logger = require('../common/logger');
-const { config } = require('../config/env');
-
+const { clearRefreshCookie, generateAccessToken, generateRefreshToken, getRefreshTokenFromRequest, setRefreshCookie } = require('./sessionTokens');
 
 const SystemConfig = defineSystemConfig(sequelize);
-
-// Security constants
-const MAX_LOGIN_ATTEMPTS = 5;
-const LOCKOUT_TIME_MINUTES = 15;
-const ACCESS_TOKEN_EXPIRY = '15m'; // Short-lived access token
-const REFRESH_TOKEN_EXPIRY = '7d'; // Long-lived refresh token
-const REFRESH_COOKIE_NAME = 'refreshToken';
 
 // Verify password
 const verifyPassword = async (password, hash) => {
   return await bcrypt.compare(password, hash);
-};
-
-// Generate tokens
-const generateAccessToken = (username, userId, role) =>
-  jwt.sign({ username, userId, role, type: 'access' }, getJwtSecret(), { expiresIn: ACCESS_TOKEN_EXPIRY });
-
-const generateRefreshToken = (username, userId) =>
-  jwt.sign({ username, userId, type: 'refresh' }, getJwtSecret(), { expiresIn: REFRESH_TOKEN_EXPIRY });
-
-const resolveSameSite = () => {
-  const raw = config.auth.refreshCookieSameSite;
-  if (raw === 'lax' || raw === 'strict' || raw === 'none') return raw;
-  return config.isProduction ? 'none' : 'lax';
-};
-
-const shouldUseSecureCookies = () => {
-  if (config.auth.refreshCookieSecure !== undefined) {
-    return config.auth.refreshCookieSecure;
-  }
-  return config.isProduction;
-};
-
-const getRefreshCookieOptions = (expiresAt) => ({
-  httpOnly: true,
-  secure: shouldUseSecureCookies(),
-  sameSite: resolveSameSite(),
-  path: '/api/auth',
-  expires: expiresAt,
-});
-
-const setRefreshCookie = (res, refreshToken, expiresAt) => {
-  res.cookie(REFRESH_COOKIE_NAME, refreshToken, getRefreshCookieOptions(expiresAt));
-};
-
-const clearRefreshCookie = (res) => {
-  res.clearCookie(REFRESH_COOKIE_NAME, {
-    ...getRefreshCookieOptions(new Date(0)),
-    expires: new Date(0),
-  });
-};
-
-const getRefreshTokenFromRequest = (req) => {
-  const fromCookie = req.cookies?.[REFRESH_COOKIE_NAME];
-  if (fromCookie) return String(fromCookie);
-  const fromBody = req.body?.refreshToken;
-  if (fromBody) return String(fromBody);
-  return null;
 };
 
 const getNumericConfig = async (key, fallback) => {
@@ -87,104 +30,6 @@ const getNumericConfig = async (key, fallback) => {
     return fallback;
   }
 };
-
-exports.register = async (req, res) => {
-  try {
-    const t = await sequelize.transaction();
-    let result;
-    try {
-      result = await createPatientAccountRecords(req.body, {
-        transaction: t,
-        createdByUserId: null,
-      });
-      if (!result.ok) {
-        await t.rollback();
-        return res.status(result.status).json({ success: false, error: result.error });
-      }
-      await t.commit();
-    } catch (error) {
-      await t.rollback();
-      throw error;
-    }
-
-    const user = result.account;
-    const loginUsername = user.username;
-
-    // Generate tokens (outside transaction)
-    const accessToken = generateAccessToken(loginUsername, user.user_id, user.type);
-    const refreshToken = generateRefreshToken(loginUsername, user.user_id);
-      
-      // Create session
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 7); // 7 days for refresh token
-      
-      await Session.create({
-        userId: user.user_id,
-        token: accessToken,
-        refreshToken: refreshToken,
-        expiresAt: expiresAt,
-        lastActivity: new Date(),
-      });
-      
-      setRefreshCookie(res, refreshToken, expiresAt);
-      res.status(201).json({
-        success: true,
-        user: {
-          id: user.user_id,
-          username: user.username,
-          type: user.type
-        },
-        token: accessToken,
-        expiresAt: expiresAt.toISOString()
-      });
-  } catch (err) {
-    logger.error({ err, sqlMessage: err?.original?.sqlMessage }, 'Registration error');
-    res.status(500).json({ success: false, error: 'Registration failed. Please try again.' });
-  }
-}
-
-/** Nurse (authenticated) creates a patient USER + ACCOUNT + PATIENT; sets ACCOUNT.created_by. */
-exports.registerPatientByNurse = async (req, res) => {
-  try {
-    const role = String(req.user?.role || '').toLowerCase();
-    if (role !== 'nurse') {
-      return res.status(403).json({ success: false, error: 'Nurse access only' });
-    }
-
-    const staffUserId = Number(req.user.userId);
-    if (!Number.isFinite(staffUserId)) {
-      return res.status(400).json({ success: false, error: 'Invalid session' });
-    }
-
-    const t = await sequelize.transaction();
-    let result;
-    try {
-      result = await createPatientAccountRecords(req.body, {
-        transaction: t,
-        createdByUserId: staffUserId,
-      });
-      if (!result.ok) {
-        await t.rollback();
-        return res.status(result.status).json({ success: false, error: result.error });
-      }
-      await t.commit();
-    } catch (error) {
-      await t.rollback();
-      throw error;
-    }
-
-    const account = result.account;
-    return res.status(201).json({
-      success: true,
-      userId: account.user_id,
-      username: account.username,
-    });
-  } catch (err) {
-    logger.error({ err, sqlMessage: err?.original?.sqlMessage }, 'Nurse register patient error');
-    res.status(500).json({ success: false, error: 'Registration failed. Please try again.' });
-  }
-};
-
 
 exports.login = async (req, res) => {
   try {
@@ -502,5 +347,3 @@ exports.getSession = async (req, res) => {
     res.status(500).json({ success: false, error: 'Failed to get session info' });
   }
 };
-
-// Controller quản lý authentication với best practices: bcrypt hashing, refresh tokens, password validation, account lockout, và session management

@@ -52,7 +52,7 @@ Reference implementations: `coverController.js`, `notificationController.js`, `w
 
 ## Notification orchestration (no `sequelize` in module; DB via `appointmentNotificationRepository`)
 
-- [x] **`appointmentNotifications.js`** — Used by `appointmentPatientService`, `appointmentSlotService`, `appointmentNurseService`, `doctorController.js`. Public functions no longer take a `sequelize` first argument.
+- [x] **`appointmentNotifications.js`** — Used by `appointmentPatientService`, `appointmentSlotService`, `appointmentNurseService`, `controllers/doctor/appointmentController.js` + `regimenController.js`. Public functions no longer take a `sequelize` first argument.
 - [x] **`appointmentReminderNotifications.js`** — Scheduler + “day before” batch; SQL in `appointmentReminderRepository`. **`startAppointmentReminderScheduler()`** takes no args.
 - [x] **`medicationReminderNotifications.js`** — Scheduler + slot run; SQL in `medicationReminderRepository`. **`startMedicationReminderScheduler()`** takes no args.
 
@@ -89,6 +89,37 @@ Reference implementations: `coverController.js`, `notificationController.js`, `w
 
 ## Follow-up (broader backend — khối lớn, làm dần)
 
-- **`doctorController.js`**, **`adminController.js`**, **`systemConfigController.js`** vẫn còn raw SQL / Sequelize trực tiếp — tách từng miền (EMR, admin stats, cấu hình) khi chỉnh module.
+- Admin / system config / auth / AI đã tách theo miền (G3 bước A), SQL vẫn nằm trong controller — chuyển xuống `repositories/` ở bước B:
+  - `controllers/admin/{accountController,dashboardController,feedbackController,roleLabels}`
+  - `controllers/systemConfig/{configController,sessionController,aiModelController,featureController,configStore}`
+  - `authorization/{registrationController,sessionController,sessionTokens}`
+  - `routes/ai.ts` (route + middleware) · `services/ai/llmClient.ts` (Groq / local LLM, chọn model) · `services/ai/prompts.ts`
+- ⚠️ `controllers/systemConfig/configController.js` có `CONFIG_DEFAULTS` / `NUMERIC_CONFIG_RULES` **lệch** với `config/systemConfigurationContract.js` (appointment rate limit 60/60 vs 10/300; thiếu `aiRecovery*`). Chưa gộp — cần chốt giá trị đúng trước.
+- `routes/ai.ts` vẫn tự kiểm tra role (`requireAdmin`, `requireClinicalStaff`) thay vì `authorizeCapability`.
+
+## Doctor / EMR (G3 — bước A: tách controller theo miền)
+
+`doctorController.js` (5.163 dòng) đã được tách cơ học — thân hàm giữ nguyên, mọi route trỏ tới handler có source giống hệt trước khi tách:
+
+| File | Nội dung |
+| --- | --- |
+| `controllers/doctor/catalogController.js` | Danh mục: bệnh (ICD-10), thuốc, kỹ thuật viên, khoa |
+| `controllers/doctor/dashboardController.js` | `GET /dashboard/summary` |
+| `controllers/doctor/patientController.js` | Danh sách / chi tiết bệnh nhân (cache hotpath) |
+| `controllers/doctor/regimenController.js` | Đợt điều trị (REGIMEN): active, đóng, phiếu theo dõi, phiếu hẹn tái khám, chuyển viện, tài liệu |
+| `controllers/doctor/healthInfoController.js` | Sinh hiệu (MEDICAL_RECORD) do bác sĩ ghi |
+| `controllers/doctor/diagnosisController.js` | Chẩn đoán |
+| `controllers/doctor/prescriptionController.js` | Đơn thuốc (mã BYT) |
+| `controllers/doctor/labTestController.js` | Xét nghiệm + upload file |
+| `controllers/doctor/surgeryController.js` | Thủ thuật / phẫu thuật |
+| `controllers/doctor/appointmentController.js` | Lịch hẹn phía bác sĩ: xác nhận, từ chối, huỷ, nhờ khám thay |
+| `controllers/doctor/signatureController.js` | Chữ ký số bác sĩ (mã hoá) |
+| `services/emr/patientRouteResolver.js` | `:patientId` (OP000123 / id) → PATIENT pk |
+| `services/emr/staffIdentity.js` | user → doctor_id / technician_id, tên hiển thị |
+| `services/emr/treatmentService.js` | DISEASE / REGIMEN / TREATMENT dùng chung cho mọi phiếu |
+| `services/emr/bytPrescription.js` | Cấu hình cơ sở + sinh / parse mã đơn thuốc BYT |
+| `services/emr/patientRecordCache.js` | Cache hồ sơ bệnh nhân (invalidate khi sửa chẩn đoán) |
+
+Bước B (cần integration test với MySQL): chuyển SQL từ controllers/doctor/* và services/emr/* xuống `repositories/`, áp dụng `asyncHandler` + `validate`, tách tiếp 2 handler lớn của `regimenController` (~300 dòng mỗi cái).
 - **`prescriptionQueryCompat.js`** giữ SQL dùng chung cho đơn thuốc (đã là lớp compat).
 - **`src/index.ts`** vẫn truyền `sequelize` cho model/`SystemConfig`; scheduler dùng DB qua repository.

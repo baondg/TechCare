@@ -242,7 +242,6 @@ async function postNurseRegimenCheckout({ body }) {
 }
 
 module.exports = {
-  findNursePatientPkFromNumeric: nurseCheckInRepository.findNursePatientPkFromNumeric,
   getNurseCheckInOptions,
   postNurseCheckInAccept,
   postNurseCheckInAssign,

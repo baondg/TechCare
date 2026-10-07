@@ -46,7 +46,7 @@ exports.checkSessionTimeout = async (req, res, next) => {
   try {
     const token = req.headers.authorization?.replace('Bearer ', '') || 
                   req.query.token || 
-                  req.body.token;
+                  req.body?.token;
     
     if (!token) {
       return next();

@@ -20,6 +20,7 @@ const workShiftRoutes = require('./routes/workShiftRoutes');
 const coverRoutes = require('./routes/coverRoutes');
 const chatbotRoutes = require('./routes/chatbot');
 const sessionMiddleware = require('./middleware/sessionMiddleware');
+const { jsonBody } = require('./middleware/jsonBody');
 const { globalRateLimit, appointmentRateLimit } = require('./middleware/rateLimitMiddleware');
 const sequelize = require('./common/database');
 
@@ -52,7 +53,7 @@ app.use(
         }
   )
 );
-app.use(express.json());
+app.use(jsonBody);
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));

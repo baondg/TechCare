@@ -95,13 +95,14 @@ SQL đã chuyển khỏi controller; controller chỉ còn HTTP (`asyncHandler`)
 - [x] **`repositories/adminDashboardRepository.js`** · **`adminFeedbackRepository.js`** · **`featureRepository.js`** · **`sessionRepository.js`** (raw SQL + model `Session`).
 - [x] **`services/admin/{accountService,dashboardService,feedbackService,roleLabels}.js`** · **`services/systemConfig/{featureService,sessionService}.js`**.
 - [x] **`validators/adminSchemas.js`** · **`validators/systemConfigSchemas.js`** — giữ nguyên message lỗi cũ; query danh sách tài khoản vẫn "dễ dãi" (giá trị rác → mặc định).
-- [x] **`test/admin-characterization.test.js`** — DB giả (`test/helpers/fakeDb.js`) ghi lại SQL + tham số + transaction + response của 54 kịch bản, snapshot chụp **trước** khi refactor. Dùng cùng cách này cho các miền tiếp theo khi chưa có MySQL test.
+- [x] **`repositories/systemConfigRepository.js`** (model `SYSTEM_CONFIGURATION`) · **`services/systemConfig/{configService,aiModelService}.js`** — `configController` / `aiModelController` chỉ còn HTTP; `configStore.js` đã bỏ, `toBooleanString` chuyển sang `validators/systemConfigSchemas.js`.
+- [x] **`test/admin-characterization.test.js`** · **`test/system-config-characterization.test.js`** (runner chung `test/helpers/characterize.js`) — DB giả (`test/helpers/fakeDb.js`) ghi lại SQL + tham số + transaction + response của 54 kịch bản, snapshot chụp **trước** khi refactor. Dùng cùng cách này cho các miền tiếp theo khi chưa có MySQL test.
 
 ## Follow-up (broader backend — khối lớn, làm dần)
 
-- `controllers/systemConfig/{configController,aiModelController}` và `authorization/*` không có raw SQL (dùng model / `configStore`) nhưng vẫn `try/catch` thủ công — chuyển sang `asyncHandler` + `validate`.
+- `authorization/*` không có raw SQL (dùng model) nhưng vẫn `try/catch` thủ công — chuyển sang `asyncHandler` + `validate`.
 - `routes/ai.ts` (route + middleware) · `services/ai/llmClient.ts` (Groq / local LLM, chọn model) · `services/ai/prompts.ts`.
-- ⚠️ `controllers/systemConfig/configController.js` có `CONFIG_DEFAULTS` / `NUMERIC_CONFIG_RULES` **lệch** với `config/systemConfigurationContract.js` (appointment rate limit 60/60 vs 10/300; thiếu `aiRecovery*`). Chưa gộp — cần chốt giá trị đúng trước.
+- ⚠️ `services/systemConfig/configService.js` có `CONFIG_DEFAULTS` / `NUMERIC_CONFIG_RULES` **lệch** với `config/systemConfigurationContract.js` (appointment rate limit 60/60 vs 10/300; thiếu `aiRecovery*`). Chưa gộp — cần chốt giá trị đúng trước.
 - `routes/ai.ts` vẫn tự kiểm tra role (`requireAdmin`, `requireClinicalStaff`) thay vì `authorizeCapability`; `adminRoutes.js` / `systemConfig.js` cũng vậy.
 - ⚠️ `accountService.createAccount` vẫn rơi về mật khẩu mặc định cứng `Test@1234` khi thiếu `DEFAULT_ACCOUNT_PASSWORD`.
 

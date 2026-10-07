@@ -10,6 +10,12 @@ function toBinaryFlag(raw) {
   return null;
 }
 
+/** Same truth table as toBinaryFlag, as the 'true' / 'false' strings SYSTEM_CONFIGURATION stores. */
+function toBooleanString(raw) {
+  const flag = toBinaryFlag(raw);
+  return flag === null ? null : flag === 1 ? 'true' : 'false';
+}
+
 /** PUT /features/:id/status */
 const featureIdParams = z.object({ id: positiveId('Invalid feature id') });
 
@@ -34,6 +40,7 @@ const revokeAllSessionsBody = z.object({
 
 module.exports = {
   toBinaryFlag,
+  toBooleanString,
   featureIdParams,
   featureStatusBody,
   sessionIdParams,

@@ -32,11 +32,11 @@ async function listOpenRegimens(patientId) {
 }
 
 /** Ends every open visit of the patient now. */
-async function closeOpenRegimens(patientId) {
+async function closeOpenRegimens(patientId, transaction) {
   await sequelize.query(
     `UPDATE REGIMEN SET \`end\` = NOW()
      WHERE patient_id = :pid AND \`end\` IS NULL`,
-    { replacements: { pid: patientId }, type: QueryTypes.UPDATE }
+    { replacements: { pid: patientId }, type: QueryTypes.UPDATE, transaction }
   );
 }
 

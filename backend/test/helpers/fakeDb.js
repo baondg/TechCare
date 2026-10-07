@@ -20,6 +20,8 @@ const Session = require(path.join(DIST, 'models', 'Session'));
 const Account = require(path.join(DIST, 'models', 'Account'));
 const User = require(path.join(DIST, 'models', 'Users'));
 const Patient = require(path.join(DIST, 'models', 'Patient'));
+const MedicalRecord = require(path.join(DIST, 'models', 'MedicalRecord'));
+const cacheService = require(path.join(DIST, 'services', 'cacheService'));
 const { getJwtSecret } = require(path.join(DIST, 'security', 'jwtConfig'));
 
 const ADMIN_USER_ID = 1;
@@ -32,12 +34,17 @@ function normalizeSql(sql) {
 const MODEL_STUBS = {
   Session: { model: Session, methods: ['findOne', 'findAll', 'count', 'create', 'destroy'] },
   Account: { model: Account, methods: ['findOne', 'create'] },
-  User: { model: User, methods: ['create'] },
-  Patient: { model: Patient, methods: ['findOrCreate'] },
+  User: { model: User, methods: ['create', 'findAndCountAll'] },
+  Patient: { model: Patient, methods: ['findOrCreate', 'findByPk'] },
+  MedicalRecord: { model: MedicalRecord, methods: ['findOne', 'findAndCountAll', 'create'] },
 };
 
+/** cacheService (Redis / memory) is replaced by a per-scenario Map; reads and writes are recorded. */
+const CACHE_METHODS = ['getJson', 'setJson', 'del'];
+
 function installFakeDb() {
-  const original = { query: sequelize.query, transaction: sequelize.transaction, models: {} };
+  const original = { query: sequelize.query, transaction: sequelize.transaction, models: {}, cache: {} };
+  for (const method of CACHE_METHODS) original.cache[method] = cacheService[method];
   for (const [name, { model, methods }] of Object.entries(MODEL_STUBS)) {
     for (const method of methods) original.models[`${name}.${method}`] = model[method];
   }
@@ -47,7 +54,29 @@ function installFakeDb() {
    * Without a handler: Session.findOne by id reads `sessionRows`, destroy returns `destroyResult`,
    * create echoes its values, and Account.findOne silently returns an active account.
    */
-  const state = { rules: [], calls: [], models: {}, sessionRows: new Map(), destroyResult: 1, txSeq: 0 };
+  const state = {
+    rules: [],
+    calls: [],
+    models: {},
+    cache: new Map(),
+    sessionRows: new Map(),
+    destroyResult: 1,
+    txSeq: 0,
+  };
+
+  cacheService.getJson = async (key) => {
+    const hit = state.cache.has(key);
+    state.calls.push({ event: 'cache.get', key, hit });
+    return hit ? state.cache.get(key) : null;
+  };
+  cacheService.setJson = async (key, value, ttlSeconds) => {
+    state.calls.push({ event: 'cache.set', key, ttlSeconds });
+    state.cache.set(key, value);
+  };
+  cacheService.del = async (key) => {
+    state.calls.push({ event: 'cache.del', key });
+    state.cache.delete(key);
+  };
 
   sequelize.query = async (sql, options = {}) => {
     // Model methods (upsert…) pass `{ query, bind }` instead of a string.
@@ -100,6 +129,8 @@ function installFakeDb() {
     'Session.destroy': () => state.destroyResult,
     'Session.findAll': () => [],
     'Session.count': () => 0,
+    'User.findAndCountAll': () => ({ count: 0, rows: [] }),
+    'MedicalRecord.findAndCountAll': () => ({ count: 0, rows: [] }),
   };
 
   for (const [name, { model, methods }] of Object.entries(MODEL_STUBS)) {
@@ -111,8 +142,9 @@ function installFakeDb() {
         if (key === 'Account.findOne' && !state.models[key]) return { status: 1, getDataValue: () => 1 };
 
         const isCreate = method === 'create';
-        const opts = isCreate ? second : first;
-        record(key, opts, isCreate ? { values: first } : {});
+        const isByPk = method === 'findByPk';
+        const opts = isCreate || isByPk ? second : first;
+        record(key, opts, isCreate ? { values: first } : isByPk ? { pk: first } : {});
         const handler = state.models[key] ?? defaults[key];
         const value = handler ? handler(opts, first) : isCreate ? fakeInstance(name, { id: 500, ...first }, state) : null;
         if (value instanceof Error) throw value;
@@ -128,6 +160,7 @@ function installFakeDb() {
       state.rules = [];
       state.calls = [];
       state.models = {};
+      state.cache = new Map();
       state.upstream = null;
       state.sessionRows = new Map();
       state.destroyResult = 1;
@@ -139,6 +172,7 @@ function installFakeDb() {
       for (const [name, { model, methods }] of Object.entries(MODEL_STUBS)) {
         for (const method of methods) model[method] = original.models[`${name}.${method}`];
       }
+      for (const method of CACHE_METHODS) cacheService[method] = original.cache[method];
     },
   };
 }
@@ -152,6 +186,9 @@ function fakeInstance(modelName, fields, state, { failUpdate = false } = {}) {
     ...fields,
     getDataValue: (k) => instance[k],
     toJSON: () => ({ ...fields }),
+    destroy: async () => {
+      state.calls.push({ event: `${modelName}#destroy`, id: fields.id ?? null });
+    },
     update: async (changes) => {
       state.calls.push({ event: `${modelName}#update`, id: fields.id ?? fields.user_id ?? null, values: changes });
       if (failUpdate) throw Object.assign(new Error('Unknown column'), { original: { code: 'ER_BAD_FIELD_ERROR' } });
@@ -168,8 +205,17 @@ function describeOptions(opts) {
   const out = {};
   if (opts.where !== undefined) out.where = serializeWhere(opts.where);
   if (opts.attributes) out.attributes = opts.attributes;
-  if (opts.include) out.include = opts.include.map((i) => ({ model: i.model?.name, attributes: i.attributes }));
+  if (opts.include) {
+    out.include = opts.include.map((i) => ({
+      model: i.model?.name,
+      attributes: i.attributes,
+      ...(i.required !== undefined ? { required: i.required } : {}),
+      ...(i.where ? { where: serializeWhere(i.where) } : {}),
+    }));
+  }
   if (opts.order) out.order = opts.order;
+  if (opts.limit !== undefined) out.limit = opts.limit;
+  if (opts.offset !== undefined) out.offset = opts.offset;
   if (opts.defaults) out.defaults = opts.defaults;
   return out;
 }

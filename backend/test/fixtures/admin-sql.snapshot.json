@@ -70,25 +70,6 @@
     },
     "db": [
       {
-        "sql": "SELECT `key` AS configKey, value FROM SYSTEM_CONFIGURATION WHERE `key` IN (:keys)",
-        "replacements": {
-          "keys": [
-            "rateLimitEnabled",
-            "rateLimitIpBased",
-            "globalRateLimitRequests",
-            "globalRateLimitWindowSeconds"
-          ]
-        },
-        "type": "SELECT",
-        "tx": null
-      },
-      {
-        "sql": "SELECT rate_limit AS rateLimit, access_limit AS accessLimit FROM SYSTEM_CONFIGURATION ORDER BY time DESC, id DESC LIMIT 1",
-        "replacements": null,
-        "type": "SELECT",
-        "tx": null
-      },
-      {
         "sql": "SELECT COUNT(*) AS totalUsers, SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END) AS activeUsers FROM ACCOUNT",
         "replacements": null,
         "type": "SELECT",

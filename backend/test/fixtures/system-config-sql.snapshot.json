@@ -1,0 +1,1165 @@
+{
+  "get config merges stored values over defaults": {
+    "request": "GET /api/system-config",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "config": {
+          "maxConcurrentUsers": "42",
+          "sessionTimeoutMinutes": "30",
+          "rateLimitEnabled": "true",
+          "rateLimitIpBased": "true",
+          "globalRateLimitRequests": "100",
+          "globalRateLimitWindowSeconds": "60",
+          "loginRateLimitRequests": "100",
+          "loginRateLimitWindowSeconds": "900",
+          "registrationRateLimitRequests": "20",
+          "registrationRateLimitWindowSeconds": "3600",
+          "chatbotRateLimitRequests": "20",
+          "chatbotRateLimitWindowSeconds": "60",
+          "aiSymptomRateLimitRequests": "10",
+          "aiSymptomRateLimitWindowSeconds": "60",
+          "appointmentRateLimitRequests": "60",
+          "appointmentRateLimitWindowSeconds": "60",
+          "aiModels": "[]",
+          "aiDefaultModelByFeature": "{}",
+          "custom": "x"
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION`;",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "get config, legacy schema": {
+    "request": "GET /api/system-config",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "config": {
+          "maxConcurrentUsers": "500",
+          "sessionTimeoutMinutes": "30",
+          "rateLimitEnabled": "true",
+          "rateLimitIpBased": "true",
+          "globalRateLimitRequests": "100",
+          "globalRateLimitWindowSeconds": "60",
+          "loginRateLimitRequests": "100",
+          "loginRateLimitWindowSeconds": "900",
+          "registrationRateLimitRequests": "20",
+          "registrationRateLimitWindowSeconds": "3600",
+          "chatbotRateLimitRequests": "20",
+          "chatbotRateLimitWindowSeconds": "60",
+          "aiSymptomRateLimitRequests": "10",
+          "aiSymptomRateLimitWindowSeconds": "60",
+          "appointmentRateLimitRequests": "60",
+          "appointmentRateLimitWindowSeconds": "60",
+          "aiModels": "[]",
+          "aiDefaultModelByFeature": "{}"
+        },
+        "warning": "Legacy SYSTEM_CONFIGURATION schema detected. Using default config values."
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION`;",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "get config, db down": {
+    "request": "GET /api/system-config",
+    "response": {
+      "status": 500,
+      "message": "internal server error"
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION`;",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "update config, empty": {
+    "request": "PUT /api/system-config",
+    "response": {
+      "status": 400,
+      "message": "No configuration values provided"
+    },
+    "db": []
+  },
+  "update config, unknown keys": {
+    "request": "PUT /api/system-config",
+    "response": {
+      "status": 400,
+      "message": "Unsupported config keys: foo, aiModelCatalog"
+    },
+    "db": []
+  },
+  "update config, bad boolean": {
+    "request": "PUT /api/system-config",
+    "response": {
+      "status": 400,
+      "message": "rateLimitEnabled must be a boolean value"
+    },
+    "db": []
+  },
+  "update config, number out of range": {
+    "request": "PUT /api/system-config",
+    "response": {
+      "status": 400,
+      "message": "Invalid sessionTimeoutMinutes. Must be an integer between 5 and 10080."
+    },
+    "db": []
+  },
+  "update config, number not numeric": {
+    "request": "PUT /api/system-config",
+    "response": {
+      "status": 400,
+      "message": "Invalid loginRateLimitRequests. Must be an integer between 1 and 1000."
+    },
+    "db": []
+  },
+  "update config, aiModels invalid JSON": {
+    "request": "PUT /api/system-config",
+    "response": {
+      "status": 400,
+      "message": "aiModels must be valid JSON."
+    },
+    "db": []
+  },
+  "update config, aiModels not an array": {
+    "request": "PUT /api/system-config",
+    "response": {
+      "status": 400,
+      "message": "aiModels must be a JSON array."
+    },
+    "db": []
+  },
+  "update config, aiModels wrong type": {
+    "request": "PUT /api/system-config",
+    "response": {
+      "status": 400,
+      "message": "aiModels must be a JSON array or JSON array string."
+    },
+    "db": []
+  },
+  "update config, defaults is an array": {
+    "request": "PUT /api/system-config",
+    "response": {
+      "status": 400,
+      "message": "aiDefaultModelByFeature must be a JSON object."
+    },
+    "db": []
+  },
+  "update config, defaults wrong type": {
+    "request": "PUT /api/system-config",
+    "response": {
+      "status": 400,
+      "message": "aiDefaultModelByFeature must be a JSON object or JSON object string."
+    },
+    "db": []
+  },
+  "update config, validation stops at the first bad key": {
+    "request": "PUT /api/system-config",
+    "response": {
+      "status": 400,
+      "message": "rateLimitIpBased must be a boolean value"
+    },
+    "db": []
+  },
+  "update config, several keys": {
+    "request": "PUT /api/system-config",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "message": "System configuration updated successfully"
+      }
+    },
+    "db": [
+      {
+        "sql": "INSERT INTO `SYSTEM_CONFIGURATION` (`key`,`value`,`description`) VALUES ($1,$2,$3) ON DUPLICATE KEY UPDATE `key`=VALUES(`key`),`value`=VALUES(`value`),`description`=VALUES(`description`);",
+        "replacements": null,
+        "bind": [
+          "rateLimitEnabled",
+          "true",
+          "System configuration for rateLimitEnabled"
+        ],
+        "type": "UPSERT",
+        "tx": null
+      },
+      {
+        "sql": "INSERT INTO `SYSTEM_CONFIGURATION` (`key`,`value`,`description`) VALUES ($1,$2,$3) ON DUPLICATE KEY UPDATE `key`=VALUES(`key`),`value`=VALUES(`value`),`description`=VALUES(`description`);",
+        "replacements": null,
+        "bind": [
+          "rateLimitIpBased",
+          "false",
+          "System configuration for rateLimitIpBased"
+        ],
+        "type": "UPSERT",
+        "tx": null
+      },
+      {
+        "sql": "INSERT INTO `SYSTEM_CONFIGURATION` (`key`,`value`,`description`) VALUES ($1,$2,$3) ON DUPLICATE KEY UPDATE `key`=VALUES(`key`),`value`=VALUES(`value`),`description`=VALUES(`description`);",
+        "replacements": null,
+        "bind": [
+          "maxConcurrentUsers",
+          "50",
+          "System configuration for maxConcurrentUsers"
+        ],
+        "type": "UPSERT",
+        "tx": null
+      },
+      {
+        "sql": "INSERT INTO `SYSTEM_CONFIGURATION` (`key`,`value`,`description`) VALUES ($1,$2,$3) ON DUPLICATE KEY UPDATE `key`=VALUES(`key`),`value`=VALUES(`value`),`description`=VALUES(`description`);",
+        "replacements": null,
+        "bind": [
+          "sessionTimeoutMinutes",
+          "45min",
+          "System configuration for sessionTimeoutMinutes"
+        ],
+        "type": "UPSERT",
+        "tx": null
+      },
+      {
+        "sql": "INSERT INTO `SYSTEM_CONFIGURATION` (`key`,`value`,`description`) VALUES ($1,$2,$3) ON DUPLICATE KEY UPDATE `key`=VALUES(`key`),`value`=VALUES(`value`),`description`=VALUES(`description`);",
+        "replacements": null,
+        "bind": [
+          "aiModels",
+          "[{\"provider\":\"groq\"}]",
+          "System configuration for aiModels"
+        ],
+        "type": "UPSERT",
+        "tx": null
+      },
+      {
+        "sql": "INSERT INTO `SYSTEM_CONFIGURATION` (`key`,`value`,`description`) VALUES ($1,$2,$3) ON DUPLICATE KEY UPDATE `key`=VALUES(`key`),`value`=VALUES(`value`),`description`=VALUES(`description`);",
+        "replacements": null,
+        "bind": [
+          "aiDefaultModelByFeature",
+          "{\"chat\":{\"provider\":\"groq\",\"modelId\":\"x\"}}",
+          "System configuration for aiDefaultModelByFeature"
+        ],
+        "type": "UPSERT",
+        "tx": null
+      }
+    ]
+  },
+  "update config, legacy schema": {
+    "request": "PUT /api/system-config",
+    "response": {
+      "status": 409,
+      "message": "Cannot update system configuration: legacy SYSTEM_CONFIGURATION schema does not support key/value storage."
+    },
+    "db": [
+      {
+        "sql": "INSERT INTO `SYSTEM_CONFIGURATION` (`key`,`value`,`description`) VALUES ($1,$2,$3) ON DUPLICATE KEY UPDATE `key`=VALUES(`key`),`value`=VALUES(`value`),`description`=VALUES(`description`);",
+        "replacements": null,
+        "bind": [
+          "maxConcurrentUsers",
+          "10",
+          "System configuration for maxConcurrentUsers"
+        ],
+        "type": "UPSERT",
+        "tx": null
+      }
+    ]
+  },
+  "update config, db down": {
+    "request": "PUT /api/system-config",
+    "response": {
+      "status": 500,
+      "message": "internal server error"
+    },
+    "db": [
+      {
+        "sql": "INSERT INTO `SYSTEM_CONFIGURATION` (`key`,`value`,`description`) VALUES ($1,$2,$3) ON DUPLICATE KEY UPDATE `key`=VALUES(`key`),`value`=VALUES(`value`),`description`=VALUES(`description`);",
+        "replacements": null,
+        "bind": [
+          "maxConcurrentUsers",
+          "10",
+          "System configuration for maxConcurrentUsers"
+        ],
+        "type": "UPSERT",
+        "tx": null
+      }
+    ]
+  },
+  "get ai models": {
+    "request": "GET /api/system-config/ai-models",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "models": [
+          {
+            "provider": "groq",
+            "modelId": "llama",
+            "featureScope": "chat",
+            "enabled": true
+          },
+          {
+            "provider": "local",
+            "modelId": "qwen",
+            "featureScope": "symptom",
+            "enabled": false
+          }
+        ],
+        "catalog": [
+          {
+            "provider": "groq",
+            "modelId": "llama",
+            "label": "Llama",
+            "enabled": true
+          }
+        ],
+        "defaults": {
+          "chat": {
+            "provider": "groq",
+            "modelId": "llama"
+          }
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "get ai models, nothing stored": {
+    "request": "GET /api/system-config/ai-models",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "models": [],
+        "catalog": [],
+        "defaults": {}
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "get ai models, corrupt JSON": {
+    "request": "GET /api/system-config/ai-models",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "models": [],
+        "catalog": [],
+        "defaults": {}
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "get ai models, legacy schema": {
+    "request": "GET /api/system-config/ai-models",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "models": [],
+        "catalog": [],
+        "defaults": {}
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "get ai models, db down": {
+    "request": "GET /api/system-config/ai-models",
+    "response": {
+      "status": 500,
+      "message": "internal server error"
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "get ai model catalog": {
+    "request": "GET /api/system-config/ai-model-catalog",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "catalog": [
+          {
+            "provider": "groq",
+            "modelId": "llama",
+            "label": "Llama",
+            "enabled": true
+          }
+        ]
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "get ai model catalog, db down": {
+    "request": "GET /api/system-config/ai-model-catalog",
+    "response": {
+      "status": 500,
+      "message": "internal server error"
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "upsert catalog, missing fields": {
+    "request": "PUT /api/system-config/ai-model-catalog",
+    "response": {
+      "status": 400,
+      "message": "provider and modelId are required"
+    },
+    "db": []
+  },
+  "upsert catalog, bad provider": {
+    "request": "PUT /api/system-config/ai-model-catalog",
+    "response": {
+      "status": 400,
+      "message": "provider must be 'groq' or 'local'"
+    },
+    "db": []
+  },
+  "upsert catalog, new entry": {
+    "request": "PUT /api/system-config/ai-model-catalog",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "entry": {
+          "provider": "local",
+          "modelId": "qwen",
+          "label": "qwen",
+          "enabled": true,
+          "updatedAt": "<now>"
+        },
+        "catalog": [
+          {
+            "provider": "groq",
+            "modelId": "llama",
+            "label": "Llama",
+            "enabled": true
+          },
+          {
+            "provider": "local",
+            "modelId": "qwen",
+            "label": "qwen",
+            "enabled": true,
+            "updatedAt": "<now>"
+          }
+        ]
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "INSERT INTO `SYSTEM_CONFIGURATION` (`key`,`value`,`description`) VALUES ($1,$2,$3) ON DUPLICATE KEY UPDATE `key`=VALUES(`key`),`value`=VALUES(`value`),`description`=VALUES(`description`);",
+        "replacements": null,
+        "bind": [
+          "aiModelCatalog",
+          "[{\"provider\":\"groq\",\"modelId\":\"llama\",\"label\":\"Llama\",\"enabled\":true},{\"provider\":\"local\",\"modelId\":\"qwen\",\"label\":\"qwen\",\"enabled\":true,\"updatedAt\":\"<now>\"}]",
+          "AI model catalog by provider"
+        ],
+        "type": "UPSERT",
+        "tx": null
+      }
+    ]
+  },
+  "upsert catalog, update entry": {
+    "request": "PUT /api/system-config/ai-model-catalog",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "entry": {
+          "provider": "groq",
+          "modelId": "llama",
+          "label": "Llama 3",
+          "enabled": false,
+          "updatedAt": "<now>"
+        },
+        "catalog": [
+          {
+            "provider": "groq",
+            "modelId": "llama",
+            "label": "Llama 3",
+            "enabled": false,
+            "updatedAt": "<now>"
+          }
+        ]
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "INSERT INTO `SYSTEM_CONFIGURATION` (`key`,`value`,`description`) VALUES ($1,$2,$3) ON DUPLICATE KEY UPDATE `key`=VALUES(`key`),`value`=VALUES(`value`),`description`=VALUES(`description`);",
+        "replacements": null,
+        "bind": [
+          "aiModelCatalog",
+          "[{\"provider\":\"groq\",\"modelId\":\"llama\",\"label\":\"Llama 3\",\"enabled\":false,\"updatedAt\":\"<now>\"}]",
+          "AI model catalog by provider"
+        ],
+        "type": "UPSERT",
+        "tx": null
+      }
+    ]
+  },
+  "upsert catalog, legacy schema on save is ignored": {
+    "request": "PUT /api/system-config/ai-model-catalog",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "entry": {
+          "provider": "groq",
+          "modelId": "new",
+          "label": "new",
+          "enabled": true,
+          "updatedAt": "<now>"
+        },
+        "catalog": [
+          {
+            "provider": "groq",
+            "modelId": "new",
+            "label": "new",
+            "enabled": true,
+            "updatedAt": "<now>"
+          }
+        ]
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "INSERT INTO `SYSTEM_CONFIGURATION` (`key`,`value`,`description`) VALUES ($1,$2,$3) ON DUPLICATE KEY UPDATE `key`=VALUES(`key`),`value`=VALUES(`value`),`description`=VALUES(`description`);",
+        "replacements": null,
+        "bind": [
+          "aiModelCatalog",
+          "[{\"provider\":\"groq\",\"modelId\":\"new\",\"label\":\"new\",\"enabled\":true,\"updatedAt\":\"<now>\"}]",
+          "AI model catalog by provider"
+        ],
+        "type": "UPSERT",
+        "tx": null
+      }
+    ]
+  },
+  "upsert catalog, db down": {
+    "request": "PUT /api/system-config/ai-model-catalog",
+    "response": {
+      "status": 500,
+      "message": "internal server error"
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "delete catalog, missing fields": {
+    "request": "DELETE /api/system-config/ai-model-catalog?provider=groq",
+    "response": {
+      "status": 400,
+      "message": "provider and modelId are required"
+    },
+    "db": []
+  },
+  "delete catalog, not found": {
+    "request": "DELETE /api/system-config/ai-model-catalog",
+    "response": {
+      "status": 404,
+      "message": "Catalog entry not found"
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "delete catalog entry cascades to models and defaults": {
+    "request": "DELETE /api/system-config/ai-model-catalog?provider=GROQ&modelId=llama",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "catalog": [],
+        "models": [
+          {
+            "provider": "groq",
+            "modelId": "llama",
+            "featureScope": "chat",
+            "enabled": true
+          },
+          {
+            "provider": "local",
+            "modelId": "qwen",
+            "featureScope": "symptom",
+            "enabled": false
+          }
+        ],
+        "defaults": {
+          "chat": {
+            "provider": "groq",
+            "modelId": "llama"
+          }
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "INSERT INTO `SYSTEM_CONFIGURATION` (`key`,`value`,`description`) VALUES ($1,$2,$3) ON DUPLICATE KEY UPDATE `key`=VALUES(`key`),`value`=VALUES(`value`),`description`=VALUES(`description`);",
+        "replacements": null,
+        "bind": [
+          "aiModelCatalog",
+          "[]",
+          "AI model catalog by provider"
+        ],
+        "type": "UPSERT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "INSERT INTO `SYSTEM_CONFIGURATION` (`key`,`value`,`description`) VALUES ($1,$2,$3) ON DUPLICATE KEY UPDATE `key`=VALUES(`key`),`value`=VALUES(`value`),`description`=VALUES(`description`);",
+        "replacements": null,
+        "bind": [
+          "aiModels",
+          "[{\"provider\":\"local\",\"modelId\":\"qwen\",\"featureScope\":\"symptom\",\"enabled\":false}]",
+          "AI model registry"
+        ],
+        "type": "UPSERT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "INSERT INTO `SYSTEM_CONFIGURATION` (`key`,`value`,`description`) VALUES ($1,$2,$3) ON DUPLICATE KEY UPDATE `key`=VALUES(`key`),`value`=VALUES(`value`),`description`=VALUES(`description`);",
+        "replacements": null,
+        "bind": [
+          "aiDefaultModelByFeature",
+          "{}",
+          "Default AI model per feature"
+        ],
+        "type": "UPSERT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "delete catalog entry without bound models": {
+    "request": "DELETE /api/system-config/ai-model-catalog",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "catalog": [],
+        "models": [
+          {
+            "provider": "local",
+            "modelId": "qwen",
+            "featureScope": "symptom",
+            "enabled": false
+          }
+        ],
+        "defaults": {}
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "INSERT INTO `SYSTEM_CONFIGURATION` (`key`,`value`,`description`) VALUES ($1,$2,$3) ON DUPLICATE KEY UPDATE `key`=VALUES(`key`),`value`=VALUES(`value`),`description`=VALUES(`description`);",
+        "replacements": null,
+        "bind": [
+          "aiModelCatalog",
+          "[]",
+          "AI model catalog by provider"
+        ],
+        "type": "UPSERT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "upsert model, missing enabled": {
+    "request": "PUT /api/system-config/ai-models",
+    "response": {
+      "status": 400,
+      "message": "provider, modelId, and enabled are required"
+    },
+    "db": []
+  },
+  "upsert model, new (default scope chat)": {
+    "request": "PUT /api/system-config/ai-models",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "model": {
+          "provider": "groq",
+          "modelId": "mixtral",
+          "featureScope": "chat",
+          "enabled": true,
+          "updatedAt": "<now>"
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "INSERT INTO `SYSTEM_CONFIGURATION` (`key`,`value`,`description`) VALUES ($1,$2,$3) ON DUPLICATE KEY UPDATE `key`=VALUES(`key`),`value`=VALUES(`value`),`description`=VALUES(`description`);",
+        "replacements": null,
+        "bind": [
+          "aiModels",
+          "[{\"provider\":\"groq\",\"modelId\":\"llama\",\"featureScope\":\"chat\",\"enabled\":true},{\"provider\":\"local\",\"modelId\":\"qwen\",\"featureScope\":\"symptom\",\"enabled\":false},{\"provider\":\"groq\",\"modelId\":\"mixtral\",\"featureScope\":\"chat\",\"enabled\":true,\"updatedAt\":\"<now>\"}]",
+          "AI model registry"
+        ],
+        "type": "UPSERT",
+        "tx": null
+      }
+    ]
+  },
+  "upsert model, update existing scope": {
+    "request": "PUT /api/system-config/ai-models",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "model": {
+          "provider": "local",
+          "modelId": "qwen",
+          "featureScope": "symptom",
+          "enabled": true,
+          "updatedAt": "<now>"
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "INSERT INTO `SYSTEM_CONFIGURATION` (`key`,`value`,`description`) VALUES ($1,$2,$3) ON DUPLICATE KEY UPDATE `key`=VALUES(`key`),`value`=VALUES(`value`),`description`=VALUES(`description`);",
+        "replacements": null,
+        "bind": [
+          "aiModels",
+          "[{\"provider\":\"groq\",\"modelId\":\"llama\",\"featureScope\":\"chat\",\"enabled\":true},{\"provider\":\"local\",\"modelId\":\"qwen\",\"featureScope\":\"symptom\",\"enabled\":true,\"updatedAt\":\"<now>\"}]",
+          "AI model registry"
+        ],
+        "type": "UPSERT",
+        "tx": null
+      }
+    ]
+  },
+  "upsert model, db down": {
+    "request": "PUT /api/system-config/ai-models",
+    "response": {
+      "status": 500,
+      "message": "internal server error"
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "set default, missing fields": {
+    "request": "PUT /api/system-config/ai-models/default",
+    "response": {
+      "status": 400,
+      "message": "feature, provider, and modelId are required"
+    },
+    "db": []
+  },
+  "set default, model disabled for feature": {
+    "request": "PUT /api/system-config/ai-models/default",
+    "response": {
+      "status": 400,
+      "message": "Default model must be enabled for the selected feature"
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "set default": {
+    "request": "PUT /api/system-config/ai-models/default",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "defaults": {
+          "chat": {
+            "provider": "groq",
+            "modelId": "llama"
+          }
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "INSERT INTO `SYSTEM_CONFIGURATION` (`key`,`value`,`description`) VALUES ($1,$2,$3) ON DUPLICATE KEY UPDATE `key`=VALUES(`key`),`value`=VALUES(`value`),`description`=VALUES(`description`);",
+        "replacements": null,
+        "bind": [
+          "aiDefaultModelByFeature",
+          "{\"chat\":{\"provider\":\"groq\",\"modelId\":\"llama\"}}",
+          "Default AI model per feature"
+        ],
+        "type": "UPSERT",
+        "tx": null
+      }
+    ]
+  },
+  "delete model, missing fields": {
+    "request": "DELETE /api/system-config/ai-models",
+    "response": {
+      "status": 400,
+      "message": "provider, modelId, and featureScope are required (JSON body or query string)"
+    },
+    "db": []
+  },
+  "delete model, not found": {
+    "request": "DELETE /api/system-config/ai-models?provider=groq&modelId=llama&featureScope=symptom",
+    "response": {
+      "status": 404,
+      "message": "AI model entry not found"
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "delete model clears its default": {
+    "request": "DELETE /api/system-config/ai-models",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "message": "AI model entry removed",
+        "models": [
+          {
+            "provider": "local",
+            "modelId": "qwen",
+            "featureScope": "symptom",
+            "enabled": false
+          }
+        ],
+        "defaults": {
+          "chat": {
+            "provider": "groq",
+            "modelId": "llama"
+          }
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "INSERT INTO `SYSTEM_CONFIGURATION` (`key`,`value`,`description`) VALUES ($1,$2,$3) ON DUPLICATE KEY UPDATE `key`=VALUES(`key`),`value`=VALUES(`value`),`description`=VALUES(`description`);",
+        "replacements": null,
+        "bind": [
+          "aiModels",
+          "[{\"provider\":\"local\",\"modelId\":\"qwen\",\"featureScope\":\"symptom\",\"enabled\":false}]",
+          "AI model registry"
+        ],
+        "type": "UPSERT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "INSERT INTO `SYSTEM_CONFIGURATION` (`key`,`value`,`description`) VALUES ($1,$2,$3) ON DUPLICATE KEY UPDATE `key`=VALUES(`key`),`value`=VALUES(`value`),`description`=VALUES(`description`);",
+        "replacements": null,
+        "bind": [
+          "aiDefaultModelByFeature",
+          "{}",
+          "Default AI model per feature"
+        ],
+        "type": "UPSERT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "delete model keeps other defaults": {
+    "request": "DELETE /api/system-config/ai-models",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "message": "AI model entry removed",
+        "models": [
+          {
+            "provider": "groq",
+            "modelId": "llama",
+            "featureScope": "chat",
+            "enabled": true
+          }
+        ],
+        "defaults": {
+          "chat": {
+            "provider": "groq",
+            "modelId": "llama"
+          }
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "INSERT INTO `SYSTEM_CONFIGURATION` (`key`,`value`,`description`) VALUES ($1,$2,$3) ON DUPLICATE KEY UPDATE `key`=VALUES(`key`),`value`=VALUES(`value`),`description`=VALUES(`description`);",
+        "replacements": null,
+        "bind": [
+          "aiModels",
+          "[{\"provider\":\"groq\",\"modelId\":\"llama\",\"featureScope\":\"chat\",\"enabled\":true}]",
+          "AI model registry"
+        ],
+        "type": "UPSERT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "delete model, db down": {
+    "request": "DELETE /api/system-config/ai-models",
+    "response": {
+      "status": 500,
+      "message": "internal server error"
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  }
+}

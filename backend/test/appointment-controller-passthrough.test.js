@@ -19,6 +19,8 @@ const PLAIN = { success: true, marker: 'plain-result' };
 const VALUE = { marker: 'service-value' };
 /** Service returns a value the controller wraps as `{ success: true, [key]: value }`. */
 const wrapped = (status, key) => ({ status, body: { success: true, [key]: VALUE } });
+/** Service returns an object the controller spreads into `{ success: true, … }`. */
+const spread = { status: 200, body: { success: true, ...VALUE } };
 
 /**
  * [handler, service module, method, request, expected service args (from the stub's arguments),
@@ -38,11 +40,11 @@ const CASES = [
   ['getDoctors', 'appointmentCatalogService', 'getDoctors', {}, [], wrapped(200, 'doctors')],
   ['getClinicRooms', 'appointmentCatalogService', 'getClinicRooms', {}, [], wrapped(200, 'rooms')],
   ['getDepartments', 'appointmentCatalogService', 'getDepartments', {}, [], wrapped(200, 'departments')],
-  ['getBookedSlots', 'appointmentSlotService', 'getBookedSlots', { query: { date: '2026-10-01' } }, [{ date: '2026-10-01' }], 'result'],
-  ['getOpenSlots', 'appointmentSlotService', 'getOpenSlots', { query: { startDate: 'a' } }, [{ role: 'nurse', query: { startDate: 'a' } }], 'result'],
-  ['createOpenSlot', 'appointmentSlotService', 'createOpenSlot', { body: { time: 't' } }, [{ role: 'nurse', body: { time: 't' } }], 'result'],
-  ['updateOpenSlot', 'appointmentSlotService', 'updateOpenSlot', { params: { id: '3' }, body: { b: 1 } }, [{ role: 'nurse', id: '3', body: { b: 1 } }], 'result'],
-  ['deleteOpenSlot', 'appointmentSlotService', 'deleteOpenSlot', { params: { id: '3' } }, [{ role: 'nurse', id: '3' }], 'result'],
+  ['getBookedSlots', 'appointmentSlotService', 'getBookedSlots', { query: { date: '2026-10-01' } }, [{ date: '2026-10-01' }], wrapped(200, 'slots')],
+  ['getOpenSlots', 'appointmentSlotService', 'getOpenSlots', { query: { startDate: 'a' } }, [{ role: 'nurse', query: { startDate: 'a' } }], wrapped(200, 'slots')],
+  ['createOpenSlot', 'appointmentSlotService', 'createOpenSlot', { body: { time: 't' } }, [{ body: { time: 't' } }], wrapped(201, 'slot')],
+  ['updateOpenSlot', 'appointmentSlotService', 'updateOpenSlot', { params: { id: '3' }, body: { b: 1 } }, [{ id: '3', body: { b: 1 } }], spread],
+  ['deleteOpenSlot', 'appointmentSlotService', 'deleteOpenSlot', { params: { id: '3' } }, [{ id: '3' }], wrapped(200, 'id')],
   ['createAppointment', 'appointmentPatientService', 'createAppointment', { body: { b: 1 } }, [{ userId: 70, body: { b: 1 } }], wrapped(201, 'appointment')],
   ['getAppointments', 'appointmentPatientService', 'getAppointmentsForUser', {}, [70], 'plain'],
   ['getPatientDashboardSummary', 'appointmentPatientPortalService', 'getPatientDashboardSummary', {}, [70], 'plain'],
@@ -52,11 +54,11 @@ const CASES = [
   ['getPatientLabTestDetails', 'appointmentPatientPortalService', 'getPatientLabTestDetails', { params: { testId: '701' } }, [70, '701'], wrapped(200, 'details')],
   ['updateAppointment', 'appointmentPatientService', 'updatePatientAppointment', { params: { id: '5' }, body: { b: 1 } }, [{ userId: 70, id: '5', body: { b: 1 } }], wrapped(200, 'appointment')],
   ['deleteAppointment', 'appointmentPatientService', 'deletePatientAppointment', { params: { id: '5' }, body: { reason: 'r' } }, [{ userId: 70, id: '5', body: { reason: 'r' } }], { status: 200, body: { success: true, message: 'Appointment deleted successfully' } }],
-  ['getNurseCheckInOptions', 'appointmentNurseService', 'getNurseCheckInOptions', { query: { patientId: 'OP1' } }, [{ role: 'nurse', query: { patientId: 'OP1' } }], 'result'],
-  ['postNurseCheckInAccept', 'appointmentNurseService', 'postNurseCheckInAccept', { body: { b: 1 } }, [{ role: 'nurse', body: { b: 1 } }], 'result'],
-  ['postNurseCheckInAssign', 'appointmentNurseService', 'postNurseCheckInAssign', { body: { b: 1 } }, [{ role: 'nurse', body: { b: 1 } }], 'result'],
-  ['postNurseCheckInReschedule', 'appointmentNurseService', 'postNurseCheckInReschedule', { body: { b: 1 } }, [{ role: 'nurse', body: { b: 1 } }], 'result'],
-  ['postNurseRegimenCheckout', 'appointmentNurseService', 'postNurseRegimenCheckout', { body: { b: 1 } }, [{ role: 'nurse', body: { b: 1 } }], 'result'],
+  ['getNurseCheckInOptions', 'appointmentNurseService', 'getNurseCheckInOptions', { query: { patientId: 'OP1' } }, [{ query: { patientId: 'OP1' } }], spread],
+  ['postNurseCheckInAccept', 'appointmentNurseService', 'postNurseCheckInAccept', { body: { b: 1 } }, [{ body: { b: 1 } }], spread],
+  ['postNurseCheckInAssign', 'appointmentNurseService', 'postNurseCheckInAssign', { body: { b: 1 } }, [{ body: { b: 1 } }], spread],
+  ['postNurseCheckInReschedule', 'appointmentNurseService', 'postNurseCheckInReschedule', { body: { b: 1 } }, [{ body: { b: 1 } }], spread],
+  ['postNurseRegimenCheckout', 'appointmentNurseService', 'postNurseRegimenCheckout', { body: { b: 1 } }, [{ body: { b: 1 } }], wrapped(200, 'regimenId')],
 ];
 
 /** Runs one handler like Express would (errors → errorHandler) and returns `{ status, body }`. */

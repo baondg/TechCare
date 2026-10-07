@@ -74,15 +74,28 @@ exports.getDepartments = sendJson(async () => ({ success: true, departments: awa
 
 // ─── Slots ───
 /** GET /booked-slots?date=YYYY-MM-DD — booked (time, doctor) pairs of a day. */
-exports.getBookedSlots = sendResult((req) => appointmentSlotService.getBookedSlots({ date: req.query.date }));
-/** GET /open-slots?startDate=&endDate= — open and booked slots in a range. */
-exports.getOpenSlots = sendResult((req) => appointmentSlotService.getOpenSlots({ role: req.user.role, query: req.query }));
-exports.createOpenSlot = sendResult((req) => appointmentSlotService.createOpenSlot({ role: req.user.role, body: req.body }));
+exports.getBookedSlots = sendJson(async (req) => ({
+  success: true,
+  slots: await appointmentSlotService.getBookedSlots({ date: req.query.date }),
+}));
+/** GET /open-slots?startDate=&endDate= — open and booked slots in a range (patients: what they may book). */
+exports.getOpenSlots = sendJson(async (req) => ({
+  success: true,
+  slots: await appointmentSlotService.getOpenSlots({ role: req.user.role, query: req.query }),
+}));
+exports.createOpenSlot = asyncHandler(async (req, res) => {
+  const slot = await appointmentSlotService.createOpenSlot({ body: req.body });
+  res.status(201).json({ success: true, slot });
+});
 /** PUT /open-slots/:id — time / room; may reassign the doctor (same department only). */
-exports.updateOpenSlot = sendResult((req) =>
-  appointmentSlotService.updateOpenSlot({ role: req.user.role, id: req.params.id, body: req.body })
-);
-exports.deleteOpenSlot = sendResult((req) => appointmentSlotService.deleteOpenSlot({ role: req.user.role, id: req.params.id }));
+exports.updateOpenSlot = sendJson(async (req) => ({
+  success: true,
+  ...(await appointmentSlotService.updateOpenSlot({ id: req.params.id, body: req.body })),
+}));
+exports.deleteOpenSlot = sendJson(async (req) => ({
+  success: true,
+  id: await appointmentSlotService.deleteOpenSlot({ id: req.params.id }),
+}));
 
 // ─── Patient's own appointments + portal ───
 exports.createAppointment = asyncHandler(async (req, res) => {
@@ -110,19 +123,24 @@ exports.getPatientLabTestDetails = sendJson(async (req) => ({
 
 // ─── Nurse check-in ───
 /** GET /nurse/check-in-options?patientId=OP00000001|1 */
-exports.getNurseCheckInOptions = sendResult((req) =>
-  appointmentNurseService.getNurseCheckInOptions({ role: req.user.role, query: req.query })
-);
-exports.postNurseCheckInAccept = sendResult((req) =>
-  appointmentNurseService.postNurseCheckInAccept({ role: req.user.role, body: req.body })
-);
-exports.postNurseCheckInAssign = sendResult((req) =>
-  appointmentNurseService.postNurseCheckInAssign({ role: req.user.role, body: req.body })
-);
-exports.postNurseCheckInReschedule = sendResult((req) =>
-  appointmentNurseService.postNurseCheckInReschedule({ role: req.user.role, body: req.body })
-);
+exports.getNurseCheckInOptions = sendJson(async (req) => ({
+  success: true,
+  ...(await appointmentNurseService.getNurseCheckInOptions({ query: req.query })),
+}));
+exports.postNurseCheckInAccept = sendJson(async (req) => ({
+  success: true,
+  ...(await appointmentNurseService.postNurseCheckInAccept({ body: req.body })),
+}));
+exports.postNurseCheckInAssign = sendJson(async (req) => ({
+  success: true,
+  ...(await appointmentNurseService.postNurseCheckInAssign({ body: req.body })),
+}));
+exports.postNurseCheckInReschedule = sendJson(async (req) => ({
+  success: true,
+  ...(await appointmentNurseService.postNurseCheckInReschedule({ body: req.body })),
+}));
 /** POST /nurse/regimen/checkout — legacy / admin; doctors close visits on the doctor routes. */
-exports.postNurseRegimenCheckout = sendResult((req) =>
-  appointmentNurseService.postNurseRegimenCheckout({ role: req.user.role, body: req.body })
-);
+exports.postNurseRegimenCheckout = sendJson(async (req) => ({
+  success: true,
+  regimenId: await appointmentNurseService.postNurseRegimenCheckout({ body: req.body }),
+}));

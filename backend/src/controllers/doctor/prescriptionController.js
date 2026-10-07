@@ -358,7 +358,7 @@ exports.createPrescription = async (req, res) => {
       return res.status(400).json({ success: false, message: 'At least one medication with a name is required' });
     }
 
-    const doctorName = await resolveDoctorDisplayName(req);
+    const doctorName = await resolveDoctorDisplayName(req.user);
     const timeRows = await sequelize.query(
       'SELECT time FROM MEDICAL_PRESCRIPTION WHERE order_id = :orderId LIMIT 1',
       { replacements: { orderId }, type: QueryTypes.SELECT, transaction }
@@ -533,7 +533,7 @@ exports.updatePrescription = async (req, res) => {
       return res.status(400).json({ success: false, message: 'At least one medication with a name is required' });
     }
 
-    const doctorName = await resolveDoctorDisplayName(req);
+    const doctorName = await resolveDoctorDisplayName(req.user);
     const metaRows = await selectMedicalPrescriptionMetaCompat(sequelize, { orderId, transaction });
     const rxTime = metaRows[0]?.time;
     const updatedAt = rxTime ? new Date(rxTime).toISOString() : new Date().toISOString();

@@ -5,6 +5,7 @@ const { config } = require('../../config/env');
 // Hotpath cache: tuned for NFR load runs; override via env if needed.
 const PATIENT_RECORD_CACHE_TTL_SECONDS = config.cache.patientRecordTtlSeconds;
 
+/** The one cache key for a patient's EMR header: read / written by patientRecordService, dropped on writes. */
 const patientRecordCacheKey = (patientPk) => `doctor:patient_record:v2:${Number(patientPk)}`;
 
 async function invalidatePatientRecordCache(patientPk) {
@@ -19,5 +20,6 @@ async function invalidatePatientRecordCache(patientPk) {
 
 module.exports = {
   PATIENT_RECORD_CACHE_TTL_SECONDS,
+  patientRecordCacheKey,
   invalidatePatientRecordCache,
 };

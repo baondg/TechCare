@@ -1,5 +1,6 @@
 const { QueryTypes } = require('sequelize');
 const sequelize = require('../common/database');
+const Patient = require('../models/Patient');
 
 /** Adds `transaction` to query options only when there is one. */
 const withTx = (transaction, options) => (transaction ? { ...options, transaction } : options);
@@ -50,6 +51,11 @@ async function findPatientPkByUserIdOrPk(value, transaction) {
   return rows[0]?.patient_id ?? null;
 }
 
+/** PATIENT model instance (blood type, allergy / history JSON columns), or null. */
+async function findPatientById(patientPk) {
+  return Patient.findByPk(patientPk);
+}
+
 /** Whether the patient has a REGIMEN without an end (an active visit). */
 async function hasOpenRegimen(patientId) {
   const [row] = await sequelize.query(
@@ -68,5 +74,6 @@ module.exports = {
   findPatientUserId,
   findUserIdByPatientPk,
   findPatientPkByUserIdOrPk,
+  findPatientById,
   hasOpenRegimen,
 };

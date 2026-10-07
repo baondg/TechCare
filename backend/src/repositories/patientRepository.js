@@ -58,8 +58,8 @@ async function findPatientById(patientPk) {
 }
 
 /** PATIENT model instance of a user, or null. */
-async function findPatientByUserId(userId) {
-  return Patient.findOne({ where: { user_id: userId } });
+async function findPatientByUserId(userId, transaction) {
+  return Patient.findOne({ where: { user_id: userId }, transaction });
 }
 
 /** PATIENT of a user with blood type, allergy / history columns and all MEDICAL_RECORD rows, or null. */

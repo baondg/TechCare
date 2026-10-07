@@ -341,9 +341,13 @@
     },
     "db": [
       {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
         "event": "User.findByPk",
         "pk": 70,
-        "tx": null
+        "tx": "tx1"
       },
       {
         "event": "User#update",
@@ -363,14 +367,14 @@
         "where": {
           "user_id": 70
         },
-        "tx": null
+        "tx": "tx1"
       },
       {
         "event": "Relative.destroy",
         "where": {
           "patient_id": 7
         },
-        "tx": null
+        "tx": "tx1"
       },
       {
         "event": "Relative.create",
@@ -384,7 +388,11 @@
           "email": "lan@x.vn",
           "idcard": "<idcard>"
         },
-        "tx": null
+        "tx": "tx1"
+      },
+      {
+        "event": "commit",
+        "tx": "tx1"
       }
     ]
   },
@@ -398,9 +406,13 @@
     },
     "db": [
       {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
         "event": "User.findByPk",
         "pk": 70,
-        "tx": null
+        "tx": "tx1"
       },
       {
         "event": "User#update",
@@ -417,7 +429,74 @@
         "where": {
           "user_id": 70
         },
-        "tx": null
+        "tx": "tx1"
+      },
+      {
+        "event": "commit",
+        "tx": "tx1"
+      }
+    ]
+  },
+  "update profile, relative rejected by the model keeps the old one": {
+    "request": "PUT /api/profile/70",
+    "response": {
+      "status": 400,
+      "message": "Invalid relative email"
+    },
+    "db": [
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "event": "User.findByPk",
+        "pk": 70,
+        "tx": "tx1"
+      },
+      {
+        "event": "User#update",
+        "id": 70,
+        "values": {
+          "first_name": "Bảo",
+          "last_name": "Đỗ Ngọc",
+          "dob": "1990-01-15",
+          "sex": "M",
+          "tel": "090",
+          "email": "b@x.vn",
+          "idcard": "<idcard>"
+        }
+      },
+      {
+        "event": "Patient.findOne",
+        "where": {
+          "user_id": 70
+        },
+        "tx": "tx1"
+      },
+      {
+        "event": "Relative.destroy",
+        "where": {
+          "patient_id": 7
+        },
+        "tx": "tx1"
+      },
+      {
+        "event": "Relative.create",
+        "values": {
+          "patient_id": 7,
+          "name": "Lan",
+          "relationship": "Mother",
+          "dob": null,
+          "sex": "F",
+          "tel": null,
+          "email": "not-an-email",
+          "idcard": "<idcard>"
+        },
+        "tx": "tx1"
+      },
+      {
+        "event": "rollback",
+        "tx": "tx1"
       }
     ]
   },
@@ -431,16 +510,24 @@
     },
     "db": [
       {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
         "event": "User.findByPk",
         "pk": 70,
-        "tx": null
+        "tx": "tx1"
       },
       {
         "event": "Patient.findOne",
         "where": {
           "user_id": 70
         },
-        "tx": null
+        "tx": "tx1"
+      },
+      {
+        "event": "commit",
+        "tx": "tx1"
       }
     ]
   },
@@ -452,9 +539,17 @@
     },
     "db": [
       {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
         "event": "User.findByPk",
         "pk": 70,
-        "tx": null
+        "tx": "tx1"
+      },
+      {
+        "event": "rollback",
+        "tx": "tx1"
       }
     ]
   },

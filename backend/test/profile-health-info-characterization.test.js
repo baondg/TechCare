@@ -135,6 +135,13 @@ const SCENARIOS = [
     s.models['User.findByPk'] = () => fakeInstance('User', { id: 70 }, s);
     return NURSE;
   }],
+  ['update profile, relative rejected by the model keeps the old one', 'PUT', '/api/profile/70', { ...PROFILE_BODY, relativeEmail: 'not-an-email' }, [], (s) => {
+    s.models['User.findByPk'] = () => fakeInstance('User', { id: 70 }, s);
+    s.models['Patient.findOne'] = () => ({ patient_id: 7 });
+    s.models['Relative.create'] = () =>
+      Object.assign(new Error('Validation isEmail on email failed'), { name: 'SequelizeValidationError', errors: [{ path: 'email' }] });
+    return PATIENT;
+  }],
   ['update profile, no user row', 'PUT', '/api/profile/70', PROFILE_BODY, [], () => ADMIN],
   ['update profile, db down', 'PUT', '/api/profile/70', PROFILE_BODY, [], (s) => {
     s.models['User.findByPk'] = dbError;

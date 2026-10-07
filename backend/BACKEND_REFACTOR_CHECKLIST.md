@@ -131,11 +131,12 @@ SQL đã chuyển khỏi controller; controller chỉ còn HTTP (`asyncHandler`)
 - [x] Nhóm 1 — `appointmentPatientService`, `appointmentFeedbackService`, `appointmentCatalogService`, chi tiết xét nghiệm portal: trả dữ liệu + throw `AppError`. Test: `test/appointment-patient-characterization.test.js` (44 kịch bản).
 - [x] Nhóm 2 — `appointmentSlotService`, `appointmentNurseService`: throw `AppError`, kiểm tra role chuyển hết ra route (`appointments.read.open_slots` mới cho `GET /open-slots`). Test: `test/appointment-slots-nurse-characterization.test.js` (53 kịch bản); fake DB chạy được managed transaction.
   - Y tá đổi giờ / phòng của slot **đã có bệnh nhân** (cùng bác sĩ): không ai được thông báo — chỉ đổi bác sĩ mới báo bệnh nhân.
-  - `POST /nurse/regimen/checkout` (legacy) chỉ đóng REGIMEN, không hoàn tất / gỡ liên kết lịch hẹn như "kết thúc khám" của bác sĩ.
+  - [x] `POST /nurse/regimen/checkout` (legacy) giờ hoàn tất lịch hẹn của đợt khám như "kết thúc khám" của bác sĩ.
 - [x] Nhóm 3 — `appointmentAiService`: throw `AppError`; lỗi MedAI giữ status + câu báo, các trường chẩn đoán (`error`/`hint`/`raw`) chỉ còn trong log. Test: `test/appointment-ai-characterization.test.js` (26 kịch bản). Sửa: lỗi kết nối chat không còn lộ URL nội bộ của MedAI.
 - **Tất cả service `appointment*` đã trả dữ liệu + throw `AppError`**; `appointmentController` không còn `{ status, json }`.
 - [x] Sửa: `GET /api/appointments/patients` (mọi bệnh nhân + chẩn đoán gần nhất) chỉ cho nhân viên EMR (`doctor.emr.read`); trước đây bệnh nhân nào cũng gọi được.
-- Frontend: `pages/technician/patients.tsx` gọi cứng `http://localhost:3000/api/appointments/patients` (hỏng khi deploy). `getPortalPatients` truy vấn N+1 (mỗi bệnh nhân 2 truy vấn).
+- [x] Frontend: base URL API dùng chung (`src/lib/api-base.ts`) — trước đây `VITE_API_BASE_URL=/api` (docker-compose prod) làm hầu hết request thành `/api/api/...`; trang kỹ thuật viên gọi cứng localhost. nginx / Vite proxy thêm `/uploads/`.
+- [x] `getPortalPatients`: 3 truy vấn cố định thay vì 2–3 truy vấn mỗi bệnh nhân.
 
 ## Follow-up (broader backend — khối lớn, làm dần)
 
@@ -174,12 +175,12 @@ Bước B — chuyển SQL từ controllers/doctor/* và services/emr/* xuống 
 - [x] **Đợt 3** — đơn thuốc, xét nghiệm, phẫu thuật: `repositories/{order,prescription,labTest,surgery}Repository.js` (+ `catalogRepository` tra / thêm MEDICINE), `services/emr/{prescriptionService,labTestService,surgeryService}.js`; `bytPrescription` không còn nhận `sequelize` (tra mã BYT trùng qua `prescriptionRepository.bytCodeInUse`), thêm `normalizeBytPrescriptionType`. `common/transaction.js` (`inTransaction`) dùng chung, thay 2 bản sao trong `diagnosisService` / `accountService`. Test: `test/doctor-orders-characterization.test.js` (73 kịch bản).
   - [x] Upload file xét nghiệm (`POST /lab-attachments`, base64 trong JSON) từng bị `express.json()` chặn ở 100 kB (file > ~75 kB → 413). Đã sửa: `middleware/jsonBody.js` — route này tự parse body 21 MB **sau** xác thực, các route khác giữ 100 kB; nginx frontend `client_max_body_size 21m` cho `/api/`. Test: `test/lab-attachment-upload.test.js`.
   - ⚠️ Sửa đơn thuốc đặt lại `MEDICAL_PRESCRIPTION.time = NOW()` → mất ngày kê gốc (response trả `createdAt = updatedAt`).
-  - ⚠️ `MSG_NO_DOCTOR_OR_PRIOR_TREATMENT` nói "lab order" cả khi kê đơn / phẫu thuật. Cập nhật xét nghiệm / phẫu thuật chạy nhiều UPDATE không trong transaction.
+  - [x] `MSG_NO_DOCTOR_OR_PRIOR_TREATMENT` nói "record" thay vì "lab order". Cập nhật xét nghiệm / phẫu thuật chạy trong một transaction.
 - [x] **Đợt 4** — lịch hẹn phía bác sĩ: `repositories/doctorAppointmentRepository.js`, `services/doctorAppointmentService.js`; dùng lại `appointmentRepository` (phòng khám, cùng khoa, tên bác sĩ, bệnh nhân theo user), `staffRepository.findDoctorIdByUserId`, `coverRepository.reassignAppointmentDoctor`. Controller chỉ còn HTTP. Test: `test/doctor-appointments-characterization.test.js` (47 kịch bản).
   - ⚠️ `POST /api/doctor/appointments`: `department` chỉ được trả lại, không lưu; không kiểm tra định dạng ngày / giờ; chỉ chặn trùng lịch `scheduled` — nếu đã có bản ghi huỷ cùng giờ + phòng thì có thể vướng UNIQUE(time, doctor_id, room_id) → 500 (chưa kiểm chứng trên MySQL).
   - Nhờ khám thay (cover) kiểm tra rồi cập nhật không trong transaction (hai yêu cầu đồng thời có thể cùng lọt qua kiểm tra trùng giờ).
 - [x] **Đợt 5** — đợt khám (REGIMEN), phiếu, tài liệu, chuyển viện: `repositories/{regimen,regimenDocument,transfer}Repository.js` (+ `medicalRecordRepository.listVitalsByIds`), `services/emr/{regimenService,regimenDocumentsService,transferService}.js`. Hai handler ~300 dòng (tài liệu đợt đang mở, lịch sử đợt đã đóng) dùng chung một bộ truy vấn theo danh sách đợt (`IN (:regimenIds)` thay cho nối chuỗi id). Chuỗi dò phòng check-in thành một danh sách bước thử theo thứ tự. Kiểm tra quyền "chỉ bác sĩ" chuyển ra route (`authorizeCapability('doctor.emr.write')`, giữ câu báo); kiểm tra role trùng với `doctor.emr.read` của router đã bỏ. `bytFieldsForDisplay` dùng chung cho danh sách đơn thuốc và tài liệu đợt khám. Test: `test/doctor-regimen-characterization.test.js` (58 kịch bản).
-  - Kết thúc khám (`regimen/close`): đóng REGIMEN rồi cập nhật APPOINTMENT không trong transaction.
+  - [x] Kết thúc khám (`regimen/close`) chạy trong một transaction.
   - Dò phòng check-in dùng `CURDATE()` (giờ của MySQL) — lệch múi giờ thì bước "hôm nay" có thể trượt; các bước theo `REGIMEN.start` bù lại.
 
 **Doctor / EMR bước B — xong:** `controllers/doctor/*` và `services/emr/*` không còn SQL.

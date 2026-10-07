@@ -3,6 +3,10 @@ const defineSystemConfig = require('../models/SystemConfig');
 const SystemConfig = defineSystemConfig(sequelize);
 const Session = require('../models/Session');
 const { Op } = require('sequelize');
+const {
+  JSON_CONFIG_KEYS,
+  isLegacySystemConfigSchemaError,
+} = require('../config/systemConfigurationContract');
 
 const CONFIG_DEFAULTS = {
   maxConcurrentUsers: '500',

@@ -21,6 +21,7 @@ const Account = require(path.join(DIST, 'models', 'Account'));
 const User = require(path.join(DIST, 'models', 'Users'));
 const Patient = require(path.join(DIST, 'models', 'Patient'));
 const MedicalRecord = require(path.join(DIST, 'models', 'MedicalRecord'));
+const Relative = require(path.join(DIST, 'models', 'Relative'));
 const cacheService = require(path.join(DIST, 'services', 'cacheService'));
 const { getJwtSecret } = require(path.join(DIST, 'security', 'jwtConfig'));
 
@@ -34,9 +35,10 @@ function normalizeSql(sql) {
 const MODEL_STUBS = {
   Session: { model: Session, methods: ['findOne', 'findAll', 'count', 'create', 'destroy'] },
   Account: { model: Account, methods: ['findOne', 'create'] },
-  User: { model: User, methods: ['create', 'findAndCountAll'] },
-  Patient: { model: Patient, methods: ['findOrCreate', 'findByPk'] },
-  MedicalRecord: { model: MedicalRecord, methods: ['findOne', 'findAndCountAll', 'create'] },
+  User: { model: User, methods: ['create', 'findAndCountAll', 'findOne', 'findByPk'] },
+  Patient: { model: Patient, methods: ['findOrCreate', 'findByPk', 'findOne'] },
+  MedicalRecord: { model: MedicalRecord, methods: ['findOne', 'findAndCountAll', 'create', 'destroy'] },
+  Relative: { model: Relative, methods: ['destroy', 'create'] },
 };
 
 /** cacheService (Redis / memory) is replaced by a per-scenario Map; reads and writes are recorded. */

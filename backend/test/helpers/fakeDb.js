@@ -3,7 +3,7 @@
  *
  * Stubs, on the compiled modules in dist/ (the same instances the app uses):
  *   - sequelize.query       → answered by `rules`, every call recorded
- *   - sequelize.transaction → fake tx with commit/rollback, recorded
+ *   - sequelize.transaction → fake tx with commit/rollback (managed callbacks too), recorded
  *   - Session / Account models used by authMiddleware → a valid admin session
  *
  * A rule is `[regex, result]` matched against the whitespace-collapsed SQL; `result` is a value
@@ -105,15 +105,25 @@ function installFakeDb() {
     return options.plain && Array.isArray(value) ? (value[0] ?? null) : value;
   };
 
-  sequelize.transaction = async () => {
+  /** Unmanaged (`await transaction()`) or managed (`transaction(async (t) => …)`: commit / rollback + rethrow). */
+  sequelize.transaction = async (work) => {
     state.txSeq += 1;
     const id = `tx${state.txSeq}`;
     state.calls.push({ event: 'begin', tx: id });
-    return {
+    const tx = {
       id,
       commit: async () => state.calls.push({ event: 'commit', tx: id }),
       rollback: async () => state.calls.push({ event: 'rollback', tx: id }),
     };
+    if (typeof work !== 'function') return tx;
+    try {
+      const result = await work(tx);
+      await tx.commit();
+      return result;
+    } catch (error) {
+      await tx.rollback();
+      throw error;
+    }
   };
 
   const adminSession = {

@@ -80,6 +80,27 @@ function parsePrescriptionMetaNote(rawNote) {
   }
 }
 
+/** Stored BYT fields as lists show them: invalid code → null, facility defaults, '' for the rest. */
+function bytFieldsForDisplay(storedByt) {
+  const byt = storedByt || {};
+  return {
+    code: isBytCodeShape(byt.code) ? String(byt.code) : null,
+    prescriptionType: normalizeBytPrescriptionType(byt.prescriptionType),
+    facilityCode: String(byt.facilityCode || BYT_FACILITY_CODE),
+    facilityName: String(byt.facilityName || BYT_FACILITY_NAME),
+    facilityAddress: String(byt.facilityAddress || BYT_FACILITY_ADDRESS),
+    facilityPhone: String(byt.facilityPhone || BYT_FACILITY_PHONE),
+    contactPhone: String(byt.contactPhone || ''),
+    guardianName: String(byt.guardianName || ''),
+    advice: String(byt.advice || ''),
+    insuranceId: String(byt.insuranceId || ''),
+    patientAddress: String(byt.patientAddress || ''),
+    patientWeightKg: String(byt.patientWeightKg || ''),
+    patientIdCard: String(byt.patientIdCard || ''),
+    patientPhone: String(byt.patientPhone || ''),
+  };
+}
+
 function buildPrescriptionMetaNote({ department, byt }) {
   return JSON.stringify({
     v: 2,
@@ -110,6 +131,7 @@ module.exports = {
   BYT_FACILITY_PHONE,
   BYT_PRESCRIPTION_TYPE,
   buildPrescriptionMetaNote,
+  bytFieldsForDisplay,
   generateUniqueBytPrescriptionCode,
   isBytCodeShape,
   normalizeBytPrescriptionType,

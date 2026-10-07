@@ -123,6 +123,11 @@
   "PATCH /api/notifications/:id/read",
   "GET /api/work-shifts/staff-directory",
   "GET /api/work-shifts/",
+  "POST /api/cover/request",
+  "GET /api/cover/requests",
+  "GET /api/cover/my-requests",
+  "PUT /api/cover/:id/accept",
+  "PUT /api/cover/:id/reject",
   "POST /api/chatbot/",
   "GET /health",
   "GET /"

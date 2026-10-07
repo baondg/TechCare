@@ -20,6 +20,7 @@ const doctorRoutes = require('./routes/doctorRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const workShiftRoutes = require('./routes/workShiftRoutes');
+const coverRoutes = require('./routes/coverRoutes');
 const chatbotRoutes = require('./routes/chatbot');
 const sessionMiddleware = require('./middleware/sessionMiddleware');
 const { globalRateLimit, appointmentRateLimit } = require('./middleware/rateLimitMiddleware');
@@ -76,6 +77,7 @@ app.use('/api/doctor', doctorRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/work-shifts', workShiftRoutes);
+app.use('/api/cover', coverRoutes);
 app.use('/api/chatbot', chatbotRoutes);
 
 // Health check endpoint

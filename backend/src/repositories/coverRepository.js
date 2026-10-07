@@ -119,15 +119,21 @@ async function listCoverRequestsByOriginalDoctor(doctorId) {
   );
 }
 
-async function selectPendingCoverRequestForAccept(coverId, transaction) {
+/**
+ * Same visibility rule as listPendingCoverRequestsForSpecialty: only a colleague
+ * of the same specialty (never the requesting doctor) may take the request.
+ */
+async function selectPendingCoverRequestForAccept(coverId, { spec, myDoctorId }, transaction) {
   const [row] = await sequelize.query(
     `SELECT cr.*, od.user_id AS originalDoctorUserId, a.patient_id
      FROM COVER_REQUEST cr
      JOIN DOCTOR od ON od.doctor_id = cr.original_doctor_id
      JOIN APPOINTMENT a ON a.id = cr.appointment_id
      WHERE cr.id = :id AND cr.status = 'pending'
+       AND od.specifications = :spec
+       AND cr.original_doctor_id != :myDoctorId
      LIMIT 1`,
-    qTx(transaction, { replacements: { id: coverId }, type: QueryTypes.SELECT })
+    qTx(transaction, { replacements: { id: coverId, spec, myDoctorId }, type: QueryTypes.SELECT })
   );
   return row || null;
 }

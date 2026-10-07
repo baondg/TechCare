@@ -6,6 +6,7 @@ Source of truth: `backend/src/security/rbacMatrix.js`
 |---|---|---|---|---|---|
 | `doctor.emr.read` | allow | allow | allow | allow | deny |
 | `doctor.emr.write` | allow | allow | deny | deny | deny |
+| `doctor.cover.manage` | allow | deny | deny | deny | deny |
 | `appointments.read.self` | deny | deny | deny | deny | allow |
 | `appointments.write.self` | deny | deny | deny | deny | allow |
 | `appointments.manage.open_slots` | deny | allow | allow | deny | deny |

@@ -40,6 +40,8 @@ const PROTECTED_ENDPOINTS = [
   ['GET', '/api/health-info/1'],
   ['GET', '/api/notifications'],
   ['GET', '/api/work-shifts'],
+  ['GET', '/api/cover/requests'],
+  ['PUT', '/api/cover/1/accept'],
 ];
 
 for (const [method, path] of PROTECTED_ENDPOINTS) {

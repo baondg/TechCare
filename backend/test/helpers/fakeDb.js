@@ -7,7 +7,8 @@
  *   - Session / Account models used by authMiddleware → a valid admin session
  *
  * A rule is `[regex, result]` matched against the whitespace-collapsed SQL; `result` is a value
- * or `(call) => value`. Unmatched queries return [] so a test never hangs on a missing rule.
+ * or `(call) => value`. Unmatched queries return [] ([{}, null] for upserts) so a test never
+ * fails on a missing rule.
  */
 const path = require('node:path');
 const jwt = require('jsonwebtoken');
@@ -37,21 +38,28 @@ function installFakeDb() {
   const state = { rules: [], calls: [], sessionRows: new Map(), destroyResult: 1, txSeq: 0 };
 
   sequelize.query = async (sql, options = {}) => {
+    // Model methods (upsert…) pass `{ query, bind }` instead of a string.
+    const text = typeof sql === 'object' && sql !== null ? sql.query : sql;
+    const bind = options.bind ?? (typeof sql === 'object' && sql !== null ? sql.bind : undefined);
     const call = {
-      sql: normalizeSql(sql),
+      sql: normalizeSql(text),
       replacements: options.replacements ?? null,
+      ...(bind !== undefined ? { bind } : {}),
       type: options.type ?? null,
       tx: options.transaction ? options.transaction.id : null,
     };
     state.calls.push(call);
+    // Model.upsert destructures `[record, created]`.
+    let value = call.type === 'UPSERT' ? [{}, null] : [];
     for (const [re, result] of state.rules) {
       if (re.test(call.sql)) {
-        const value = typeof result === 'function' ? result(call) : result;
+        value = typeof result === 'function' ? result(call) : result;
         if (value instanceof Error) throw value;
-        return value;
+        break;
       }
     }
-    return [];
+    // Model.findOne asks for a single row (`plain: true`).
+    return options.plain && Array.isArray(value) ? (value[0] ?? null) : value;
   };
 
   sequelize.transaction = async () => {

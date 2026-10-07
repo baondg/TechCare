@@ -87,15 +87,23 @@ Reference implementations: `coverController.js`, `notificationController.js`, `w
 
 ---
 
+## Admin + system config (G3 bước B — xong)
+
+SQL đã chuyển khỏi controller; controller chỉ còn HTTP (`asyncHandler`), input qua `validate` + zod, lỗi qua `AppError`.
+
+- [x] **`repositories/accountRepository.js`** — ACCOUNT / USER / DOCTOR / DOCTOR_DEPARTMENT / DEPARTMENT cho trang quản trị tài khoản; danh sách có lọc + sắp xếp (whitelist `ACCOUNT_SORT_SQL`); tra role / danh sách admin cho phiên đăng nhập.
+- [x] **`repositories/adminDashboardRepository.js`** · **`adminFeedbackRepository.js`** · **`featureRepository.js`** · **`sessionRepository.js`** (raw SQL + model `Session`).
+- [x] **`services/admin/{accountService,dashboardService,feedbackService,roleLabels}.js`** · **`services/systemConfig/{featureService,sessionService}.js`**.
+- [x] **`validators/adminSchemas.js`** · **`validators/systemConfigSchemas.js`** — giữ nguyên message lỗi cũ; query danh sách tài khoản vẫn "dễ dãi" (giá trị rác → mặc định).
+- [x] **`test/admin-characterization.test.js`** — DB giả (`test/helpers/fakeDb.js`) ghi lại SQL + tham số + transaction + response của 54 kịch bản, snapshot chụp **trước** khi refactor. Dùng cùng cách này cho các miền tiếp theo khi chưa có MySQL test.
+
 ## Follow-up (broader backend — khối lớn, làm dần)
 
-- Admin / system config / auth / AI đã tách theo miền (G3 bước A), SQL vẫn nằm trong controller — chuyển xuống `repositories/` ở bước B:
-  - `controllers/admin/{accountController,dashboardController,feedbackController,roleLabels}`
-  - `controllers/systemConfig/{configController,sessionController,aiModelController,featureController,configStore}`
-  - `authorization/{registrationController,sessionController,sessionTokens}`
-  - `routes/ai.ts` (route + middleware) · `services/ai/llmClient.ts` (Groq / local LLM, chọn model) · `services/ai/prompts.ts`
+- `controllers/systemConfig/{configController,aiModelController}` và `authorization/*` không có raw SQL (dùng model / `configStore`) nhưng vẫn `try/catch` thủ công — chuyển sang `asyncHandler` + `validate`.
+- `routes/ai.ts` (route + middleware) · `services/ai/llmClient.ts` (Groq / local LLM, chọn model) · `services/ai/prompts.ts`.
 - ⚠️ `controllers/systemConfig/configController.js` có `CONFIG_DEFAULTS` / `NUMERIC_CONFIG_RULES` **lệch** với `config/systemConfigurationContract.js` (appointment rate limit 60/60 vs 10/300; thiếu `aiRecovery*`). Chưa gộp — cần chốt giá trị đúng trước.
-- `routes/ai.ts` vẫn tự kiểm tra role (`requireAdmin`, `requireClinicalStaff`) thay vì `authorizeCapability`.
+- `routes/ai.ts` vẫn tự kiểm tra role (`requireAdmin`, `requireClinicalStaff`) thay vì `authorizeCapability`; `adminRoutes.js` / `systemConfig.js` cũng vậy.
+- ⚠️ `accountService.createAccount` vẫn rơi về mật khẩu mặc định cứng `Test@1234` khi thiếu `DEFAULT_ACCOUNT_PASSWORD`.
 
 ## Doctor / EMR (G3 — bước A: tách controller theo miền)
 

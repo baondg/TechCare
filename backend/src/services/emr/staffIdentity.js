@@ -28,8 +28,9 @@ async function getDoctorIdForUserOrLatestForPatient(userId, patientId, transacti
   );
 }
 
+/** Orders and documents (prescription, lab test, surgery, slips, transfer) need a responsible doctor. */
 const MSG_NO_DOCTOR_OR_PRIOR_TREATMENT =
-  'No doctor could be resolved for this lab order: the patient needs a scheduled appointment or a prior visit (treatment), or the action must be done by a user linked to a doctor profile.';
+  'No doctor could be resolved for this record: the patient needs a scheduled appointment or a prior visit (treatment), or the action must be done by a user linked to a doctor profile.';
 
 async function getTechnicianIdByUserId(userId, transaction) {
   return (await staffRepository.findTechnicianIdByUserId(userId, transaction)) || null;

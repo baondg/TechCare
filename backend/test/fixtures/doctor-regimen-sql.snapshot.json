@@ -892,7 +892,7 @@
     "request": "POST /api/doctor/patients/OP0070/health-tracking-slips",
     "response": {
       "status": 400,
-      "message": "No doctor could be resolved for this lab order: the patient needs a scheduled appointment or a prior visit (treatment), or the action must be done by a user linked to a doctor profile."
+      "message": "No doctor could be resolved for this record: the patient needs a scheduled appointment or a prior visit (treatment), or the action must be done by a user linked to a doctor profile."
     },
     "db": [
       {
@@ -1357,7 +1357,7 @@
     "request": "POST /api/doctor/patients/OP0070/follow-up-reexam-slip",
     "response": {
       "status": 400,
-      "message": "No doctor could be resolved for this lab order: the patient needs a scheduled appointment or a prior visit (treatment), or the action must be done by a user linked to a doctor profile."
+      "message": "No doctor could be resolved for this record: the patient needs a scheduled appointment or a prior visit (treatment), or the action must be done by a user linked to a doctor profile."
     },
     "db": [
       {
@@ -2932,7 +2932,7 @@
     "request": "POST /api/doctor/patients/OP0070/transfers",
     "response": {
       "status": 400,
-      "message": "No doctor could be resolved for this lab order: the patient needs a scheduled appointment or a prior visit (treatment), or the action must be done by a user linked to a doctor profile."
+      "message": "No doctor could be resolved for this record: the patient needs a scheduled appointment or a prior visit (treatment), or the action must be done by a user linked to a doctor profile."
     },
     "db": [
       {

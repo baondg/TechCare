@@ -4,6 +4,7 @@ const sessionController = require('../controllers/systemConfig/sessionController
 const featureController = require('../controllers/systemConfig/featureController');
 const aiModelController = require('../controllers/systemConfig/aiModelController');
 const authenticateToken = require('../middleware/authMiddleware');
+const { authorizeCapability } = require('../middleware/authorizeCapability');
 const { validate } = require('../middleware/validate');
 const {
   featureIdParams,
@@ -12,15 +13,8 @@ const {
   revokeAllSessionsBody,
 } = require('../validators/systemConfigSchemas');
 
-const requireAdmin = (req, res, next) => {
-  if (!req.user || String(req.user.role).toLowerCase() !== 'admin') {
-    return res.status(403).json({ success: false, error: 'Admin access required' });
-  }
-  return next();
-};
-
 router.use(authenticateToken);
-router.use(requireAdmin);
+router.use(authorizeCapability('admin.console', { message: 'Admin access required' }));
 
 router.get('/', configController.getConfig);
 router.put('/', configController.updateConfig);

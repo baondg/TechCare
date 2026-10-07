@@ -61,7 +61,7 @@ async function getActiveRegimen(patientIdParam) {
 
 /**
  * Doctor finishes the examination: ends every open visit, completes their scheduled appointments
- * and unlinks them. Medication reminders then come from the scheduler (active prescriptions).
+ * and unlinks them, in one transaction. Medication reminders then come from the scheduler (active prescriptions).
  */
 async function closeOpenRegimens(patientIdParam) {
   const pid = await resolveCanonicalPatientIdFromEmrParam(patientIdParam);
@@ -71,9 +71,12 @@ async function closeOpenRegimens(patientIdParam) {
     throw new NotFoundError('No open visit to close. Check-in may not have been completed for this patient.');
   }
   const closedRegimenIds = open.map((r) => Number(r.regimenId)).filter((id) => Number.isFinite(id) && id > 0);
-  await regimenRepository.closeOpenRegimens(pid);
-  await nurseCheckInRepository.completeAppointmentsForClosedRegimens(pid, closedRegimenIds);
-  await nurseCheckInRepository.clearAppointmentRegimenLinksForRegimenIds(pid, closedRegimenIds);
+  // One transaction: a visit must not end up closed while its appointments still look scheduled.
+  await inTransaction(async (transaction) => {
+    await regimenRepository.closeOpenRegimens(pid, transaction);
+    await nurseCheckInRepository.completeAppointmentsForClosedRegimens(pid, closedRegimenIds, transaction);
+    await nurseCheckInRepository.clearAppointmentRegimenLinksForRegimenIds(pid, closedRegimenIds, transaction);
+  });
   return { regimenId: closedRegimenIds[0], closedRegimenIds, closedCount: closedRegimenIds.length };
 }
 

@@ -1420,20 +1420,12 @@
         "tx": null
       },
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "event": "rollback",
-        "tx": "tx1"
+        "tx": null
       }
     ]
   },
@@ -1445,15 +1437,15 @@
     },
     "db": [
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -1533,15 +1525,15 @@
         "tx": null
       },
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -1610,16 +1602,16 @@
         "tx": "tx1"
       },
       {
+        "event": "commit",
+        "tx": "tx1"
+      },
+      {
         "sql": "SELECT first_name, last_name FROM USER WHERE id = :id LIMIT 1",
         "replacements": {
           "id": 21
         },
         "type": "SELECT",
         "tx": null
-      },
-      {
-        "event": "commit",
-        "tx": "tx1"
       },
       {
         "event": "cache.del",
@@ -1650,15 +1642,15 @@
     },
     "db": [
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -1728,16 +1720,16 @@
         "tx": "tx1"
       },
       {
+        "event": "commit",
+        "tx": "tx1"
+      },
+      {
         "sql": "SELECT first_name, last_name FROM USER WHERE id = :id LIMIT 1",
         "replacements": {
           "id": 41
         },
         "type": "SELECT",
         "tx": null
-      },
-      {
-        "event": "commit",
-        "tx": "tx1"
       },
       {
         "event": "cache.del",
@@ -1784,15 +1776,15 @@
         "tx": null
       },
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -1876,16 +1868,16 @@
         "tx": "tx1"
       },
       {
+        "event": "commit",
+        "tx": "tx1"
+      },
+      {
         "sql": "SELECT first_name, last_name FROM USER WHERE id = :id LIMIT 1",
         "replacements": {
           "id": 21
         },
         "type": "SELECT",
         "tx": null
-      },
-      {
-        "event": "commit",
-        "tx": "tx1"
       },
       {
         "event": "cache.del",
@@ -1917,15 +1909,15 @@
         "tx": null
       },
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -1974,20 +1966,12 @@
         "tx": null
       },
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "event": "rollback",
-        "tx": "tx1"
+        "tx": null
       }
     ]
   },
@@ -2015,20 +1999,12 @@
         "tx": null
       },
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "event": "rollback",
-        "tx": "tx1"
+        "tx": null
       }
     ]
   },
@@ -2056,15 +2032,15 @@
         "tx": null
       },
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -2121,15 +2097,15 @@
         "tx": null
       },
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -2200,15 +2176,15 @@
     },
     "db": [
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -2308,15 +2284,15 @@
         "tx": null
       },
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {

@@ -1,8 +1,7 @@
 const staffRepository = require('../../repositories/staffRepository');
 
-/** "Dr. First Last" for the signed-in user, else "Dr. username" / "Doctor #id". */
-async function resolveDoctorDisplayName(req) {
-  const { userId, username } = req.user;
+/** "Dr. First Last" for the signed-in user (`req.user`), else "Dr. username" / "Doctor #id". */
+async function resolveDoctorDisplayName({ userId, username }) {
   const name = await staffRepository.findUserName(userId);
   if (name) {
     const full = `${name.first_name || ''} ${name.last_name || ''}`.trim();

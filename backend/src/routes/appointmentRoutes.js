@@ -14,7 +14,8 @@ router.use(authenticateToken);
 router.get('/doctors', appointmentController.getDoctors);
 router.get('/clinic-rooms', appointmentController.getClinicRooms);
 router.get('/departments', appointmentController.getDepartments);
-router.get('/patients', appointmentController.getPortalPatients);
+// Every patient with their latest diagnosis: EMR staff only.
+router.get('/patients', authorizeCapability('doctor.emr.read'), appointmentController.getPortalPatients);
 
 // Get already-booked slots for a date
 router.get('/booked-slots', validateRequest(appointmentSchemas.bookedSlotsQuery), appointmentController.getBookedSlots);

@@ -786,10 +786,69 @@
   "create health info, admin for a patient": {
     "request": "POST /api/health-info/70",
     "response": {
-      "status": 403,
-      "message": "Forbidden"
+      "status": 201,
+      "body": {
+        "success": true,
+        "healthInfo": {
+          "id": 500,
+          "height": 170,
+          "weight": 61.5,
+          "bmi": 21.3,
+          "bloodPressureSys": 120,
+          "bloodPressureDia": 0,
+          "heartRate": 72,
+          "respiratoryRate": 0,
+          "temperature": 37.2,
+          "spo2": null,
+          "currentSymptoms": "cough",
+          "status": "confirmed",
+          "updatedAt": "<now>",
+          "createdAt": "<now>",
+          "updatedBy": "Patient",
+          "bloodType": "AB-",
+          "drugAllergies": [
+            "penicillin"
+          ],
+          "foodAllergies": [],
+          "otherAllergies": []
+        }
+      }
     },
-    "db": []
+    "db": [
+      {
+        "event": "Patient.findOne",
+        "where": {
+          "user_id": 70
+        },
+        "tx": null
+      },
+      {
+        "event": "MedicalRecord.create",
+        "values": {
+          "patient_id": 7,
+          "time": "<now>",
+          "condition": "cough",
+          "weight": 61.5,
+          "height": 170,
+          "spo2": null,
+          "heart_rate": 72,
+          "blood_pressure": "120/0",
+          "temperature": 37.2,
+          "respiratory_rate": null,
+          "status": "confirmed"
+        },
+        "tx": null
+      },
+      {
+        "event": "Patient#update",
+        "id": 70,
+        "values": {
+          "blood_type": "AB-",
+          "allergic_info": "{\"drugAllergies\":[\"penicillin\"],\"foodAllergies\":[],\"otherAllergies\":[]}",
+          "medical_history": "{\"chronicConditions\":[\"asthma\"],\"pastSurgeries\":[],\"familyHistory\":[],\"pastIllnesses\":[],\"vaccinations\":[\"BCG\"],\"substanceAbuse\":[]}"
+        }
+      }
+    ]
   },
   "create health info, no patient row": {
     "request": "POST /api/health-info/70",

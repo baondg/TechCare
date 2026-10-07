@@ -90,7 +90,7 @@ const vitalsFrom = (body) => ({
 /** The patient (by USER id) when the signed-in user is that patient or an admin. */
 async function requireOwnPatient(user, userIdParam) {
   const userId = Number(userIdParam);
-  if (user.userId !== userId && user.role !== 'ADM') throw new ForbiddenError('Forbidden');
+  if (user.userId !== userId && user.role !== 'admin') throw new ForbiddenError('Forbidden');
   const patient = await patientRepository.findPatientByUserId(userId);
   if (!patient) throw new NotFoundError('Patient not found');
   return patient;

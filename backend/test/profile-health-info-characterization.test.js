@@ -172,7 +172,10 @@ const SCENARIOS = [
 
   // ---- health info: create
   ['create health info, another patient', 'POST', '/api/health-info/70', HEALTH_BODY, [], () => OTHER_PATIENT],
-  ['create health info, admin for a patient', 'POST', '/api/health-info/70', HEALTH_BODY, [], () => ADMIN],
+  ['create health info, admin for a patient', 'POST', '/api/health-info/70', HEALTH_BODY, [], (s) => {
+    patient70(s);
+    return ADMIN;
+  }],
   ['create health info, no patient row', 'POST', '/api/health-info/70', HEALTH_BODY, [], () => PATIENT],
   ['create health info', 'POST', '/api/health-info/70', HEALTH_BODY, [], (s) => {
     patient70(s);

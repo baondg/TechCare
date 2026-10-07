@@ -1,0 +1,1694 @@
+{
+  "feedback, mine": {
+    "request": "GET /api/appointments/feedback",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "feedbacks": [
+          {
+            "id": 1,
+            "userId": 0,
+            "content": "",
+            "type": "general",
+            "time": "2026-09-01",
+            "status": true,
+            "rating": 4,
+            "response": "",
+            "userName": "Bao"
+          },
+          {
+            "id": 2,
+            "userId": 0,
+            "content": "",
+            "type": "general",
+            "time": null,
+            "status": false,
+            "rating": 0,
+            "response": "",
+            "userName": ""
+          }
+        ]
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT f.id, f.user_id AS userId, f.content, f.type, f.time, f.status, f.rating, f.response FROM FEEDBACK f WHERE f.user_id = :userId ORDER BY f.time DESC, f.id DESC",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "feedback, visible": {
+    "request": "GET /api/appointments/feedback/visible",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "feedbacks": [
+          {
+            "id": 3,
+            "userId": 0,
+            "content": "",
+            "type": "general",
+            "time": null,
+            "status": true,
+            "rating": 5,
+            "response": "",
+            "userName": ""
+          }
+        ]
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT f.id, f.user_id AS userId, f.content, f.type, f.time, f.status, f.rating, f.response, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username, CONCAT('User #', f.user_id)) AS userName FROM FEEDBACK f LEFT JOIN USER u ON u.id = f.user_id LEFT JOIN ACCOUNT a ON a.user_id = f.user_id WHERE f.status = 1 ORDER BY f.time DESC, f.id DESC",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "feedback, create without content": {
+    "request": "POST /api/appointments/feedback",
+    "response": {
+      "status": 400,
+      "message": "Feedback content is required"
+    },
+    "db": []
+  },
+  "feedback, create with bad rating": {
+    "request": "POST /api/appointments/feedback",
+    "response": {
+      "status": 400,
+      "message": "Rating must be between 1 and 5"
+    },
+    "db": []
+  },
+  "feedback, create": {
+    "request": "POST /api/appointments/feedback",
+    "response": {
+      "status": 201,
+      "body": {
+        "success": true,
+        "feedback": {
+          "id": 31,
+          "userId": 70,
+          "content": "Great",
+          "type": "service",
+          "time": "2026-10-01",
+          "status": true,
+          "rating": 5,
+          "response": "",
+          "userName": ""
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "INSERT INTO FEEDBACK (user_id, content, type, rating, status) VALUES (:userId, :content, :type, :rating, 1)",
+        "replacements": {
+          "userId": 70,
+          "content": "Great",
+          "type": "service",
+          "rating": 5
+        },
+        "type": "INSERT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id, user_id AS userId, content, type, time, status, rating, response FROM FEEDBACK WHERE id = :id LIMIT 1",
+        "replacements": {
+          "id": 31
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "feedback, db down": {
+    "request": "GET /api/appointments/feedback",
+    "response": {
+      "status": 500,
+      "message": "internal server error"
+    },
+    "db": [
+      {
+        "sql": "SELECT f.id, f.user_id AS userId, f.content, f.type, f.time, f.status, f.rating, f.response FROM FEEDBACK f WHERE f.user_id = :userId ORDER BY f.time DESC, f.id DESC",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "doctors, grouped with departments": {
+    "request": "GET /api/appointments/doctors",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "doctors": [
+          {
+            "id": 5,
+            "username": "hoa",
+            "firstName": "Hoa",
+            "lastName": "Tran",
+            "departments": [
+              "Cardiology",
+              "Internal"
+            ],
+            "department": "Cardiology",
+            "room": "R2"
+          },
+          {
+            "id": 6,
+            "username": "an",
+            "departments": [
+              "ENT",
+              "Pediatrics"
+            ],
+            "department": "ENT",
+            "room": null
+          },
+          {
+            "id": 7,
+            "username": "lan",
+            "departments": []
+          }
+        ]
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT d.doctor_id AS id, a.username, u.first_name AS firstName, u.last_name AS lastName, d.specifications AS specifications, cr.name AS room, dep.name AS deptName FROM DOCTOR d JOIN ACCOUNT a ON a.user_id = d.user_id JOIN USER u ON u.id = d.user_id LEFT JOIN CLINIC_ROOM cr ON cr.id = d.room_id LEFT JOIN DOCTOR_DEPARTMENT dd ON dd.doctor_id = d.doctor_id LEFT JOIN DEPARTMENT dep ON dep.id = dd.department_id ORDER BY u.first_name ASC, u.last_name ASC, d.doctor_id ASC, dep.name ASC",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "clinic rooms": {
+    "request": "GET /api/appointments/clinic-rooms",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "rooms": [
+          {
+            "id": 2,
+            "name": "R2",
+            "capacity": 3,
+            "departmentId": 1,
+            "departmentName": "Cardiology"
+          }
+        ]
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT cr.id, cr.name, cr.capacity, cr.department_id AS departmentId, dep.name AS departmentName FROM CLINIC_ROOM cr LEFT JOIN DEPARTMENT dep ON dep.id = cr.department_id ORDER BY dep.name ASC, cr.name ASC, cr.id ASC",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "departments": {
+    "request": "GET /api/appointments/departments",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "departments": [
+          {
+            "id": 1,
+            "name": "Cardiology"
+          },
+          {
+            "id": 2,
+            "name": ""
+          }
+        ]
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT id, name FROM DEPARTMENT ORDER BY name ASC",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "doctors, db down": {
+    "request": "GET /api/appointments/doctors",
+    "response": {
+      "status": 500,
+      "message": "internal server error"
+    },
+    "db": [
+      {
+        "sql": "SELECT d.doctor_id AS id, a.username, u.first_name AS firstName, u.last_name AS lastName, d.specifications AS specifications, cr.name AS room, dep.name AS deptName FROM DOCTOR d JOIN ACCOUNT a ON a.user_id = d.user_id JOIN USER u ON u.id = d.user_id LEFT JOIN CLINIC_ROOM cr ON cr.id = d.room_id LEFT JOIN DOCTOR_DEPARTMENT dd ON dd.doctor_id = d.doctor_id LEFT JOIN DEPARTMENT dep ON dep.id = dd.department_id ORDER BY u.first_name ASC, u.last_name ASC, d.doctor_id ASC, dep.name ASC",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "my appointments, no patient row": {
+    "request": "GET /api/appointments",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "appointments": []
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "my appointments, from the DB (cache miss)": {
+    "request": "GET /api/appointments",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "appointments": [
+          {
+            "id": 1,
+            "date": "<date>",
+            "time": "09:30:00",
+            "symptoms": "cough",
+            "department": "Cardio",
+            "room": "R2",
+            "doctor": "Tran Hoa",
+            "status": "Pending",
+            "awaitingDoctorConfirmation": true,
+            "notes": ""
+          },
+          {
+            "id": 2,
+            "department": "ENT",
+            "room": "",
+            "doctor": "",
+            "status": "Upcoming",
+            "awaitingDoctorConfirmation": false,
+            "notes": ""
+          },
+          {
+            "id": 3,
+            "department": "",
+            "room": "",
+            "doctor": "",
+            "status": "Done",
+            "awaitingDoctorConfirmation": false,
+            "notes": ""
+          },
+          {
+            "id": 4,
+            "department": "",
+            "room": "",
+            "doctor": "",
+            "status": "Cancelled",
+            "awaitingDoctorConfirmation": false,
+            "notes": ""
+          }
+        ]
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "cache.get",
+        "key": "patient:appointments_list:v1:7",
+        "hit": false
+      },
+      {
+        "sql": "SELECT a.id, DATE(a.time) AS date, TIME(a.time) AS time, a.status, COALESCE(a.doctor_confirmed, 1) AS doctorConfirmed, a.`condition` AS symptoms, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.last_name,''), ' ', COALESCE(u.first_name,''))), ''), acc.username, '') AS doctorName, COALESCE(d.specifications, '') AS doctorSpecialty, COALESCE(cr.name, '') AS roomName, COALESCE(dep.name, '') AS roomDepartment FROM APPOINTMENT a LEFT JOIN DOCTOR d ON d.doctor_id = a.doctor_id LEFT JOIN USER u ON u.id = d.user_id LEFT JOIN ACCOUNT acc ON acc.user_id = d.user_id LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id LEFT JOIN DEPARTMENT dep ON dep.id = cr.department_id WHERE a.patient_id = :patientId ORDER BY a.time DESC",
+        "replacements": {
+          "patientId": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "cache.set",
+        "key": "patient:appointments_list:v1:7",
+        "ttlSeconds": 5
+      }
+    ]
+  },
+  "my appointments, cache hit": {
+    "request": "GET /api/appointments",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "appointments": [
+          {
+            "id": 99,
+            "cached": true
+          }
+        ]
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "cache.get",
+        "key": "patient:appointments_list:v1:7",
+        "hit": true
+      }
+    ]
+  },
+  "book, missing fields": {
+    "request": "POST /api/appointments",
+    "response": {
+      "status": 400,
+      "message": "Missing required fields"
+    },
+    "db": []
+  },
+  "book, no patient row": {
+    "request": "POST /api/appointments",
+    "response": {
+      "status": 400,
+      "message": "Patient profile not found"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "book, unknown doctor": {
+    "request": "POST /api/appointments",
+    "response": {
+      "status": 400,
+      "message": "Doctor not found"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT d.doctor_id, a.username, u.first_name, u.last_name, d.room_id FROM DOCTOR d JOIN ACCOUNT a ON a.user_id = d.user_id JOIN USER u ON u.id = d.user_id WHERE a.username = :raw OR a.username = :normalized OR TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))) = :normalized OR TRIM(CONCAT(COALESCE(u.last_name,''), ' ', COALESCE(u.first_name,''))) = :normalized LIMIT 1",
+        "replacements": {
+          "raw": "Dr. Hoa Tran",
+          "normalized": "Hoa Tran"
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "book, doctor by id, no clinic room": {
+    "request": "POST /api/appointments",
+    "response": {
+      "status": 400,
+      "message": "No clinic room available to schedule appointment"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT d.doctor_id, a.username, u.first_name, u.last_name, d.room_id FROM DOCTOR d JOIN ACCOUNT a ON a.user_id = d.user_id JOIN USER u ON u.id = d.user_id WHERE d.doctor_id = :id LIMIT 1",
+        "replacements": {
+          "id": 6
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id FROM CLINIC_ROOM LIMIT 1",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "book, new appointment in the doctor's room": {
+    "request": "POST /api/appointments",
+    "response": {
+      "status": 201,
+      "body": {
+        "success": true,
+        "appointment": {
+          "id": 301,
+          "doctor": "Dr. Hoa Tran",
+          "department": "Cardiology",
+          "date": "<date>",
+          "time": "09:30:00.000",
+          "room": "",
+          "symptoms": "cough",
+          "notes": "n",
+          "status": "Pending",
+          "awaitingDoctorConfirmation": true
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT d.doctor_id, a.username, u.first_name, u.last_name, d.room_id FROM DOCTOR d JOIN ACCOUNT a ON a.user_id = d.user_id JOIN USER u ON u.id = d.user_id WHERE a.username = :raw OR a.username = :normalized OR TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))) = :normalized OR TRIM(CONCAT(COALESCE(u.last_name,''), ' ', COALESCE(u.first_name,''))) = :normalized LIMIT 1",
+        "replacements": {
+          "raw": "Dr. Hoa Tran",
+          "normalized": "Hoa Tran"
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id FROM APPOINTMENT WHERE doctor_id = :doctorId AND room_id = :roomId AND time = :dt AND status = 'scheduled' LIMIT 1",
+        "replacements": {
+          "doctorId": 5,
+          "roomId": 2,
+          "dt": "2026-10-01 09:30:00"
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "INSERT INTO APPOINTMENT (time, status, `condition`, patient_id, doctor_id, room_id, regimen_id, doctor_confirmed) VALUES (:time, 'scheduled', :condition, :patientId, :doctorId, :roomId, NULL, 0)",
+        "replacements": {
+          "time": "2026-10-01 09:30:00",
+          "condition": "cough",
+          "patientId": 7,
+          "doctorId": 5,
+          "roomId": 2
+        },
+        "type": "INSERT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT a.id, a.patient_id AS patientId, a.doctor_id AS doctorId, DATE_FORMAT(a.time, '%d/%m/%Y') AS dateVi, DATE_FORMAT(a.time, '%H:%i') AS timeVi, COALESCE(NULLIF(TRIM(dep.name), ''), NULLIF(TRIM(d.specifications), ''), '') AS department, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(du.first_name,''),' ',COALESCE(du.last_name,''))), ''), dacc.username) AS doctorLabel, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(pu.first_name,''),' ',COALESCE(pu.last_name,''))), ''), pacc.username) AS patientLabel FROM APPOINTMENT a JOIN DOCTOR d ON d.doctor_id = a.doctor_id JOIN ACCOUNT dacc ON dacc.user_id = d.user_id JOIN USER du ON du.id = d.user_id LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id LEFT JOIN DEPARTMENT dep ON dep.id = cr.department_id LEFT JOIN PATIENT p ON p.patient_id = a.patient_id LEFT JOIN ACCOUNT pacc ON pacc.user_id = p.user_id LEFT JOIN USER pu ON pu.id = p.user_id WHERE a.id = :id LIMIT 1",
+        "replacements": {
+          "id": 301
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT user_id AS uid FROM DOCTOR WHERE doctor_id = :did LIMIT 1",
+        "replacements": {
+          "did": 5
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "INSERT INTO NOTIFICATION (`type`, content, `time`, status, user_id) VALUES (:type, :content, NOW(), 'unread', :userId)",
+        "replacements": {
+          "type": "appointment_patient_booked",
+          "content": "Bao Do requested an appointment with you: 01/10/2026 at 09:30 — Cardiology. Please Accept or Decline in My Appointments.",
+          "userId": 21
+        },
+        "type": "INSERT",
+        "tx": null
+      },
+      {
+        "event": "cache.del",
+        "key": "patient:appointments_list:v1:7"
+      }
+    ]
+  },
+  "book, open slot in the named room": {
+    "request": "POST /api/appointments",
+    "response": {
+      "status": 201,
+      "body": {
+        "success": true,
+        "appointment": {
+          "id": 12,
+          "doctor": "Dr. Hoa Tran",
+          "department": "Cardiology",
+          "date": "<date>",
+          "time": "09:30:00.000",
+          "room": "Room R9",
+          "symptoms": "",
+          "notes": "",
+          "status": "Pending",
+          "awaitingDoctorConfirmation": true
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT d.doctor_id, a.username, u.first_name, u.last_name, d.room_id FROM DOCTOR d JOIN ACCOUNT a ON a.user_id = d.user_id JOIN USER u ON u.id = d.user_id WHERE a.username = :raw OR a.username = :normalized OR TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))) = :normalized OR TRIM(CONCAT(COALESCE(u.last_name,''), ' ', COALESCE(u.first_name,''))) = :normalized LIMIT 1",
+        "replacements": {
+          "raw": "Dr. Hoa Tran",
+          "normalized": "Hoa Tran"
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id FROM CLINIC_ROOM WHERE name = :name LIMIT 1",
+        "replacements": {
+          "name": "R9"
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id FROM APPOINTMENT WHERE doctor_id = :doctorId AND room_id = :roomId AND time = :dt AND status = 'scheduled' LIMIT 1",
+        "replacements": {
+          "doctorId": 5,
+          "roomId": 9,
+          "dt": "2026-10-01 09:30:00"
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id, patient_id AS patientId FROM APPOINTMENT WHERE id = :id LIMIT 1",
+        "replacements": {
+          "id": 12
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "UPDATE APPOINTMENT SET patient_id = :patientId, `condition` = :condition, status = 'scheduled', doctor_confirmed = 0 WHERE id = :id",
+        "replacements": {
+          "id": 12,
+          "patientId": 7,
+          "condition": "General consultation"
+        },
+        "type": "UPDATE",
+        "tx": null
+      },
+      {
+        "sql": "SELECT a.id, a.patient_id AS patientId, a.doctor_id AS doctorId, DATE_FORMAT(a.time, '%d/%m/%Y') AS dateVi, DATE_FORMAT(a.time, '%H:%i') AS timeVi, COALESCE(NULLIF(TRIM(dep.name), ''), NULLIF(TRIM(d.specifications), ''), '') AS department, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(du.first_name,''),' ',COALESCE(du.last_name,''))), ''), dacc.username) AS doctorLabel, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(pu.first_name,''),' ',COALESCE(pu.last_name,''))), ''), pacc.username) AS patientLabel FROM APPOINTMENT a JOIN DOCTOR d ON d.doctor_id = a.doctor_id JOIN ACCOUNT dacc ON dacc.user_id = d.user_id JOIN USER du ON du.id = d.user_id LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id LEFT JOIN DEPARTMENT dep ON dep.id = cr.department_id LEFT JOIN PATIENT p ON p.patient_id = a.patient_id LEFT JOIN ACCOUNT pacc ON pacc.user_id = p.user_id LEFT JOIN USER pu ON pu.id = p.user_id WHERE a.id = :id LIMIT 1",
+        "replacements": {
+          "id": 12
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "cache.del",
+        "key": "patient:appointments_list:v1:7"
+      }
+    ]
+  },
+  "book, slot already taken": {
+    "request": "POST /api/appointments",
+    "response": {
+      "status": 409,
+      "message": "This time slot is already booked. Please choose another time."
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT d.doctor_id, a.username, u.first_name, u.last_name, d.room_id FROM DOCTOR d JOIN ACCOUNT a ON a.user_id = d.user_id JOIN USER u ON u.id = d.user_id WHERE a.username = :raw OR a.username = :normalized OR TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))) = :normalized OR TRIM(CONCAT(COALESCE(u.last_name,''), ' ', COALESCE(u.first_name,''))) = :normalized LIMIT 1",
+        "replacements": {
+          "raw": "Dr. Hoa Tran",
+          "normalized": "Hoa Tran"
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id FROM APPOINTMENT WHERE doctor_id = :doctorId AND room_id = :roomId AND time = :dt AND status = 'scheduled' LIMIT 1",
+        "replacements": {
+          "doctorId": 5,
+          "roomId": 2,
+          "dt": "2026-10-01 09:30:00"
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id, patient_id AS patientId FROM APPOINTMENT WHERE id = :id LIMIT 1",
+        "replacements": {
+          "id": 12
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "book, any room when the doctor has none": {
+    "request": "POST /api/appointments",
+    "response": {
+      "status": 201,
+      "body": {
+        "success": true,
+        "appointment": {
+          "id": 302,
+          "doctor": "Dr. An",
+          "department": "Cardiology",
+          "date": "<date>",
+          "time": "09:30:00.000",
+          "room": "",
+          "symptoms": "cough",
+          "notes": "",
+          "status": "Pending",
+          "awaitingDoctorConfirmation": true
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT d.doctor_id, a.username, u.first_name, u.last_name, d.room_id FROM DOCTOR d JOIN ACCOUNT a ON a.user_id = d.user_id JOIN USER u ON u.id = d.user_id WHERE d.doctor_id = :id LIMIT 1",
+        "replacements": {
+          "id": 6
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id FROM CLINIC_ROOM LIMIT 1",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id FROM APPOINTMENT WHERE doctor_id = :doctorId AND room_id = :roomId AND time = :dt AND status = 'scheduled' LIMIT 1",
+        "replacements": {
+          "doctorId": 6,
+          "roomId": 1,
+          "dt": "2026-10-01 09:30:00"
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "INSERT INTO APPOINTMENT (time, status, `condition`, patient_id, doctor_id, room_id, regimen_id, doctor_confirmed) VALUES (:time, 'scheduled', :condition, :patientId, :doctorId, :roomId, NULL, 0)",
+        "replacements": {
+          "time": "2026-10-01 09:30:00",
+          "condition": "cough",
+          "patientId": 7,
+          "doctorId": 6,
+          "roomId": 1
+        },
+        "type": "INSERT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT a.id, a.patient_id AS patientId, a.doctor_id AS doctorId, DATE_FORMAT(a.time, '%d/%m/%Y') AS dateVi, DATE_FORMAT(a.time, '%H:%i') AS timeVi, COALESCE(NULLIF(TRIM(dep.name), ''), NULLIF(TRIM(d.specifications), ''), '') AS department, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(du.first_name,''),' ',COALESCE(du.last_name,''))), ''), dacc.username) AS doctorLabel, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(pu.first_name,''),' ',COALESCE(pu.last_name,''))), ''), pacc.username) AS patientLabel FROM APPOINTMENT a JOIN DOCTOR d ON d.doctor_id = a.doctor_id JOIN ACCOUNT dacc ON dacc.user_id = d.user_id JOIN USER du ON du.id = d.user_id LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id LEFT JOIN DEPARTMENT dep ON dep.id = cr.department_id LEFT JOIN PATIENT p ON p.patient_id = a.patient_id LEFT JOIN ACCOUNT pacc ON pacc.user_id = p.user_id LEFT JOIN USER pu ON pu.id = p.user_id WHERE a.id = :id LIMIT 1",
+        "replacements": {
+          "id": 302
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "cache.del",
+        "key": "patient:appointments_list:v1:7"
+      }
+    ]
+  },
+  "reschedule, source not found": {
+    "request": "POST /api/appointments",
+    "response": {
+      "status": 400,
+      "message": "Original appointment not found or cannot be rescheduled"
+    },
+    "db": [
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id, patient_id AS patientId FROM APPOINTMENT WHERE id = :fid AND patient_id = :patientId AND status = 'scheduled' LIMIT 1",
+        "replacements": {
+          "fid": 10,
+          "patientId": 7
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "event": "rollback",
+        "tx": "tx1"
+      }
+    ]
+  },
+  "reschedule, same slot": {
+    "request": "POST /api/appointments",
+    "response": {
+      "status": 400,
+      "message": "Choose a different time slot to reschedule"
+    },
+    "db": [
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id, patient_id AS patientId FROM APPOINTMENT WHERE id = :fid AND patient_id = :patientId AND status = 'scheduled' LIMIT 1",
+        "replacements": {
+          "fid": 12,
+          "patientId": 7
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT d.doctor_id, a.username, u.first_name, u.last_name, d.room_id FROM DOCTOR d JOIN ACCOUNT a ON a.user_id = d.user_id JOIN USER u ON u.id = d.user_id WHERE a.username = :raw OR a.username = :normalized OR TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))) = :normalized OR TRIM(CONCAT(COALESCE(u.last_name,''), ' ', COALESCE(u.first_name,''))) = :normalized LIMIT 1",
+        "replacements": {
+          "raw": "Dr. Hoa Tran",
+          "normalized": "Hoa Tran"
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id FROM APPOINTMENT WHERE doctor_id = :doctorId AND room_id = :roomId AND time = :dt AND status = 'scheduled' LIMIT 1",
+        "replacements": {
+          "doctorId": 5,
+          "roomId": 2,
+          "dt": "2026-10-01 09:30:00"
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT id, patient_id AS patientId FROM APPOINTMENT WHERE id = :id LIMIT 1",
+        "replacements": {
+          "id": 12
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "UPDATE APPOINTMENT SET patient_id = :patientId, `condition` = :condition, status = 'scheduled', doctor_confirmed = 0 WHERE id = :id",
+        "replacements": {
+          "id": 12,
+          "patientId": 7,
+          "condition": "cough"
+        },
+        "type": "UPDATE",
+        "tx": "tx1"
+      },
+      {
+        "event": "rollback",
+        "tx": "tx1"
+      }
+    ]
+  },
+  "reschedule, moved to a new slot": {
+    "request": "POST /api/appointments",
+    "response": {
+      "status": 201,
+      "body": {
+        "success": true,
+        "appointment": {
+          "id": 303,
+          "doctor": "Dr. Hoa Tran",
+          "department": "Cardiology",
+          "date": "<date>",
+          "time": "09:30:00.000",
+          "room": "",
+          "symptoms": "cough",
+          "notes": "",
+          "status": "Pending",
+          "awaitingDoctorConfirmation": true
+        }
+      }
+    },
+    "db": [
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id, patient_id AS patientId FROM APPOINTMENT WHERE id = :fid AND patient_id = :patientId AND status = 'scheduled' LIMIT 1",
+        "replacements": {
+          "fid": 10,
+          "patientId": 7
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT d.doctor_id, a.username, u.first_name, u.last_name, d.room_id FROM DOCTOR d JOIN ACCOUNT a ON a.user_id = d.user_id JOIN USER u ON u.id = d.user_id WHERE a.username = :raw OR a.username = :normalized OR TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))) = :normalized OR TRIM(CONCAT(COALESCE(u.last_name,''), ' ', COALESCE(u.first_name,''))) = :normalized LIMIT 1",
+        "replacements": {
+          "raw": "Dr. Hoa Tran",
+          "normalized": "Hoa Tran"
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id FROM APPOINTMENT WHERE doctor_id = :doctorId AND room_id = :roomId AND time = :dt AND status = 'scheduled' LIMIT 1",
+        "replacements": {
+          "doctorId": 5,
+          "roomId": 2,
+          "dt": "2026-10-01 09:30:00"
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "INSERT INTO APPOINTMENT (time, status, `condition`, patient_id, doctor_id, room_id, regimen_id, doctor_confirmed) VALUES (:time, 'scheduled', :condition, :patientId, :doctorId, :roomId, NULL, 0)",
+        "replacements": {
+          "time": "2026-10-01 09:30:00",
+          "condition": "cough",
+          "patientId": 7,
+          "doctorId": 5,
+          "roomId": 2
+        },
+        "type": "INSERT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "UPDATE APPOINTMENT SET patient_id = NULL, `condition` = 'Open slot', doctor_confirmed = 1 WHERE id = :fid AND patient_id = :patientId",
+        "replacements": {
+          "fid": 10,
+          "patientId": 7
+        },
+        "type": "UPDATE",
+        "tx": "tx1"
+      },
+      {
+        "event": "commit",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''),' ',COALESCE(u.last_name,''))), ''), acc.username) AS name FROM PATIENT p JOIN USER u ON u.id = p.user_id JOIN ACCOUNT acc ON acc.user_id = p.user_id WHERE p.patient_id = :pid LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT a.id, a.patient_id AS patientId, a.doctor_id AS doctorId, DATE_FORMAT(a.time, '%d/%m/%Y') AS dateVi, DATE_FORMAT(a.time, '%H:%i') AS timeVi, COALESCE(NULLIF(TRIM(dep.name), ''), NULLIF(TRIM(d.specifications), ''), '') AS department, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(du.first_name,''),' ',COALESCE(du.last_name,''))), ''), dacc.username) AS doctorLabel, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(pu.first_name,''),' ',COALESCE(pu.last_name,''))), ''), pacc.username) AS patientLabel FROM APPOINTMENT a JOIN DOCTOR d ON d.doctor_id = a.doctor_id JOIN ACCOUNT dacc ON dacc.user_id = d.user_id JOIN USER du ON du.id = d.user_id LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id LEFT JOIN DEPARTMENT dep ON dep.id = cr.department_id LEFT JOIN PATIENT p ON p.patient_id = a.patient_id LEFT JOIN ACCOUNT pacc ON pacc.user_id = p.user_id LEFT JOIN USER pu ON pu.id = p.user_id WHERE a.id = :id LIMIT 1",
+        "replacements": {
+          "id": 10
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT a.id, a.patient_id AS patientId, a.doctor_id AS doctorId, DATE_FORMAT(a.time, '%d/%m/%Y') AS dateVi, DATE_FORMAT(a.time, '%H:%i') AS timeVi, COALESCE(NULLIF(TRIM(dep.name), ''), NULLIF(TRIM(d.specifications), ''), '') AS department, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(du.first_name,''),' ',COALESCE(du.last_name,''))), ''), dacc.username) AS doctorLabel, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(pu.first_name,''),' ',COALESCE(pu.last_name,''))), ''), pacc.username) AS patientLabel FROM APPOINTMENT a JOIN DOCTOR d ON d.doctor_id = a.doctor_id JOIN ACCOUNT dacc ON dacc.user_id = d.user_id JOIN USER du ON du.id = d.user_id LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id LEFT JOIN DEPARTMENT dep ON dep.id = cr.department_id LEFT JOIN PATIENT p ON p.patient_id = a.patient_id LEFT JOIN ACCOUNT pacc ON pacc.user_id = p.user_id LEFT JOIN USER pu ON pu.id = p.user_id WHERE a.id = :id LIMIT 1",
+        "replacements": {
+          "id": 303
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT user_id AS uid FROM DOCTOR WHERE doctor_id = :did LIMIT 1",
+        "replacements": {
+          "did": 5
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "INSERT INTO NOTIFICATION (`type`, content, `time`, status, user_id) VALUES (:type, :content, NOW(), 'unread', :userId)",
+        "replacements": {
+          "type": "appointment_patient_rescheduled",
+          "content": "Patient rescheduled: new time 01/10/2026 at 09:30 — Cardiology (was 01/10/2026 at 09:30).",
+          "userId": 21
+        },
+        "type": "INSERT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT a.id, a.patient_id AS patientId, a.doctor_id AS doctorId, DATE_FORMAT(a.time, '%d/%m/%Y') AS dateVi, DATE_FORMAT(a.time, '%H:%i') AS timeVi, COALESCE(NULLIF(TRIM(dep.name), ''), NULLIF(TRIM(d.specifications), ''), '') AS department, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(du.first_name,''),' ',COALESCE(du.last_name,''))), ''), dacc.username) AS doctorLabel, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(pu.first_name,''),' ',COALESCE(pu.last_name,''))), ''), pacc.username) AS patientLabel FROM APPOINTMENT a JOIN DOCTOR d ON d.doctor_id = a.doctor_id JOIN ACCOUNT dacc ON dacc.user_id = d.user_id JOIN USER du ON du.id = d.user_id LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id LEFT JOIN DEPARTMENT dep ON dep.id = cr.department_id LEFT JOIN PATIENT p ON p.patient_id = a.patient_id LEFT JOIN ACCOUNT pacc ON pacc.user_id = p.user_id LEFT JOIN USER pu ON pu.id = p.user_id WHERE a.id = :id LIMIT 1",
+        "replacements": {
+          "id": 303
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT user_id AS uid FROM DOCTOR WHERE doctor_id = :did LIMIT 1",
+        "replacements": {
+          "did": 5
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "INSERT INTO NOTIFICATION (`type`, content, `time`, status, user_id) VALUES (:type, :content, NOW(), 'unread', :userId)",
+        "replacements": {
+          "type": "appointment_patient_booked",
+          "content": "Bao Do requested an appointment with you: 01/10/2026 at 09:30 — Cardiology. Please Accept or Decline in My Appointments.",
+          "userId": 21
+        },
+        "type": "INSERT",
+        "tx": null
+      },
+      {
+        "event": "cache.del",
+        "key": "patient:appointments_list:v1:7"
+      }
+    ]
+  },
+  "book, db down": {
+    "request": "POST /api/appointments",
+    "response": {
+      "status": 500,
+      "message": "internal server error"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT d.doctor_id, a.username, u.first_name, u.last_name, d.room_id FROM DOCTOR d JOIN ACCOUNT a ON a.user_id = d.user_id JOIN USER u ON u.id = d.user_id WHERE a.username = :raw OR a.username = :normalized OR TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))) = :normalized OR TRIM(CONCAT(COALESCE(u.last_name,''), ' ', COALESCE(u.first_name,''))) = :normalized LIMIT 1",
+        "replacements": {
+          "raw": "Dr. Hoa Tran",
+          "normalized": "Hoa Tran"
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "reschedule, db down rolls back": {
+    "request": "POST /api/appointments",
+    "response": {
+      "status": 500,
+      "message": "internal server error"
+    },
+    "db": [
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id, patient_id AS patientId FROM APPOINTMENT WHERE id = :fid AND patient_id = :patientId AND status = 'scheduled' LIMIT 1",
+        "replacements": {
+          "fid": 10,
+          "patientId": 7
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT d.doctor_id, a.username, u.first_name, u.last_name, d.room_id FROM DOCTOR d JOIN ACCOUNT a ON a.user_id = d.user_id JOIN USER u ON u.id = d.user_id WHERE a.username = :raw OR a.username = :normalized OR TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))) = :normalized OR TRIM(CONCAT(COALESCE(u.last_name,''), ' ', COALESCE(u.first_name,''))) = :normalized LIMIT 1",
+        "replacements": {
+          "raw": "Dr. Hoa Tran",
+          "normalized": "Hoa Tran"
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "rollback",
+        "tx": "tx1"
+      }
+    ]
+  },
+  "update, bad id": {
+    "request": "PUT /api/appointments/abc",
+    "response": {
+      "status": 400,
+      "message": "Invalid id"
+    },
+    "db": []
+  },
+  "update, no patient row": {
+    "request": "PUT /api/appointments/11",
+    "response": {
+      "status": 404,
+      "message": "Patient profile not found"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "update, not mine": {
+    "request": "PUT /api/appointments/11",
+    "response": {
+      "status": 404,
+      "message": "Appointment not found or access denied"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id AS apptId, status AS apptStatus FROM APPOINTMENT WHERE id = :apptId AND patient_id = :patientId LIMIT 1",
+        "replacements": {
+          "apptId": 11,
+          "patientId": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "update, cancel without reason": {
+    "request": "PUT /api/appointments/11",
+    "response": {
+      "status": 400,
+      "message": "Cancellation reason is required"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id AS apptId, status AS apptStatus FROM APPOINTMENT WHERE id = :apptId AND patient_id = :patientId LIMIT 1",
+        "replacements": {
+          "apptId": 11,
+          "patientId": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "update, cancel notifies the doctor": {
+    "request": "PUT /api/appointments/11",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "appointment": {
+          "id": 11,
+          "status": "Cancelled"
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id AS apptId, status AS apptStatus FROM APPOINTMENT WHERE id = :apptId AND patient_id = :patientId LIMIT 1",
+        "replacements": {
+          "apptId": 11,
+          "patientId": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT a.id, a.patient_id AS patientId, a.doctor_id AS doctorId, DATE_FORMAT(a.time, '%d/%m/%Y') AS dateVi, DATE_FORMAT(a.time, '%H:%i') AS timeVi, COALESCE(NULLIF(TRIM(dep.name), ''), NULLIF(TRIM(d.specifications), ''), '') AS department, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(du.first_name,''),' ',COALESCE(du.last_name,''))), ''), dacc.username) AS doctorLabel, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(pu.first_name,''),' ',COALESCE(pu.last_name,''))), ''), pacc.username) AS patientLabel FROM APPOINTMENT a JOIN DOCTOR d ON d.doctor_id = a.doctor_id JOIN ACCOUNT dacc ON dacc.user_id = d.user_id JOIN USER du ON du.id = d.user_id LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id LEFT JOIN DEPARTMENT dep ON dep.id = cr.department_id LEFT JOIN PATIENT p ON p.patient_id = a.patient_id LEFT JOIN ACCOUNT pacc ON pacc.user_id = p.user_id LEFT JOIN USER pu ON pu.id = p.user_id WHERE a.id = :id LIMIT 1",
+        "replacements": {
+          "id": "11"
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT user_id AS uid FROM DOCTOR WHERE doctor_id = :did LIMIT 1",
+        "replacements": {
+          "did": 5
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "INSERT INTO NOTIFICATION (`type`, content, `time`, status, user_id) VALUES (:type, :content, NOW(), 'unread', :userId)",
+        "replacements": {
+          "type": "appointment_patient_cancelled",
+          "content": "Bao Do cancelled their appointment: 01/10/2026 at 09:30 — Cardiology. Reason: Busy",
+          "userId": 21
+        },
+        "type": "INSERT",
+        "tx": null
+      },
+      {
+        "sql": "UPDATE APPOINTMENT SET status = 'cancelled', cancellation_reason = :reason WHERE id = :id AND patient_id = :patientId",
+        "replacements": {
+          "id": "11",
+          "patientId": 7,
+          "reason": "Busy"
+        },
+        "type": "UPDATE",
+        "tx": null
+      },
+      {
+        "event": "cache.del",
+        "key": "patient:appointments_list:v1:7"
+      }
+    ]
+  },
+  "update, cancel an already cancelled one": {
+    "request": "PUT /api/appointments/11",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "appointment": {
+          "id": 11,
+          "status": "Cancelled"
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id AS apptId, status AS apptStatus FROM APPOINTMENT WHERE id = :apptId AND patient_id = :patientId LIMIT 1",
+        "replacements": {
+          "apptId": 11,
+          "patientId": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "UPDATE APPOINTMENT SET status = 'cancelled', cancellation_reason = :reason WHERE id = :id AND patient_id = :patientId",
+        "replacements": {
+          "id": "11",
+          "patientId": 7,
+          "reason": "x"
+        },
+        "type": "UPDATE",
+        "tx": null
+      },
+      {
+        "event": "cache.del",
+        "key": "patient:appointments_list:v1:7"
+      }
+    ]
+  },
+  "update, same status": {
+    "request": "PUT /api/appointments/11",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "appointment": {
+          "id": 11,
+          "status": "Upcoming"
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id AS apptId, status AS apptStatus FROM APPOINTMENT WHERE id = :apptId AND patient_id = :patientId LIMIT 1",
+        "replacements": {
+          "apptId": 11,
+          "patientId": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "update, new status": {
+    "request": "PUT /api/appointments/11",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "appointment": {
+          "id": 11,
+          "status": "Done"
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id AS apptId, status AS apptStatus FROM APPOINTMENT WHERE id = :apptId AND patient_id = :patientId LIMIT 1",
+        "replacements": {
+          "apptId": 11,
+          "patientId": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "UPDATE APPOINTMENT SET status = :status WHERE id = :id AND patient_id = :patientId AND status <> :status",
+        "replacements": {
+          "id": "11",
+          "patientId": 7,
+          "status": "completed"
+        },
+        "type": "UPDATE",
+        "tx": null
+      },
+      {
+        "event": "cache.del",
+        "key": "patient:appointments_list:v1:7"
+      }
+    ]
+  },
+  "update, free-text status, no status": {
+    "request": "PUT /api/appointments/11",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "appointment": {
+          "id": 11,
+          "status": "Upcoming"
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id AS apptId, status AS apptStatus FROM APPOINTMENT WHERE id = :apptId AND patient_id = :patientId LIMIT 1",
+        "replacements": {
+          "apptId": 11,
+          "patientId": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "delete, no reason": {
+    "request": "DELETE /api/appointments/11",
+    "response": {
+      "status": 400,
+      "message": "Cancellation reason is required"
+    },
+    "db": []
+  },
+  "delete, not mine": {
+    "request": "DELETE /api/appointments/11",
+    "response": {
+      "status": 404,
+      "message": "Appointment not found or access denied"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id FROM APPOINTMENT WHERE id = :id AND patient_id = :patientId LIMIT 1",
+        "replacements": {
+          "id": "11",
+          "patientId": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "delete, notifies the doctor": {
+    "request": "DELETE /api/appointments/11",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "message": "Appointment deleted successfully"
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id FROM APPOINTMENT WHERE id = :id AND patient_id = :patientId LIMIT 1",
+        "replacements": {
+          "id": "11",
+          "patientId": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT status FROM APPOINTMENT WHERE id = :id AND patient_id = :patientId LIMIT 1",
+        "replacements": {
+          "id": "11",
+          "patientId": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT a.id, a.patient_id AS patientId, a.doctor_id AS doctorId, DATE_FORMAT(a.time, '%d/%m/%Y') AS dateVi, DATE_FORMAT(a.time, '%H:%i') AS timeVi, COALESCE(NULLIF(TRIM(dep.name), ''), NULLIF(TRIM(d.specifications), ''), '') AS department, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(du.first_name,''),' ',COALESCE(du.last_name,''))), ''), dacc.username) AS doctorLabel, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(pu.first_name,''),' ',COALESCE(pu.last_name,''))), ''), pacc.username) AS patientLabel FROM APPOINTMENT a JOIN DOCTOR d ON d.doctor_id = a.doctor_id JOIN ACCOUNT dacc ON dacc.user_id = d.user_id JOIN USER du ON du.id = d.user_id LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id LEFT JOIN DEPARTMENT dep ON dep.id = cr.department_id LEFT JOIN PATIENT p ON p.patient_id = a.patient_id LEFT JOIN ACCOUNT pacc ON pacc.user_id = p.user_id LEFT JOIN USER pu ON pu.id = p.user_id WHERE a.id = :id LIMIT 1",
+        "replacements": {
+          "id": "11"
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT user_id AS uid FROM DOCTOR WHERE doctor_id = :did LIMIT 1",
+        "replacements": {
+          "did": 5
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "INSERT INTO NOTIFICATION (`type`, content, `time`, status, user_id) VALUES (:type, :content, NOW(), 'unread', :userId)",
+        "replacements": {
+          "type": "appointment_patient_cancelled",
+          "content": "Bao Do cancelled their appointment: 01/10/2026 at 09:30 — Cardiology. Reason: Busy",
+          "userId": 21
+        },
+        "type": "INSERT",
+        "tx": null
+      },
+      {
+        "sql": "UPDATE APPOINTMENT SET status = 'cancelled', cancellation_reason = :reason WHERE id = :id",
+        "replacements": {
+          "id": "11",
+          "reason": "Busy"
+        },
+        "type": "UPDATE",
+        "tx": null
+      },
+      {
+        "event": "cache.del",
+        "key": "patient:appointments_list:v1:7"
+      }
+    ]
+  },
+  "delete, already cancelled, no patient row": {
+    "request": "DELETE /api/appointments/11",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "message": "Appointment deleted successfully"
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id FROM APPOINTMENT WHERE id = :id AND patient_id = :patientId LIMIT 1",
+        "replacements": {
+          "id": "11",
+          "patientId": null
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT status FROM APPOINTMENT WHERE id = :id AND patient_id = :patientId LIMIT 1",
+        "replacements": {
+          "id": "11",
+          "patientId": null
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "UPDATE APPOINTMENT SET status = 'cancelled', cancellation_reason = :reason WHERE id = :id",
+        "replacements": {
+          "id": "11",
+          "reason": "Busy"
+        },
+        "type": "UPDATE",
+        "tx": null
+      }
+    ]
+  },
+  "delete, db down": {
+    "request": "DELETE /api/appointments/11",
+    "response": {
+      "status": 500,
+      "message": "internal server error"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id FROM APPOINTMENT WHERE id = :id AND patient_id = :patientId LIMIT 1",
+        "replacements": {
+          "id": "11",
+          "patientId": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "lab details, bad id": {
+    "request": "GET /api/appointments/lab-tests/0/details",
+    "response": {
+      "status": 400,
+      "message": "Invalid test id"
+    },
+    "db": []
+  },
+  "lab details, no patient row": {
+    "request": "GET /api/appointments/lab-tests/701/details",
+    "response": {
+      "status": 404,
+      "message": "Patient profile not found"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "lab details, not mine": {
+    "request": "GET /api/appointments/lab-tests/701/details",
+    "response": {
+      "status": 404,
+      "message": "Lab test not found"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT tst.id FROM TEST tst JOIN `ORDER` o ON o.id = tst.id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id WHERE tst.id = :id AND r.patient_id = :patientId LIMIT 1",
+        "replacements": {
+          "id": 701,
+          "patientId": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "lab details": {
+    "request": "GET /api/appointments/lab-tests/701/details",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "details": [
+          {
+            "testId": 701,
+            "no": 1,
+            "itemIndex": "summary",
+            "result": "ok"
+          }
+        ]
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT tst.id FROM TEST tst JOIN `ORDER` o ON o.id = tst.id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id WHERE tst.id = :id AND r.patient_id = :patientId LIMIT 1",
+        "replacements": {
+          "id": 701,
+          "patientId": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT test_id AS testId, no, `index` AS itemIndex, result, unit FROM TEST_DETAIL WHERE test_id = :testId ORDER BY no ASC",
+        "replacements": {
+          "testId": 701
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  }
+}

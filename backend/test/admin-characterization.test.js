@@ -11,17 +11,12 @@
  * Intentional change? Regenerate and review the diff:
  *   UPDATE_SNAPSHOTS=1 npm test
  */
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
 const path = require('node:path');
 
-const { startTestServer } = require('./helpers/app');
-const { installFakeDb, adminToken, ADMIN_USER_ID } = require('./helpers/fakeDb');
+const { characterize, dbError } = require('./helpers/characterize');
+const { ADMIN_USER_ID } = require('./helpers/fakeDb');
 
 const SNAPSHOT = path.join(__dirname, 'fixtures', 'admin-sql.snapshot.json');
-
-const dbError = () => Object.assign(new Error('boom'), { name: 'SequelizeDatabaseError' });
 
 const ACCOUNT_ROW = {
   userId: 42,
@@ -351,77 +346,18 @@ const SCENARIOS = [
   ['revoke all, db down', 'POST', '/api/system-config/sessions/revoke-all', {}, [[/./, dbError]]],
 ];
 
-/** Strip values that change per run (time, bcrypt salt) so the snapshot is stable. */
-function scrub(value) {
-  return JSON.parse(
-    JSON.stringify(value, (key, v) => {
-      if (key === 'password' && typeof v === 'string' && v.startsWith('$2')) return '<bcrypt>';
-      if (key === 'idcard') return '<idcard>';
-      if (key === 'clinicToday') return '<today>';
-      if (key === 'date' && /^\d{4}-\d{2}-\d{2}$/.test(String(v))) return '<date>';
-      return v;
-    })
-  );
-}
-
-function describeResponse(status, body) {
-  if (status < 400) return { status, body };
-  const text = body?.message ?? body?.error ?? null;
-  // 5xx text is generic either way; only its presence matters.
-  return { status, message: status >= 500 ? String(text).toLowerCase() : text };
-}
-
-let server;
-let db;
-
-test.before(async () => {
-  db = installFakeDb();
-  server = await startTestServer();
-});
-
-test.after(async () => {
-  await server?.close();
-  db?.restore();
-});
-
-test('admin + system-config endpoints send the same SQL and answer the same', async () => {
-  const token = adminToken();
-  const actual = {};
-
-  for (const [name, method, urlPath, body, rules, setup] of SCENARIOS) {
-    db.reset();
-    db.state.rules = rules.map(([re, result]) => [
-      re,
-      // Dashboard rows carry "TODAY" so the signups-by-day series hits the current clinic day.
-      typeof result === 'function' ? result : resolveToday(result),
-    ]);
-    if (setup) setup(db.state);
-
-    const res = await fetch(`${server.baseUrl}${urlPath}`, {
-      method,
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: body == null ? undefined : JSON.stringify(body),
-    });
-    const json = await res.json();
-    actual[name] = scrub({
-      request: `${method} ${urlPath}`,
-      response: describeResponse(res.status, json),
-      db: db.state.calls,
-    });
-  }
-
-  if (process.env.UPDATE_SNAPSHOTS === '1' || !fs.existsSync(SNAPSHOT)) {
-    fs.writeFileSync(SNAPSHOT, `${JSON.stringify(actual, null, 2)}\n`);
-  }
-  const expected = JSON.parse(fs.readFileSync(SNAPSHOT, 'utf8'));
-  for (const name of Object.keys(expected)) {
-    assert.deepEqual(actual[name], expected[name], `scenario: ${name}`);
-  }
-  assert.deepEqual(Object.keys(actual), Object.keys(expected));
-});
-
-function resolveToday(result) {
-  if (!Array.isArray(result) || !result.some((r) => r && r.day === 'TODAY')) return result;
+/** Dashboard rows carry day "TODAY" so the signups-by-day series hits the current clinic day. */
+function resolveToday(rules) {
   const { getClinicTodayYmd } = require('../dist/common/clinicDate');
-  return result.map((r) => (r.day === 'TODAY' ? { ...r, day: getClinicTodayYmd() } : r));
+  return rules.map(([re, result]) => [
+    re,
+    Array.isArray(result) ? result.map((r) => (r && r.day === 'TODAY' ? { ...r, day: getClinicTodayYmd() } : r)) : result,
+  ]);
 }
+
+characterize(
+  'admin + system-config endpoints send the same SQL and answer the same',
+  SNAPSHOT,
+  SCENARIOS,
+  { prepareRules: resolveToday }
+);

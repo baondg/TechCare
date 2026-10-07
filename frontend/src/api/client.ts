@@ -11,7 +11,7 @@
  *   await apiClient.post('/api/auth/login', { username, password })
  */
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
+import { API_BASE_URL as API_BASE } from '@/lib/api-base'
 import i18n from '@/i18n'
 import { emitErrorToast } from '@/lib/error-toast-bus'
 import { emitSuccessToast } from '@/lib/success-toast-bus'

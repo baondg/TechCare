@@ -128,6 +128,7 @@ function installFakeDb() {
       state.rules = [];
       state.calls = [];
       state.models = {};
+      state.upstream = null;
       state.sessionRows = new Map();
       state.destroyResult = 1;
       state.txSeq = 0;

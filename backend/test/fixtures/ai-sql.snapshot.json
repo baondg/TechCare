@@ -1,0 +1,1553 @@
+{
+  "chat info (admin)": {
+    "request": "GET /api/ai/chat",
+    "response": {
+      "status": 200,
+      "body": {
+        "status": "ok",
+        "message": "AI Chat API is running!",
+        "provider": "Local LLM (OpenAI-compatible)",
+        "model": "qwen",
+        "endpoints": {
+          "test": "GET /api/ai/chat",
+          "chat": "POST /api/ai/chat",
+          "suggestMedicine": "POST /api/ai/suggest-medicine",
+          "recommendDoctor": "POST /api/ai/recommend-doctor"
+        },
+        "env": {
+          "GROQ_API_KEY": "(not set — using local LLM)",
+          "LOCAL_LLM_BASE_URL": "http://llm.test",
+          "LOCAL_LLM_MODEL": "llama3"
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "chat info, registry unreadable (legacy schema)": {
+    "request": "GET /api/ai/chat",
+    "response": {
+      "status": 200,
+      "body": {
+        "status": "ok",
+        "message": "AI Chat API is running!",
+        "provider": "Local LLM (OpenAI-compatible)",
+        "model": "llama3",
+        "endpoints": {
+          "test": "GET /api/ai/chat",
+          "chat": "POST /api/ai/chat",
+          "suggestMedicine": "POST /api/ai/suggest-medicine",
+          "recommendDoctor": "POST /api/ai/recommend-doctor"
+        },
+        "env": {
+          "GROQ_API_KEY": "(not set — using local LLM)",
+          "LOCAL_LLM_BASE_URL": "http://llm.test",
+          "LOCAL_LLM_MODEL": "llama3"
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "chat info, doctor is refused": {
+    "request": "GET /api/ai/chat",
+    "response": {
+      "status": 403,
+      "body": {
+        "success": false,
+        "error": "Admin access required"
+      }
+    },
+    "db": []
+  },
+  "chat info, no token": {
+    "request": "GET /api/ai/chat",
+    "response": {
+      "status": 401,
+      "body": {
+        "success": false,
+        "error": "Authentication required",
+        "code": "NO_TOKEN"
+      }
+    },
+    "db": []
+  },
+  "chat, messages missing": {
+    "request": "POST /api/ai/chat",
+    "response": {
+      "status": 400,
+      "body": {
+        "error": "Invalid request. \"messages\" array is required."
+      }
+    },
+    "db": []
+  },
+  "chat, registry default model": {
+    "request": "POST /api/ai/chat",
+    "response": {
+      "status": 200,
+      "body": {
+        "message": "Chào bạn!",
+        "timestamp": "<now>",
+        "provider": "local",
+        "model": "qwen"
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "fetch",
+        "url": "http://llm.test/v1/chat/completions",
+        "body": {
+          "model": "qwen",
+          "messages": [
+            {
+              "role": "system",
+              "content": "Be brief."
+            },
+            {
+              "role": "user",
+              "content": "Xin chào"
+            }
+          ],
+          "temperature": 0.7,
+          "max_tokens": 1024,
+          "stream": false
+        }
+      }
+    ]
+  },
+  "chat, preferred model from AI_MODEL row": {
+    "request": "POST /api/ai/chat",
+    "response": {
+      "status": 200,
+      "body": {
+        "message": "hello",
+        "timestamp": "<now>",
+        "provider": "groq",
+        "model": "mixtral"
+      }
+    },
+    "db": [
+      {
+        "event": "fetch",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "body": {
+          "model": "mixtral",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful medical assistant for TechCare hospital.\nYou can help patients with:\n- Medication information and reminders\n- Appointment scheduling and information\n- General health questions and wellness tips\n- Post-treatment care instructions\n\nImportant guidelines:\n- Always be empathetic and professional\n- For serious medical concerns, always recommend consulting a doctor\n- Keep responses concise but informative\n- Use simple, easy-to-understand language\n- Never diagnose conditions — provide general information only\n- Reply in the same language the patient uses (e.g. Vietnamese or English)."
+            },
+            {
+              "role": "user",
+              "content": "hi"
+            }
+          ],
+          "temperature": 0.7,
+          "max_tokens": 1024,
+          "stream": false
+        }
+      }
+    ]
+  },
+  "chat, preferred provider without model": {
+    "request": "POST /api/ai/chat",
+    "response": {
+      "status": 200,
+      "body": {
+        "message": "hello",
+        "timestamp": "<now>",
+        "provider": "groq",
+        "model": "groq-env-model"
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "fetch",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "body": {
+          "model": "groq-env-model",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful medical assistant for TechCare hospital.\nYou can help patients with:\n- Medication information and reminders\n- Appointment scheduling and information\n- General health questions and wellness tips\n- Post-treatment care instructions\n\nImportant guidelines:\n- Always be empathetic and professional\n- For serious medical concerns, always recommend consulting a doctor\n- Keep responses concise but informative\n- Use simple, easy-to-understand language\n- Never diagnose conditions — provide general information only\n- Reply in the same language the patient uses (e.g. Vietnamese or English)."
+            },
+            {
+              "role": "user",
+              "content": "hi"
+            }
+          ],
+          "temperature": 0.7,
+          "max_tokens": 1024,
+          "stream": false
+        }
+      }
+    ]
+  },
+  "chat, provider down → canned fallback": {
+    "request": "POST /api/ai/chat",
+    "response": {
+      "status": 200,
+      "body": {
+        "message": "I'm here to help with your healthcare needs — medications, appointments, health questions, and more. How can I assist you today?",
+        "fallback": true,
+        "hint": "Local LLM unavailable. Start Ollama or set GROQ_API_KEY in backend/.env"
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "fetch",
+        "url": "http://llm.test/v1/chat/completions",
+        "body": {
+          "model": "llama3",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful medical assistant for TechCare hospital.\nYou can help patients with:\n- Medication information and reminders\n- Appointment scheduling and information\n- General health questions and wellness tips\n- Post-treatment care instructions\n\nImportant guidelines:\n- Always be empathetic and professional\n- For serious medical concerns, always recommend consulting a doctor\n- Keep responses concise but informative\n- Use simple, easy-to-understand language\n- Never diagnose conditions — provide general information only\n- Reply in the same language the patient uses (e.g. Vietnamese or English)."
+            },
+            {
+              "role": "user",
+              "content": "tôi bị đau đầu"
+            }
+          ],
+          "temperature": 0.7,
+          "max_tokens": 1024,
+          "stream": false
+        }
+      }
+    ]
+  },
+  "chat, provider error status": {
+    "request": "POST /api/ai/chat",
+    "response": {
+      "status": 200,
+      "body": {
+        "message": "I'm here to help with your healthcare needs — medications, appointments, health questions, and more. How can I assist you today?",
+        "fallback": true,
+        "hint": "Local LLM unavailable. Start Ollama or set GROQ_API_KEY in backend/.env"
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "fetch",
+        "url": "http://llm.test/v1/chat/completions",
+        "body": {
+          "model": "llama3",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful medical assistant for TechCare hospital.\nYou can help patients with:\n- Medication information and reminders\n- Appointment scheduling and information\n- General health questions and wellness tips\n- Post-treatment care instructions\n\nImportant guidelines:\n- Always be empathetic and professional\n- For serious medical concerns, always recommend consulting a doctor\n- Keep responses concise but informative\n- Use simple, easy-to-understand language\n- Never diagnose conditions — provide general information only\n- Reply in the same language the patient uses (e.g. Vietnamese or English)."
+            },
+            {
+              "role": "user",
+              "content": "hi"
+            }
+          ],
+          "temperature": 0.7,
+          "max_tokens": 1024,
+          "stream": false
+        }
+      }
+    ]
+  },
+  "chat, registry db down": {
+    "request": "POST /api/ai/chat",
+    "response": {
+      "status": 200,
+      "body": {
+        "message": "I'm here to help with your healthcare needs — medications, appointments, health questions, and more. How can I assist you today?",
+        "fallback": true,
+        "hint": "Local LLM unavailable. Start Ollama or set GROQ_API_KEY in backend/.env"
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "symptoms, missing": {
+    "request": "POST /api/ai/symptom-analysis",
+    "response": {
+      "status": 400,
+      "body": {
+        "error": "symptoms array is required"
+      }
+    },
+    "db": []
+  },
+  "symptoms, local provider refused": {
+    "request": "POST /api/ai/symptom-analysis",
+    "response": {
+      "status": 503,
+      "body": {
+        "error": "AI symptom analysis requires Groq API",
+        "hint": "Set a valid GROQ_API_KEY in backend/.env (local LLM is not used for symptom analysis)."
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "symptoms, analysed with context": {
+    "request": "POST /api/ai/symptom-analysis",
+    "response": {
+      "status": 200,
+      "body": {
+        "possible_conditions": [
+          {
+            "name": "Common cold",
+            "probability": "high"
+          }
+        ],
+        "recommended_action": "Please consult a healthcare professional.",
+        "suggested_medication_type": [
+          "antipyretic"
+        ],
+        "provider": "groq",
+        "model": "llama-70b"
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "fetch",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "body": {
+          "model": "llama-70b",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a cautious clinical triage assistant for TechCare.\nYou receive (1) structured patient-reported symptoms (name, severity, duration) and (2) optional patientContext: demographics (sex, age), latest vitals from MEDICAL_RECORD, allergies, medical history, and recent medications.\n\nSymptom names are pre-normalized: preset symptoms use canonical English labels (e.g. Fever, Cough); free-text symptoms are trimmed patient wording.\n\nUse patientContext when present to refine differential reasoning and urgency (e.g. age, abnormal vitals, allergies, comorbidities, interacting meds). If a field is missing, do not assume a value.\n\nRespond ONLY with a single valid JSON object — no markdown fences, no extra text.\n\nSchema:\n{\n  \"possible_conditions\": [\n    { \"disease\": \"short condition name\", \"probability\": \"low\" | \"medium\" | \"high\", \"reason\": \"one sentence\" }\n  ],\n  \"recommended_action\": \"what the patient should do next (self-care vs see a doctor)\",\n  \"suggested_medication_type\": [\"broad categories only, e.g. pain reliever — not brand names\"]\n}\n\nRules:\n- 1 to 4 items in possible_conditions.\n- Never claim a definitive diagnosis; use cautious language.\n- If red-flag symptoms (e.g. chest pain, stroke signs) or dangerous vital patterns when data is present, urge emergency care.\n- Do not invent vitals or history not supplied in patientContext."
+            },
+            {
+              "role": "user",
+              "content": "Patient-reported symptoms (JSON):\n[\n  {\n    \"name\": \"cough\",\n    \"severity\": \"mild\",\n    \"duration\": \"3 days\"\n  }\n]\n\nLatest patient profile / vitals / history (JSON; may be partial):\n{\n  \"age\": 30,\n  \"vitals\": {\n    \"temp\": 38.2\n  }\n}\n\nReturn only the JSON object as specified."
+            }
+          ],
+          "temperature": 0.7,
+          "max_tokens": 1024,
+          "stream": false
+        }
+      }
+    ]
+  },
+  "symptoms, context is an array (ignored)": {
+    "request": "POST /api/ai/symptom-analysis",
+    "response": {
+      "status": 200,
+      "body": {
+        "possible_conditions": [
+          "flu"
+        ],
+        "recommended_action": "Rest",
+        "suggested_medication_type": [],
+        "provider": "groq",
+        "model": "llama-70b"
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "fetch",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "body": {
+          "model": "llama-70b",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a cautious clinical triage assistant for TechCare.\nYou receive (1) structured patient-reported symptoms (name, severity, duration) and (2) optional patientContext: demographics (sex, age), latest vitals from MEDICAL_RECORD, allergies, medical history, and recent medications.\n\nSymptom names are pre-normalized: preset symptoms use canonical English labels (e.g. Fever, Cough); free-text symptoms are trimmed patient wording.\n\nUse patientContext when present to refine differential reasoning and urgency (e.g. age, abnormal vitals, allergies, comorbidities, interacting meds). If a field is missing, do not assume a value.\n\nRespond ONLY with a single valid JSON object — no markdown fences, no extra text.\n\nSchema:\n{\n  \"possible_conditions\": [\n    { \"disease\": \"short condition name\", \"probability\": \"low\" | \"medium\" | \"high\", \"reason\": \"one sentence\" }\n  ],\n  \"recommended_action\": \"what the patient should do next (self-care vs see a doctor)\",\n  \"suggested_medication_type\": [\"broad categories only, e.g. pain reliever — not brand names\"]\n}\n\nRules:\n- 1 to 4 items in possible_conditions.\n- Never claim a definitive diagnosis; use cautious language.\n- If red-flag symptoms (e.g. chest pain, stroke signs) or dangerous vital patterns when data is present, urge emergency care.\n- Do not invent vitals or history not supplied in patientContext."
+            },
+            {
+              "role": "user",
+              "content": "Patient-reported symptoms (JSON):\n[\n  {\n    \"name\": \"cough\",\n    \"severity\": \"mild\",\n    \"duration\": \"3 days\"\n  }\n]\n\nNo structured patient profile/vitals were provided beyond symptoms.\n\nReturn only the JSON object as specified."
+            }
+          ],
+          "temperature": 0.7,
+          "max_tokens": 1024,
+          "stream": false
+        }
+      }
+    ]
+  },
+  "symptoms, invalid JSON": {
+    "request": "POST /api/ai/symptom-analysis",
+    "response": {
+      "status": 502,
+      "body": {
+        "error": "AI returned invalid JSON for symptom analysis",
+        "raw": "{\"possible_conditions\": [oops}"
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "fetch",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "body": {
+          "model": "llama-70b",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a cautious clinical triage assistant for TechCare.\nYou receive (1) structured patient-reported symptoms (name, severity, duration) and (2) optional patientContext: demographics (sex, age), latest vitals from MEDICAL_RECORD, allergies, medical history, and recent medications.\n\nSymptom names are pre-normalized: preset symptoms use canonical English labels (e.g. Fever, Cough); free-text symptoms are trimmed patient wording.\n\nUse patientContext when present to refine differential reasoning and urgency (e.g. age, abnormal vitals, allergies, comorbidities, interacting meds). If a field is missing, do not assume a value.\n\nRespond ONLY with a single valid JSON object — no markdown fences, no extra text.\n\nSchema:\n{\n  \"possible_conditions\": [\n    { \"disease\": \"short condition name\", \"probability\": \"low\" | \"medium\" | \"high\", \"reason\": \"one sentence\" }\n  ],\n  \"recommended_action\": \"what the patient should do next (self-care vs see a doctor)\",\n  \"suggested_medication_type\": [\"broad categories only, e.g. pain reliever — not brand names\"]\n}\n\nRules:\n- 1 to 4 items in possible_conditions.\n- Never claim a definitive diagnosis; use cautious language.\n- If red-flag symptoms (e.g. chest pain, stroke signs) or dangerous vital patterns when data is present, urge emergency care.\n- Do not invent vitals or history not supplied in patientContext."
+            },
+            {
+              "role": "user",
+              "content": "Patient-reported symptoms (JSON):\n[\n  {\n    \"name\": \"cough\",\n    \"severity\": \"mild\",\n    \"duration\": \"3 days\"\n  }\n]\n\nNo structured patient profile/vitals were provided beyond symptoms.\n\nReturn only the JSON object as specified."
+            }
+          ],
+          "temperature": 0.7,
+          "max_tokens": 1024,
+          "stream": false
+        }
+      }
+    ]
+  },
+  "symptoms, no conditions": {
+    "request": "POST /api/ai/symptom-analysis",
+    "response": {
+      "status": 502,
+      "body": {
+        "error": "AI returned no symptom analysis results",
+        "hint": "Check GROQ_API_KEY and quota, then try again."
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "fetch",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "body": {
+          "model": "llama-70b",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a cautious clinical triage assistant for TechCare.\nYou receive (1) structured patient-reported symptoms (name, severity, duration) and (2) optional patientContext: demographics (sex, age), latest vitals from MEDICAL_RECORD, allergies, medical history, and recent medications.\n\nSymptom names are pre-normalized: preset symptoms use canonical English labels (e.g. Fever, Cough); free-text symptoms are trimmed patient wording.\n\nUse patientContext when present to refine differential reasoning and urgency (e.g. age, abnormal vitals, allergies, comorbidities, interacting meds). If a field is missing, do not assume a value.\n\nRespond ONLY with a single valid JSON object — no markdown fences, no extra text.\n\nSchema:\n{\n  \"possible_conditions\": [\n    { \"disease\": \"short condition name\", \"probability\": \"low\" | \"medium\" | \"high\", \"reason\": \"one sentence\" }\n  ],\n  \"recommended_action\": \"what the patient should do next (self-care vs see a doctor)\",\n  \"suggested_medication_type\": [\"broad categories only, e.g. pain reliever — not brand names\"]\n}\n\nRules:\n- 1 to 4 items in possible_conditions.\n- Never claim a definitive diagnosis; use cautious language.\n- If red-flag symptoms (e.g. chest pain, stroke signs) or dangerous vital patterns when data is present, urge emergency care.\n- Do not invent vitals or history not supplied in patientContext."
+            },
+            {
+              "role": "user",
+              "content": "Patient-reported symptoms (JSON):\n[\n  {\n    \"name\": \"cough\",\n    \"severity\": \"mild\",\n    \"duration\": \"3 days\"\n  }\n]\n\nNo structured patient profile/vitals were provided beyond symptoms.\n\nReturn only the JSON object as specified."
+            }
+          ],
+          "temperature": 0.7,
+          "max_tokens": 1024,
+          "stream": false
+        }
+      }
+    ]
+  },
+  "symptoms, provider down": {
+    "request": "POST /api/ai/symptom-analysis",
+    "response": {
+      "status": 503,
+      "body": {
+        "error": "Symptom analysis failed",
+        "hint": "Check GROQ_API_KEY is valid in backend/.env, then try again."
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "fetch",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "body": {
+          "model": "llama-70b",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a cautious clinical triage assistant for TechCare.\nYou receive (1) structured patient-reported symptoms (name, severity, duration) and (2) optional patientContext: demographics (sex, age), latest vitals from MEDICAL_RECORD, allergies, medical history, and recent medications.\n\nSymptom names are pre-normalized: preset symptoms use canonical English labels (e.g. Fever, Cough); free-text symptoms are trimmed patient wording.\n\nUse patientContext when present to refine differential reasoning and urgency (e.g. age, abnormal vitals, allergies, comorbidities, interacting meds). If a field is missing, do not assume a value.\n\nRespond ONLY with a single valid JSON object — no markdown fences, no extra text.\n\nSchema:\n{\n  \"possible_conditions\": [\n    { \"disease\": \"short condition name\", \"probability\": \"low\" | \"medium\" | \"high\", \"reason\": \"one sentence\" }\n  ],\n  \"recommended_action\": \"what the patient should do next (self-care vs see a doctor)\",\n  \"suggested_medication_type\": [\"broad categories only, e.g. pain reliever — not brand names\"]\n}\n\nRules:\n- 1 to 4 items in possible_conditions.\n- Never claim a definitive diagnosis; use cautious language.\n- If red-flag symptoms (e.g. chest pain, stroke signs) or dangerous vital patterns when data is present, urge emergency care.\n- Do not invent vitals or history not supplied in patientContext."
+            },
+            {
+              "role": "user",
+              "content": "Patient-reported symptoms (JSON):\n[\n  {\n    \"name\": \"cough\",\n    \"severity\": \"mild\",\n    \"duration\": \"3 days\"\n  }\n]\n\nNo structured patient profile/vitals were provided beyond symptoms.\n\nReturn only the JSON object as specified."
+            }
+          ],
+          "temperature": 0.7,
+          "max_tokens": 1024,
+          "stream": false
+        }
+      }
+    ]
+  },
+  "recovery, range swapped and clamped": {
+    "request": "POST /api/ai/recovery-prediction",
+    "response": {
+      "status": 200,
+      "body": {
+        "predicted_recovery_days_min": 1,
+        "predicted_recovery_days_max": 365,
+        "confidence": "high",
+        "note": "n",
+        "disclaimer": "d",
+        "provider": "groq",
+        "model": "llama-8b"
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "fetch",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "body": {
+          "model": "llama-8b",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a cautious clinical support assistant for TechCare estimating typical recovery timeframes for patient education only.\n\nYou receive JSON payloads:\n- clinicalSummary: may include latest ICD-based diagnosis label, chief complaint from last visit, and recent medication names (partial data is common).\n- patientContext: optional demographics, vitals, allergies, chronic conditions, etc.\n\nRespond ONLY with a single valid JSON object — no markdown fences, no extra text.\n\nSchema:\n{\n  \"predicted_recovery_days_min\": <integer 1-365>,\n  \"predicted_recovery_days_max\": <integer 1-365, >= min>,\n  \"confidence\": \"low\" | \"medium\" | \"high\",\n  \"note\": \"<one or two short sentences; Vietnamese if clinical text is Vietnamese, else English>\",\n  \"disclaimer\": \"<one sentence: not a substitute for a clinician; follow doctor instructions>\"\n}\n\nRules:\n- Never claim certainty or a formal diagnosis; this is an approximate range for self-care expectations.\n- If diagnosis or clinical data is missing or vague, use a wide range and set confidence to \"low\".\n- If patientContext suggests higher risk (e.g. older age, significant comorbidity, abnormal vitals when provided), widen the range or lower confidence.\n- Do not invent specific diagnoses not supported by clinicalSummary; prefer conservative estimates."
+            },
+            {
+              "role": "user",
+              "content": "clinicalSummary (JSON):\n{\n  \"diagnosis\": \"J06\"\n}\n\npatientContext (JSON; may be partial):\n{\n  \"age\": 70\n}\n\nReturn only the JSON object as specified."
+            }
+          ],
+          "temperature": 0.7,
+          "max_tokens": 1024,
+          "stream": false
+        }
+      }
+    ]
+  },
+  "recovery, defaults without registry": {
+    "request": "POST /api/ai/recovery-prediction",
+    "response": {
+      "status": 200,
+      "body": {
+        "predicted_recovery_days_min": 3,
+        "predicted_recovery_days_max": 7,
+        "confidence": "low",
+        "note": "",
+        "disclaimer": "",
+        "provider": "local",
+        "model": "llama3"
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "fetch",
+        "url": "http://llm.test/v1/chat/completions",
+        "body": {
+          "model": "llama3",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a cautious clinical support assistant for TechCare estimating typical recovery timeframes for patient education only.\n\nYou receive JSON payloads:\n- clinicalSummary: may include latest ICD-based diagnosis label, chief complaint from last visit, and recent medication names (partial data is common).\n- patientContext: optional demographics, vitals, allergies, chronic conditions, etc.\n\nRespond ONLY with a single valid JSON object — no markdown fences, no extra text.\n\nSchema:\n{\n  \"predicted_recovery_days_min\": <integer 1-365>,\n  \"predicted_recovery_days_max\": <integer 1-365, >= min>,\n  \"confidence\": \"low\" | \"medium\" | \"high\",\n  \"note\": \"<one or two short sentences; Vietnamese if clinical text is Vietnamese, else English>\",\n  \"disclaimer\": \"<one sentence: not a substitute for a clinician; follow doctor instructions>\"\n}\n\nRules:\n- Never claim certainty or a formal diagnosis; this is an approximate range for self-care expectations.\n- If diagnosis or clinical data is missing or vague, use a wide range and set confidence to \"low\".\n- If patientContext suggests higher risk (e.g. older age, significant comorbidity, abnormal vitals when provided), widen the range or lower confidence.\n- Do not invent specific diagnoses not supported by clinicalSummary; prefer conservative estimates."
+            },
+            {
+              "role": "user",
+              "content": "clinicalSummary (JSON):\n{}\n\nNo patientContext beyond clinicalSummary.\n\nReturn only the JSON object as specified."
+            }
+          ],
+          "temperature": 0.7,
+          "max_tokens": 1024,
+          "stream": false
+        }
+      }
+    ]
+  },
+  "recovery, missing day range": {
+    "request": "POST /api/ai/recovery-prediction",
+    "response": {
+      "status": 502,
+      "body": {
+        "error": "AI recovery prediction missing numeric day range",
+        "raw": "{\"confidence\": \"low\"}"
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "fetch",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "body": {
+          "model": "llama-8b",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a cautious clinical support assistant for TechCare estimating typical recovery timeframes for patient education only.\n\nYou receive JSON payloads:\n- clinicalSummary: may include latest ICD-based diagnosis label, chief complaint from last visit, and recent medication names (partial data is common).\n- patientContext: optional demographics, vitals, allergies, chronic conditions, etc.\n\nRespond ONLY with a single valid JSON object — no markdown fences, no extra text.\n\nSchema:\n{\n  \"predicted_recovery_days_min\": <integer 1-365>,\n  \"predicted_recovery_days_max\": <integer 1-365, >= min>,\n  \"confidence\": \"low\" | \"medium\" | \"high\",\n  \"note\": \"<one or two short sentences; Vietnamese if clinical text is Vietnamese, else English>\",\n  \"disclaimer\": \"<one sentence: not a substitute for a clinician; follow doctor instructions>\"\n}\n\nRules:\n- Never claim certainty or a formal diagnosis; this is an approximate range for self-care expectations.\n- If diagnosis or clinical data is missing or vague, use a wide range and set confidence to \"low\".\n- If patientContext suggests higher risk (e.g. older age, significant comorbidity, abnormal vitals when provided), widen the range or lower confidence.\n- Do not invent specific diagnoses not supported by clinicalSummary; prefer conservative estimates."
+            },
+            {
+              "role": "user",
+              "content": "clinicalSummary (JSON):\n{}\n\nNo patientContext beyond clinicalSummary.\n\nReturn only the JSON object as specified."
+            }
+          ],
+          "temperature": 0.7,
+          "max_tokens": 1024,
+          "stream": false
+        }
+      }
+    ]
+  },
+  "recovery, invalid JSON": {
+    "request": "POST /api/ai/recovery-prediction",
+    "response": {
+      "status": 502,
+      "body": {
+        "error": "AI returned invalid JSON for recovery prediction",
+        "raw": "{bad json}"
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "fetch",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "body": {
+          "model": "llama-8b",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a cautious clinical support assistant for TechCare estimating typical recovery timeframes for patient education only.\n\nYou receive JSON payloads:\n- clinicalSummary: may include latest ICD-based diagnosis label, chief complaint from last visit, and recent medication names (partial data is common).\n- patientContext: optional demographics, vitals, allergies, chronic conditions, etc.\n\nRespond ONLY with a single valid JSON object — no markdown fences, no extra text.\n\nSchema:\n{\n  \"predicted_recovery_days_min\": <integer 1-365>,\n  \"predicted_recovery_days_max\": <integer 1-365, >= min>,\n  \"confidence\": \"low\" | \"medium\" | \"high\",\n  \"note\": \"<one or two short sentences; Vietnamese if clinical text is Vietnamese, else English>\",\n  \"disclaimer\": \"<one sentence: not a substitute for a clinician; follow doctor instructions>\"\n}\n\nRules:\n- Never claim certainty or a formal diagnosis; this is an approximate range for self-care expectations.\n- If diagnosis or clinical data is missing or vague, use a wide range and set confidence to \"low\".\n- If patientContext suggests higher risk (e.g. older age, significant comorbidity, abnormal vitals when provided), widen the range or lower confidence.\n- Do not invent specific diagnoses not supported by clinicalSummary; prefer conservative estimates."
+            },
+            {
+              "role": "user",
+              "content": "clinicalSummary (JSON):\n{}\n\nNo patientContext beyond clinicalSummary.\n\nReturn only the JSON object as specified."
+            }
+          ],
+          "temperature": 0.7,
+          "max_tokens": 1024,
+          "stream": false
+        }
+      }
+    ]
+  },
+  "recovery, groq down": {
+    "request": "POST /api/ai/recovery-prediction",
+    "response": {
+      "status": 503,
+      "body": {
+        "error": "Recovery prediction failed",
+        "hint": "Check GROQ_API_KEY and quota."
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "fetch",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "body": {
+          "model": "llama-8b",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a cautious clinical support assistant for TechCare estimating typical recovery timeframes for patient education only.\n\nYou receive JSON payloads:\n- clinicalSummary: may include latest ICD-based diagnosis label, chief complaint from last visit, and recent medication names (partial data is common).\n- patientContext: optional demographics, vitals, allergies, chronic conditions, etc.\n\nRespond ONLY with a single valid JSON object — no markdown fences, no extra text.\n\nSchema:\n{\n  \"predicted_recovery_days_min\": <integer 1-365>,\n  \"predicted_recovery_days_max\": <integer 1-365, >= min>,\n  \"confidence\": \"low\" | \"medium\" | \"high\",\n  \"note\": \"<one or two short sentences; Vietnamese if clinical text is Vietnamese, else English>\",\n  \"disclaimer\": \"<one sentence: not a substitute for a clinician; follow doctor instructions>\"\n}\n\nRules:\n- Never claim certainty or a formal diagnosis; this is an approximate range for self-care expectations.\n- If diagnosis or clinical data is missing or vague, use a wide range and set confidence to \"low\".\n- If patientContext suggests higher risk (e.g. older age, significant comorbidity, abnormal vitals when provided), widen the range or lower confidence.\n- Do not invent specific diagnoses not supported by clinicalSummary; prefer conservative estimates."
+            },
+            {
+              "role": "user",
+              "content": "clinicalSummary (JSON):\n{}\n\nNo patientContext beyond clinicalSummary.\n\nReturn only the JSON object as specified."
+            }
+          ],
+          "temperature": 0.7,
+          "max_tokens": 1024,
+          "stream": false
+        }
+      }
+    ]
+  },
+  "recovery, local down": {
+    "request": "POST /api/ai/recovery-prediction",
+    "response": {
+      "status": 503,
+      "body": {
+        "error": "Recovery prediction failed",
+        "hint": "Start Ollama (or your local OpenAI-compatible server) or set GROQ_API_KEY in backend/.env"
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "fetch",
+        "url": "http://llm.test/v1/chat/completions",
+        "body": {
+          "model": "llama3",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a cautious clinical support assistant for TechCare estimating typical recovery timeframes for patient education only.\n\nYou receive JSON payloads:\n- clinicalSummary: may include latest ICD-based diagnosis label, chief complaint from last visit, and recent medication names (partial data is common).\n- patientContext: optional demographics, vitals, allergies, chronic conditions, etc.\n\nRespond ONLY with a single valid JSON object — no markdown fences, no extra text.\n\nSchema:\n{\n  \"predicted_recovery_days_min\": <integer 1-365>,\n  \"predicted_recovery_days_max\": <integer 1-365, >= min>,\n  \"confidence\": \"low\" | \"medium\" | \"high\",\n  \"note\": \"<one or two short sentences; Vietnamese if clinical text is Vietnamese, else English>\",\n  \"disclaimer\": \"<one sentence: not a substitute for a clinician; follow doctor instructions>\"\n}\n\nRules:\n- Never claim certainty or a formal diagnosis; this is an approximate range for self-care expectations.\n- If diagnosis or clinical data is missing or vague, use a wide range and set confidence to \"low\".\n- If patientContext suggests higher risk (e.g. older age, significant comorbidity, abnormal vitals when provided), widen the range or lower confidence.\n- Do not invent specific diagnoses not supported by clinicalSummary; prefer conservative estimates."
+            },
+            {
+              "role": "user",
+              "content": "clinicalSummary (JSON):\n{}\n\nNo patientContext beyond clinicalSummary.\n\nReturn only the JSON object as specified."
+            }
+          ],
+          "temperature": 0.7,
+          "max_tokens": 1024,
+          "stream": false
+        }
+      }
+    ]
+  },
+  "suggest medicine, patient refused": {
+    "request": "POST /api/ai/suggest-medicine",
+    "response": {
+      "status": 403,
+      "body": {
+        "success": false,
+        "error": "Doctor or admin access required"
+      }
+    },
+    "db": []
+  },
+  "suggest medicine, nothing to go on": {
+    "request": "POST /api/ai/suggest-medicine",
+    "response": {
+      "status": 400,
+      "body": {
+        "error": "At least one of \"diagnosis\" or \"symptoms\" is required."
+      }
+    },
+    "db": []
+  },
+  "suggest medicine (vi, default)": {
+    "request": "POST /api/ai/suggest-medicine",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "suggestions": [
+          {
+            "name": "Paracetamol",
+            "dosage": "500mg"
+          }
+        ],
+        "raw": "Gợi ý: [{\"name\":\"Paracetamol\",\"dosage\":\"500mg\"}]",
+        "provider": "local",
+        "model": "catalog-local"
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "fetch",
+        "url": "http://llm.test/v1/chat/completions",
+        "body": {
+          "model": "catalog-local",
+          "messages": [
+            {
+              "role": "system",
+              "content": "Bạn là dược sĩ lâm sàng hỗ trợ bác sĩ kê đơn thuốc tại Việt Nam.\nDựa trên chẩn đoán và triệu chứng (tiếng Việt), gợi ý thuốc phù hợp.\n\nQUAN TRỌNG: Chỉ trả về một mảng JSON hợp lệ. Không giải thích, không markdown, không text thừa.\nMỗi phần tử phải có đúng các trường sau:\n[\n  {\n    \"name\": \"Tên thuốc (vd: Paracetamol 500mg hoặc tên thường dùng tại VN)\",\n    \"quantity\": \"Số lượng (vd: 20)\",\n    \"unit\": \"Một trong: tablet, capsule, syrup, injection, drop, cream, ointment, powder, spray\",\n    \"usage\": \"Hướng dẫn cách dùng BẰNG TIẾNG VIỆT (vd: Uống 1 viên/lần, 2 lần/ngày, sau ăn)\",\n    \"note\": \"Ghi chú / cảnh báo BẰNG TIẾNG VIỆT (có thể để rỗng nếu không cần)\"\n  }\n]\n\nGợi ý 3–6 thuốc (điều trị nguyên nhân và triệu chứng).\nTrường \"usage\" và \"note\" bắt buộc dùng tiếng Việt có dấu."
+            },
+            {
+              "role": "user",
+              "content": "\nThông tin bệnh nhân: Nam, 30 tuổi\nChẩn đoán của bác sĩ: Cảm cúm\nTriệu chứng / diễn biến: Chưa có\n\nHãy gợi ý thuốc phù hợp. Mọi hướng dẫn \"usage\" và \"note\" phải bằng tiếng Việt."
+            }
+          ],
+          "temperature": 0.7,
+          "max_tokens": 1024,
+          "stream": false
+        }
+      }
+    ]
+  },
+  "suggest medicine (en), unparsable list": {
+    "request": "POST /api/ai/suggest-medicine",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "suggestions": [],
+        "raw": "[not json]",
+        "provider": "local",
+        "model": "llama3"
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "fetch",
+        "url": "http://llm.test/v1/chat/completions",
+        "body": {
+          "model": "llama3",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are an expert clinical pharmacist AI assistant helping doctors prescribe medications.\nGiven a diagnosis and symptoms, suggest appropriate medications.\n\nIMPORTANT: Respond ONLY with a valid JSON array. No explanation, no markdown, no extra text.\nEach item must have exactly these fields:\n[\n  {\n    \"name\": \"Medicine name (e.g. Paracetamol 500mg)\",\n    \"quantity\": \"Recommended quantity (e.g. 20)\",\n    \"unit\": \"One of: tablet, capsule, syrup, injection, drop, cream, ointment, powder, spray\",\n    \"usage\": \"Dosage instructions\",\n    \"note\": \"Important notes or warnings\"\n  }\n]\n\nSuggest 3-6 medications including both causal treatment and symptomatic relief."
+            },
+            {
+              "role": "user",
+              "content": "\nPatient Information: Not provided\nDoctor's Diagnosis: Not provided\nPatient Symptoms: fever\n\nBased on the above, suggest appropriate medications."
+            }
+          ],
+          "temperature": 0.7,
+          "max_tokens": 1024,
+          "stream": false
+        }
+      }
+    ]
+  },
+  "suggest medicine, provider down": {
+    "request": "POST /api/ai/suggest-medicine",
+    "response": {
+      "status": 500,
+      "body": {
+        "success": false,
+        "error": "Failed to get medicine suggestions",
+        "suggestions": []
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "fetch",
+        "url": "http://llm.test/v1/chat/completions",
+        "body": {
+          "model": "llama3",
+          "messages": [
+            {
+              "role": "system",
+              "content": "Bạn là dược sĩ lâm sàng hỗ trợ bác sĩ kê đơn thuốc tại Việt Nam.\nDựa trên chẩn đoán và triệu chứng (tiếng Việt), gợi ý thuốc phù hợp.\n\nQUAN TRỌNG: Chỉ trả về một mảng JSON hợp lệ. Không giải thích, không markdown, không text thừa.\nMỗi phần tử phải có đúng các trường sau:\n[\n  {\n    \"name\": \"Tên thuốc (vd: Paracetamol 500mg hoặc tên thường dùng tại VN)\",\n    \"quantity\": \"Số lượng (vd: 20)\",\n    \"unit\": \"Một trong: tablet, capsule, syrup, injection, drop, cream, ointment, powder, spray\",\n    \"usage\": \"Hướng dẫn cách dùng BẰNG TIẾNG VIỆT (vd: Uống 1 viên/lần, 2 lần/ngày, sau ăn)\",\n    \"note\": \"Ghi chú / cảnh báo BẰNG TIẾNG VIỆT (có thể để rỗng nếu không cần)\"\n  }\n]\n\nGợi ý 3–6 thuốc (điều trị nguyên nhân và triệu chứng).\nTrường \"usage\" và \"note\" bắt buộc dùng tiếng Việt có dấu."
+            },
+            {
+              "role": "user",
+              "content": "\nThông tin bệnh nhân: Chưa có\nChẩn đoán của bác sĩ: flu\nTriệu chứng / diễn biến: Chưa có\n\nHãy gợi ý thuốc phù hợp. Mọi hướng dẫn \"usage\" và \"note\" phải bằng tiếng Việt."
+            }
+          ],
+          "temperature": 0.7,
+          "max_tokens": 1024,
+          "stream": false
+        }
+      }
+    ]
+  },
+  "recommend doctor, nothing to go on": {
+    "request": "POST /api/ai/recommend-doctor",
+    "response": {
+      "status": 400,
+      "body": {
+        "error": "At least one of \"symptoms\" or \"department\" is required."
+      }
+    },
+    "db": []
+  },
+  "recommend doctor": {
+    "request": "POST /api/ai/recommend-doctor",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "recommendations": [
+          {
+            "doctorName": "An Le",
+            "priority": 1
+          }
+        ],
+        "generalAdvice": "Come early",
+        "raw": "{\"recommendations\":[{\"doctorName\":\"An Le\",\"priority\":1}],\"generalAdvice\":\"Come early\"}",
+        "provider": "local",
+        "model": "llama3"
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "fetch",
+        "url": "http://llm.test/v1/chat/completions",
+        "body": {
+          "model": "llama3",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a hospital scheduling AI. You return structured JSON only."
+            },
+            {
+              "role": "user",
+              "content": "You are a hospital scheduling assistant. Based on the patient's needs, recommend the most suitable doctor.\n\nPatient symptoms: chest pain\nPreferred department: Not specified\nPreferred date: 2026-10-10\n\nAvailable doctors:\n- Dr. An Le (Cardiology, Room: A1)\n- Dr.   (General, Room: N/A)\n\nRespond with a JSON object:\n{\n  \"recommendations\": [\n    {\n      \"doctorName\": \"Full name\",\n      \"department\": \"Specialty\",\n      \"reason\": \"Brief explanation why this doctor is suitable\",\n      \"priority\": 1\n    }\n  ],\n  \"generalAdvice\": \"Any scheduling advice\"\n}"
+            }
+          ],
+          "temperature": 0.7,
+          "max_tokens": 1024,
+          "stream": false
+        }
+      }
+    ]
+  },
+  "recommend doctor, no JSON in reply": {
+    "request": "POST /api/ai/recommend-doctor",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "raw": "No idea.",
+        "provider": "local",
+        "model": "llama3"
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "fetch",
+        "url": "http://llm.test/v1/chat/completions",
+        "body": {
+          "model": "llama3",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a hospital scheduling AI. You return structured JSON only."
+            },
+            {
+              "role": "user",
+              "content": "You are a hospital scheduling assistant. Based on the patient's needs, recommend the most suitable doctor.\n\nPatient symptoms: Not specified\nPreferred department: ENT\nPreferred date: Not specified\n\nAvailable doctors:\nNo doctor list provided.\n\nRespond with a JSON object:\n{\n  \"recommendations\": [\n    {\n      \"doctorName\": \"Full name\",\n      \"department\": \"Specialty\",\n      \"reason\": \"Brief explanation why this doctor is suitable\",\n      \"priority\": 1\n    }\n  ],\n  \"generalAdvice\": \"Any scheduling advice\"\n}"
+            }
+          ],
+          "temperature": 0.7,
+          "max_tokens": 1024,
+          "stream": false
+        }
+      }
+    ]
+  },
+  "recommend doctor, provider down": {
+    "request": "POST /api/ai/recommend-doctor",
+    "response": {
+      "status": 500,
+      "body": {
+        "success": false,
+        "error": "Failed to get doctor recommendations"
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "fetch",
+        "url": "http://llm.test/v1/chat/completions",
+        "body": {
+          "model": "llama3",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a hospital scheduling AI. You return structured JSON only."
+            },
+            {
+              "role": "user",
+              "content": "You are a hospital scheduling assistant. Based on the patient's needs, recommend the most suitable doctor.\n\nPatient symptoms: Not specified\nPreferred department: ENT\nPreferred date: Not specified\n\nAvailable doctors:\nNo doctor list provided.\n\nRespond with a JSON object:\n{\n  \"recommendations\": [\n    {\n      \"doctorName\": \"Full name\",\n      \"department\": \"Specialty\",\n      \"reason\": \"Brief explanation why this doctor is suitable\",\n      \"priority\": 1\n    }\n  ],\n  \"generalAdvice\": \"Any scheduling advice\"\n}"
+            }
+          ],
+          "temperature": 0.7,
+          "max_tokens": 1024,
+          "stream": false
+        }
+      }
+    ]
+  }
+}

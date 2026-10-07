@@ -1,14 +1,4 @@
-/**
- * Origin/prefix for API calls. Empty string = same-origin (use paths like `/api/...`),
- * e.g. when `VITE_API_BASE_URL=/api` (Vite dev proxy or nginx static build).
- */
-const API_BASE_URL = (() => {
-  const raw = import.meta.env.VITE_API_BASE_URL as string | undefined;
-  if (raw === undefined || raw === '') return 'http://localhost:3000';
-  const s = String(raw).trim();
-  if (s === '/api') return '';
-  return s.replace(/\/$/, '');
-})();
+import { API_BASE_URL } from '@/lib/api-base';
 import type { PatientMedicalRegimen } from './appointment-service';
 import type { RecoveryPredictionApiResponse } from '@/types/recovery-prediction';
 

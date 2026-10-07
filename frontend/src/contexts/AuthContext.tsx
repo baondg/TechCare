@@ -10,7 +10,7 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import type React from 'react'
 import i18n from '@/i18n'
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
+import { API_BASE_URL as API_BASE } from '@/lib/api-base'
 
 // ── Types ──────────────────────────────────────────────────────
 

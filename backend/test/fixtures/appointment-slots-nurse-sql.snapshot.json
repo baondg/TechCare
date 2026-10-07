@@ -2010,6 +2010,14 @@
         "tx": "tx1"
       },
       {
+        "sql": "UPDATE APPOINTMENT SET status = 'completed' WHERE patient_id = :patientId AND regimen_id IN (99) AND status = 'scheduled'",
+        "replacements": {
+          "patientId": 7
+        },
+        "type": "UPDATE",
+        "tx": "tx1"
+      },
+      {
         "sql": "UPDATE REGIMEN SET `end` = NOW() WHERE id = :regimenId AND patient_id = :patientId AND `end` IS NULL",
         "replacements": {
           "regimenId": 99,

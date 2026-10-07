@@ -29,6 +29,8 @@ server {
     # Cloud Run / compose: set BACKEND_URL (e.g. https://api-xxxxx.run.app or http://backend:3000)
     location /api/ {
         proxy_pass ${BACKEND_URL};
+        # Lab attachments are sent as base64 JSON (15 MB file ≈ 20 MB); the backend limits every other route.
+        client_max_body_size 21m;
         proxy_http_version 1.1;
         proxy_ssl_server_name on;
         proxy_set_header Upgrade $$http_upgrade;

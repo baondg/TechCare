@@ -1,5 +1,6 @@
 const { QueryTypes } = require('sequelize');
 const sequelize = require('../common/database');
+const { mysqlInsertId } = require('./treatmentRepository');
 
 /** ICD-10 codes whose code or description contains `q` ('' = all); max 300. */
 async function searchDiseases(q) {
@@ -49,4 +50,24 @@ async function listDepartments() {
   return sequelize.query('SELECT id, name FROM DEPARTMENT ORDER BY name ASC', { type: QueryTypes.SELECT });
 }
 
-module.exports = { searchDiseases, searchMedicines, listTechnicians, listDepartments };
+/** MEDICINE.id by exact name, or null. */
+async function findMedicineIdByName(name, transaction) {
+  const rows = await sequelize.query('SELECT id FROM MEDICINE WHERE name = :name LIMIT 1', {
+    replacements: { name },
+    type: QueryTypes.SELECT,
+    transaction,
+  });
+  return rows[0]?.id != null ? Number(rows[0].id) : null;
+}
+
+/** New 'General' MEDICINE with placeholder details (prescribed by a name not in the catalog); its id or null. */
+async function insertMedicine(name, transaction) {
+  const [ins] = await sequelize.query(
+    `INSERT INTO MEDICINE (name, manufacturer, description, type, form, unit, dosage, side_effects, contraindications)
+     VALUES (:name, 'N/A', NULL, 'General', NULL, 'unit', 'as directed', NULL, NULL)`,
+    { replacements: { name }, type: QueryTypes.INSERT, transaction }
+  );
+  return mysqlInsertId(ins);
+}
+
+module.exports = { searchDiseases, searchMedicines, findMedicineIdByName, insertMedicine, listTechnicians, listDepartments };

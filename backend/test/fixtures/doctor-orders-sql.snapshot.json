@@ -242,16 +242,7 @@
       "status": 400,
       "message": "Invalid patient id"
     },
-    "db": [
-      {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
-        "event": "rollback",
-        "tx": "tx1"
-      }
-    ]
+    "db": []
   },
   "create prescription, no medications": {
     "request": "POST /api/doctor/patients/OP0070/prescriptions",
@@ -277,52 +268,12 @@
         "tx": null
       },
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "sql": "SELECT u.dob, u.idcard, u.tel FROM PATIENT p JOIN USER u ON u.id = p.user_id WHERE p.patient_id = :patientId LIMIT 1",
-        "replacements": {
-          "patientId": 7
-        },
-        "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "sql": "SELECT order_id FROM MEDICAL_PRESCRIPTION WHERE note LIKE :needle LIMIT 1",
-        "replacements": {
-          "needle": "%<byt-code>%"
-        },
-        "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "sql": "SELECT name, tel FROM RELATIVE WHERE patient_id = :pk LIMIT 1",
-        "replacements": {
-          "pk": 7
-        },
-        "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "sql": "SELECT weight FROM MEDICAL_RECORD WHERE patient_id = :pk ORDER BY time DESC LIMIT 1",
-        "replacements": {
-          "pk": 7
-        },
-        "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "event": "rollback",
-        "tx": "tx1"
+        "tx": null
       }
     ]
   },
@@ -350,15 +301,15 @@
         "tx": null
       },
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -423,15 +374,15 @@
         "tx": null
       },
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -480,15 +431,15 @@
     },
     "db": [
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -643,15 +594,15 @@
         "tx": null
       },
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -837,14 +788,6 @@
         "tx": "tx1"
       },
       {
-        "sql": "SELECT first_name, last_name FROM USER WHERE id = :id LIMIT 1",
-        "replacements": {
-          "id": 21
-        },
-        "type": "SELECT",
-        "tx": null
-      },
-      {
         "sql": "SELECT time FROM MEDICAL_PRESCRIPTION WHERE order_id = :orderId LIMIT 1",
         "replacements": {
           "orderId": 601
@@ -855,6 +798,14 @@
       {
         "event": "commit",
         "tx": "tx1"
+      },
+      {
+        "sql": "SELECT first_name, last_name FROM USER WHERE id = :id LIMIT 1",
+        "replacements": {
+          "id": 21
+        },
+        "type": "SELECT",
+        "tx": null
       }
     ]
   },
@@ -906,15 +857,15 @@
     },
     "db": [
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -1084,14 +1035,6 @@
         "tx": "tx1"
       },
       {
-        "sql": "SELECT first_name, last_name FROM USER WHERE id = :id LIMIT 1",
-        "replacements": {
-          "id": 41
-        },
-        "type": "SELECT",
-        "tx": null
-      },
-      {
         "sql": "SELECT time FROM MEDICAL_PRESCRIPTION WHERE order_id = :orderId LIMIT 1",
         "replacements": {
           "orderId": 601
@@ -1102,6 +1045,14 @@
       {
         "event": "commit",
         "tx": "tx1"
+      },
+      {
+        "sql": "SELECT first_name, last_name FROM USER WHERE id = :id LIMIT 1",
+        "replacements": {
+          "id": 41
+        },
+        "type": "SELECT",
+        "tx": null
       }
     ]
   },
@@ -1129,15 +1080,15 @@
         "tx": null
       },
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -1282,15 +1233,15 @@
         "tx": null
       },
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -1425,15 +1376,15 @@
         "tx": null
       },
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -1594,15 +1545,15 @@
         "tx": null
       },
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -1643,20 +1594,12 @@
         "tx": null
       },
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "event": "rollback",
-        "tx": "tx1"
+        "tx": null
       }
     ]
   },
@@ -1684,20 +1627,12 @@
         "tx": null
       },
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "event": "rollback",
-        "tx": "tx1"
+        "tx": null
       }
     ]
   },
@@ -1725,15 +1660,15 @@
         "tx": null
       },
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -1833,15 +1768,15 @@
         "tx": null
       },
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -1965,14 +1900,6 @@
         "tx": "tx1"
       },
       {
-        "sql": "SELECT first_name, last_name FROM USER WHERE id = :id LIMIT 1",
-        "replacements": {
-          "id": 21
-        },
-        "type": "SELECT",
-        "tx": null
-      },
-      {
         "sql": "SELECT time, duration FROM MEDICAL_PRESCRIPTION WHERE order_id = :orderId LIMIT 1",
         "replacements": {
           "orderId": 601
@@ -1983,6 +1910,14 @@
       {
         "event": "commit",
         "tx": "tx1"
+      },
+      {
+        "sql": "SELECT first_name, last_name FROM USER WHERE id = :id LIMIT 1",
+        "replacements": {
+          "id": 21
+        },
+        "type": "SELECT",
+        "tx": null
       }
     ]
   },
@@ -2034,15 +1969,15 @@
     },
     "db": [
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -2117,14 +2052,6 @@
         "tx": "tx1"
       },
       {
-        "sql": "SELECT first_name, last_name FROM USER WHERE id = :id LIMIT 1",
-        "replacements": {
-          "id": 41
-        },
-        "type": "SELECT",
-        "tx": null
-      },
-      {
         "sql": "SELECT time, duration FROM MEDICAL_PRESCRIPTION WHERE order_id = :orderId LIMIT 1",
         "replacements": {
           "orderId": 601
@@ -2143,6 +2070,14 @@
       {
         "event": "commit",
         "tx": "tx1"
+      },
+      {
+        "sql": "SELECT first_name, last_name FROM USER WHERE id = :id LIMIT 1",
+        "replacements": {
+          "id": 41
+        },
+        "type": "SELECT",
+        "tx": null
       }
     ]
   },
@@ -2210,15 +2145,15 @@
         "tx": null
       },
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -2297,14 +2232,6 @@
         "tx": "tx1"
       },
       {
-        "sql": "SELECT first_name, last_name FROM USER WHERE id = :id LIMIT 1",
-        "replacements": {
-          "id": 21
-        },
-        "type": "SELECT",
-        "tx": null
-      },
-      {
         "sql": "SELECT time, duration FROM MEDICAL_PRESCRIPTION WHERE order_id = :orderId LIMIT 1",
         "replacements": {
           "orderId": 601
@@ -2315,6 +2242,14 @@
       {
         "event": "commit",
         "tx": "tx1"
+      },
+      {
+        "sql": "SELECT first_name, last_name FROM USER WHERE id = :id LIMIT 1",
+        "replacements": {
+          "id": 21
+        },
+        "type": "SELECT",
+        "tx": null
       }
     ]
   },
@@ -2342,15 +2277,15 @@
         "tx": null
       },
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -2417,15 +2352,15 @@
         "tx": null
       },
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -2517,16 +2452,7 @@
       "status": 400,
       "message": "Invalid patient id"
     },
-    "db": [
-      {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
-        "event": "rollback",
-        "tx": "tx1"
-      }
-    ]
+    "db": []
   },
   "create lab test, missing fields": {
     "request": "POST /api/doctor/patients/OP0070/lab-tests",
@@ -2552,20 +2478,12 @@
         "tx": null
       },
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "event": "rollback",
-        "tx": "tx1"
+        "tx": null
       }
     ]
   },
@@ -2593,20 +2511,12 @@
         "tx": null
       },
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "event": "rollback",
-        "tx": "tx1"
+        "tx": null
       }
     ]
   },
@@ -2647,15 +2557,15 @@
         "tx": null
       },
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -2729,12 +2639,13 @@
         "tx": "tx1"
       },
       {
-        "sql": "INSERT INTO PROCEDURE_ (order_id, note, technician_id, doctor_id, room_id, type) VALUES (:orderId, :note, :technicianId, :doctorId, NULL, 'TEST')",
+        "sql": "INSERT INTO PROCEDURE_ (order_id, note, technician_id, doctor_id, room_id, type) VALUES (:orderId, :note, :technicianId, :doctorId, NULL, :type)",
         "replacements": {
           "orderId": 601,
           "note": "fasting",
           "technicianId": 8,
-          "doctorId": 5
+          "doctorId": 5,
+          "type": "TEST"
         },
         "type": "INSERT",
         "tx": "tx1"
@@ -2806,15 +2717,15 @@
         "tx": null
       },
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -2912,12 +2823,13 @@
         "tx": "tx1"
       },
       {
-        "sql": "INSERT INTO PROCEDURE_ (order_id, note, technician_id, doctor_id, room_id, type) VALUES (:orderId, :note, :technicianId, :doctorId, NULL, 'TEST')",
+        "sql": "INSERT INTO PROCEDURE_ (order_id, note, technician_id, doctor_id, room_id, type) VALUES (:orderId, :note, :technicianId, :doctorId, NULL, :type)",
         "replacements": {
           "orderId": 601,
           "note": null,
           "technicianId": 9,
-          "doctorId": 5
+          "doctorId": 5,
+          "type": "TEST"
         },
         "type": "INSERT",
         "tx": "tx1"
@@ -2960,15 +2872,15 @@
     },
     "db": [
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -3033,15 +2945,15 @@
         "tx": null
       },
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -3144,15 +3056,15 @@
         "tx": null
       },
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -3226,12 +3138,13 @@
         "tx": "tx1"
       },
       {
-        "sql": "INSERT INTO PROCEDURE_ (order_id, note, technician_id, doctor_id, room_id, type) VALUES (:orderId, :note, :technicianId, :doctorId, NULL, 'TEST')",
+        "sql": "INSERT INTO PROCEDURE_ (order_id, note, technician_id, doctor_id, room_id, type) VALUES (:orderId, :note, :technicianId, :doctorId, NULL, :type)",
         "replacements": {
           "orderId": 601,
           "note": null,
           "technicianId": null,
-          "doctorId": 5
+          "doctorId": 5,
+          "type": "TEST"
         },
         "type": "INSERT",
         "tx": "tx1"
@@ -3902,16 +3815,7 @@
       "status": 400,
       "message": "Invalid patient id"
     },
-    "db": [
-      {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
-        "event": "rollback",
-        "tx": "tx1"
-      }
-    ]
+    "db": []
   },
   "create surgery, bad type": {
     "request": "POST /api/doctor/patients/OP0070/surgeries",
@@ -3937,20 +3841,12 @@
         "tx": null
       },
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "event": "rollback",
-        "tx": "tx1"
+        "tx": null
       }
     ]
   },
@@ -3978,20 +3874,12 @@
         "tx": null
       },
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "event": "rollback",
-        "tx": "tx1"
+        "tx": null
       }
     ]
   },
@@ -4003,15 +3891,15 @@
     },
     "db": [
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -4089,13 +3977,21 @@
         "tx": null
       },
       {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
         "event": "begin",
         "tx": "tx1"
       },
       {
-        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "sql": "SELECT COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.last_name, ''), ' ', COALESCE(u.first_name, ''))), ''), a.username) AS surgeonName FROM DOCTOR d JOIN USER u ON u.id = d.user_id LEFT JOIN ACCOUNT a ON a.user_id = d.user_id WHERE d.doctor_id = :doctorId LIMIT 1",
         "replacements": {
-          "n": 70
+          "doctorId": 12
         },
         "type": "SELECT",
         "tx": "tx1"
@@ -4171,22 +4067,15 @@
         "tx": "tx1"
       },
       {
-        "sql": "INSERT INTO PROCEDURE_ (order_id, note, technician_id, doctor_id, room_id, type) VALUES (:orderId, :note, NULL, :doctorId, NULL, :type)",
+        "sql": "INSERT INTO PROCEDURE_ (order_id, note, technician_id, doctor_id, room_id, type) VALUES (:orderId, :note, :technicianId, :doctorId, NULL, :type)",
         "replacements": {
           "orderId": 601,
           "note": " n ",
+          "technicianId": null,
           "doctorId": 5,
           "type": "Major Ambulatory Surgery"
         },
         "type": "INSERT",
-        "tx": "tx1"
-      },
-      {
-        "sql": "SELECT COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.last_name, ''), ' ', COALESCE(u.first_name, ''))), ''), a.username) AS surgeonName FROM DOCTOR d JOIN USER u ON u.id = d.user_id LEFT JOIN ACCOUNT a ON a.user_id = d.user_id WHERE d.doctor_id = :doctorId LIMIT 1",
-        "replacements": {
-          "doctorId": 12
-        },
-        "type": "SELECT",
         "tx": "tx1"
       },
       {
@@ -4247,15 +4136,15 @@
         "tx": null
       },
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -4329,10 +4218,11 @@
         "tx": "tx1"
       },
       {
-        "sql": "INSERT INTO PROCEDURE_ (order_id, note, technician_id, doctor_id, room_id, type) VALUES (:orderId, :note, NULL, :doctorId, NULL, :type)",
+        "sql": "INSERT INTO PROCEDURE_ (order_id, note, technician_id, doctor_id, room_id, type) VALUES (:orderId, :note, :technicianId, :doctorId, NULL, :type)",
         "replacements": {
           "orderId": 601,
           "note": null,
+          "technicianId": null,
           "doctorId": 5,
           "type": "Day Surgery"
         },
@@ -4384,96 +4274,15 @@
         "tx": null
       },
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
-        "tx": "tx1"
+        "tx": null
       },
       {
-        "sql": "SELECT doctor_id FROM DOCTOR WHERE user_id = :userId LIMIT 1",
-        "replacements": {
-          "userId": 21
-        },
-        "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "sql": "SELECT id FROM DISEASE WHERE icd_code = :icd LIMIT 1",
-        "replacements": {
-          "icd": "Z00.0"
-        },
-        "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "sql": "SELECT id FROM REGIMEN WHERE patient_id = :patientId AND `end` IS NULL ORDER BY id DESC LIMIT 1",
-        "replacements": {
-          "patientId": 7
-        },
-        "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "sql": "SELECT cr.department_id AS deptId FROM APPOINTMENT a JOIN CLINIC_ROOM cr ON cr.id = a.room_id WHERE a.patient_id = :patientId AND cr.department_id IS NOT NULL ORDER BY a.time DESC, a.id DESC LIMIT 1",
-        "replacements": {
-          "patientId": 7
-        },
-        "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "sql": "SELECT cr.department_id AS deptId FROM DOCTOR d LEFT JOIN CLINIC_ROOM cr ON cr.id = d.room_id WHERE d.doctor_id = :doctorId LIMIT 1",
-        "replacements": {
-          "doctorId": 5
-        },
-        "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "sql": "SELECT dd.department_id AS deptId FROM DOCTOR_DEPARTMENT dd WHERE dd.doctor_id = :doctorId ORDER BY dd.department_id ASC LIMIT 1",
-        "replacements": {
-          "doctorId": 5
-        },
-        "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "sql": "INSERT INTO TREATMENT (time, `condition`, type, regimen_id, doctor_id, room_id, dept_id) VALUES (NOW(), :complaint, :type, :regimenId, :doctorId, :roomId, :deptId)",
-        "replacements": {
-          "complaint": "Surgery",
-          "type": "Surgery",
-          "regimenId": 99,
-          "doctorId": 5,
-          "deptId": null,
-          "roomId": null
-        },
-        "type": "INSERT",
-        "tx": "tx1"
-      },
-      {
-        "sql": "INSERT INTO `ORDER` (status, treatment_id) VALUES (:status, :treatmentId)",
-        "replacements": {
-          "status": "active",
-          "treatmentId": 501
-        },
-        "type": "INSERT",
-        "tx": "tx1"
-      },
-      {
-        "sql": "INSERT INTO PROCEDURE_ (order_id, note, technician_id, doctor_id, room_id, type) VALUES (:orderId, :note, NULL, :doctorId, NULL, :type)",
-        "replacements": {
-          "orderId": 601,
-          "note": null,
-          "doctorId": 5,
-          "type": "Day Surgery"
-        },
-        "type": "INSERT",
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -4514,15 +4323,15 @@
         "tx": null
       },
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -4625,15 +4434,15 @@
         "tx": null
       },
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
         "replacements": {
           "n": 70
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -4707,10 +4516,11 @@
         "tx": "tx1"
       },
       {
-        "sql": "INSERT INTO PROCEDURE_ (order_id, note, technician_id, doctor_id, room_id, type) VALUES (:orderId, :note, NULL, :doctorId, NULL, :type)",
+        "sql": "INSERT INTO PROCEDURE_ (order_id, note, technician_id, doctor_id, room_id, type) VALUES (:orderId, :note, :technicianId, :doctorId, NULL, :type)",
         "replacements": {
           "orderId": 601,
           "note": null,
+          "technicianId": null,
           "doctorId": 5,
           "type": "Day Surgery"
         },

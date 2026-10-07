@@ -1,6 +1,6 @@
-const { QueryTypes } = require('sequelize');
 const crypto = require('crypto');
 const { config } = require('../../config/env');
+const prescriptionRepository = require('../../repositories/prescriptionRepository');
 
 const {
   prescriptionType: BYT_PRESCRIPTION_TYPE,
@@ -12,23 +12,19 @@ const {
 
 const BYT_DEFAULT_PATIENT_ADDRESS = BYT_FACILITY_ADDRESS;
 
-async function resolveBytDefaultsForPatient(sequelize, patientPk, bodyByt, patientDemo, ageMonths, transaction) {
-  const relRows = await sequelize.query(
-    `SELECT name, tel FROM RELATIVE WHERE patient_id = :pk LIMIT 1`,
-    { replacements: { pk: patientPk }, type: QueryTypes.SELECT, transaction }
-  );
-  const rel = relRows?.[0] || null;
+/**
+ * BYT header fields for a new prescription: body values, else the first RELATIVE (contact phone;
+ * guardian for children under 72 months), the latest recorded weight, and facility defaults.
+ */
+async function resolveBytDefaultsForPatient(patientPk, bodyByt, patientDemo, ageMonths, transaction) {
+  const rel = await prescriptionRepository.findFirstRelative(patientPk, transaction);
   const relPhone = String(rel?.tel || '').trim();
   const relName = String(rel?.name || '').trim();
   const patientPhone = String(patientDemo?.tel || '').trim();
 
   let patientWeightKg = String(bodyByt?.patientWeightKg || '').trim();
   if (!patientWeightKg) {
-    const mrRows = await sequelize.query(
-      `SELECT weight FROM MEDICAL_RECORD WHERE patient_id = :pk ORDER BY time DESC LIMIT 1`,
-      { replacements: { pk: patientPk }, type: QueryTypes.SELECT, transaction }
-    );
-    const w = mrRows?.[0]?.weight;
+    const w = await prescriptionRepository.findLatestWeight(patientPk, transaction);
     if (w != null && Number(w) > 0) patientWeightKg = String(w);
   }
 
@@ -60,6 +56,12 @@ function randomBase36Lower(length) {
   return out.slice(0, length);
 }
 
+/** BYT prescription type: 'N' / 'H' (case-insensitive), anything else 'C'. */
+function normalizeBytPrescriptionType(raw) {
+  const t = String(raw || '').toUpperCase();
+  return t === 'N' || t === 'H' ? t : 'C';
+}
+
 function isBytCodeShape(code) {
   return /^[A-Z0-9]{5}[a-z0-9]{7}-[NHC]$/.test(String(code || ''));
 }
@@ -86,31 +88,17 @@ function buildPrescriptionMetaNote({ department, byt }) {
   });
 }
 
-async function generateUniqueBytPrescriptionCode(sequelizeRef, { facilityCode, type, transaction }) {
+/** `<facility:5><random:7>-<type>`, retried until no stored prescription uses it (max 20 tries). */
+async function generateUniqueBytPrescriptionCode({ facilityCode, type, transaction }) {
   const facility = String(facilityCode || BYT_FACILITY_CODE)
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, '')
     .padEnd(5, '0')
     .slice(0, 5);
-  const t = String(type || BYT_PRESCRIPTION_TYPE).toUpperCase() === 'N'
-    ? 'N'
-    : String(type || BYT_PRESCRIPTION_TYPE).toUpperCase() === 'H'
-      ? 'H'
-      : 'C';
+  const t = normalizeBytPrescriptionType(type || BYT_PRESCRIPTION_TYPE);
   for (let i = 0; i < 20; i += 1) {
     const candidate = `${facility}${randomBase36Lower(7)}-${t}`;
-    const rows = await sequelizeRef.query(
-      `SELECT order_id
-       FROM MEDICAL_PRESCRIPTION
-       WHERE note LIKE :needle
-       LIMIT 1`,
-      {
-        replacements: { needle: `%${candidate}%` },
-        type: QueryTypes.SELECT,
-        ...(transaction ? { transaction } : {}),
-      }
-    );
-    if (!rows[0]) return candidate;
+    if (!(await prescriptionRepository.bytCodeInUse(candidate, transaction))) return candidate;
   }
   throw new Error('Unable to generate unique BYT prescription code');
 }
@@ -124,6 +112,7 @@ module.exports = {
   buildPrescriptionMetaNote,
   generateUniqueBytPrescriptionCode,
   isBytCodeShape,
+  normalizeBytPrescriptionType,
   parsePrescriptionMetaNote,
   resolveBytDefaultsForPatient,
 };

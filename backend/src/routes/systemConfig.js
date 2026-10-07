@@ -1,5 +1,8 @@
 const router = require('express').Router();
-const SystemConfigController = require('../controllers/systemConfigController');
+const configController = require('../controllers/systemConfig/configController');
+const sessionController = require('../controllers/systemConfig/sessionController');
+const featureController = require('../controllers/systemConfig/featureController');
+const aiModelController = require('../controllers/systemConfig/aiModelController');
 const authenticateToken = require('../middleware/authMiddleware');
 
 const requireAdmin = (req, res, next) => {
@@ -12,20 +15,20 @@ const requireAdmin = (req, res, next) => {
 router.use(authenticateToken);
 router.use(requireAdmin);
 
-router.get('/', SystemConfigController.getConfig);
-router.put('/', SystemConfigController.updateConfig);
-router.get('/sessions', SystemConfigController.getSessions);
-router.delete('/sessions/:id', SystemConfigController.revokeSession);
-router.post('/sessions/revoke-all', SystemConfigController.revokeAllSessions);
-router.get('/features', SystemConfigController.getFeatures);
-router.put('/features/:id/status', SystemConfigController.updateFeatureStatus);
-router.get('/ai-model-catalog', SystemConfigController.getAiModelCatalog);
-router.put('/ai-model-catalog', SystemConfigController.upsertAiModelCatalogEntry);
-router.delete('/ai-model-catalog', SystemConfigController.deleteAiModelCatalogEntry);
-router.get('/ai-models', SystemConfigController.getAiModels);
-router.put('/ai-models', SystemConfigController.upsertAiModel);
-router.delete('/ai-models', SystemConfigController.deleteAiModel);
-router.put('/ai-models/default', SystemConfigController.setAiDefaultModel);
+router.get('/', configController.getConfig);
+router.put('/', configController.updateConfig);
+router.get('/sessions', sessionController.getSessions);
+router.delete('/sessions/:id', sessionController.revokeSession);
+router.post('/sessions/revoke-all', sessionController.revokeAllSessions);
+router.get('/features', featureController.getFeatures);
+router.put('/features/:id/status', featureController.updateFeatureStatus);
+router.get('/ai-model-catalog', aiModelController.getAiModelCatalog);
+router.put('/ai-model-catalog', aiModelController.upsertAiModelCatalogEntry);
+router.delete('/ai-model-catalog', aiModelController.deleteAiModelCatalogEntry);
+router.get('/ai-models', aiModelController.getAiModels);
+router.put('/ai-models', aiModelController.upsertAiModel);
+router.delete('/ai-models', aiModelController.deleteAiModel);
+router.put('/ai-models/default', aiModelController.setAiDefaultModel);
 
 module.exports = router;
 

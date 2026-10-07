@@ -129,7 +129,9 @@ SQL đã chuyển khỏi controller; controller chỉ còn HTTP (`asyncHandler`)
 - [x] 33 handler chuyển sang `asyncHandler` (`sendResult` / `sendJson`), 465 → 121 dòng. Test: `test/appointment-controller-passthrough.test.js` (tham số gửi service, kết quả trả nguyên, lỗi → 500 chung).
 - [x] Bỏ `/api/chatbot` (proxy OpenRouter **không xác thực**, không ai dùng, gửi key sai header) + `OPENROUTER_API_KEY`.
 - [x] Nhóm 1 — `appointmentPatientService`, `appointmentFeedbackService`, `appointmentCatalogService`, chi tiết xét nghiệm portal: trả dữ liệu + throw `AppError`. Test: `test/appointment-patient-characterization.test.js` (44 kịch bản).
-- [ ] Nhóm 2 — `appointmentSlotService`, `appointmentNurseService` (vẫn `{ status, json }` + tự kiểm tra role).
+- [x] Nhóm 2 — `appointmentSlotService`, `appointmentNurseService`: throw `AppError`, kiểm tra role chuyển hết ra route (`appointments.read.open_slots` mới cho `GET /open-slots`). Test: `test/appointment-slots-nurse-characterization.test.js` (53 kịch bản); fake DB chạy được managed transaction.
+  - Y tá đổi giờ / phòng của slot **đã có bệnh nhân** (cùng bác sĩ): không ai được thông báo — chỉ đổi bác sĩ mới báo bệnh nhân.
+  - `POST /nurse/regimen/checkout` (legacy) chỉ đóng REGIMEN, không hoàn tất / gỡ liên kết lịch hẹn như "kết thúc khám" của bác sĩ.
 - [ ] Nhóm 3 — `appointmentAiService`.
 - [x] Sửa: `GET /api/appointments/patients` (mọi bệnh nhân + chẩn đoán gần nhất) chỉ cho nhân viên EMR (`doctor.emr.read`); trước đây bệnh nhân nào cũng gọi được.
 - Frontend: `pages/technician/patients.tsx` gọi cứng `http://localhost:3000/api/appointments/patients` (hỏng khi deploy). `getPortalPatients` truy vấn N+1 (mỗi bệnh nhân 2 truy vấn).

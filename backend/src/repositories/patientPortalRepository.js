@@ -20,6 +20,7 @@ async function listPortalPatientBaseRows() {
   return sequelize.query(
     `SELECT
        u.id AS id,
+       pt.patient_id AS patientPk,
        a.username AS username,
        u.first_name AS firstName,
        u.last_name AS lastName,
@@ -55,8 +56,8 @@ async function listPortalPatientBaseRows() {
   );
 }
 
-/** @param {string} idCsv comma-separated numeric patient PKs (caller validates) */
-async function listTodayScheduledAppointmentsForPatientIdCsv(idCsv) {
+/** Today's scheduled appointments of these patients (APPOINTMENT.patient_id may hold the PK or, on old rows, the USER id). */
+async function listTodayScheduledAppointmentsForPatients(patientIds) {
   return sequelize.query(
     `SELECT
        a.patient_id AS patientId,
@@ -84,32 +85,36 @@ async function listTodayScheduledAppointmentsForPatientIdCsv(idCsv) {
      WHERE DATE(a.time) = :clinicToday
        AND a.status = 'scheduled'
        AND (
-         a.patient_id IN (${idCsv})
-         OR a.patient_id IN (SELECT p.user_id FROM PATIENT p WHERE p.patient_id IN (${idCsv}))
+         a.patient_id IN (:patientIds)
+         OR a.patient_id IN (SELECT p.user_id FROM PATIENT p WHERE p.patient_id IN (:patientIds))
        )
      ORDER BY a.patient_id ASC, a.time ASC, a.id ASC`,
-    { replacements: { clinicToday: getClinicTodayYmd() }, type: QueryTypes.SELECT }
+    { replacements: { clinicToday: getClinicTodayYmd(), patientIds }, type: QueryTypes.SELECT }
   );
 }
 
-async function selectLatestStandaloneDiagnosisRows(patientPk) {
+/** Latest standalone diagnosis of each patient in `patientPks` (one row per patient that has one, tagged `patientPk`). */
+async function listLatestStandaloneDiagnosisRowsForPatients(patientPks) {
   return sequelize.query(
-    `SELECT
-       dis.icd_code AS icd10,
-       dis.description AS interpretation,
-       t.time AS visitTime,
-       COALESCE(NULLIF(TRIM(CONCAT(COALESCE(du.first_name, ''), ' ', COALESCE(du.last_name, ''))), ''), da.username, CONCAT('doctor#', d.user_id)) AS doctorName
-     FROM TREATMENT t
-     JOIN REGIMEN r ON r.id = t.regimen_id
-     LEFT JOIN DISEASE dis ON dis.id = r.disease_id
-     LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id
-     LEFT JOIN USER du ON du.id = d.user_id
-     LEFT JOIN ACCOUNT da ON da.user_id = d.user_id
-     WHERE r.patient_id = :patientPk
-     ${SQL_STANDALONE_DIAGNOSIS_ONLY}
-     ORDER BY t.time DESC
-     LIMIT 1`,
-    { replacements: { patientPk }, type: QueryTypes.SELECT }
+    `SELECT patientPk, icd10, interpretation, visitTime, doctorName
+     FROM (
+       SELECT
+         r.patient_id AS patientPk,
+         dis.icd_code AS icd10,
+         dis.description AS interpretation, t.time AS visitTime,
+         COALESCE(NULLIF(TRIM(CONCAT(COALESCE(du.first_name, ''), ' ', COALESCE(du.last_name, ''))), ''), da.username, CONCAT('doctor#', d.user_id)) AS doctorName,
+         ROW_NUMBER() OVER (PARTITION BY r.patient_id ORDER BY t.time DESC, t.id DESC) AS rn
+       FROM TREATMENT t
+       JOIN REGIMEN r ON r.id = t.regimen_id
+       LEFT JOIN DISEASE dis ON dis.id = r.disease_id
+       LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id
+       LEFT JOIN USER du ON du.id = d.user_id
+       LEFT JOIN ACCOUNT da ON da.user_id = d.user_id
+       WHERE r.patient_id IN (:patientPks)
+       ${SQL_STANDALONE_DIAGNOSIS_ONLY}
+     ) latest
+     WHERE rn = 1`,
+    { replacements: { patientPks }, type: QueryTypes.SELECT }
   );
 }
 
@@ -587,8 +592,8 @@ async function listTestDetailsForTest(testId) {
 
 module.exports = {
   listPortalPatientBaseRows,
-  listTodayScheduledAppointmentsForPatientIdCsv,
-  selectLatestStandaloneDiagnosisRows,
+  listTodayScheduledAppointmentsForPatients,
+  listLatestStandaloneDiagnosisRowsForPatients,
   selectPatientDashboardBundle,
   selectMedicalVisitsBundle,
   listCompletedRegimensForPatient,

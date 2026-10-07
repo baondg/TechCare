@@ -4,7 +4,7 @@ const adminDashboardController = require('../controllers/admin/dashboardControll
 const accountController = require('../controllers/admin/accountController');
 const feedbackController = require('../controllers/admin/feedbackController');
 const authenticateToken = require('../middleware/authMiddleware');
-const { normalizeRoleFromCode } = require('../security/roleMapping');
+const { authorizeCapability } = require('../middleware/authorizeCapability');
 const { validate } = require('../middleware/validate');
 const {
   accountIdParams,
@@ -13,15 +13,8 @@ const {
   updateFeedbackBody,
 } = require('../validators/adminSchemas');
 
-const requireAdmin = (req, res, next) => {
-  if (!req.user || normalizeRoleFromCode(req.user.role) !== 'admin') {
-    return res.status(403).json({ success: false, message: 'Admin access required' });
-  }
-  return next();
-};
-
 router.use(authenticateToken);
-router.use(requireAdmin);
+router.use(authorizeCapability('admin.console', { message: 'Admin access required' }));
 
 router.get('/dashboard-summary', adminDashboardController.getDashboardSummary);
 router.get('/departments', accountController.listDepartments);

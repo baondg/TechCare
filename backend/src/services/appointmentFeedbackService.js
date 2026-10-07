@@ -24,34 +24,15 @@ async function listVisible() {
   return { success: true, feedbacks: (rows || []).map(mapPatientFeedbackRow) };
 }
 
-/**
- * @returns {{ status: number, json: object }}
- */
+/** New feedback (content / rating 1–5 checked by the route validator); returns it as listed. */
 async function create({ userId, body }) {
-  const content = String(body?.content || '').trim();
-  const type = String(body?.type || 'general').trim();
-  const rating = Number(body?.rating);
-
-  if (!content) {
-    return { status: 400, json: { success: false, message: 'Feedback content is required' } };
-  }
-  if (!Number.isFinite(rating) || rating < 1 || rating > 5) {
-    return { status: 400, json: { success: false, message: 'Rating must be between 1 and 5' } };
-  }
-
   const insertId = await appointmentFeedbackRepository.insertFeedbackRow({
     userId,
-    content,
-    type,
-    rating,
+    content: String(body.content).trim(),
+    type: String(body.type || 'general').trim(),
+    rating: Number(body.rating),
   });
-
-  const created = await appointmentFeedbackRepository.selectFeedbackById(insertId);
-
-  return {
-    status: 201,
-    json: { success: true, feedback: mapPatientFeedbackRow(created) },
-  };
+  return mapPatientFeedbackRow(await appointmentFeedbackRepository.selectFeedbackById(insertId));
 }
 
 module.exports = {

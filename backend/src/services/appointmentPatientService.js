@@ -6,6 +6,7 @@ const {
   notifyDoctorPatientCancelledAppointment,
 } = require('./appointmentNotifications');
 const cacheService = require('./cacheService');
+const { BadRequestError, ConflictError, NotFoundError } = require('../errors/AppError');
 const { config } = require('../config/env');
 
 const APPOINTMENTS_LIST_CACHE_TTL_SECONDS = config.cache.appointmentsListTtlSeconds;
@@ -21,8 +22,10 @@ async function invalidateAppointmentsListCache(patientPk) {
 }
 
 /**
- * Patient portal: book or reschedule appointment.
- * @returns {{ ok: true, status: number, json: object } | { ok: false, status: number, json: object }}
+ * Patient portal: books a slot (an open slot of the doctor at that time and room, else a new
+ * appointment), awaiting the doctor's acceptance. With `rescheduleFromAppointmentId` the old booking
+ * is released in the same transaction. Required fields are checked by the route validator.
+ * Room: `room` by name ("Room " prefix ignored), else the doctor's room, else any clinic room.
  */
 async function createAppointment({ userId, body }) {
   const {
@@ -40,150 +43,87 @@ async function createAppointment({ userId, body }) {
 
   const doctorPk = Number(doctorIdBody);
   const useDoctorPk = Number.isFinite(doctorPk) && doctorPk > 0;
-  if ((!doctor && !useDoctorPk) || !department || !date || !time) {
-    return { ok: false, status: 400, json: { message: 'Missing required fields' } };
-  }
-
   const rescheduleFrom = Number(rescheduleFromAppointmentId ?? rescheduleFromId);
   const useReschedule = Number.isFinite(rescheduleFrom) && rescheduleFrom > 0;
   const t = useReschedule ? await sequelize.transaction() : null;
 
+  let id;
+  let doctorRow;
+  let patientId;
   try {
-    const patientId = await appointmentRepository.findPatientIdByUserId(userId);
-    if (!patientId) {
-      if (t) await t.rollback();
-      return { ok: false, status: 400, json: { message: 'Patient profile not found' } };
+    patientId = await appointmentRepository.findPatientIdByUserId(userId);
+    if (!patientId) throw new BadRequestError('Patient profile not found');
+
+    if (useReschedule && !(await appointmentRepository.findRescheduleSourceAppointment(rescheduleFrom, patientId, t))) {
+      throw new BadRequestError('Original appointment not found or cannot be rescheduled');
     }
 
-    if (useReschedule) {
-      const fc = await appointmentRepository.findRescheduleSourceAppointment(rescheduleFrom, patientId, t);
-      if (!fc) {
-        await t.rollback();
-        return {
-          ok: false,
-          status: 400,
-          json: { message: 'Original appointment not found or cannot be rescheduled' },
-        };
-      }
-    }
-
-    const doctorRow = useDoctorPk
+    doctorRow = useDoctorPk
       ? await appointmentRepository.findDoctorByPrimaryKey(doctorPk)
       : await appointmentRepository.findDoctorByDisplayInput(doctor);
-    if (!doctorRow) {
-      if (t) await t.rollback();
-      return { ok: false, status: 400, json: { message: 'Doctor not found' } };
-    }
+    if (!doctorRow) throw new BadRequestError('Doctor not found');
 
     const dateTime = `${date} ${String(time).slice(0, 8)}`;
     const normalizedRoomName = String(room || '').trim().replace(/^room\s+/i, '');
-    let roomId = null;
-    if (normalizedRoomName) {
-      roomId = await appointmentRepository.findClinicRoomIdByName(normalizedRoomName, t);
-    }
-    if (!roomId) {
-      roomId = doctorRow.room_id || null;
-    }
-    if (!roomId) {
-      roomId = await appointmentRepository.findAnyClinicRoomId(t);
-    }
-    if (!roomId) {
-      if (t) await t.rollback();
-      return { ok: false, status: 400, json: { message: 'No clinic room available to schedule appointment' } };
-    }
+    const roomId =
+      (normalizedRoomName ? await appointmentRepository.findClinicRoomIdByName(normalizedRoomName, t) : null) ||
+      doctorRow.room_id ||
+      (await appointmentRepository.findAnyClinicRoomId(t));
+    if (!roomId) throw new BadRequestError('No clinic room available to schedule appointment');
 
-    const existingSlot = await appointmentRepository.findScheduledSlotAtDoctorRoomTime(
-      doctorRow.doctor_id,
-      roomId,
-      dateTime,
-      t
-    );
-
-    let id;
+    const condition = symptoms || notes || 'General consultation';
+    const existingSlot = await appointmentRepository.findScheduledSlotAtDoctorRoomTime(doctorRow.doctor_id, roomId, dateTime, t);
     if (existingSlot?.id) {
       const slotRow = await appointmentRepository.getAppointmentPatientId(existingSlot.id, t);
-      if (slotRow?.patientId) {
-        if (t) await t.rollback();
-        return {
-          ok: false,
-          status: 409,
-          json: { message: 'This time slot is already booked. Please choose another time.' },
-        };
-      }
-      await appointmentRepository.bookPatientOnAppointment(
-        existingSlot.id,
-        patientId,
-        symptoms || notes || 'General consultation',
-        t
-      );
+      if (slotRow?.patientId) throw new ConflictError('This time slot is already booked. Please choose another time.');
+      await appointmentRepository.bookPatientOnAppointment(existingSlot.id, patientId, condition, t);
       id = existingSlot.id;
     } else {
       id = await appointmentRepository.insertAppointmentRow(
-        {
-          time: dateTime,
-          condition: symptoms || notes || 'General consultation',
-          patientId,
-          doctorId: doctorRow.doctor_id,
-          roomId,
-        },
+        { time: dateTime, condition, patientId, doctorId: doctorRow.doctor_id, roomId },
         t
       );
     }
 
     if (useReschedule) {
-      if (Number(id) === rescheduleFrom) {
-        await t.rollback();
-        return { ok: false, status: 400, json: { message: 'Choose a different time slot to reschedule' } };
-      }
+      if (Number(id) === rescheduleFrom) throw new BadRequestError('Choose a different time slot to reschedule');
       await appointmentRepository.releaseRescheduleSourceAppointment(rescheduleFrom, patientId, t);
       await t.commit();
-      await notifyDoctorsAfterPatientReschedule({
-        fromAppointmentId: rescheduleFrom,
-        toAppointmentId: id,
-        patientId,
-      });
     }
-
-    await notifyDoctorPatientBooked(id);
-    await invalidateAppointmentsListCache(patientId);
-
-    return {
-      ok: true,
-      status: 201,
-      json: {
-        success: true,
-        appointment: {
-          id,
-          doctor: `Dr. ${doctorRow.first_name || ''} ${doctorRow.last_name || ''}`.trim(),
-          department,
-          date,
-          time,
-          room: room || '',
-          symptoms: symptoms || '',
-          notes: notes || '',
-          status: 'Pending',
-          awaitingDoctorConfirmation: true,
-        },
-      },
-    };
   } catch (error) {
     if (t) await t.rollback();
     throw error;
   }
+
+  if (useReschedule) {
+    await notifyDoctorsAfterPatientReschedule({ fromAppointmentId: rescheduleFrom, toAppointmentId: id, patientId });
+  }
+  await notifyDoctorPatientBooked(id);
+  await invalidateAppointmentsListCache(patientId);
+
+  return {
+    id,
+    doctor: `Dr. ${doctorRow.first_name || ''} ${doctorRow.last_name || ''}`.trim(),
+    department,
+    date,
+    time,
+    room: room || '',
+    symptoms: symptoms || '',
+    notes: notes || '',
+    status: 'Pending',
+    awaitingDoctorConfirmation: true,
+  };
 }
 
+/** `{ success, appointments }` of the signed-in patient, newest first (cached per patient). */
 async function getAppointmentsForUser(userId) {
   const rawPid = await appointmentRepository.findPatientIdByUserId(userId);
   const patientId = Number(rawPid);
-  if (!Number.isFinite(patientId) || patientId <= 0) {
-    return { ok: true, status: 200, json: { success: true, appointments: [] } };
-  }
+  if (!Number.isFinite(patientId) || patientId <= 0) return { success: true, appointments: [] };
 
   const cacheKey = getAppointmentsListCacheKey(patientId);
   const cachedPayload = await cacheService.getJson(cacheKey);
-  if (cachedPayload) {
-    return { ok: true, status: 200, json: cachedPayload };
-  }
+  if (cachedPayload) return cachedPayload;
 
   const rows = await appointmentRepository.listPatientAppointmentsForPortal(patientId);
   const appointments = rows.map((r) => {
@@ -208,80 +148,62 @@ async function getAppointmentsForUser(userId) {
   });
   const payload = { success: true, appointments };
   await cacheService.setJson(cacheKey, payload, APPOINTMENTS_LIST_CACHE_TTL_SECONDS);
-  return { ok: true, status: 200, json: payload };
+  return payload;
 }
 
+const PORTAL_STATUS_TO_DB = {
+  Cancelled: 'cancelled',
+  Done: 'completed',
+  Upcoming: 'scheduled',
+  Confirmed: 'scheduled',
+  Pending: 'scheduled',
+  Rejected: 'cancelled',
+};
+
+/**
+ * Patient changes the status of their appointment (portal labels or raw DB status). Cancelling
+ * needs a reason and notifies the doctor. Returns `{ id, status }` (the label sent, default 'Upcoming').
+ */
 async function updatePatientAppointment({ userId, id, body }) {
-  const apptIdNum = Number(id);
   const patientId = await appointmentRepository.findPatientIdByUserId(userId);
-  if (!patientId) {
-    return { ok: false, status: 404, json: { message: 'Patient profile not found' } };
-  }
+  if (!patientId) throw new NotFoundError('Patient profile not found');
+  const apptRow = await appointmentRepository.findPatientAppointmentSummary(Number(id), patientId);
+  if (!apptRow?.apptId) throw new NotFoundError('Appointment not found or access denied');
 
-  const apptRow = await appointmentRepository.findPatientAppointmentSummary(apptIdNum, patientId);
-  if (!apptRow?.apptId) {
-    return { ok: false, status: 404, json: { message: 'Appointment not found or access denied' } };
-  }
-
-  const statusMap = {
-    Cancelled: 'cancelled',
-    Done: 'completed',
-    Upcoming: 'scheduled',
-    Confirmed: 'scheduled',
-    Pending: 'scheduled',
-    Rejected: 'cancelled',
-  };
-  const nextStatus = body.status ? (statusMap[body.status] || String(body.status).toLowerCase()) : null;
+  const nextStatus = body.status ? PORTAL_STATUS_TO_DB[body.status] || String(body.status).toLowerCase() : null;
+  const currentStatus = String(apptRow.apptStatus || '').toLowerCase();
 
   if (nextStatus === 'cancelled') {
-    const cancellationReason = String(body.cancellationReason ?? body.reason ?? '').trim();
-    if (!cancellationReason) {
-      return { ok: false, status: 400, json: { message: 'Cancellation reason is required' } };
+    const reason = String(body.cancellationReason ?? body.reason ?? '').trim();
+    if (!reason) throw new BadRequestError('Cancellation reason is required');
+    if (apptRow.apptStatus && currentStatus !== 'cancelled') {
+      await notifyDoctorPatientCancelledAppointment(id, reason);
     }
-    const curStatus = apptRow.apptStatus;
-    if (curStatus && String(curStatus).toLowerCase() !== 'cancelled') {
-      await notifyDoctorPatientCancelledAppointment(id, cancellationReason);
-    }
-    await appointmentRepository.setAppointmentCancelledWithReason(id, patientId, cancellationReason);
+    await appointmentRepository.setAppointmentCancelledWithReason(id, patientId, reason);
     await invalidateAppointmentsListCache(patientId);
-    return { ok: true, status: 200, json: { success: true, appointment: { id: Number(id), status: 'Cancelled' } } };
+    return { id: Number(id), status: 'Cancelled' };
   }
 
-  if (nextStatus) {
-    if (String(apptRow.apptStatus || '').toLowerCase() === String(nextStatus).toLowerCase()) {
-      return {
-        ok: true,
-        status: 200,
-        json: { success: true, appointment: { id: Number(id), status: body.status || 'Upcoming' } },
-      };
-    }
+  if (nextStatus && currentStatus !== nextStatus) {
     await appointmentRepository.setAppointmentStatusIfDifferent(id, patientId, nextStatus);
     await invalidateAppointmentsListCache(patientId);
   }
-  return {
-    ok: true,
-    status: 200,
-    json: { success: true, appointment: { id: Number(id), status: body.status || 'Upcoming' } },
-  };
+  return { id: Number(id), status: body.status || 'Upcoming' };
 }
 
+/** Patient cancels their appointment (reason checked by the route validator) and the doctor is told. */
 async function deletePatientAppointment({ userId, id, body }) {
   const patientId = await appointmentRepository.findPatientIdByUserId(userId);
-  const cancellationReason = String(body?.cancellationReason ?? body?.reason ?? '').trim();
-  if (!cancellationReason) {
-    return { ok: false, status: 400, json: { message: 'Cancellation reason is required' } };
+  const reason = String(body.cancellationReason ?? body.reason).trim();
+  if (!(await appointmentRepository.findOwnedAppointmentId(id, patientId))) {
+    throw new NotFoundError('Appointment not found or access denied');
   }
-  const own = await appointmentRepository.findOwnedAppointmentId(id, patientId);
-  if (!own) {
-    return { ok: false, status: 404, json: { message: 'Appointment not found or access denied' } };
+  const current = await appointmentRepository.getAppointmentStatusForPatient(id, patientId);
+  if (current?.status && String(current.status).toLowerCase() !== 'cancelled') {
+    await notifyDoctorPatientCancelledAppointment(id, reason);
   }
-  const curDel = await appointmentRepository.getAppointmentStatusForPatient(id, patientId);
-  if (curDel?.status && String(curDel.status).toLowerCase() !== 'cancelled') {
-    await notifyDoctorPatientCancelledAppointment(id, cancellationReason);
-  }
-  await appointmentRepository.cancelAppointmentByPatient(id, cancellationReason);
+  await appointmentRepository.cancelAppointmentByPatient(id, reason);
   await invalidateAppointmentsListCache(patientId);
-  return { ok: true, status: 200, json: { success: true, message: 'Appointment deleted successfully' } };
 }
 
 /** Patient PK for logged-in portal user (recovery / AI routes). */

@@ -32,7 +32,10 @@ const wantsRefresh = (query) => ['1', 'true'].includes(String(query?.refresh || 
 // ─── Feedback ───
 exports.getFeedbacks = sendJson((req) => appointmentFeedbackService.listForUser(req.user.userId));
 exports.getVisibleFeedbacks = sendJson(() => appointmentFeedbackService.listVisible());
-exports.createFeedback = sendResult((req) => appointmentFeedbackService.create({ userId: req.user.userId, body: req.body }));
+exports.createFeedback = asyncHandler(async (req, res) => {
+  const feedback = await appointmentFeedbackService.create({ userId: req.user.userId, body: req.body });
+  res.status(201).json({ success: true, feedback });
+});
 
 // ─── AI (patient) ───
 exports.getAiRecommendations = sendJson((req) => appointmentAiService.getAiRecommendations(req.user.userId));
@@ -65,9 +68,9 @@ exports.getStaffPatientRecoveryPrediction = sendResult(async (req) => {
 });
 
 // ─── Booking catalog (doctors with their departments, rooms, departments) ───
-exports.getDoctors = sendResult(() => appointmentCatalogService.getDoctors());
-exports.getClinicRooms = sendResult(() => appointmentCatalogService.getClinicRooms());
-exports.getDepartments = sendResult(() => appointmentCatalogService.getDepartments());
+exports.getDoctors = sendJson(async () => ({ success: true, doctors: await appointmentCatalogService.getDoctors() }));
+exports.getClinicRooms = sendJson(async () => ({ success: true, rooms: await appointmentCatalogService.getClinicRooms() }));
+exports.getDepartments = sendJson(async () => ({ success: true, departments: await appointmentCatalogService.getDepartments() }));
 
 // ─── Slots ───
 /** GET /booked-slots?date=YYYY-MM-DD — booked (time, doctor) pairs of a day. */
@@ -82,24 +85,28 @@ exports.updateOpenSlot = sendResult((req) =>
 exports.deleteOpenSlot = sendResult((req) => appointmentSlotService.deleteOpenSlot({ role: req.user.role, id: req.params.id }));
 
 // ─── Patient's own appointments + portal ───
-exports.createAppointment = sendResult((req) =>
-  appointmentPatientService.createAppointment({ userId: req.user.userId, body: req.body })
-);
-exports.getAppointments = sendResult((req) => appointmentPatientService.getAppointmentsForUser(req.user.userId));
-exports.updateAppointment = sendResult((req) =>
-  appointmentPatientService.updatePatientAppointment({ userId: req.user.userId, id: req.params.id, body: req.body })
-);
-exports.deleteAppointment = sendResult((req) =>
-  appointmentPatientService.deletePatientAppointment({ userId: req.user.userId, id: req.params.id, body: req.body })
-);
+exports.createAppointment = asyncHandler(async (req, res) => {
+  const appointment = await appointmentPatientService.createAppointment({ userId: req.user.userId, body: req.body });
+  res.status(201).json({ success: true, appointment });
+});
+exports.getAppointments = sendJson((req) => appointmentPatientService.getAppointmentsForUser(req.user.userId));
+exports.updateAppointment = sendJson(async (req) => ({
+  success: true,
+  appointment: await appointmentPatientService.updatePatientAppointment({ userId: req.user.userId, id: req.params.id, body: req.body }),
+}));
+exports.deleteAppointment = sendJson(async (req) => {
+  await appointmentPatientService.deletePatientAppointment({ userId: req.user.userId, id: req.params.id, body: req.body });
+  return { success: true, message: 'Appointment deleted successfully' };
+});
 exports.getPortalPatients = sendJson(() => appointmentPatientPortalService.getPortalPatients());
 exports.getPatientDashboardSummary = sendJson((req) => appointmentPatientPortalService.getPatientDashboardSummary(req.user.userId));
 exports.getPatientMedicalVisits = sendJson((req) => appointmentPatientPortalService.getPatientMedicalVisits(req.user.userId));
 exports.getPatientMedicalRegimens = sendJson((req) => appointmentPatientPortalService.getPatientMedicalRegimens(req.user.userId));
 exports.getPatientSymptomLogs = sendJson((req) => appointmentPatientPortalService.getPatientSymptomLogs(req.user.userId));
-exports.getPatientLabTestDetails = sendResult((req) =>
-  appointmentPatientPortalService.getPatientLabTestDetails(req.user.userId, req.params.testId)
-);
+exports.getPatientLabTestDetails = sendJson(async (req) => ({
+  success: true,
+  details: await appointmentPatientPortalService.getPatientLabTestDetails(req.user.userId, req.params.testId),
+}));
 
 // ─── Nurse check-in ───
 /** GET /nurse/check-in-options?patientId=OP00000001|1 */

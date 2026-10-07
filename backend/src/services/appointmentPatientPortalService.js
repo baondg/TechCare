@@ -1,3 +1,4 @@
+const { NotFoundError } = require('../errors/AppError');
 const appointmentRepository = require('../repositories/appointmentRepository');
 const patientPortalRepository = require('../repositories/patientPortalRepository');
 const appointmentNurseService = require('./appointmentNurseService');
@@ -543,28 +544,14 @@ async function getPatientSymptomLogs(userId) {
   };
 }
 
-/**
- * @returns {{ status: number, json: object }}
- */
+/** TEST_DETAIL lines of one of the signed-in patient's lab tests (test id checked by the route validator). */
 async function getPatientLabTestDetails(userId, testIdRaw) {
   const patientId = await appointmentRepository.findPatientIdByUserId(userId);
-  if (!patientId) {
-    return { status: 404, json: { success: false, message: 'Patient profile not found' } };
-  }
-
+  if (!patientId) throw new NotFoundError('Patient profile not found');
   const testId = Number(testIdRaw);
-  if (!Number.isFinite(testId) || testId <= 0) {
-    return { status: 400, json: { success: false, message: 'Invalid test id' } };
-  }
-
   const exists = await patientPortalRepository.selectLabTestIdIfPatientOwns(testId, patientId);
-  if (!exists[0]) {
-    return { status: 404, json: { success: false, message: 'Lab test not found' } };
-  }
-
-  const details = await patientPortalRepository.listTestDetailsForTest(testId);
-
-  return { status: 200, json: { success: true, details } };
+  if (!exists[0]) throw new NotFoundError('Lab test not found');
+  return patientPortalRepository.listTestDetailsForTest(testId);
 }
 
 module.exports = {

@@ -8,6 +8,7 @@ function parseDoctorDepartmentSet(value) {
     .filter(Boolean);
 }
 
+/** Booking catalog: doctors with their department names (DOCTOR_DEPARTMENT, else `specifications`). */
 async function getDoctors() {
   const rows = await appointmentRepository.listDoctorRowsForBookingCatalog();
   const byId = new Map();
@@ -46,21 +47,19 @@ async function getDoctors() {
     };
   });
 
-  return { ok: true, status: 200, json: { success: true, doctors } };
+  return doctors;
 }
 
 async function getClinicRooms() {
-  const rooms = await appointmentRepository.listClinicRoomsCatalog();
-  return { ok: true, status: 200, json: { success: true, rooms } };
+  return appointmentRepository.listClinicRoomsCatalog();
 }
 
 async function getDepartments() {
   const rows = await appointmentRepository.listDepartmentsCatalog();
-  const departments = (rows || []).map((r) => ({
+  return (rows || []).map((r) => ({
     id: Number(r.id),
     name: String(r.name || '').trim(),
   }));
-  return { ok: true, status: 200, json: { success: true, departments } };
 }
 
 module.exports = {

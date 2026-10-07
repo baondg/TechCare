@@ -11,6 +11,7 @@ const {
   BYT_FACILITY_PHONE,
   BYT_PRESCRIPTION_TYPE,
   buildPrescriptionMetaNote,
+  bytFieldsForDisplay,
   generateUniqueBytPrescriptionCode,
   isBytCodeShape,
   normalizeBytPrescriptionType,
@@ -75,27 +76,6 @@ function requireMedications(medications) {
   }
 }
 
-/** BYT fields as the list shows them: stored meta, facility defaults, '' for the rest. */
-function bytForList(storedByt) {
-  const byt = storedByt || {};
-  return {
-    code: isBytCodeShape(byt.code) ? String(byt.code) : null,
-    prescriptionType: normalizeBytPrescriptionType(byt.prescriptionType),
-    facilityCode: String(byt.facilityCode || BYT_FACILITY_CODE),
-    facilityName: String(byt.facilityName || BYT_FACILITY_NAME),
-    facilityAddress: String(byt.facilityAddress || BYT_FACILITY_ADDRESS),
-    facilityPhone: String(byt.facilityPhone || BYT_FACILITY_PHONE),
-    contactPhone: String(byt.contactPhone || ''),
-    guardianName: String(byt.guardianName || ''),
-    advice: String(byt.advice || ''),
-    insuranceId: String(byt.insuranceId || ''),
-    patientAddress: String(byt.patientAddress || ''),
-    patientWeightKg: String(byt.patientWeightKg || ''),
-    patientIdCard: String(byt.patientIdCard || ''),
-    patientPhone: String(byt.patientPhone || ''),
-  };
-}
-
 /** The patient's prescriptions with their lines, newest first. */
 async function listPrescriptions(patientIdParam, user) {
   const patientPk = await resolvePatientPkFromOpRoute(patientIdParam, null);
@@ -116,7 +96,7 @@ async function listPrescriptions(patientIdParam, user) {
         duration: Number(row.prescriptionDuration) || 7,
         /** No MEDICAL_PRESCRIPTION.status column — saved Rx is final (UI treats as signed). */
         signatureStatus: 'signed',
-        byt: bytForList(meta.byt),
+        byt: bytFieldsForDisplay(meta.byt),
         medications: [],
         createdAt: row.time,
         updatedAt: row.time,

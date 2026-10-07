@@ -155,7 +155,11 @@ Bước B — chuyển SQL từ controllers/doctor/* và services/emr/* xuống 
 - [x] **Đợt 4** — lịch hẹn phía bác sĩ: `repositories/doctorAppointmentRepository.js`, `services/doctorAppointmentService.js`; dùng lại `appointmentRepository` (phòng khám, cùng khoa, tên bác sĩ, bệnh nhân theo user), `staffRepository.findDoctorIdByUserId`, `coverRepository.reassignAppointmentDoctor`. Controller chỉ còn HTTP. Test: `test/doctor-appointments-characterization.test.js` (47 kịch bản).
   - ⚠️ `POST /api/doctor/appointments`: `department` chỉ được trả lại, không lưu; không kiểm tra định dạng ngày / giờ; chỉ chặn trùng lịch `scheduled` — nếu đã có bản ghi huỷ cùng giờ + phòng thì có thể vướng UNIQUE(time, doctor_id, room_id) → 500 (chưa kiểm chứng trên MySQL).
   - Nhờ khám thay (cover) kiểm tra rồi cập nhật không trong transaction (hai yêu cầu đồng thời có thể cùng lọt qua kiểm tra trùng giờ).
-- [ ] **Đợt 5** — `regimenController` (tách tiếp 2 handler ~300 dòng).
+- [x] **Đợt 5** — đợt khám (REGIMEN), phiếu, tài liệu, chuyển viện: `repositories/{regimen,regimenDocument,transfer}Repository.js` (+ `medicalRecordRepository.listVitalsByIds`), `services/emr/{regimenService,regimenDocumentsService,transferService}.js`. Hai handler ~300 dòng (tài liệu đợt đang mở, lịch sử đợt đã đóng) dùng chung một bộ truy vấn theo danh sách đợt (`IN (:regimenIds)` thay cho nối chuỗi id). Chuỗi dò phòng check-in thành một danh sách bước thử theo thứ tự. Kiểm tra quyền "chỉ bác sĩ" chuyển ra route (`authorizeCapability('doctor.emr.write')`, giữ câu báo); kiểm tra role trùng với `doctor.emr.read` của router đã bỏ. `bytFieldsForDisplay` dùng chung cho danh sách đơn thuốc và tài liệu đợt khám. Test: `test/doctor-regimen-characterization.test.js` (58 kịch bản).
+  - Kết thúc khám (`regimen/close`): đóng REGIMEN rồi cập nhật APPOINTMENT không trong transaction.
+  - Dò phòng check-in dùng `CURDATE()` (giờ của MySQL) — lệch múi giờ thì bước "hôm nay" có thể trượt; các bước theo `REGIMEN.start` bù lại.
+
+**Doctor / EMR bước B — xong:** `controllers/doctor/*` và `services/emr/*` không còn SQL.
 - `AppError(..., 500, { expose: true })` cho câu báo 5xx cố định mà người dùng cần thấy (vd. "Could not read signature").
 - **`prescriptionQueryCompat.js`** giữ SQL dùng chung cho đơn thuốc (đã là lớp compat).
 - **`src/index.ts`** vẫn truyền `sequelize` cho model/`SystemConfig`; scheduler dùng DB qua repository.

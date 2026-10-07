@@ -84,7 +84,7 @@ function parseMonthKey(monthKey: string): { year: number; month: number } {
   return { year: y || new Date().getFullYear(), month: m && m >= 1 && m <= 12 ? m : new Date().getMonth() + 1 }
 }
 
-/** Tabs + triggers aligned with doctor-layout-2 / App.css `.tabs-trigger`. */
+/** Tabs + triggers aligned with doctor-emr-layout / App.css `.tabs-trigger`. */
 export function ScheduleDashboardTabs({
   scheduleTab,
   onScheduleTabChange,

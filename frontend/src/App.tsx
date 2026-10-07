@@ -26,8 +26,8 @@ const UserManagement = lazy(() => import("./pages/admin/accountMng"))
 const FeedbackManagement = lazy(() => import("./pages/admin/feedback"))
 const DoctorDashboard = lazy(() => import("./pages/doctor/dashboard"))
 const DoctorPatients = lazy(() => import("./pages/doctor/patients"))
-const DoctorLayout2 = lazy(() =>
-  import("@/components/doctor-layout-2").then((m) => ({ default: m.DoctorLayout2 })),
+const DoctorEmrLayout = lazy(() =>
+  import("@/components/doctor-emr-layout").then((m) => ({ default: m.DoctorEmrLayout })),
 )
 const Doctor_EMRManagement = lazy(() => import("./pages/doctor/medical_records/dashboard"))
 const DoctorAppointment = lazy(() => import("./pages/doctor/appointment"))
@@ -35,8 +35,8 @@ const DoctorWorkShifts = lazy(() => import("./pages/doctor/work-shifts"))
 const DoctorFeedback = lazy(() => import("./pages/doctor/feedback"))
 const NurseDashboard = lazy(() => import("./pages/nurse/dashboard"))
 const NursePatients = lazy(() => import("./pages/nurse/patients"))
-const NurseLayout2 = lazy(() =>
-  import("@/components/nurse-layout-2").then((m) => ({ default: m.NurseLayout2 })),
+const NurseEmrLayout = lazy(() =>
+  import("@/components/nurse-emr-layout").then((m) => ({ default: m.NurseEmrLayout })),
 )
 const Nurse_EMRManagement = lazy(() => import("./pages/nurse/medical_records/dashboard"))
 const NurseAppointment = lazy(() => import("./pages/nurse/appointment"))
@@ -46,8 +46,8 @@ const NursePatientRegistration = lazy(() => import("./pages/nurse/patient-regist
 const NursePatientProfilePage = lazy(() => import("./pages/nurse/medical_records/patient-profile"))
 const TechnicianDashboard = lazy(() => import("./pages/technician/dashboard"))
 const TechnicianPatients = lazy(() => import("./pages/technician/patients"))
-const TechnicianLayout2 = lazy(() =>
-  import("@/components/technician-layout-2").then((m) => ({ default: m.TechnicianLayout2 })),
+const TechnicianEmrLayout = lazy(() =>
+  import("@/components/technician-emr-layout").then((m) => ({ default: m.TechnicianEmrLayout })),
 )
 const Technician_EMRManagement = lazy(() => import("./pages/technician/medical_records/lab"))
 const TechnicianWorkShifts = lazy(() => import("./pages/technician/work-shifts"))
@@ -148,7 +148,7 @@ function App() {
         {/* Protected doctor Routes */}
         <Route path="/doctor/dashboard" element={<DoctorDashboard />} />
         <Route path="/doctor/patients" element={<DoctorPatients />} />
-        <Route path="/doctor/medical_records/:patientId/:tab" element={<DoctorLayout2 />}>
+        <Route path="/doctor/medical_records/:patientId/:tab" element={<DoctorEmrLayout />}>
           <Route index element={<Doctor_EMRManagement />} />
         </Route>
         <Route path="/doctor/appointments" element={<DoctorAppointment />} />
@@ -161,7 +161,7 @@ function App() {
         <Route path="/nurse/dashboard" element={<NurseDashboard />} />
         <Route path="/nurse/patient-registration" element={<NursePatientRegistration />} />
         <Route path="/nurse/patients" element={<NursePatients />} />
-        <Route path="/nurse/medical_records/:patientId/:tab" element={<NurseLayout2 />}>
+        <Route path="/nurse/medical_records/:patientId/:tab" element={<NurseEmrLayout />}>
           <Route index element={<Nurse_EMRManagement />} />
         </Route>
         <Route path="/nurse/appointments" element={<NurseAppointment />} />
@@ -173,7 +173,7 @@ function App() {
         {/* Protected technician Routes */}
         <Route path="/technician/dashboard" element={<TechnicianDashboard />} />
         <Route path="/technician/patients" element={<TechnicianPatients />} />
-        <Route path="/technician/medical_records/:patientId/:tab" element={<TechnicianLayout2 />}>
+        <Route path="/technician/medical_records/:patientId/:tab" element={<TechnicianEmrLayout />}>
           <Route index element={<Technician_EMRManagement />} />
         </Route>
         <Route path="/technician/work-shifts" element={<TechnicianWorkShifts />} />

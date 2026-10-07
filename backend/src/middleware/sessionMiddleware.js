@@ -37,7 +37,8 @@ const getNumericConfig = async (key, fallback) => {
 };
 
 // Kiểm tra và làm sạch session định kỳ (mỗi 5 phút)
-setInterval(cleanupExpiredSessions, 5 * 60 * 1000);
+// unref: the timer must not keep the process alive on its own (tests, graceful shutdown).
+setInterval(cleanupExpiredSessions, 5 * 60 * 1000).unref();
 
 // Middleware kiểm tra session timeout
 exports.checkSessionTimeout = async (req, res, next) => {

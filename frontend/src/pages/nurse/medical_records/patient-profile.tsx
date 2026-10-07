@@ -23,7 +23,7 @@ function parseProfileRouteUserId(raw: string | undefined): number | null {
   if (!Number.isFinite(n) || n <= 0) return null
   return n
 }
-/** Shared by EMR tab (`nurse-layout-2`) và trang standalone (`/doctor/patients/:id/profile`). */
+/** Shared by EMR tab (`nurse-emr-layout`) và trang standalone (`/doctor/patients/:id/profile`). */
 export function NursePatientProfilePanel() {
   const { patientId } = useParams<{ patientId: string }>()
   const routeUserId = useMemo(() => parseProfileRouteUserId(patientId), [patientId])

@@ -69,7 +69,7 @@ type PatientHeader = {
   in_department?: string | null
 }
 
-export function NurseLayout2() {
+export function NurseEmrLayout() {
   const navigate = useNavigate()
   const { tab = "dashboard", patientId } = useParams()
   const { t } = useTranslation()
@@ -238,7 +238,7 @@ export function NurseLayout2() {
           </div>
         </Card>
 
-        {/* ===== Tabs (same pattern as doctor-layout-2: tabs then child page below) ===== */}
+        {/* ===== Tabs (same pattern as doctor-emr-layout: tabs then child page below) ===== */}
         <div className="sticky z-10 bg-white rounded-md w-fit">
           <Tabs value={tab} onValueChange={setActiveTab}>
             <TabsList className="inline-flex rounded-xl bg-tr p-1 gap-1">

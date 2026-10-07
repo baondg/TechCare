@@ -134,7 +134,7 @@ function parseFollowMinuteInputValue(s: string): number {
   return Math.min(59, Math.max(0, Number.parseInt(d, 10)))
 }
 
-export function DoctorLayout2() {
+export function DoctorEmrLayout() {
   const { toast, isExiting, showSuccess, showError, onMouseEnter, onMouseLeave } = usePauseableToast(2600)
   const navigate = useNavigate()
   const { tab = "dashboard", patientId } = useParams()

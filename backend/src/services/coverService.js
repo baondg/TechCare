@@ -86,7 +86,11 @@ async function acceptCoverRequest(userId, coverId) {
       return { status: 400, json: { success: false, message: 'Doctor profile not found' } };
     }
 
-    const cr = await coverRepository.selectPendingCoverRequestForAccept(coverId, transaction);
+    const cr = await coverRepository.selectPendingCoverRequestForAccept(
+      coverId,
+      { spec: doctorInfo.specifications, myDoctorId: doctorInfo.doctor_id },
+      transaction
+    );
     if (!cr) {
       await transaction.rollback();
       return { status: 404, json: { success: false, message: 'Cover request not found or already handled' } };

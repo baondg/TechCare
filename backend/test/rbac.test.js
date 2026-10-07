@@ -138,3 +138,10 @@ test('system config contract: buildRateLimitPolicyFromKvMap fallback defaults', 
   assert.equal(p.maxRequests, 99);
   assert.equal(p.windowSeconds, 77);
 });
+
+test('cover requests are doctor-only (admins have no doctor profile to cover with)', () => {
+  assert.equal(isRoleAllowed('doctor.cover.manage', 'doctor'), true);
+  for (const role of ['admin', 'nurse', 'technician', 'patient']) {
+    assert.equal(isRoleAllowed('doctor.cover.manage', role), false, role);
+  }
+});

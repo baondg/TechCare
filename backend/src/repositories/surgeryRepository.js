@@ -81,7 +81,7 @@ async function findSurgery(id) {
   return rows[0] || null;
 }
 
-async function updateSurgery(id, { type, start, end, duration, urgency, surgeon, result }) {
+async function updateSurgery(id, { type, start, end, duration, urgency, surgeon, result }, transaction) {
   await sequelize.query(
     `UPDATE SURGERY SET
        type = :type,
@@ -95,6 +95,7 @@ async function updateSurgery(id, { type, start, end, duration, urgency, surgeon,
     {
       replacements: { id, type, start, end, duration, urgency, surgeon, result },
       type: QueryTypes.UPDATE,
+      transaction,
     }
   );
 }

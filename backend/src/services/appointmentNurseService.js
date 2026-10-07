@@ -223,7 +223,10 @@ async function postNurseCheckInReschedule({ body }) {
   return { appointment: updated ? mapNurseCheckInRow(updated) : { id: toAppointmentId }, regimenId };
 }
 
-/** Legacy / admin: ends one open visit of the patient (doctors close visits on the doctor routes). */
+/**
+ * Legacy / admin (no page uses it; doctors close visits on the doctor routes): ends one open visit of
+ * the patient and, like the doctor's close, completes its scheduled appointments and unlinks them.
+ */
 async function postNurseRegimenCheckout({ body }) {
   const regimenId = Number(body.regimenId);
   const patientId = await requirePatientPk(body.patientId);
@@ -231,6 +234,8 @@ async function postNurseRegimenCheckout({ body }) {
     throw new NotFoundError('No open visit regimen found for this patient');
   }
   await sequelize.transaction(async (transaction) => {
+    // Complete first: closeRegimenEndNow also clears APPOINTMENT.regimen_id, which this matches on.
+    await nurseCheckInRepository.completeAppointmentsForClosedRegimens(patientId, [regimenId], transaction);
     await nurseCheckInRepository.closeRegimenEndNow(regimenId, patientId, transaction);
   });
   return regimenId;

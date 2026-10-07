@@ -128,7 +128,6 @@
   "GET /api/cover/my-requests",
   "PUT /api/cover/:id/accept",
   "PUT /api/cover/:id/reject",
-  "POST /api/chatbot/",
   "GET /health",
   "GET /"
 ]

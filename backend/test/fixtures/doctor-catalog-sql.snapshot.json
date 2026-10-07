@@ -1,0 +1,833 @@
+{
+  "patient is refused": {
+    "request": "GET /api/doctor/diseases",
+    "response": {
+      "status": 403,
+      "message": "Forbidden"
+    },
+    "db": []
+  },
+  "diseases, all": {
+    "request": "GET /api/doctor/diseases",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "diseases": [
+          {
+            "code": "A00",
+            "description": "Cholera"
+          }
+        ]
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT icd_code AS code, description FROM DISEASE WHERE (:q = '' OR icd_code LIKE :likeQ OR description LIKE :likeQ) ORDER BY icd_code ASC LIMIT 300",
+        "replacements": {
+          "q": "",
+          "likeQ": "%%"
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "diseases, search": {
+    "request": "GET /api/doctor/diseases?q=%20J06%20",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "diseases": []
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT icd_code AS code, description FROM DISEASE WHERE (:q = '' OR icd_code LIKE :likeQ OR description LIKE :likeQ) ORDER BY icd_code ASC LIMIT 300",
+        "replacements": {
+          "q": "J06",
+          "likeQ": "%J06%"
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "diseases, db down": {
+    "request": "GET /api/doctor/diseases",
+    "response": {
+      "status": 500,
+      "message": "internal server error"
+    },
+    "db": [
+      {
+        "sql": "SELECT icd_code AS code, description FROM DISEASE WHERE (:q = '' OR icd_code LIKE :likeQ OR description LIKE :likeQ) ORDER BY icd_code ASC LIMIT 300",
+        "replacements": {
+          "q": "",
+          "likeQ": "%%"
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "medicines, search": {
+    "request": "GET /api/doctor/medicines?q=para",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "medicines": [
+          {
+            "id": 1,
+            "name": "Paracetamol",
+            "unit": "tablet"
+          }
+        ]
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT id, name, unit FROM MEDICINE WHERE (:q = '' OR name LIKE :likeQ) ORDER BY name ASC LIMIT 300",
+        "replacements": {
+          "q": "para",
+          "likeQ": "%para%"
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "medicines, db down": {
+    "request": "GET /api/doctor/medicines",
+    "response": {
+      "status": 500,
+      "message": "internal server error"
+    },
+    "db": [
+      {
+        "sql": "SELECT id, name, unit FROM MEDICINE WHERE (:q = '' OR name LIKE :likeQ) ORDER BY name ASC LIMIT 300",
+        "replacements": {
+          "q": "",
+          "likeQ": "%%"
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "technicians": {
+    "request": "GET /api/doctor/technicians",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "technicians": [
+          {
+            "technicianId": 3,
+            "technicianName": "Tech Le"
+          }
+        ]
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT te.technician_id AS technicianId, COALESCE( NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username ) AS technicianName FROM TECHNICIAN te JOIN USER u ON u.id = te.user_id LEFT JOIN ACCOUNT a ON a.user_id = te.user_id ORDER BY technicianName ASC LIMIT 1000",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "technicians, db down": {
+    "request": "GET /api/doctor/technicians",
+    "response": {
+      "status": 500,
+      "message": "internal server error"
+    },
+    "db": [
+      {
+        "sql": "SELECT te.technician_id AS technicianId, COALESCE( NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username ) AS technicianName FROM TECHNICIAN te JOIN USER u ON u.id = te.user_id LEFT JOIN ACCOUNT a ON a.user_id = te.user_id ORDER BY technicianName ASC LIMIT 1000",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "departments": {
+    "request": "GET /api/doctor/departments",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "departments": [
+          {
+            "id": 2,
+            "name": "ER"
+          },
+          {
+            "id": 3,
+            "name": ""
+          }
+        ]
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT id, name FROM DEPARTMENT ORDER BY name ASC",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "departments, db down": {
+    "request": "GET /api/doctor/departments",
+    "response": {
+      "status": 500,
+      "message": "internal server error"
+    },
+    "db": [
+      {
+        "sql": "SELECT id, name FROM DEPARTMENT ORDER BY name ASC",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "dashboard, doctor": {
+    "request": "GET /api/doctor/dashboard/summary",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "summary": {
+          "appointmentsToday": 3,
+          "diagnosesToday": 2,
+          "prescriptionsToday": 1,
+          "labTestsToday": 0
+        },
+        "todaysSchedule": [
+          {
+            "id": 9,
+            "date": "<date>",
+            "time": "09:00:00",
+            "department": "",
+            "room": "",
+            "patientId": 4,
+            "userId": 40,
+            "patientName": "Binh",
+            "status": "Done"
+          },
+          {
+            "id": 10,
+            "department": "",
+            "room": "",
+            "patientId": 5,
+            "userId": 50,
+            "patientName": "Chi",
+            "status": "Pending"
+          }
+        ],
+        "recentPatients": [
+          {
+            "patientId": 4,
+            "userId": 40,
+            "patientName": "Binh",
+            "lastTime": "2026-10-07T09:00:00.000Z"
+          }
+        ]
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT doctor_id FROM DOCTOR WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 21
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT COUNT(*) AS cnt FROM APPOINTMENT a WHERE a.doctor_id = :doctorId AND DATE(a.time) = CURDATE() AND a.status <> 'cancelled'",
+        "replacements": {
+          "doctorId": 5
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT COUNT(*) AS cnt FROM TREATMENT t WHERE t.doctor_id = :doctorId AND DATE(t.time) = CURDATE()",
+        "replacements": {
+          "doctorId": 5
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT COUNT(DISTINCT rx.order_id) AS cnt FROM MEDICAL_PRESCRIPTION rx JOIN `ORDER` o ON o.id = rx.order_id JOIN TREATMENT t ON t.id = o.treatment_id WHERE t.doctor_id = :doctorId AND DATE(rx.time) = CURDATE()",
+        "replacements": {
+          "doctorId": 5
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT COUNT(DISTINCT tst.id) AS cnt FROM TEST tst JOIN `ORDER` o ON o.id = tst.id JOIN TREATMENT t ON t.id = o.treatment_id WHERE t.doctor_id = :doctorId AND DATE(tst.time) = CURDATE()",
+        "replacements": {
+          "doctorId": 5
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT a.id, DATE(a.time) AS date, TIME(a.time) AS time, a.status AS dbStatus, COALESCE(NULLIF(TRIM(dep.name), ''), NULLIF(TRIM(d.specifications), ''), '') AS department, cr.name AS room, p.patient_id AS patientId, p.user_id AS userId, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), acc.username, CONCAT('patient#', p.user_id)) AS patientName FROM APPOINTMENT a JOIN PATIENT p ON p.patient_id = a.patient_id JOIN USER u ON u.id = p.user_id LEFT JOIN ACCOUNT acc ON acc.user_id = p.user_id JOIN DOCTOR d ON d.doctor_id = a.doctor_id LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id LEFT JOIN DEPARTMENT dep ON dep.id = cr.department_id WHERE a.doctor_id = :doctorId AND DATE(a.time) = CURDATE() AND a.status <> 'cancelled' ORDER BY a.time ASC LIMIT 8",
+        "replacements": {
+          "doctorId": 5
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT DISTINCT p.patient_id AS patientId, p.user_id AS userId, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), acc.username, CONCAT('patient#', p.user_id)) AS patientName, MAX(a.time) AS lastTime FROM APPOINTMENT a JOIN PATIENT p ON p.patient_id = a.patient_id JOIN USER u ON u.id = p.user_id LEFT JOIN ACCOUNT acc ON acc.user_id = p.user_id WHERE a.doctor_id = :doctorId GROUP BY p.patient_id, p.user_id, patientName ORDER BY lastTime DESC LIMIT 5",
+        "replacements": {
+          "doctorId": 5
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "dashboard, user without doctor profile": {
+    "request": "GET /api/doctor/dashboard/summary",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "summary": {
+          "appointmentsToday": 0,
+          "diagnosesToday": 0,
+          "prescriptionsToday": 0,
+          "labTestsToday": 0
+        },
+        "todaysSchedule": [],
+        "recentPatients": []
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT doctor_id FROM DOCTOR WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 41
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "dashboard, technician": {
+    "request": "GET /api/doctor/dashboard/summary",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "summary": {
+          "appointmentsToday": 4,
+          "diagnosesToday": 2,
+          "prescriptionsToday": 0,
+          "labTestsToday": 6
+        },
+        "todaysSchedule": [
+          {
+            "id": 1,
+            "date": "<date>",
+            "time": "08:30:00",
+            "department": "Blood",
+            "room": "",
+            "patientId": 4,
+            "patientName": "Binh",
+            "status": "Pending"
+          },
+          {
+            "id": 2,
+            "date": "",
+            "time": "",
+            "department": "",
+            "room": "",
+            "patientId": 5,
+            "patientName": "",
+            "status": "Done"
+          }
+        ],
+        "recentPatients": [
+          {
+            "patientId": 4,
+            "patientName": "Binh",
+            "lastTime": "2026-10-07T08:30:00.000Z"
+          }
+        ]
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT technician_id FROM TECHNICIAN WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 31
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT COUNT(*) AS cnt FROM TEST WHERE DATE(time) = CURDATE()",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT COUNT(DISTINCT tst.id) AS cnt FROM TEST tst LEFT JOIN PROCEDURE_ p ON p.order_id = tst.id WHERE DATE(tst.time) = CURDATE() AND (tst.technician_id = :tid OR p.technician_id = :tid)",
+        "replacements": {
+          "tid": 8
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT COUNT(*) AS cnt FROM TEST tst WHERE DATE(tst.time) = CURDATE() AND (tst.attachment_url IS NULL OR TRIM(COALESCE(tst.attachment_url, '')) = '') AND (tst.result IS NULL OR TRIM(COALESCE(tst.result, '')) = '')",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT tst.id AS labId, tst.type AS testType, tst.time AS testTime, tst.result AS labResult, tst.attachment_url AS attachmentUrl, r.patient_id AS patientId, COALESCE( NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), acc.username, CONCAT('patient#', r.patient_id) ) AS patientName FROM TEST tst JOIN `ORDER` o ON o.id = tst.id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id JOIN USER u ON u.id = r.patient_id LEFT JOIN ACCOUNT acc ON acc.user_id = r.patient_id WHERE DATE(tst.time) = CURDATE() ORDER BY tst.time DESC LIMIT 12",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT r.patient_id AS patientId, COALESCE( NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), acc.username, CONCAT('patient#', r.patient_id) ) AS patientName, MAX(tst.time) AS lastTime FROM TEST tst JOIN `ORDER` o ON o.id = tst.id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id JOIN USER u ON u.id = r.patient_id LEFT JOIN ACCOUNT acc ON acc.user_id = r.patient_id GROUP BY r.patient_id, patientName ORDER BY lastTime DESC LIMIT 8",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "dashboard, technician without profile": {
+    "request": "GET /api/doctor/dashboard/summary",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "summary": {
+          "appointmentsToday": 0,
+          "diagnosesToday": 0,
+          "prescriptionsToday": 0,
+          "labTestsToday": 0
+        },
+        "todaysSchedule": [],
+        "recentPatients": []
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT technician_id FROM TECHNICIAN WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 31
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT COUNT(*) AS cnt FROM TEST WHERE DATE(time) = CURDATE()",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT COUNT(*) AS cnt FROM TEST tst WHERE DATE(tst.time) = CURDATE() AND (tst.attachment_url IS NULL OR TRIM(COALESCE(tst.attachment_url, '')) = '') AND (tst.result IS NULL OR TRIM(COALESCE(tst.result, '')) = '')",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT tst.id AS labId, tst.type AS testType, tst.time AS testTime, tst.result AS labResult, tst.attachment_url AS attachmentUrl, r.patient_id AS patientId, COALESCE( NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), acc.username, CONCAT('patient#', r.patient_id) ) AS patientName FROM TEST tst JOIN `ORDER` o ON o.id = tst.id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id JOIN USER u ON u.id = r.patient_id LEFT JOIN ACCOUNT acc ON acc.user_id = r.patient_id WHERE DATE(tst.time) = CURDATE() ORDER BY tst.time DESC LIMIT 12",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT r.patient_id AS patientId, COALESCE( NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), acc.username, CONCAT('patient#', r.patient_id) ) AS patientName, MAX(tst.time) AS lastTime FROM TEST tst JOIN `ORDER` o ON o.id = tst.id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id JOIN USER u ON u.id = r.patient_id LEFT JOIN ACCOUNT acc ON acc.user_id = r.patient_id GROUP BY r.patient_id, patientName ORDER BY lastTime DESC LIMIT 8",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "dashboard, db down": {
+    "request": "GET /api/doctor/dashboard/summary",
+    "response": {
+      "status": 500,
+      "message": "internal server error"
+    },
+    "db": [
+      {
+        "sql": "SELECT doctor_id FROM DOCTOR WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 21
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "signature, no doctor profile": {
+    "request": "GET /api/doctor/signature",
+    "response": {
+      "status": 400,
+      "message": "Doctor profile not found"
+    },
+    "db": [
+      {
+        "sql": "SELECT doctor_id FROM DOCTOR WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 21
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "signature, none saved": {
+    "request": "GET /api/doctor/signature",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "signature": null
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT doctor_id FROM DOCTOR WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 21
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT signature FROM DOCTOR WHERE doctor_id = :doctorId LIMIT 1",
+        "replacements": {
+          "doctorId": 5
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "signature, encrypted": {
+    "request": "GET /api/doctor/signature",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "signature": "data:image/png;base64,AAAA"
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT doctor_id FROM DOCTOR WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 21
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT signature FROM DOCTOR WHERE doctor_id = :doctorId LIMIT 1",
+        "replacements": {
+          "doctorId": 5
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "signature, legacy plaintext": {
+    "request": "GET /api/doctor/signature",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "signature": "data:image/png;base64,BBBB"
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT doctor_id FROM DOCTOR WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 21
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT signature FROM DOCTOR WHERE doctor_id = :doctorId LIMIT 1",
+        "replacements": {
+          "doctorId": 5
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "signature, unreadable": {
+    "request": "GET /api/doctor/signature",
+    "response": {
+      "status": 500,
+      "message": "could not read signature"
+    },
+    "db": [
+      {
+        "sql": "SELECT doctor_id FROM DOCTOR WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 21
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT signature FROM DOCTOR WHERE doctor_id = :doctorId LIMIT 1",
+        "replacements": {
+          "doctorId": 5
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "signature, db down": {
+    "request": "GET /api/doctor/signature",
+    "response": {
+      "status": 500,
+      "message": "internal server error"
+    },
+    "db": [
+      {
+        "sql": "SELECT doctor_id FROM DOCTOR WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 21
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "save signature, no doctor profile": {
+    "request": "PUT /api/doctor/signature",
+    "response": {
+      "status": 400,
+      "message": "Doctor profile not found"
+    },
+    "db": [
+      {
+        "sql": "SELECT doctor_id FROM DOCTOR WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 21
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "save signature": {
+    "request": "PUT /api/doctor/signature",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT doctor_id FROM DOCTOR WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 21
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "UPDATE DOCTOR SET signature = :signature WHERE doctor_id = :doctorId",
+        "replacements": {
+          "signature": "<encrypted>",
+          "doctorId": 5
+        },
+        "type": "UPDATE",
+        "tx": null
+      }
+    ]
+  },
+  "clear signature": {
+    "request": "PUT /api/doctor/signature",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT doctor_id FROM DOCTOR WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 21
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "UPDATE DOCTOR SET signature = :signature WHERE doctor_id = :doctorId",
+        "replacements": {
+          "signature": null,
+          "doctorId": 5
+        },
+        "type": "UPDATE",
+        "tx": null
+      }
+    ]
+  },
+  "save signature, db down": {
+    "request": "PUT /api/doctor/signature",
+    "response": {
+      "status": 500,
+      "message": "internal server error"
+    },
+    "db": [
+      {
+        "sql": "SELECT doctor_id FROM DOCTOR WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 21
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "UPDATE DOCTOR SET signature = :signature WHERE doctor_id = :doctorId",
+        "replacements": {
+          "signature": "<encrypted>",
+          "doctorId": 5
+        },
+        "type": "UPDATE",
+        "tx": null
+      }
+    ]
+  },
+  "gate: no open regimen blocks a doctor write": {
+    "request": "POST /api/doctor/patients/OP0007/not-a-route",
+    "response": {
+      "status": 403,
+      "message": "Patient has no active visit. Complete nurse check-in before recording data."
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC LIMIT 1",
+        "replacements": {
+          "pid": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "gate: open regimen lets it through (then 404)": {
+    "request": "POST /api/doctor/patients/7/not-a-route",
+    "response": {
+      "status": 404,
+      "message": "Route not found: POST /api/doctor/patients/7/not-a-route"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE patient_id = :n LIMIT 1",
+        "replacements": {
+          "n": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "gate: unknown patient passes through": {
+    "request": "PUT /api/doctor/patients/abc/not-a-route",
+    "response": {
+      "status": 404,
+      "message": "Route not found: PUT /api/doctor/patients/abc/not-a-route"
+    },
+    "db": []
+  },
+  "gate: nurse is not gated": {
+    "request": "POST /api/doctor/patients/7/not-a-route",
+    "response": {
+      "status": 404,
+      "message": "Route not found: POST /api/doctor/patients/7/not-a-route"
+    },
+    "db": []
+  },
+  "gate: reads are not gated": {
+    "request": "GET /api/doctor/patients/7/not-a-route",
+    "response": {
+      "status": 404,
+      "message": "Route not found: GET /api/doctor/patients/7/not-a-route"
+    },
+    "db": []
+  },
+  "gate: health-info is not gated": {
+    "request": "DELETE /api/doctor/patients/7/health-info/1/not-a-route",
+    "response": {
+      "status": 404,
+      "message": "Route not found: DELETE /api/doctor/patients/7/health-info/1/not-a-route"
+    },
+    "db": []
+  },
+  "gate: db down": {
+    "request": "POST /api/doctor/patients/7/not-a-route",
+    "response": {
+      "status": 500,
+      "message": "internal server error"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  }
+}

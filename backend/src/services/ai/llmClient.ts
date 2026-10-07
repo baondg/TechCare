@@ -6,9 +6,7 @@
 import logger from '../../common/logger';
 import { config } from '../../config/env';
 import { SYSTEM_PROMPT } from './prompts';
-const sequelize = require('../../common/database');
-const defineSystemConfig = require('../../models/SystemConfig');
-const SystemConfig = defineSystemConfig(sequelize);
+const systemConfigRepository = require('../../repositories/systemConfigRepository');
 
 // ============================================================
 // AI Provider Configuration
@@ -156,13 +154,13 @@ export async function callLocalLLM(messages: ChatMessage[], systemPrompt?: strin
 // Unified AI call — auto-selects provider
 // ============================================================
 export const loadAiModelRegistry = async () => {
-  let modelConfig: any = null;
-  let catalogConfig: any = null;
-  let defaultsConfig: any = null;
+  let catalogValue: string | null = null;
+  let modelsValue: string | null = null;
+  let defaultsValue: string | null = null;
   try {
-    catalogConfig = await SystemConfig.findOne({ where: { key: 'aiModelCatalog' } });
-    modelConfig = await SystemConfig.findOne({ where: { key: 'aiModels' } });
-    defaultsConfig = await SystemConfig.findOne({ where: { key: 'aiDefaultModelByFeature' } });
+    catalogValue = await systemConfigRepository.getValue('aiModelCatalog');
+    modelsValue = await systemConfigRepository.getValue('aiModels');
+    defaultsValue = await systemConfigRepository.getValue('aiDefaultModelByFeature');
   } catch (error: any) {
     // Some deployments still use a legacy SYSTEM_CONFIGURATION schema without "key"/"value".
     // Fallback to env-based model resolution instead of failing AI endpoints.
@@ -177,17 +175,17 @@ export const loadAiModelRegistry = async () => {
   let models: Array<{ provider: string; modelId: string; featureScope: string; enabled: boolean }> = [];
   let defaults: Record<string, { provider: string; modelId: string }> = {};
   try {
-    catalog = catalogConfig?.value ? JSON.parse(catalogConfig.value) : [];
+    catalog = catalogValue ? JSON.parse(catalogValue) : [];
   } catch {
     catalog = [];
   }
   try {
-    models = modelConfig?.value ? JSON.parse(modelConfig.value) : [];
+    models = modelsValue ? JSON.parse(modelsValue) : [];
   } catch {
     models = [];
   }
   try {
-    defaults = defaultsConfig?.value ? JSON.parse(defaultsConfig.value) : {};
+    defaults = defaultsValue ? JSON.parse(defaultsValue) : {};
   } catch {
     defaults = {};
   }

@@ -89,7 +89,13 @@ Reference implementations: `coverController.js`, `notificationController.js`, `w
 
 ## Follow-up (broader backend — khối lớn, làm dần)
 
-- **`adminController.js`**, **`systemConfigController.js`** vẫn còn raw SQL / Sequelize trực tiếp — tách từng miền (admin stats, cấu hình) khi chỉnh module.
+- Admin / system config / auth / AI đã tách theo miền (G3 bước A), SQL vẫn nằm trong controller — chuyển xuống `repositories/` ở bước B:
+  - `controllers/admin/{accountController,dashboardController,feedbackController,roleLabels}`
+  - `controllers/systemConfig/{configController,sessionController,aiModelController,featureController,configStore}`
+  - `authorization/{registrationController,sessionController,sessionTokens}`
+  - `routes/ai.ts` (route + middleware) · `services/ai/llmClient.ts` (Groq / local LLM, chọn model) · `services/ai/prompts.ts`
+- ⚠️ `controllers/systemConfig/configController.js` có `CONFIG_DEFAULTS` / `NUMERIC_CONFIG_RULES` **lệch** với `config/systemConfigurationContract.js` (appointment rate limit 60/60 vs 10/300; thiếu `aiRecovery*`). Chưa gộp — cần chốt giá trị đúng trước.
+- `routes/ai.ts` vẫn tự kiểm tra role (`requireAdmin`, `requireClinicalStaff`) thay vì `authorizeCapability`.
 
 ## Doctor / EMR (G3 — bước A: tách controller theo miền)
 

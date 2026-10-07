@@ -7,6 +7,7 @@ const RBAC_MATRIX = Object.freeze({
   'appointments.manage.open_slots': ['admin', 'nurse'],
   'appointments.nurse.checkin': ['admin', 'nurse'],
   'ai.models.inspect': ['admin'],
+  'admin.console': ['admin'],
   'ai.clinical.assist': ['doctor', 'admin'],
 });
 

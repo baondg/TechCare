@@ -2,25 +2,32 @@
 
 Short runbook for Phase C2-style operations: find failures faster using logs and optional Error Reporting.
 
-## Structured logs (already in app)
+## Structured logs
 
-- **Request ID:** middleware sets `X-Request-ID` and `req.requestId` on every request.
-- **`ai.http`:** one JSON line per request under `/api/ai/*` (method, path, user id when authenticated on that route).
-- **`ai.orchestration`:** JSON lines from `appointmentController` when calling internal AI (`feature`: `chat`, `symptom-analysis`, `recovery-prediction`), includes `requestId`, `userId`, `patientId`, `modelId` where applicable.
+The backend logs through `src/common/logger.ts` (pino): **one JSON object per line on stdout**, so Cloud Run
+ingests them as `jsonPayload` (not `textPayload`).
+
+| Field | Meaning |
+|---|---|
+| `msg` | Event name / message (`http.request`, `ai.http`, `ai.orchestration`, `Unhandled error`, …) |
+| `severity` | `INFO` / `WARNING` / `ERROR` / `CRITICAL` — Cloud Logging uses it for the level filter |
+| `err` | Serialized error (`type`, `message`, `stack`) |
+| `req.id` / `requestId` | The `X-Request-ID` of the request (also returned to clients in error bodies) |
+
+- **`http.request`:** one access-log line per request (method, url, status, `responseTime` ms). `/health` is skipped. 4xx → `WARNING`, 5xx → `ERROR`.
+- **`ai.http`:** one line per request under `/api/ai/*` (method, path, user id when authenticated on that route).
+- **`ai.orchestration`:** lines from the appointment AI service when calling internal AI (`feature`: `chat`, `symptom-analysis`, `recovery-prediction`), includes `requestId`, `userId`, `patientId`, `modelId` where applicable.
+- **`db.query`:** every SQL statement, **only at `LOG_LEVEL=debug`** — statements contain inlined values (patient data), so never enable debug in production.
+
+`LOG_LEVEL` = `trace` | `debug` | `info` (default) | `warn` | `error` | `fatal` | `silent`.
+Authorization headers, cookies and `password` / `token` fields are redacted. Request bodies are never logged.
 
 ### Cloud Logging queries (examples)
 
-In Log Explorer, filter for JSON `msg` field:
-
 - `jsonPayload.msg="ai.orchestration"`
 - `jsonPayload.feature="symptom-analysis"`
-- `jsonPayload.requestId="..."` (correlate with client or support ticket)
-
-If logs are plain text (stdout), use:
-
-- `textPayload=~"ai.orchestration"`
-
-Adjust field names to how Cloud Run ingests your log format (structured logging to `jsonPayload` may require a logging library; today lines are JSON strings in `textPayload`).
+- `jsonPayload.requestId="..." OR jsonPayload.req.id="..."` (correlate with a client error body or support ticket)
+- `severity>=ERROR AND jsonPayload.msg="Unhandled error"`
 
 ## Google Cloud Error Reporting
 

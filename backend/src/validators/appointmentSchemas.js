@@ -1,8 +1,4 @@
-function throwHttp(statusCode, message) {
-  const e = new Error(message);
-  e.statusCode = statusCode;
-  throw e;
-}
+const { BadRequestError } = require('../errors/AppError');
 
 function parseNursePatientNum(raw) {
   const s = String(raw ?? '').trim();
@@ -21,7 +17,7 @@ function compose(...fns) {
 function bookedSlotsQuery(req) {
   const date = req.query?.date;
   if (!date || String(date).trim() === '') {
-    throwHttp(400, 'date query param required');
+    throw new BadRequestError('date query param required');
   }
 }
 
@@ -31,7 +27,7 @@ function createAppointmentBody(req) {
   const doctorPk = Number(doctorIdBody);
   const useDoctorPk = Number.isFinite(doctorPk) && doctorPk > 0;
   if ((!doctor && !useDoctorPk) || !department || !date || !time) {
-    throwHttp(400, 'Missing required fields');
+    throw new BadRequestError('Missing required fields');
   }
 }
 
@@ -39,7 +35,7 @@ function createAppointmentBody(req) {
 function appointmentIdParam(req) {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) {
-    throwHttp(400, 'Invalid id');
+    throw new BadRequestError('Invalid id');
   }
 }
 
@@ -47,7 +43,7 @@ function appointmentIdParam(req) {
 function deleteAppointmentBody(req) {
   const reason = String(req.body?.cancellationReason ?? req.body?.reason ?? '').trim();
   if (!reason) {
-    throwHttp(400, 'Cancellation reason is required');
+    throw new BadRequestError('Cancellation reason is required');
   }
 }
 
@@ -57,7 +53,7 @@ function createOpenSlotBody(req) {
   const date = String(req.body?.date || '').trim();
   const time = String(req.body?.time || '').trim().slice(0, 5);
   if (!Number.isFinite(doctorId) || !date || !time) {
-    throwHttp(400, 'doctorId, date and time are required');
+    throw new BadRequestError('doctorId, date and time are required');
   }
 }
 
@@ -65,7 +61,7 @@ function createOpenSlotBody(req) {
 function openSlotIdParam(req) {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) {
-    throwHttp(400, 'Invalid id');
+    throw new BadRequestError('Invalid id');
   }
 }
 
@@ -75,10 +71,10 @@ function openSlotsQuery(req) {
   const endDate = String(req.query?.endDate ?? '').trim();
   const dateRe = /^\d{4}-\d{2}-\d{2}$/;
   if (startDate && !dateRe.test(startDate)) {
-    throwHttp(400, 'startDate must be YYYY-MM-DD');
+    throw new BadRequestError('startDate must be YYYY-MM-DD');
   }
   if (endDate && !dateRe.test(endDate)) {
-    throwHttp(400, 'endDate must be YYYY-MM-DD');
+    throw new BadRequestError('endDate must be YYYY-MM-DD');
   }
 }
 
@@ -86,7 +82,7 @@ function openSlotsQuery(req) {
 function labTestIdParam(req) {
   const testId = Number(req.params.testId);
   if (!Number.isFinite(testId) || testId <= 0) {
-    throwHttp(400, 'Invalid test id');
+    throw new BadRequestError('Invalid test id');
   }
 }
 
@@ -95,10 +91,10 @@ function createFeedbackBody(req) {
   const content = String(req.body?.content || '').trim();
   const rating = Number(req.body?.rating);
   if (!content) {
-    throwHttp(400, 'Feedback content is required');
+    throw new BadRequestError('Feedback content is required');
   }
   if (!Number.isFinite(rating) || rating < 1 || rating > 5) {
-    throwHttp(400, 'Rating must be between 1 and 5');
+    throw new BadRequestError('Rating must be between 1 and 5');
   }
 }
 
@@ -106,7 +102,7 @@ function createFeedbackBody(req) {
 function patchAiRecommendationFeedbackBody(req) {
   const feedback = String(req.body?.feedback || '').trim();
   if (!feedback) {
-    throwHttp(400, 'Feedback is required');
+    throw new BadRequestError('Feedback is required');
   }
 }
 
@@ -114,10 +110,10 @@ function patchAiRecommendationFeedbackBody(req) {
 function aiChatBody(req) {
   const userMessage = String(req.body?.userMessage || '').trim();
   if (!userMessage) {
-    throwHttp(400, 'userMessage is required');
+    throw new BadRequestError('userMessage is required');
   }
   if (req.body?.messages != null && !Array.isArray(req.body.messages)) {
-    throwHttp(400, 'messages must be an array');
+    throw new BadRequestError('messages must be an array');
   }
 }
 
@@ -133,28 +129,28 @@ const {
 function aiSymptomAnalysisBody(req) {
   const symptoms = req.body?.symptoms;
   if (!Array.isArray(symptoms) || symptoms.length === 0) {
-    throwHttp(400, 'symptoms is required');
+    throw new BadRequestError('symptoms is required');
   }
   for (let i = 0; i < symptoms.length; i++) {
     const item = symptoms[i];
     if (!item || typeof item !== 'object') {
-      throwHttp(400, `symptoms[${i}] must be an object`);
+      throw new BadRequestError(`symptoms[${i}] must be an object`);
     }
     const name = normalizeSymptomText(item.name);
     if (!name || name.length < MIN_CUSTOM_SYMPTOM_LENGTH) {
-      throwHttp(400, `symptoms[${i}].name is required`);
+      throw new BadRequestError(`symptoms[${i}].name is required`);
     }
     const severity = String(item.severity || '').trim();
     if (!SYMPTOM_SEVERITY_VALUES.has(severity)) {
-      throwHttp(400, `symptoms[${i}].severity must be mild, moderate, or severe`);
+      throw new BadRequestError(`symptoms[${i}].severity must be mild, moderate, or severe`);
     }
     const duration = String(item.duration || '').trim();
     if (!SYMPTOM_DURATION_VALUES.has(duration)) {
-      throwHttp(400, `symptoms[${i}].duration is invalid`);
+      throw new BadRequestError(`symptoms[${i}].duration is invalid`);
     }
   }
   if (normalizeSymptomsForAi(symptoms).length === 0) {
-    throwHttp(400, 'No valid symptoms after normalization');
+    throw new BadRequestError('No valid symptoms after normalization');
   }
 }
 
@@ -166,24 +162,24 @@ function recoveryPredictionQuery(req) {
   if (s === '') return;
   const low = s.toLowerCase();
   if (['1', '0', 'true', 'false'].includes(low)) return;
-  throwHttp(400, 'refresh must be 1, 0, true, or false');
+  throw new BadRequestError('refresh must be 1, 0, true, or false');
 }
 
 /** GET /nurse/check-in-options */
 function nurseCheckInOptionsQuery(req) {
   const n = parseNursePatientNum(req.query?.patientId);
   if (!n) {
-    throwHttp(400, 'patientId is required');
+    throw new BadRequestError('patientId is required');
   }
   const pk = req.query?.patientPk;
   if (pk != null && pk !== '') {
     const pkn = Number(pk);
-    if (!Number.isFinite(pkn) || pkn <= 0) throwHttp(400, 'patientPk must be a positive number');
+    if (!Number.isFinite(pkn) || pkn <= 0) throw new BadRequestError('patientPk must be a positive number');
   }
   const appt = req.query?.appointmentId;
   if (appt != null && appt !== '') {
     const apptN = Number(appt);
-    if (!Number.isFinite(apptN) || apptN <= 0) throwHttp(400, 'appointmentId must be a positive number');
+    if (!Number.isFinite(apptN) || apptN <= 0) throw new BadRequestError('appointmentId must be a positive number');
   }
 }
 
@@ -192,7 +188,7 @@ function nurseCheckInAcceptBody(req) {
   const n = parseNursePatientNum(req.body?.patientId);
   const appointmentId = Number(req.body?.appointmentId);
   if (!n || !Number.isFinite(appointmentId)) {
-    throwHttp(400, 'patientId and appointmentId are required');
+    throw new BadRequestError('patientId and appointmentId are required');
   }
 }
 
@@ -201,7 +197,7 @@ function nurseCheckInAssignBody(req) {
   const n = parseNursePatientNum(req.body?.patientId);
   const appointmentId = Number(req.body?.appointmentId);
   if (!n || !Number.isFinite(appointmentId)) {
-    throwHttp(400, 'patientId and appointmentId are required');
+    throw new BadRequestError('patientId and appointmentId are required');
   }
 }
 
@@ -211,10 +207,10 @@ function nurseCheckInRescheduleBody(req) {
   const fromAppointmentId = Number(req.body?.fromAppointmentId);
   const toAppointmentId = Number(req.body?.toAppointmentId);
   if (!n || !Number.isFinite(fromAppointmentId) || !Number.isFinite(toAppointmentId)) {
-    throwHttp(400, 'patientId, fromAppointmentId and toAppointmentId are required');
+    throw new BadRequestError('patientId, fromAppointmentId and toAppointmentId are required');
   }
   if (fromAppointmentId === toAppointmentId) {
-    throwHttp(400, 'Cannot reschedule to the same slot');
+    throw new BadRequestError('Cannot reschedule to the same slot');
   }
 }
 
@@ -223,7 +219,7 @@ function nurseRegimenCheckoutBody(req) {
   const n = parseNursePatientNum(req.body?.patientId);
   const regimenId = Number(req.body?.regimenId);
   if (!n || !Number.isFinite(regimenId)) {
-    throwHttp(400, 'patientId and regimenId are required');
+    throw new BadRequestError('patientId and regimenId are required');
   }
 }
 

@@ -1,4 +1,6 @@
 const appointmentReminderRepository = require('../repositories/appointmentReminderRepository');
+const logger = require('../common/logger');
+const { config } = require('../config/env');
 
 /** Shown under Appointments tab (`getNotificationTabId` matches `appointment_*`). */
 const TYPE_APPOINTMENT_REMINDER_1DAY = 'appointment_reminder_1day_before';
@@ -68,16 +70,15 @@ async function runAppointmentReminderDayBeforeSlot(hour) {
 
 /** Default morning slot (local server time); override with APPOINTMENT_REMINDER_HOUR=… */
 function reminderHour() {
-  const h = Number(process.env.APPOINTMENT_REMINDER_HOUR);
-  return Number.isFinite(h) && h >= 0 && h <= 23 ? h : 8;
+  return config.reminders.appointmentHour;
 }
 
 let lastFiredSlotKey = null;
 
 /** Every ~20s: at REMINDER_HOUR:00 fire once per calendar day (like medication-reminder scheduler). */
 function startAppointmentReminderScheduler() {
-  if (process.env.DISABLE_APPOINTMENT_REMINDERS === '1') {
-    console.log('[appointment-reminder] scheduler disabled (DISABLE_APPOINTMENT_REMINDERS=1)');
+  if (config.reminders.appointmentDisabled) {
+    logger.info('[appointment-reminder] scheduler disabled (DISABLE_APPOINTMENT_REMINDERS=1)');
     return;
   }
 
@@ -95,13 +96,13 @@ function startAppointmentReminderScheduler() {
 
     try {
       const result = await runAppointmentReminderDayBeforeSlot(h);
-      console.log('[appointment-reminder] slot', result);
+      logger.info({ result }, '[appointment-reminder] slot');
     } catch (err) {
-      console.error('[appointment-reminder] slot failed:', err?.message || err);
+      logger.error({ err }, '[appointment-reminder] slot failed');
     }
   }, 20_000);
 
-  console.log(
+  logger.info(
     `[appointment-reminder] scheduler on: daily at ${String(hReminder).padStart(2, '0')}:00 (server local time; APPOINTMENT_REMINDER_HOUR; set TZ if needed)`
   );
 }

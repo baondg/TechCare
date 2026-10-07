@@ -1,14 +1,11 @@
-const DEFAULT_CLINIC_TIMEZONE = "Asia/Ho_Chi_Minh";
-const DEFAULT_CLINIC_TZ_OFFSET = "+07:00";
+const { config } = require('../config/env');
 
 function getClinicTimezone() {
-  const tz = String(process.env.CLINIC_TIMEZONE || DEFAULT_CLINIC_TIMEZONE).trim();
-  return tz || DEFAULT_CLINIC_TIMEZONE;
+  return config.clinic.timezone;
 }
 
 function getClinicTzOffset() {
-  const off = String(process.env.CLINIC_TZ_OFFSET || DEFAULT_CLINIC_TZ_OFFSET).trim();
-  return off || DEFAULT_CLINIC_TZ_OFFSET;
+  return config.clinic.tzOffset;
 }
 
 function getClinicTodayYmd(now = new Date()) {

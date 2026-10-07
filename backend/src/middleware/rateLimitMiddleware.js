@@ -12,6 +12,8 @@ const {
   isLegacySystemConfigSchemaError,
   parsePositiveInt,
 } = require('../config/systemConfigurationContract');
+const logger = require('../common/logger');
+const { config } = require('../config/env');
 
 // In-memory rate limit store
 const rateLimitStore = new Map();
@@ -61,21 +63,20 @@ const parseBoolean = (value, fallback = true) => {
   return fallback;
 };
 
-const benchmarkBypassEnabled = () => parseBoolean(process.env.BENCHMARK_RATE_LIMIT_BYPASS, false);
+const benchmarkBypassEnabled = () => config.rateLimit.benchmarkBypass;
 const hasBenchmarkBypassHeader = (req) => parseBoolean(req.headers['x-benchmark-run'], false);
-const POLICY_CACHE_TTL_MS = Number(process.env.RATE_LIMIT_POLICY_CACHE_MS || 30000);
+const POLICY_CACHE_TTL_MS = config.rateLimit.policyCacheMs;
 const policyCache = new Map();
 let systemConfigurationUnavailableUntil = 0;
-const distributedRateLimitEnabled = () => parseBoolean(process.env.ENABLE_DISTRIBUTED_RATE_LIMIT, false);
-const requireRedisWhenDistributed = () =>
-  parseBoolean(process.env.REQUIRE_REDIS_FOR_DISTRIBUTED_RATE_LIMIT, false);
+const distributedRateLimitEnabled = () => config.rateLimit.distributed;
+const requireRedisWhenDistributed = () => config.rateLimit.requireRedisForDistributed;
 
 const createDistributedRateLimitConfigError = (reason) => {
   return new Error(`[rate-limit] Distributed rate limit misconfigured: ${reason}`);
 };
 
 const getValidatedRedisUrl = () => {
-  const raw = String(process.env.REDIS_URL || '').trim();
+  const raw = config.redis.url;
   if (!raw) return null;
   try {
     const parsed = new URL(raw);
@@ -98,13 +99,13 @@ async function getRedisClient() {
     if (requireRedisWhenDistributed()) {
       throw createDistributedRateLimitConfigError(`${reason} Configure REDIS_URL or disable distributed mode.`);
     }
-    console.warn(`[rate-limit] ${reason} Distributed rate limit disabled; using memory store.`);
+    logger.warn(`[rate-limit] ${reason} Distributed rate limit disabled; using memory store.`);
     redisDisabled = true;
     return null;
   }
   const client = createClient({ url });
   client.on('error', (err) => {
-    console.warn('[rate-limit] redis error:', err?.message || err);
+    logger.warn({ err }, '[rate-limit] redis error');
   });
   try {
     await client.connect();
@@ -116,7 +117,7 @@ async function getRedisClient() {
         `Unable to connect to Redis (${error?.message || 'unknown error'}).`
       );
     }
-    console.warn('[rate-limit] redis unavailable, fallback to memory store');
+    logger.warn('[rate-limit] redis unavailable, fallback to memory store');
     redisDisabled = true;
     return null;
   }
@@ -176,9 +177,10 @@ const SCOPE_CONFIG_KEYS = {
 
 const GLOBAL_TOGGLE_KEYS = ['rateLimitEnabled', 'rateLimitIpBased'];
 
+/** `<SCOPE>_RATE_LIMIT_MAX` / `<SCOPE>_RATE_LIMIT_WINDOW_SECONDS` env overrides. */
 const envScopeOverride = (scope, field, fallback) => {
-  const envKey = `${String(scope).toUpperCase()}_RATE_LIMIT_${field === 'max' ? 'MAX' : 'WINDOW_SECONDS'}`;
-  return parsePositiveInt(process.env[envKey], fallback);
+  const overrides = field === 'max' ? config.rateLimit.maxOverrides : config.rateLimit.windowSecondsOverrides;
+  return parsePositiveInt(overrides[String(scope).toLowerCase()], fallback);
 };
 
 const loadKeyValueRateLimitPolicy = async (scope, defaults) => {
@@ -207,7 +209,7 @@ const loadKeyValueRateLimitPolicy = async (scope, defaults) => {
   maxRequests = envScopeOverride(scope, 'max', maxRequests);
   windowSeconds = envScopeOverride(scope, 'window', windowSeconds);
 
-  if (process.env.NODE_ENV === 'development' && parseBoolean(process.env.RATE_LIMIT_RELAXED, false)) {
+  if (config.isDevelopment && config.rateLimit.relaxed) {
     maxRequests = Math.max(maxRequests, defaults.maxRequests * 10);
   }
 
@@ -347,7 +349,7 @@ const buildRateLimiter = (scope, defaults, message) => async (req, res, next) =>
     res.setHeader('X-RateLimit-Reset', new Date(record.resetTime).toISOString());
     return next();
   } catch (error) {
-    console.error('Rate limit error:', error);
+    logger.error({ err: error }, 'Rate limit error');
     return next();
   }
 };

@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { isRecoveryEligiblePrescriptionRow } = require('../src/repositories/appointmentAiRepository');
+const { isRecoveryEligiblePrescriptionRow } = require('../dist/repositories/appointmentAiRepository');
 
 test('recovery eligibility: no row / empty ok is not eligible', () => {
   assert.equal(isRecoveryEligiblePrescriptionRow(undefined), false);

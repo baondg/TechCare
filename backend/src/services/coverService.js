@@ -1,11 +1,12 @@
 const sequelize = require('../common/database');
 const coverRepository = require('../repositories/coverRepository');
+const logger = require('../common/logger');
 
 async function createCoverNotification(userId, title, message, type, relatedId = null) {
   try {
     await coverRepository.insertCoverNotification({ userId, title, message, type, relatedId });
   } catch (e) {
-    console.error('Failed to create notification:', e.message);
+    logger.error({ err: e }, 'Failed to create notification');
   }
 }
 

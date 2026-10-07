@@ -2,35 +2,30 @@ const appointmentRepository = require('../repositories/appointmentRepository');
 const appointmentAiRepository = require('../repositories/appointmentAiRepository');
 const { INTERNAL_API_SECRET_HEADER } = require('../middleware/requireInternalApiSecret');
 const { normalizeSymptomsForAi } = require('../lib/symptomNormalize');
+const logger = require('../common/logger');
+const { config } = require('../config/env');
 
-const INTERNAL_API_BASE =
-  process.env.BACKEND_INTERNAL_URL || `http://127.0.0.1:${Number(process.env.PORT) || 3000}`;
-const MEDAI_CHAT_ENDPOINT =
-  process.env.MEDAI_CHAT_ENDPOINT || `${INTERNAL_API_BASE}/api/ai/chat`;
-const MEDAI_SYMPTOM_ENDPOINT =
-  process.env.MEDAI_SYMPTOM_ENDPOINT || `${INTERNAL_API_BASE}/api/ai/symptom-analysis`;
-const MEDAI_RECOVERY_ENDPOINT =
-  process.env.MEDAI_RECOVERY_ENDPOINT || `${INTERNAL_API_BASE}/api/ai/recovery-prediction`;
+const MEDAI_CHAT_ENDPOINT = config.ai.endpoints.chat;
+const MEDAI_SYMPTOM_ENDPOINT = config.ai.endpoints.symptom;
+const MEDAI_RECOVERY_ENDPOINT = config.ai.endpoints.recovery;
 
 function internalAiFetchHeaders() {
   const headers = { 'Content-Type': 'application/json' };
-  const secret = String(process.env.INTERNAL_API_SECRET || '').trim();
+  const secret = config.auth.internalApiSecret;
   if (secret) headers[INTERNAL_API_SECRET_HEADER] = secret;
   return headers;
 }
 
 function logAiOrchestration(req, feature, data) {
   const uid = req?.user?.userId ?? req?.user?.id ?? null;
-  console.log(
-    JSON.stringify({
-      ts: new Date().toISOString(),
-      level: 'info',
-      msg: 'ai.orchestration',
+  logger.info(
+    {
       requestId: req?.requestId ?? null,
       feature,
       userId: uid,
       ...data,
-    })
+    },
+    'ai.orchestration'
   );
 }
 
@@ -96,7 +91,7 @@ async function buildPatientContextForSymptomAnalysis(patientId) {
     currentMedications = medRows.map((r) => String(r.name || '').trim()).filter(Boolean);
     currentMedications = [...new Set(currentMedications)].slice(0, 15);
   } catch (e) {
-    console.warn('buildPatientContextForSymptomAnalysis: currentMedications query skipped:', e?.message || e);
+    logger.warn({ err: e }, 'buildPatientContextForSymptomAnalysis: currentMedications query skipped');
   }
 
   const allergies = parsePatientJsonField(pRow?.allergicInfo);
@@ -215,7 +210,7 @@ async function buildClinicalSummaryForRecovery(patientId) {
       }))
       .filter((x) => x.medicines.length > 0);
   } catch (e) {
-    console.warn('buildClinicalSummaryForRecovery: medications query skipped:', e?.message || e);
+    logger.warn({ err: e }, 'buildClinicalSummaryForRecovery: medications query skipped');
   }
 
   const out = {};
@@ -351,7 +346,7 @@ async function chatWithAiAndSave(req, userId, body) {
       json: {
         success: false,
         message: `Cannot connect to AI service at ${MEDAI_CHAT_ENDPOINT}`,
-        error: upstreamError?.message || 'Unknown upstream error',
+        error: 'Unknown upstream error',
       },
     };
   }
@@ -464,25 +459,29 @@ async function analyzeSymptomsAndSave(req, userId, body) {
       body: JSON.stringify({ symptoms, patientContext }),
     });
   } catch (upstreamError) {
-    console.error(
-      `[analyzeSymptomsAndSave] Cannot reach ${MEDAI_SYMPTOM_ENDPOINT}:`,
-      upstreamError?.message || upstreamError
+    logger.error(
+      { err: upstreamError },
+      `[analyzeSymptomsAndSave] Cannot reach ${MEDAI_SYMPTOM_ENDPOINT}`
     );
     return {
       status: 503,
       json: {
         success: false,
         message: SYMPTOM_AI_UNAVAILABLE_MSG,
-        error: upstreamError?.message || 'Network error',
+        error: 'Network error',
       },
     };
   }
   const aiData = await aiResp.json().catch(() => ({}));
   if (!aiResp.ok) {
-    console.error(
-      `[analyzeSymptomsAndSave] Upstream ${aiResp.status} from ${MEDAI_SYMPTOM_ENDPOINT}:`,
-      aiData?.error || aiData?.message || '(no body)',
-      aiData?.hint ? `hint=${aiData.hint}` : ''
+    logger.error(
+      {
+        upstreamStatus: aiResp.status,
+        endpoint: MEDAI_SYMPTOM_ENDPOINT,
+        upstreamError: aiData?.error || aiData?.message || '(no body)',
+        hint: aiData?.hint,
+      },
+      '[analyzeSymptomsAndSave] Upstream error from medAI'
     );
     return {
       status: 503,
@@ -564,7 +563,7 @@ async function recoveryPredictionForPatient(req, patientId, refresh) {
     };
   }
 
-  const cacheHours = Number(process.env.RECOVERY_PREDICTION_CACHE_HOURS || 24);
+  const cacheHours = config.cache.recoveryPredictionHours;
   const cacheMs = Math.max(1, Math.min(168, cacheHours)) * 3600000;
 
   if (!refresh) {
@@ -625,26 +624,30 @@ async function recoveryPredictionForPatient(req, patientId, refresh) {
       body: JSON.stringify({ clinicalSummary, patientContext }),
     });
   } catch (upstreamError) {
-    console.error(
-      `[getRecoveryPrediction] Cannot reach ${MEDAI_RECOVERY_ENDPOINT}:`,
-      upstreamError?.message || upstreamError
+    logger.error(
+      { err: upstreamError },
+      `[getRecoveryPrediction] Cannot reach ${MEDAI_RECOVERY_ENDPOINT}`
     );
     return {
       status: 503,
       json: {
         success: false,
         message: RECOVERY_AI_UNAVAILABLE_MSG,
-        error: upstreamError?.message || 'Network error',
+        error: 'Network error',
       },
     };
   }
 
   const aiData = await aiResp.json().catch(() => ({}));
   if (!aiResp.ok) {
-    console.error(
-      `[getRecoveryPrediction] Upstream ${aiResp.status} from ${MEDAI_RECOVERY_ENDPOINT}:`,
-      aiData?.error || aiData?.message || '(no body)',
-      aiData?.hint ? `hint=${aiData.hint}` : ''
+    logger.error(
+      {
+        upstreamStatus: aiResp.status,
+        endpoint: MEDAI_RECOVERY_ENDPOINT,
+        upstreamError: aiData?.error || aiData?.message || '(no body)',
+        hint: aiData?.hint,
+      },
+      '[getRecoveryPrediction] Upstream error from medAI'
     );
     return {
       status: 503,

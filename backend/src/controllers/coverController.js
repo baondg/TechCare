@@ -1,51 +1,25 @@
 const coverService = require('../services/coverService');
+const { asyncHandler } = require('../common/asyncHandler');
 
-exports.createCoverRequest = async (req, res) => {
-  try {
-    const out = await coverService.createCoverRequest(req.user.userId, req.body);
-    return res.status(out.status).json(out.json);
-  } catch (error) {
-    console.error('Create cover request error:', error);
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
-  }
-};
+/** Services answer { status, json }; unexpected errors propagate to middleware/errorHandler. */
+const send = (res, out) => res.status(out.status).json(out.json);
 
-exports.getCoverRequests = async (req, res) => {
-  try {
-    const out = await coverService.getCoverRequests(req.user.userId);
-    return res.status(out.status).json(out.json);
-  } catch (error) {
-    console.error('Get cover requests error:', error);
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
-  }
-};
+exports.createCoverRequest = asyncHandler(async (req, res) => {
+  send(res, await coverService.createCoverRequest(req.user.userId, req.body));
+});
 
-exports.getMyCoverRequests = async (req, res) => {
-  try {
-    const out = await coverService.getMyCoverRequests(req.user.userId);
-    return res.status(out.status).json(out.json);
-  } catch (error) {
-    console.error('Get my cover requests error:', error);
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
-  }
-};
+exports.getCoverRequests = asyncHandler(async (req, res) => {
+  send(res, await coverService.getCoverRequests(req.user.userId));
+});
 
-exports.acceptCoverRequest = async (req, res) => {
-  try {
-    const out = await coverService.acceptCoverRequest(req.user.userId, Number(req.params.id));
-    return res.status(out.status).json(out.json);
-  } catch (error) {
-    console.error('Accept cover request error:', error);
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
-  }
-};
+exports.getMyCoverRequests = asyncHandler(async (req, res) => {
+  send(res, await coverService.getMyCoverRequests(req.user.userId));
+});
 
-exports.rejectCoverRequest = async (req, res) => {
-  try {
-    const out = await coverService.rejectCoverRequest(req.user.userId, Number(req.params.id));
-    return res.status(out.status).json(out.json);
-  } catch (error) {
-    console.error('Reject cover request error:', error);
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
-  }
-};
+exports.acceptCoverRequest = asyncHandler(async (req, res) => {
+  send(res, await coverService.acceptCoverRequest(req.user.userId, req.params.id));
+});
+
+exports.rejectCoverRequest = asyncHandler(async (req, res) => {
+  send(res, await coverService.rejectCoverRequest(req.user.userId, req.params.id));
+});

@@ -4,6 +4,7 @@ const Account = require('../models/Account');
 const { normalizeRoleFromCode } = require('../security/roleMapping');
 const { getJwtSecret } = require('../security/jwtConfig');
 const { isAccountStatusActive } = require('../common/accountStatus');
+const logger = require('../common/logger');
 
 const authenticateToken = async (req, res, next) => {
   const authHeader = req.headers['authorization'];
@@ -78,7 +79,7 @@ const authenticateToken = async (req, res, next) => {
     req.session = session;
     next();
   } catch (err) {
-    console.error('Token verification failed:', err.message);
+    logger.error({ err }, 'Token verification failed');
     
     if (err.name === 'TokenExpiredError') {
       return res.status(401).json({ 

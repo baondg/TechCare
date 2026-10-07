@@ -1,15 +1,12 @@
-import dotenv from 'dotenv';
-// Load environment variables FIRST — before any other imports so that
-// modules which read process.env at initialisation time (e.g. routes/ai.ts)
-// get the correct values from .env instead of falling back to defaults.
-dotenv.config();
-
+// Parses and validates the environment (loads .env) — keep it the first import.
+import { config } from './config/env';
 import express, { Express, Request, Response } from 'express';
 import cors from 'cors';
 import path from 'path';
 import cookieParser from 'cookie-parser';
 import aiRoutes from './routes/ai';
-import { errorHandler } from './middleware/errorHandler';
+import { errorHandler, notFoundHandler } from './middleware/errorHandler';
+import { requestLogger } from './middleware/requestLogger';
 const { requestIdMiddleware } = require('./middleware/requestIdMiddleware');
 const authRoutes = require('./authorization/routes');
 const systemConfigRoutes = require('./routes/systemConfig');
@@ -35,15 +32,13 @@ const defineSystemConfig = require('./models/SystemConfig');
 defineSystemConfig(sequelize);
 
 const app: Express = express();
-const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS || '')
-  .split(',')
-  .map((origin) => origin.trim())
-  .filter(Boolean);
+const allowedOrigins = config.server.corsAllowedOrigins;
 const allowAnyOrigin = allowedOrigins.includes('*');
 
 // Middleware
 app.set('trust proxy', 1);
 app.use(requestIdMiddleware);
+app.use(requestLogger);
 app.use(
   cors(
     allowedOrigins.length > 0
@@ -103,6 +98,7 @@ app.get('/', (req: Request, res: Response) => {
   });
 });
 
+app.use(notFoundHandler);
 app.use(errorHandler);
 
 export default app;

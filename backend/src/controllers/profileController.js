@@ -3,6 +3,7 @@ const Patient = require('../models/Patient');
 const User = require('../models/Users');
 const Relative = require('../models/Relative');
 const HealthInsurance = require('../models/HealthInsurance');
+const logger = require('../common/logger');
 
 function getUserIdFromParams(req) {
   return req.params.userId;
@@ -156,8 +157,8 @@ exports.getProfile = async (req, res) => {
 
     res.json({ profile, relative, insurance });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: err.message });
+    logger.error({ err }, 'getProfile failed');
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
@@ -255,8 +256,8 @@ exports.updateProfile = async (req, res) => {
 
     return res.json({ message: 'Profile updated successfully' });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: err.message });
+    logger.error({ err }, 'updateProfile failed');
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
@@ -271,6 +272,6 @@ exports.deleteProfile = async (req, res) => {
       message: 'Deleting the full patient profile is not supported; user data lives on the USER record.',
     });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ message: 'Internal server error' });
   }
 };

@@ -1,7 +1,6 @@
 const { NotFoundError } = require('../errors/AppError');
 const appointmentRepository = require('../repositories/appointmentRepository');
 const patientPortalRepository = require('../repositories/patientPortalRepository');
-const appointmentNurseService = require('./appointmentNurseService');
 
 const VISIT_VITALS_WINDOW_MS = 72 * 60 * 60 * 1000;
 
@@ -90,78 +89,76 @@ function normalizeJsonColumn(val) {
   }
 }
 
+/**
+ * Nurse / technician patient list: every patient with age, latest standalone diagnosis, department
+ * and today's first scheduled appointment (three queries, whatever the number of patients).
+ */
 async function getPortalPatients() {
-  const rows = await patientPortalRepository.listPortalPatientBaseRows();
+  const rows = (await patientPortalRepository.listPortalPatientBaseRows()) || [];
 
-  const uidList = (rows || []).map((p) => Number(p.id)).filter((n) => Number.isFinite(n) && n > 0);
-  const pkByUid = new Map();
-  await Promise.all(
-    uidList.map(async (uid) => {
-      const pk = await appointmentNurseService.findNursePatientPkFromNumeric(uid);
-      if (pk != null) pkByUid.set(uid, pk);
-    })
-  );
-  const uniqPks = [...new Set([...pkByUid.values()].filter((pk) => pk != null))];
+  // Rows come from PATIENT; a row whose USER is missing has no usable id and gets no details.
+  const pkOf = (p) => {
+    const uid = Number(p.id);
+    return Number.isFinite(uid) && uid > 0 && p.patientPk != null ? Number(p.patientPk) : null;
+  };
+  const patientPks = [...new Set(rows.map(pkOf).filter((pk) => pk != null))];
+
   const firstApptByPatientPk = new Map();
-  if (uniqPks.length > 0) {
-    const idCsv = uniqPks.map((id) => Number(id)).join(',');
-    const apptRows = await patientPortalRepository.listTodayScheduledAppointmentsForPatientIdCsv(idCsv);
+  const diagnosisByPatientPk = new Map();
+  if (patientPks.length > 0) {
+    const [apptRows, diagnosisRows] = await Promise.all([
+      patientPortalRepository.listTodayScheduledAppointmentsForPatients(patientPks),
+      patientPortalRepository.listLatestStandaloneDiagnosisRowsForPatients(patientPks),
+    ]);
     for (const ar of apptRows || []) {
       const pkKey = Number(ar.mapPatientPk ?? ar.patientId);
-      if (!Number.isFinite(pkKey)) continue;
-      if (!firstApptByPatientPk.has(pkKey)) firstApptByPatientPk.set(pkKey, ar);
+      if (Number.isFinite(pkKey) && !firstApptByPatientPk.has(pkKey)) firstApptByPatientPk.set(pkKey, ar);
     }
+    for (const d of diagnosisRows || []) diagnosisByPatientPk.set(Number(d.patientPk), d);
   }
 
-  const patients = await Promise.all(
-    (rows || []).map(async (p) => {
-      const uid = Number(p.id);
-      const patientPk = pkByUid.get(uid) ?? null;
-      let latestDiagnosis = null;
-      if (patientPk) {
-        const drows = await patientPortalRepository.selectLatestStandaloneDiagnosisRows(patientPk);
-        latestDiagnosis = drows[0] || null;
-      }
+  const patients = rows.map((p) => {
+    const patientPk = pkOf(p);
+    const latestDiagnosis = patientPk != null ? diagnosisByPatientPk.get(patientPk) || null : null;
 
-      const age = calculateDisplayAge(p.dob);
+    const age = calculateDisplayAge(p.dob);
 
-      const ap = patientPk != null ? firstApptByPatientPk.get(Number(patientPk)) : null;
-      const checkedIn = ap != null && Number(ap.checkedIn) === 1;
-      const appointmentDoctorName =
-        ap?.appointmentDoctorName != null ? String(ap.appointmentDoctorName).trim() : '';
-      const todayAppointment =
-        ap && ap.appointmentId != null
-          ? {
-              appointmentId: Number(ap.appointmentId),
-              timeDisplay: ap.timeHm != null ? String(ap.timeHm).slice(0, 5) : '',
-              checkedIn,
-              roomId: ap.roomId != null ? Number(ap.roomId) : null,
-              roomName: ap.roomName != null ? String(ap.roomName) : '',
-            }
-          : null;
+    const ap = patientPk != null ? firstApptByPatientPk.get(Number(patientPk)) : null;
+    const checkedIn = ap != null && Number(ap.checkedIn) === 1;
+    const appointmentDoctorName =
+      ap?.appointmentDoctorName != null ? String(ap.appointmentDoctorName).trim() : '';
+    const todayAppointment =
+      ap && ap.appointmentId != null
+        ? {
+            appointmentId: Number(ap.appointmentId),
+            timeDisplay: ap.timeHm != null ? String(ap.timeHm).slice(0, 5) : '',
+            checkedIn,
+            roomId: ap.roomId != null ? Number(ap.roomId) : null,
+            roomName: ap.roomName != null ? String(ap.roomName) : '',
+          }
+        : null;
 
-      return {
-        id: Number(p.id),
-        userId: Number(p.id),
-        patientPk: patientPk != null ? Number(patientPk) : null,
-        username: p.username || '',
-        firstName: p.firstName || '',
-        lastName: p.lastName || '',
-        gender: p.gender || null,
-        age,
-        latestDiagnosis: latestDiagnosis
-          ? {
-              icd10: latestDiagnosis.icd10 || '',
-              interpretation: latestDiagnosis.interpretation || '',
-            }
-          : null,
-        latestVisit: latestDiagnosis?.visitTime || null,
-        doctor: appointmentDoctorName || latestDiagnosis?.doctorName || null,
-        inDepartment: p.inDepartment != null ? String(p.inDepartment) : null,
-        todayAppointment,
-      };
-    })
-  );
+    return {
+      id: Number(p.id),
+      userId: Number(p.id),
+      patientPk: patientPk != null ? Number(patientPk) : null,
+      username: p.username || '',
+      firstName: p.firstName || '',
+      lastName: p.lastName || '',
+      gender: p.gender || null,
+      age,
+      latestDiagnosis: latestDiagnosis
+        ? {
+            icd10: latestDiagnosis.icd10 || '',
+            interpretation: latestDiagnosis.interpretation || '',
+          }
+        : null,
+      latestVisit: latestDiagnosis?.visitTime || null,
+      doctor: appointmentDoctorName || latestDiagnosis?.doctorName || null,
+      inDepartment: p.inDepartment != null ? String(p.inDepartment) : null,
+      todayAppointment,
+    };
+  });
 
   return { success: true, patients };
 }

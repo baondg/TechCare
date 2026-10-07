@@ -968,10 +968,10 @@
         "tx": null
       },
       {
-        "sql": "UPDATE APPOINTMENT SET doctor_id = :cid WHERE id = :id",
+        "sql": "UPDATE APPOINTMENT SET doctor_id = :newDoctorId WHERE id = :appointmentId",
         "replacements": {
-          "cid": 6,
-          "id": "11"
+          "newDoctorId": 6,
+          "appointmentId": "11"
         },
         "type": "UPDATE",
         "tx": null
@@ -1113,10 +1113,10 @@
         "tx": null
       },
       {
-        "sql": "UPDATE APPOINTMENT SET doctor_id = :cid WHERE id = :id",
+        "sql": "UPDATE APPOINTMENT SET doctor_id = :newDoctorId WHERE id = :appointmentId",
         "replacements": {
-          "cid": 6,
-          "id": "11"
+          "newDoctorId": 6,
+          "appointmentId": "11"
         },
         "type": "UPDATE",
         "tx": null
@@ -1202,14 +1202,6 @@
         "sql": "SELECT doctor_id FROM DOCTOR WHERE user_id = :userId LIMIT 1",
         "replacements": {
           "userId": 21
-        },
-        "type": "SELECT",
-        "tx": null
-      },
-      {
-        "sql": "SELECT id, patient_id AS patientPk, COALESCE(doctor_confirmed, 1) AS dc, status FROM APPOINTMENT WHERE id = :id AND doctor_id = :doctorId LIMIT 1",
-        "replacements": {
-          "id": "11"
         },
         "type": "SELECT",
         "tx": null

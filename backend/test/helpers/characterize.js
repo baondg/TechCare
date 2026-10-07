@@ -6,6 +6,11 @@
  * runner records the SQL / model calls the handler made, transaction events, and the HTTP answer
  * (status, body or error text, Set-Cookie), then compares the whole set with a committed snapshot.
  * Regenerate with `UPDATE_SNAPSHOTS=1 npm test` and review the diff.
+ *
+ * Outbound HTTP (LLM providers) never leaves the process: every fetch to another host is recorded
+ * as `{ event: 'fetch', url, body }` and answered by `state.upstream(url, body)`, which returns
+ * `{ status, json }` or an Error (network failure). Without a handler it fails like a refused
+ * connection.
  */
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -51,10 +56,10 @@ function scrub(value, custom = () => undefined) {
  * Error bodies are compared by status + text (+ `code` when it is one the client acts on): the
  * standard AppError shape is an intended change.
  */
-function describeResponse(res, body, codes) {
+function describeResponse(res, body, codes, fullErrorBody) {
   const cookie = res.headers.get('set-cookie');
   const extra = cookie ? { cookie: cookie.replace(/Expires=(?!Thu, 01 Jan 1970)[^;]+/g, 'Expires=<date>') } : {};
-  if (res.status < 400) return { status: res.status, body, ...extra };
+  if (res.status < 400 || fullErrorBody) return { status: res.status, body, ...extra };
   const text = body?.message ?? body?.error ?? null;
   return {
     status: res.status,
@@ -70,22 +75,42 @@ function describeResponse(res, body, codes) {
  * @param {(rules: Array) => Array} [prepareRules] last-minute rule rewrite (e.g. today's date)
  * @param {(key: string, value: unknown) => unknown} [scrubValue] extra scrubbing; undefined = default
  * @param {string[]} [codes] error `code`s worth pinning (clients branch on them)
+ * @param {boolean} [fullErrorBody] pin whole error bodies (endpoints whose error shape is a contract)
  */
 function characterize(
   title,
   snapshotPath,
   scenarios,
-  { prepareRules = (rules) => rules, scrubValue, codes = [] } = {}
+  { prepareRules = (rules) => rules, scrubValue, codes = [], fullErrorBody = false } = {}
 ) {
   let server;
   let db;
 
+  const realFetch = globalThis.fetch;
+
   test.before(async () => {
     db = installFakeDb();
     server = await startTestServer();
+    globalThis.fetch = async (url, init = {}) => {
+      if (String(url).startsWith(server.baseUrl)) return realFetch(url, init);
+      let body = init.body;
+      try {
+        body = JSON.parse(init.body);
+      } catch (_e) {
+        // keep raw text
+      }
+      db.state.calls.push({ event: 'fetch', url: String(url), body });
+      const reply = db.state.upstream ? db.state.upstream(String(url), body) : new TypeError('fetch failed');
+      if (reply instanceof Error) throw reply;
+      return new Response(JSON.stringify(reply.json ?? {}), {
+        status: reply.status ?? 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    };
   });
 
   test.after(async () => {
+    globalThis.fetch = realFetch;
     await server?.close();
     db?.restore();
   });
@@ -110,7 +135,7 @@ function characterize(
       actual[name] = scrub(
         {
           request: `${method} ${urlPath}`,
-          response: describeResponse(res, json, codes),
+          response: describeResponse(res, json, codes, fullErrorBody),
           db: db.state.calls.filter((c) => !c.sql || !IGNORED_SQL.some((re) => re.test(c.sql))),
         },
         scrubValue

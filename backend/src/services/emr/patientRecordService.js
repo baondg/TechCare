@@ -4,7 +4,7 @@ const cacheService = require('../cacheService');
 const logger = require('../../common/logger');
 const { config } = require('../../config/env');
 const { BadRequestError, NotFoundError } = require('../../errors/AppError');
-const { PATIENT_RECORD_CACHE_TTL_SECONDS } = require('./patientRecordCache');
+const { PATIENT_RECORD_CACHE_TTL_SECONDS, patientRecordCacheKey } = require('./patientRecordCache');
 
 const isPositive = (v) => Number.isFinite(Number(v)) && Number(v) > 0;
 
@@ -185,7 +185,7 @@ async function getPatientRecord(patientIdParam) {
   if (!p) throw new NotFoundError('Patient not found');
 
   const patientPk = p.patientPk != null ? Number(p.patientPk) : null;
-  const cacheKey = patientPk ? `doctor:patient_record:v1:${patientPk}` : null;
+  const cacheKey = patientPk ? patientRecordCacheKey(patientPk) : null;
   const profile = (cache) => {
     if (config.profileHotpaths) logger.info({ ms: Date.now() - startedAt, patientPk, cache }, 'perf.getPatient');
   };

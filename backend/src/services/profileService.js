@@ -1,5 +1,6 @@
 const profileRepository = require('../repositories/profileRepository');
 const patientRepository = require('../repositories/patientRepository');
+const { inTransaction } = require('../common/transaction');
 const { AppError, BadRequestError, ForbiddenError, NotFoundError } = require('../errors/AppError');
 
 const MEDICAL_STAFF = new Set(['doctor', 'nurse', 'technician']);
@@ -42,6 +43,16 @@ function isValidHumanName(value) {
   return /[\p{L}]/u.test(s);
 }
 
+/** Runs a write; a model validator rejection (bad email, phone…) becomes 400 "Invalid <prefix><field>". */
+async function rejectInvalid(prefix, write) {
+  try {
+    return await write();
+  } catch (error) {
+    if (error?.name !== 'SequelizeValidationError') throw error;
+    throw new BadRequestError(`Invalid ${prefix}${error.errors?.[0]?.path || 'value'}`);
+  }
+}
+
 const toSexCode = (sex) => (sex === 'Male' ? 'M' : sex === 'Female' ? 'F' : 'O');
 
 /** `{ profile, relative, insurance }` of a user (relative / insurance only for patients). */
@@ -75,8 +86,8 @@ async function getProfile(user, userIdParam) {
 }
 
 /**
- * Updates USER fields and, for patients, replaces their RELATIVE. First, last and relative names are
- * required and must look like human names.
+ * Updates USER fields and, for patients, replaces their RELATIVE, in one transaction. First, last and
+ * relative names are required and must look like human names; values the models reject give 400.
  */
 async function updateProfile(user, userIdParam, body) {
   const userId = parseUserId(userIdParam);
@@ -95,32 +106,47 @@ async function updateProfile(user, userIdParam, body) {
     ({ first, last } = splitFullName(body.fullName));
   }
 
-  const userRow = await profileRepository.findUserById(userId);
-  if (userRow) {
-    await profileRepository.updateUser(userRow, {
-      first_name: first || null,
-      last_name: last || null,
-      dob: body.dateOfBirth,
-      sex: toSexCode(body.sex),
-      tel: body.phone,
-      email: body.email,
-      idcard: body.nationalId,
-    });
-  }
-
-  const patient = await patientRepository.findPatientByUserId(userId);
   const relativeName = nullIfEmpty(relNameRaw);
-  if (patient && relativeName) {
-    await profileRepository.replaceRelative(patient.patient_id, {
-      name: relativeName,
-      relationship: nullIfEmpty(body.relativeRelationship) || 'Mother',
-      dob: body.relativeDateOfBirth || null,
-      sex: toSexCode(body.relativeSex),
-      tel: nullIfEmpty(body.relativePhone),
-      email: nullIfEmpty(body.relativeEmail),
-      idcard: nullIfEmpty(body.relativeNationalId),
-    });
-  }
+  // One transaction: a relative that fails validation must not leave the patient without one.
+  await inTransaction(async (transaction) => {
+    const userRow = await profileRepository.findUserById(userId, transaction);
+    if (userRow) {
+      await rejectInvalid('', () =>
+        profileRepository.updateUser(
+          userRow,
+          {
+            first_name: first || null,
+            last_name: last || null,
+            dob: body.dateOfBirth,
+            sex: toSexCode(body.sex),
+            tel: body.phone,
+            email: body.email,
+            idcard: body.nationalId,
+          },
+          transaction
+        )
+      );
+    }
+
+    const patient = await patientRepository.findPatientByUserId(userId, transaction);
+    if (patient && relativeName) {
+      await rejectInvalid('relative ', () =>
+        profileRepository.replaceRelative(
+          patient.patient_id,
+          {
+            name: relativeName,
+            relationship: nullIfEmpty(body.relativeRelationship) || 'Mother',
+            dob: body.relativeDateOfBirth || null,
+            sex: toSexCode(body.relativeSex),
+            tel: nullIfEmpty(body.relativePhone),
+            email: nullIfEmpty(body.relativeEmail),
+            idcard: nullIfEmpty(body.relativeNationalId),
+          },
+          transaction
+        )
+      );
+    }
+  });
 }
 
 /** Not supported: user data lives on the USER record. Self / admin get 501, others 403. */

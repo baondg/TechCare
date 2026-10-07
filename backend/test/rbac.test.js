@@ -105,9 +105,12 @@ test('middleware denies when role is missing', () => {
   assert.equal(res.statusCode, 403);
 });
 
-test('system config contract: RATE_LIMIT_SCOPE_TO_KEYS includes aiRecovery', () => {
-  assert.ok(contract.RATE_LIMIT_SCOPE_TO_KEYS.aiRecovery);
-  assert.equal(contract.RATE_LIMIT_SCOPE_TO_KEYS.aiRecovery.requestsKey, 'aiRecoveryRateLimitRequests');
+test('system config contract: every rate-limit scope reads keys that have a default', () => {
+  for (const [scope, { requestsKey, windowSecondsKey }] of Object.entries(contract.RATE_LIMIT_SCOPE_TO_KEYS)) {
+    assert.ok(requestsKey in contract.CONFIG_DEFAULTS, `${scope}: ${requestsKey}`);
+    assert.ok(windowSecondsKey in contract.CONFIG_DEFAULTS, `${scope}: ${windowSecondsKey}`);
+  }
+  assert.equal(contract.RATE_LIMIT_SCOPE_TO_KEYS.aiRecovery.requestsKey, 'aiSymptomRateLimitRequests');
 });
 
 test('system config contract: getRateLimitQueryKeysForScope', () => {

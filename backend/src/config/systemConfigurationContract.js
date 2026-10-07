@@ -53,7 +53,7 @@ const BOOLEAN_CONFIG_KEYS = new Set(['rateLimitEnabled', 'rateLimitIpBased']);
 const JSON_CONFIG_KEYS = new Set(['aiModelCatalog', 'aiModels', 'aiDefaultModelByFeature']);
 
 /**
- * Maps rate-limit middleware scope to CONFIG_DEFAULTS keys.
+ * Rate-limit middleware scope → the CONFIG_DEFAULTS keys it reads (the only map; rateLimitMiddleware uses it).
  * @type {Record<string, { requestsKey: string; windowSecondsKey: string }>}
  */
 const RATE_LIMIT_SCOPE_TO_KEYS = {
@@ -62,7 +62,8 @@ const RATE_LIMIT_SCOPE_TO_KEYS = {
   registration: { requestsKey: 'registrationRateLimitRequests', windowSecondsKey: 'registrationRateLimitWindowSeconds' },
   chatbot: { requestsKey: 'chatbotRateLimitRequests', windowSecondsKey: 'chatbotRateLimitWindowSeconds' },
   aiSymptom: { requestsKey: 'aiSymptomRateLimitRequests', windowSecondsKey: 'aiSymptomRateLimitWindowSeconds' },
-  aiRecovery: { requestsKey: 'aiRecoveryRateLimitRequests', windowSecondsKey: 'aiRecoveryRateLimitWindowSeconds' },
+  // No settings of its own: recovery prediction follows the admin page's "AI symptom" limit.
+  aiRecovery: { requestsKey: 'aiSymptomRateLimitRequests', windowSecondsKey: 'aiSymptomRateLimitWindowSeconds' },
   appointment: { requestsKey: 'appointmentRateLimitRequests', windowSecondsKey: 'appointmentRateLimitWindowSeconds' },
 };
 

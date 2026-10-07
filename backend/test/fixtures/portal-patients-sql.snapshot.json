@@ -1,0 +1,148 @@
+{
+  "portal patients, none": {
+    "request": "GET /api/appointments/patients",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "patients": []
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT u.id AS id, a.username AS username, u.first_name AS firstName, u.last_name AS lastName, u.sex AS gender, u.dob AS dob, COALESCE( ( SELECT dep_t.name FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DEPARTMENT dep_t ON dep_t.id = t.dept_id WHERE r.patient_id = pt.patient_id AND t.dept_id IS NOT NULL ORDER BY t.time DESC, t.id DESC LIMIT 1 ), ( SELECT dep_a.name FROM APPOINTMENT a2 JOIN CLINIC_ROOM cr2 ON cr2.id = a2.room_id LEFT JOIN DEPARTMENT dep_a ON dep_a.id = cr2.department_id WHERE a2.patient_id = pt.patient_id ORDER BY a2.time DESC, a2.id DESC LIMIT 1 ) ) AS inDepartment FROM PATIENT pt LEFT JOIN USER u ON u.id = pt.user_id LEFT JOIN ACCOUNT a ON a.user_id = u.id WHERE (a.type = 'PAT' OR a.user_id IS NULL) ORDER BY pt.patient_id DESC",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "portal patients": {
+    "request": "GET /api/appointments/patients",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "patients": [
+          {
+            "id": 70,
+            "userId": 70,
+            "patientPk": 7,
+            "username": "bao",
+            "firstName": "Bao",
+            "lastName": "Do",
+            "gender": "M",
+            "age": "30",
+            "latestDiagnosis": {
+              "icd10": "J06",
+              "interpretation": "URI"
+            },
+            "latestVisit": "2026-09-01T08:00:00.000Z",
+            "doctor": "Hoa Tran",
+            "inDepartment": "Cardiology",
+            "todayAppointment": {
+              "appointmentId": 11,
+              "timeDisplay": "09:30",
+              "checkedIn": true,
+              "roomId": 2,
+              "roomName": "R2"
+            }
+          },
+          {
+            "id": 80,
+            "userId": 80,
+            "patientPk": 8,
+            "username": "an",
+            "firstName": "",
+            "lastName": "",
+            "gender": null,
+            "age": null,
+            "latestDiagnosis": null,
+            "latestVisit": null,
+            "doctor": null,
+            "inDepartment": null,
+            "todayAppointment": null
+          },
+          {
+            "id": 0,
+            "userId": 0,
+            "patientPk": null,
+            "username": "",
+            "firstName": "No",
+            "lastName": "User",
+            "gender": null,
+            "age": null,
+            "latestDiagnosis": null,
+            "latestVisit": null,
+            "doctor": null,
+            "inDepartment": null,
+            "todayAppointment": null
+          }
+        ]
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT u.id AS id, a.username AS username, u.first_name AS firstName, u.last_name AS lastName, u.sex AS gender, u.dob AS dob, COALESCE( ( SELECT dep_t.name FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DEPARTMENT dep_t ON dep_t.id = t.dept_id WHERE r.patient_id = pt.patient_id AND t.dept_id IS NOT NULL ORDER BY t.time DESC, t.id DESC LIMIT 1 ), ( SELECT dep_a.name FROM APPOINTMENT a2 JOIN CLINIC_ROOM cr2 ON cr2.id = a2.room_id LEFT JOIN DEPARTMENT dep_a ON dep_a.id = cr2.department_id WHERE a2.patient_id = pt.patient_id ORDER BY a2.time DESC, a2.id DESC LIMIT 1 ) ) AS inDepartment FROM PATIENT pt LEFT JOIN USER u ON u.id = pt.user_id LEFT JOIN ACCOUNT a ON a.user_id = u.id WHERE (a.type = 'PAT' OR a.user_id IS NULL) ORDER BY pt.patient_id DESC",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 80
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT a.patient_id AS patientId, COALESCE( (SELECT p.patient_id FROM PATIENT p WHERE p.patient_id = a.patient_id LIMIT 1), (SELECT p.patient_id FROM PATIENT p WHERE p.user_id = a.patient_id LIMIT 1) ) AS mapPatientPk, a.id AS appointmentId, TIME_FORMAT(a.time, '%H:%i') AS timeHm, a.regimen_id AS regimenId, CASE WHEN r.id IS NOT NULL AND r.`end` IS NULL THEN 1 ELSE 0 END AS checkedIn, a.room_id AS roomId, COALESCE(cr.name, '') AS roomName, COALESCE( NULLIF(TRIM(CONCAT(COALESCE(du.first_name, ''), ' ', COALESCE(du.last_name, ''))), ''), da.username, '' ) AS appointmentDoctorName FROM APPOINTMENT a LEFT JOIN REGIMEN r ON r.id = a.regimen_id AND r.patient_id = a.patient_id LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id LEFT JOIN DOCTOR d ON d.doctor_id = a.doctor_id LEFT JOIN USER du ON du.id = d.user_id LEFT JOIN ACCOUNT da ON da.user_id = d.user_id WHERE DATE(a.time) = :clinicToday AND a.status = 'scheduled' AND ( a.patient_id IN (7,8) OR a.patient_id IN (SELECT p.user_id FROM PATIENT p WHERE p.patient_id IN (7,8)) ) ORDER BY a.patient_id ASC, a.time ASC, a.id ASC",
+        "replacements": {
+          "clinicToday": "<today>"
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT dis.icd_code AS icd10, dis.description AS interpretation, t.time AS visitTime, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(du.first_name, ''), ' ', COALESCE(du.last_name, ''))), ''), da.username, CONCAT('doctor#', d.user_id)) AS doctorName FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DISEASE dis ON dis.id = r.disease_id LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id LEFT JOIN USER du ON du.id = d.user_id LEFT JOIN ACCOUNT da ON da.user_id = d.user_id WHERE r.patient_id = :patientPk AND NOT EXISTS ( SELECT 1 FROM `ORDER` o WHERE o.treatment_id = t.id AND ( EXISTS (SELECT 1 FROM SURGERY s WHERE s.id = o.id) OR EXISTS (SELECT 1 FROM TEST tst WHERE tst.id = o.id) OR EXISTS (SELECT 1 FROM MEDICAL_PRESCRIPTION rx WHERE rx.order_id = o.id) OR EXISTS (SELECT 1 FROM TRANSFERENCE tf WHERE tf.order_id = o.id) ) ) ORDER BY t.time DESC LIMIT 1",
+        "replacements": {
+          "patientPk": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT dis.icd_code AS icd10, dis.description AS interpretation, t.time AS visitTime, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(du.first_name, ''), ' ', COALESCE(du.last_name, ''))), ''), da.username, CONCAT('doctor#', d.user_id)) AS doctorName FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DISEASE dis ON dis.id = r.disease_id LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id LEFT JOIN USER du ON du.id = d.user_id LEFT JOIN ACCOUNT da ON da.user_id = d.user_id WHERE r.patient_id = :patientPk AND NOT EXISTS ( SELECT 1 FROM `ORDER` o WHERE o.treatment_id = t.id AND ( EXISTS (SELECT 1 FROM SURGERY s WHERE s.id = o.id) OR EXISTS (SELECT 1 FROM TEST tst WHERE tst.id = o.id) OR EXISTS (SELECT 1 FROM MEDICAL_PRESCRIPTION rx WHERE rx.order_id = o.id) OR EXISTS (SELECT 1 FROM TRANSFERENCE tf WHERE tf.order_id = o.id) ) ) ORDER BY t.time DESC LIMIT 1",
+        "replacements": {
+          "patientPk": 8
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "portal patients, db down": {
+    "request": "GET /api/appointments/patients",
+    "response": {
+      "status": 500,
+      "message": "internal server error"
+    },
+    "db": [
+      {
+        "sql": "SELECT u.id AS id, a.username AS username, u.first_name AS firstName, u.last_name AS lastName, u.sex AS gender, u.dob AS dob, COALESCE( ( SELECT dep_t.name FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DEPARTMENT dep_t ON dep_t.id = t.dept_id WHERE r.patient_id = pt.patient_id AND t.dept_id IS NOT NULL ORDER BY t.time DESC, t.id DESC LIMIT 1 ), ( SELECT dep_a.name FROM APPOINTMENT a2 JOIN CLINIC_ROOM cr2 ON cr2.id = a2.room_id LEFT JOIN DEPARTMENT dep_a ON dep_a.id = cr2.department_id WHERE a2.patient_id = pt.patient_id ORDER BY a2.time DESC, a2.id DESC LIMIT 1 ) ) AS inDepartment FROM PATIENT pt LEFT JOIN USER u ON u.id = pt.user_id LEFT JOIN ACCOUNT a ON a.user_id = u.id WHERE (a.type = 'PAT' OR a.user_id IS NULL) ORDER BY pt.patient_id DESC",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  }
+}

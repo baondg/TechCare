@@ -122,7 +122,6 @@ const schema = z
     LOCAL_LLM_BASE_URL: z.string().optional(),
     LOCAL_LLM_MODEL: z.string().optional(),
     LOCAL_LLM_API_KEY: z.string().optional(),
-    OPENROUTER_API_KEY: z.string().optional(),
     BACKEND_INTERNAL_URL: z.string().optional(),
     MEDAI_CHAT_ENDPOINT: z.string().optional(),
     MEDAI_SYMPTOM_ENDPOINT: z.string().optional(),
@@ -263,7 +262,6 @@ export const config = {
       model: e.LOCAL_LLM_MODEL || 'llama3',
       apiKey: e.LOCAL_LLM_API_KEY || 'ollama',
     },
-    openRouterApiKey: str(e.OPENROUTER_API_KEY),
     /** `AI_PROVIDER_<FEATURE>` / `AI_MODEL_<FEATURE>`, keyed by lowercased feature. */
     providerOverrides: collectByPattern(/^AI_PROVIDER_(\w+)$/),
     modelOverrides: collectByPattern(/^AI_MODEL_(\w+)$/),

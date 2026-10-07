@@ -1,82 +1,43 @@
 const notificationService = require('../services/notificationService');
-const logger = require('../common/logger');
+const { asyncHandler } = require('../common/asyncHandler');
+const { UnauthorizedError } = require('../errors/AppError');
 
-function resolveUserId(req) {
-  const raw = req.user?.userId ?? req.user?.id;
-  const userId = Number(raw);
-  return Number.isFinite(userId) && userId > 0 ? userId : null;
+function requireUserId(req) {
+  const userId = Number(req.user?.userId ?? req.user?.id);
+  if (!Number.isFinite(userId) || userId <= 0) {
+    throw new UnauthorizedError('Authentication required');
+  }
+  return userId;
 }
 
 /**
  * GET /api/notifications/unread-count
  * Lightweight poll target for notification badges (same filter as list).
  */
-exports.getUnreadCount = async (req, res) => {
-  try {
-    const userId = resolveUserId(req);
-    if (!userId) {
-      return res.status(401).json({ success: false, message: 'Authentication required' });
-    }
-    const { count } = await notificationService.getUnreadCount(userId);
-    res.json({ count });
-  } catch (error) {
-    logger.error({ err: error }, 'Unread count error');
-    res.status(500).json({ success: false, message: 'Internal server error' });
-  }
-};
+exports.getUnreadCount = asyncHandler(async (req, res) => {
+  const { count } = await notificationService.getUnreadCount(requireUserId(req));
+  res.json({ count });
+});
 
 /**
  * GET /api/notifications
  * Lists notifications that are already due (time <= NOW) for the logged-in user.
  */
-exports.listNotifications = async (req, res) => {
-  try {
-    const userId = resolveUserId(req);
-    if (!userId) {
-      return res.status(401).json({ success: false, message: 'Authentication required' });
-    }
-    const payload = await notificationService.listNotifications(userId);
-    res.json(payload);
-  } catch (error) {
-    logger.error({ err: error }, 'List notifications error');
-    res.status(500).json({ success: false, message: 'Internal server error' });
-  }
-};
+exports.listNotifications = asyncHandler(async (req, res) => {
+  res.json(await notificationService.listNotifications(requireUserId(req)));
+});
 
 /**
  * PATCH /api/notifications/read-all
  */
-exports.markAllNotificationsRead = async (req, res) => {
-  try {
-    const userId = resolveUserId(req);
-    if (!userId) {
-      return res.status(401).json({ success: false, message: 'Authentication required' });
-    }
-    const payload = await notificationService.markAllRead(userId);
-    res.json(payload);
-  } catch (error) {
-    logger.error({ err: error }, 'Mark all notifications read error');
-    res.status(500).json({ success: false, message: 'Internal server error' });
-  }
-};
+exports.markAllNotificationsRead = asyncHandler(async (req, res) => {
+  res.json(await notificationService.markAllRead(requireUserId(req)));
+});
 
 /**
  * PATCH /api/notifications/:id/read
  */
-exports.markNotificationRead = async (req, res) => {
-  try {
-    const userId = resolveUserId(req);
-    if (!userId) {
-      return res.status(401).json({ success: false, message: 'Authentication required' });
-    }
-    const id = Number(req.params.id);
-    const out = await notificationService.markOneRead(userId, id);
-    if (!out.ok) {
-      return res.status(out.status).json(out.json);
-    }
-    res.json(out.json);
-  } catch (error) {
-    logger.error({ err: error }, 'Mark notification read error');
-    res.status(500).json({ success: false, message: 'Internal server error' });
-  }
-};
+exports.markNotificationRead = asyncHandler(async (req, res) => {
+  const out = await notificationService.markOneRead(requireUserId(req), req.params.id);
+  res.status(out.status).json(out.json);
+});

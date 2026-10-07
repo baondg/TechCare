@@ -10,6 +10,18 @@
 
 `appointmentController.js` delegates patient id resolution to **`appointmentPatientService`** (`getPatientPkForUserId`, `getPatientPkFromRouteId`); it no longer imports `appointmentRepository`.
 
+## Conventions (G2 foundations — follow these in new/refactored code)
+
+| Concern | Use | Don't |
+| --- | --- | --- |
+| **Config** | `const { config } = require('../config/env')` → `config.db.port`, `config.auth.jwtSecret`… Add new vars to the zod schema in `src/config/env.ts`. | Read `process.env` (ESLint error outside `config/env.ts`, `common/logger.ts`). |
+| **Errors** | `throw new BadRequestError(msg)` / `NotFoundError` / `ForbiddenError` / `ConflictError` (`src/errors/AppError.ts`). Body: `{ success:false, error, message, code, details?, requestId }`. | `res.status(500).json({ error: e.message })` — never echo raw error text. |
+| **Async handlers** | `exports.x = asyncHandler(async (req, res) => { … })` (`src/common/asyncHandler.ts`); let errors propagate. | Per-handler `try/catch` that only logs and answers 500. |
+| **Validation** | zod schema in `src/validators/*Schemas.js` + `validate({ params, query, body })` in the route; handler receives coerced values. | Ad-hoc `Number(req.params.id)` checks in handlers. |
+| **Logging** | `logger.info({ ...fields }, 'event.name')`, errors as `logger.error({ err }, 'msg')` (`src/common/logger.ts`). | `console.*`; logging request bodies or patient data. |
+
+Reference implementations: `coverController.js`, `notificationController.js`, `workShiftController.js` (+ `routes/coverRoutes.js`, `routes/notificationRoutes.js`).
+
 ---
 
 ## Repositories

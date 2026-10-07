@@ -160,3 +160,20 @@ test('system config contract: appointment rate-limit default matches the middlew
   assert.equal(contract.CONFIG_DEFAULTS.appointmentRateLimitRequests, '60');
   assert.equal(contract.CONFIG_DEFAULTS.appointmentRateLimitWindowSeconds, '60');
 });
+
+test('AI capabilities: model info is admin-only, clinical assistants are for doctors and admins', () => {
+  assert.equal(isRoleAllowed('ai.models.inspect', 'admin'), true);
+  assert.equal(isRoleAllowed('ai.models.inspect', 'doctor'), false);
+  for (const role of ['doctor', 'admin']) assert.equal(isRoleAllowed('ai.clinical.assist', role), true, role);
+  for (const role of ['nurse', 'technician', 'patient']) assert.equal(isRoleAllowed('ai.clinical.assist', role), false, role);
+});
+
+test('authorizeCapability can carry a custom message (in both error and message)', () => {
+  const guard = authorizeCapability('ai.models.inspect', { message: 'Admin access required' });
+  const res = createMockRes();
+  guard({ user: { role: 'doctor' } }, res, () => {});
+  assert.equal(res.statusCode, 403);
+  assert.equal(res.payload.error, 'Admin access required');
+  assert.equal(res.payload.message, 'Admin access required');
+  assert.equal(res.payload.capability, 'ai.models.inspect');
+});

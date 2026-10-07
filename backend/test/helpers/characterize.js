@@ -43,6 +43,7 @@ function scrub(value, custom = () => undefined) {
       if (typeof v === 'string' && HAS_JWT.test(v)) return v.replace(JWT, '<jwt>');
       if (key === 'password' && typeof v === 'string' && v.startsWith('$2')) return '<bcrypt>';
       if (key === 'idcard') return '<idcard>';
+      if (key === 'requestId') return '<requestId>';
       if (key === 'clinicToday') return '<today>';
       if (key === 'date' && /^\d{4}-\d{2}-\d{2}$/.test(String(v))) return '<date>';
       if (key === 'updatedAt' && /^\d{4}-\d{2}-\d{2}T/.test(String(v))) return '<now>';

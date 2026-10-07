@@ -79,7 +79,9 @@
       "status": 403,
       "body": {
         "success": false,
-        "error": "Admin access required"
+        "error": "Admin access required",
+        "message": "Admin access required",
+        "capability": "ai.models.inspect"
       }
     },
     "db": []
@@ -101,7 +103,11 @@
     "response": {
       "status": 400,
       "body": {
-        "error": "Invalid request. \"messages\" array is required."
+        "success": false,
+        "error": "Invalid request. \"messages\" array is required.",
+        "message": "Invalid request. \"messages\" array is required.",
+        "code": "BAD_REQUEST",
+        "requestId": "<requestId>"
       }
     },
     "db": []
@@ -370,7 +376,11 @@
     "response": {
       "status": 400,
       "body": {
-        "error": "symptoms array is required"
+        "success": false,
+        "error": "symptoms array is required",
+        "message": "symptoms array is required",
+        "code": "BAD_REQUEST",
+        "requestId": "<requestId>"
       }
     },
     "db": []
@@ -704,24 +714,6 @@
         "tx": null
       },
       {
-        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
-        "replacements": null,
-        "type": "SELECT",
-        "tx": null
-      },
-      {
-        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
-        "replacements": null,
-        "type": "SELECT",
-        "tx": null
-      },
-      {
-        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
-        "replacements": null,
-        "type": "SELECT",
-        "tx": null
-      },
-      {
         "event": "fetch",
         "url": "https://api.groq.com/openai/v1/chat/completions",
         "body": {
@@ -758,24 +750,6 @@
       }
     },
     "db": [
-      {
-        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
-        "replacements": null,
-        "type": "SELECT",
-        "tx": null
-      },
-      {
-        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
-        "replacements": null,
-        "type": "SELECT",
-        "tx": null
-      },
-      {
-        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
-        "replacements": null,
-        "type": "SELECT",
-        "tx": null
-      },
       {
         "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
         "replacements": null,
@@ -845,24 +819,6 @@
         "tx": null
       },
       {
-        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
-        "replacements": null,
-        "type": "SELECT",
-        "tx": null
-      },
-      {
-        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
-        "replacements": null,
-        "type": "SELECT",
-        "tx": null
-      },
-      {
-        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
-        "replacements": null,
-        "type": "SELECT",
-        "tx": null
-      },
-      {
         "event": "fetch",
         "url": "https://api.groq.com/openai/v1/chat/completions",
         "body": {
@@ -894,24 +850,6 @@
       }
     },
     "db": [
-      {
-        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
-        "replacements": null,
-        "type": "SELECT",
-        "tx": null
-      },
-      {
-        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
-        "replacements": null,
-        "type": "SELECT",
-        "tx": null
-      },
-      {
-        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
-        "replacements": null,
-        "type": "SELECT",
-        "tx": null
-      },
       {
         "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
         "replacements": null,
@@ -981,24 +919,6 @@
         "tx": null
       },
       {
-        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
-        "replacements": null,
-        "type": "SELECT",
-        "tx": null
-      },
-      {
-        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
-        "replacements": null,
-        "type": "SELECT",
-        "tx": null
-      },
-      {
-        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
-        "replacements": null,
-        "type": "SELECT",
-        "tx": null
-      },
-      {
         "event": "fetch",
         "url": "https://api.groq.com/openai/v1/chat/completions",
         "body": {
@@ -1049,24 +969,6 @@
         "tx": null
       },
       {
-        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
-        "replacements": null,
-        "type": "SELECT",
-        "tx": null
-      },
-      {
-        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
-        "replacements": null,
-        "type": "SELECT",
-        "tx": null
-      },
-      {
-        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
-        "replacements": null,
-        "type": "SELECT",
-        "tx": null
-      },
-      {
         "event": "fetch",
         "url": "http://llm.test/v1/chat/completions",
         "body": {
@@ -1094,7 +996,9 @@
       "status": 403,
       "body": {
         "success": false,
-        "error": "Doctor or admin access required"
+        "error": "Doctor or admin access required",
+        "message": "Doctor or admin access required",
+        "capability": "ai.clinical.assist"
       }
     },
     "db": []
@@ -1104,7 +1008,11 @@
     "response": {
       "status": 400,
       "body": {
-        "error": "At least one of \"diagnosis\" or \"symptoms\" is required."
+        "success": false,
+        "error": "At least one of \"diagnosis\" or \"symptoms\" is required.",
+        "message": "At least one of \"diagnosis\" or \"symptoms\" is required.",
+        "code": "BAD_REQUEST",
+        "requestId": "<requestId>"
       }
     },
     "db": []
@@ -1127,24 +1035,6 @@
       }
     },
     "db": [
-      {
-        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
-        "replacements": null,
-        "type": "SELECT",
-        "tx": null
-      },
-      {
-        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
-        "replacements": null,
-        "type": "SELECT",
-        "tx": null
-      },
-      {
-        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
-        "replacements": null,
-        "type": "SELECT",
-        "tx": null
-      },
       {
         "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
         "replacements": null,
@@ -1217,24 +1107,6 @@
         "tx": null
       },
       {
-        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
-        "replacements": null,
-        "type": "SELECT",
-        "tx": null
-      },
-      {
-        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
-        "replacements": null,
-        "type": "SELECT",
-        "tx": null
-      },
-      {
-        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
-        "replacements": null,
-        "type": "SELECT",
-        "tx": null
-      },
-      {
         "event": "fetch",
         "url": "http://llm.test/v1/chat/completions",
         "body": {
@@ -1286,24 +1158,6 @@
         "tx": null
       },
       {
-        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
-        "replacements": null,
-        "type": "SELECT",
-        "tx": null
-      },
-      {
-        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
-        "replacements": null,
-        "type": "SELECT",
-        "tx": null
-      },
-      {
-        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
-        "replacements": null,
-        "type": "SELECT",
-        "tx": null
-      },
-      {
         "event": "fetch",
         "url": "http://llm.test/v1/chat/completions",
         "body": {
@@ -1330,7 +1184,11 @@
     "response": {
       "status": 400,
       "body": {
-        "error": "At least one of \"symptoms\" or \"department\" is required."
+        "success": false,
+        "error": "At least one of \"symptoms\" or \"department\" is required.",
+        "message": "At least one of \"symptoms\" or \"department\" is required.",
+        "code": "BAD_REQUEST",
+        "requestId": "<requestId>"
       }
     },
     "db": []
@@ -1354,24 +1212,6 @@
       }
     },
     "db": [
-      {
-        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
-        "replacements": null,
-        "type": "SELECT",
-        "tx": null
-      },
-      {
-        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
-        "replacements": null,
-        "type": "SELECT",
-        "tx": null
-      },
-      {
-        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
-        "replacements": null,
-        "type": "SELECT",
-        "tx": null
-      },
       {
         "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
         "replacements": null,
@@ -1443,24 +1283,6 @@
         "tx": null
       },
       {
-        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
-        "replacements": null,
-        "type": "SELECT",
-        "tx": null
-      },
-      {
-        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
-        "replacements": null,
-        "type": "SELECT",
-        "tx": null
-      },
-      {
-        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
-        "replacements": null,
-        "type": "SELECT",
-        "tx": null
-      },
-      {
         "event": "fetch",
         "url": "http://llm.test/v1/chat/completions",
         "body": {
@@ -1492,24 +1314,6 @@
       }
     },
     "db": [
-      {
-        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
-        "replacements": null,
-        "type": "SELECT",
-        "tx": null
-      },
-      {
-        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModels';",
-        "replacements": null,
-        "type": "SELECT",
-        "tx": null
-      },
-      {
-        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiDefaultModelByFeature';",
-        "replacements": null,
-        "type": "SELECT",
-        "tx": null
-      },
       {
         "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'aiModelCatalog';",
         "replacements": null,

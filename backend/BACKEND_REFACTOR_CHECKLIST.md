@@ -114,6 +114,16 @@ SQL đã chuyển khỏi controller; controller chỉ còn HTTP (`asyncHandler`)
 - [x] Lỗi riêng của AI (`502` + `raw`, `503` + `hint`, chat `200` + `fallback`) giữ nguyên qua `AiResponseError` — `appointmentAiService` đọc các trường này.
 - [x] **`test/ai-characterization.test.js`** — 33 kịch bản, LLM được giả lập (fetch ra ngoài bị chặn và ghi lại).
 
+## Profile + hồ sơ sức khoẻ phía bệnh nhân (`/api/profile`, `/api/health-info`, G3 bước B — xong)
+
+- [x] `repositories/profileRepository.js` (ACCOUNT + USER, người thân + BHYT của bệnh nhân trong một truy vấn) · `patientRepository` / `medicalRecordRepository` thêm hàm theo model · `services/{profileService,patientHealthInfoService}.js`; hai controller chỉ còn HTTP. Test: `test/profile-health-info-characterization.test.js` (43 kịch bản).
+- [x] Sửa: cập nhật profile trong một transaction — người thân sai email / SĐT không còn xoá mất người thân cũ (trước: 500 + đã xoá; nay 400 "Invalid relative email" + rollback).
+- [x] Sửa: `PUT /api/health-info` lưu bệnh sử vào `medical_history` (trước đây dồn vào `allergic_info`).
+- [x] Sửa: admin ghi hồ sơ sức khoẻ của bệnh nhân (so role với `'admin'`, không phải `'ADM'`).
+- ⚠️ Nhân viên y tế (bác sĩ / y tá / kỹ thuật viên) đọc **và sửa** được profile của **bất kỳ** user nào, kể cả admin / nhân viên khác — chủ ý là "y tá sửa thông tin bệnh nhân" nhưng không giới hạn đối tượng là bệnh nhân.
+- `PUT /api/profile` bắt buộc tên người thân hợp lệ với mọi tài khoản (nhân viên / admin không cập nhật được profile của mình nếu không có người thân); nhánh tách `fullName` vì thế không bao giờ chạy.
+- `GET /api/health-info/:userId` bỏ qua `:userId`, luôn trả dữ liệu của người đang đăng nhập (portal chỉ gọi cho chính mình).
+
 ## Follow-up (broader backend — khối lớn, làm dần)
 
 - [x] `CONFIG_DEFAULTS` / `NUMERIC_CONFIG_RULES` chỉ còn ở `config/systemConfigurationContract.js` (lấy theo giá trị của trang admin: appointment 60/60, không có `aiRecovery*` / `aiModelCatalog`).

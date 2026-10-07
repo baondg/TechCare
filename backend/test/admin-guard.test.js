@@ -1,4 +1,7 @@
-/** /api/admin/* and /api/system-config/* are admin-only (same 403 text as before for everyone else). */
+/**
+ * /api/admin/* and /api/system-config/* are admin-only (same 403 text as before for everyone else);
+ * the portal patient list (every patient's latest diagnosis) is for EMR staff only.
+ */
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
@@ -30,3 +33,12 @@ for (const path of ['/api/admin/dashboard-summary', '/api/admin/accounts', '/api
     assert.notEqual((await get(path, 'ADM')).status, 403);
   });
 }
+
+test('/api/appointments/patients: EMR staff only', async () => {
+  for (const role of ['PAT']) {
+    assert.equal((await get('/api/appointments/patients', role)).status, 403, role);
+  }
+  for (const role of ['DOC', 'NUR', 'TEC', 'ADM']) {
+    assert.equal((await get('/api/appointments/patients', role)).status, 200, role);
+  }
+});

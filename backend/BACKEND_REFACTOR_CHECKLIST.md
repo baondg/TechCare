@@ -128,7 +128,10 @@ SQL đã chuyển khỏi controller; controller chỉ còn HTTP (`asyncHandler`)
 
 - [x] 33 handler chuyển sang `asyncHandler` (`sendResult` / `sendJson`), 465 → 121 dòng. Test: `test/appointment-controller-passthrough.test.js` (tham số gửi service, kết quả trả nguyên, lỗi → 500 chung).
 - [x] Bỏ `/api/chatbot` (proxy OpenRouter **không xác thực**, không ai dùng, gửi key sai header) + `OPENROUTER_API_KEY`.
-- [ ] Các service `appointment*` vẫn trả `{ status, json }` cho lỗi 4xx (77 chỗ) thay vì throw `AppError`, và tự kiểm tra role (`role` truyền vào) — làm từng service, kèm characterization.
+- [x] Nhóm 1 — `appointmentPatientService`, `appointmentFeedbackService`, `appointmentCatalogService`, chi tiết xét nghiệm portal: trả dữ liệu + throw `AppError`. Test: `test/appointment-patient-characterization.test.js` (44 kịch bản).
+- [ ] Nhóm 2 — `appointmentSlotService`, `appointmentNurseService` (vẫn `{ status, json }` + tự kiểm tra role).
+- [ ] Nhóm 3 — `appointmentAiService`.
+- ⚠️ `GET /api/appointments/patients` (danh sách bệnh nhân portal) chỉ cần đăng nhập — bệnh nhân cũng gọi được.
 
 ## Follow-up (broader backend — khối lớn, làm dần)
 

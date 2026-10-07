@@ -26,7 +26,7 @@ setInterval(() => {
       rateLimitStore.delete(key);
     }
   }
-}, 60000);
+}, 60000).unref();
 
 // Get rate limit info from memory
 const getRateLimitInfo = (key) => {

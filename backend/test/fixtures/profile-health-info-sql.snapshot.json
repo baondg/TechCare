@@ -1121,7 +1121,8 @@
         "id": 70,
         "values": {
           "blood_type": "AB-",
-          "allergic_info": "{\"drugAllergies\":[\"penicillin\"],\"foodAllergies\":[],\"otherAllergies\":[],\"chronicConditions\":[\"asthma\"],\"pastSurgeries\":[],\"familyHistory\":[],\"pastIllnesses\":[],\"vaccinations\":[\"BCG\"],\"substanceAbuse\":[]}"
+          "allergic_info": "{\"drugAllergies\":[\"penicillin\"],\"foodAllergies\":[],\"otherAllergies\":[]}",
+          "medical_history": "{\"chronicConditions\":[\"asthma\"],\"pastSurgeries\":[],\"familyHistory\":[],\"pastIllnesses\":[],\"vaccinations\":[\"BCG\"],\"substanceAbuse\":[]}"
         }
       }
     ]
@@ -1197,7 +1198,8 @@
         "event": "Patient#update",
         "id": 70,
         "values": {
-          "allergic_info": "{\"drugAllergies\":[],\"foodAllergies\":[],\"otherAllergies\":[],\"chronicConditions\":[],\"pastSurgeries\":[],\"familyHistory\":[],\"pastIllnesses\":[],\"vaccinations\":[],\"substanceAbuse\":[]}"
+          "allergic_info": "{\"drugAllergies\":[],\"foodAllergies\":[],\"otherAllergies\":[]}",
+          "medical_history": "{\"chronicConditions\":[],\"pastSurgeries\":[],\"familyHistory\":[],\"pastIllnesses\":[],\"vaccinations\":[],\"substanceAbuse\":[]}"
         }
       }
     ]

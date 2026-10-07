@@ -1,0 +1,1481 @@
+{
+  "recommendations, no patient row": {
+    "request": "GET /api/appointments/ai-recommendations",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "recommendations": []
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "recommendations": {
+    "request": "GET /api/appointments/ai-recommendations",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "recommendations": [
+          {
+            "id": 5,
+            "type": "other",
+            "content": "",
+            "time": "2026-09-01",
+            "modelName": "Llama",
+            "modelProvider": "groq",
+            "treatmentId": 501,
+            "feedback": "useful"
+          }
+        ]
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT ar.id, ar.time, ar.`Type` AS recType, ar.content, ar.feedback, ar.treatment_id AS treatmentId, am.name AS modelName, am.provider AS modelProvider FROM AI_RECOMMENDATION ar JOIN AI_MODEL am ON am.id = ar.model_id WHERE ar.patient_id = :patientId ORDER BY ar.time DESC, ar.id DESC",
+        "replacements": {
+          "patientId": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "recommendation feedback, no patient row": {
+    "request": "PATCH /api/appointments/ai-recommendations/5/feedback",
+    "response": {
+      "status": 404,
+      "message": "Patient profile not found"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "recommendation feedback, not mine": {
+    "request": "PATCH /api/appointments/ai-recommendations/5/feedback",
+    "response": {
+      "status": 404,
+      "message": "Recommendation not found"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT ar.id FROM AI_RECOMMENDATION ar WHERE ar.id = :id AND ar.patient_id = :patientId LIMIT 1",
+        "replacements": {
+          "id": 5,
+          "patientId": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "recommendation feedback": {
+    "request": "PATCH /api/appointments/ai-recommendations/5/feedback",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "id": 5,
+        "feedback": "useful"
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT ar.id FROM AI_RECOMMENDATION ar WHERE ar.id = :id AND ar.patient_id = :patientId LIMIT 1",
+        "replacements": {
+          "id": 5,
+          "patientId": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "UPDATE AI_RECOMMENDATION SET feedback = :feedback WHERE id = :id",
+        "replacements": {
+          "id": 5,
+          "feedback": "useful"
+        },
+        "type": "UPDATE",
+        "tx": null
+      }
+    ]
+  },
+  "models": {
+    "request": "GET /api/appointments/ai/models",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "models": [
+          {
+            "id": 2,
+            "name": "Model #2",
+            "provider": "",
+            "status": "active"
+          }
+        ]
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT id, name, provider, status FROM AI_MODEL ORDER BY (status = 'active') DESC, release_date DESC, id DESC",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "chat, no patient row": {
+    "request": "POST /api/appointments/ai/chat",
+    "response": {
+      "status": 404,
+      "message": "Patient profile not found"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "chat, no model configured": {
+    "request": "POST /api/appointments/ai/chat",
+    "response": {
+      "status": 400,
+      "message": "No AI model configured in AI_MODEL table"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id, name, provider, version FROM AI_MODEL WHERE status = 'active' ORDER BY release_date DESC, id DESC LIMIT 1",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id, name, provider, version FROM AI_MODEL ORDER BY id DESC LIMIT 1",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "chat, AI service unreachable": {
+    "request": "POST /api/appointments/ai/chat",
+    "response": {
+      "status": 502,
+      "message": "cannot connect to ai service at http://medai.test/api/ai/chat"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id, name, provider, version FROM AI_MODEL WHERE status = 'active' ORDER BY release_date DESC, id DESC LIMIT 1",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "fetch",
+        "url": "http://medai.test/api/ai/chat",
+        "body": {
+          "messages": [
+            {
+              "role": "user",
+              "content": "hi"
+            }
+          ],
+          "preferredModel": {
+            "id": 2,
+            "name": "Llama",
+            "provider": "groq",
+            "modelApiId": "llama-3.1"
+          }
+        }
+      }
+    ]
+  },
+  "chat, AI service error": {
+    "request": "POST /api/appointments/ai/chat",
+    "response": {
+      "status": 502,
+      "message": "groq quota exceeded"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id, name, provider, version FROM AI_MODEL WHERE status = 'active' ORDER BY release_date DESC, id DESC LIMIT 1",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "fetch",
+        "url": "http://medai.test/api/ai/chat",
+        "body": {
+          "messages": [
+            {
+              "role": "user",
+              "content": "hi"
+            }
+          ],
+          "preferredModel": {
+            "id": 2,
+            "name": "Llama",
+            "provider": "groq",
+            "modelApiId": "llama-3.1"
+          }
+        }
+      }
+    ]
+  },
+  "chat, empty reply": {
+    "request": "POST /api/appointments/ai/chat",
+    "response": {
+      "status": 502,
+      "message": "ai chatbot returned empty response"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id, name, provider, version FROM AI_MODEL WHERE status = 'active' ORDER BY release_date DESC, id DESC LIMIT 1",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "fetch",
+        "url": "http://medai.test/api/ai/chat",
+        "body": {
+          "messages": [
+            {
+              "role": "user",
+              "content": "hi"
+            }
+          ],
+          "preferredModel": {
+            "id": 2,
+            "name": "Llama",
+            "provider": "groq",
+            "modelApiId": "llama-3.1"
+          }
+        }
+      }
+    ]
+  },
+  "chat, unknown model falls back, history filtered": {
+    "request": "POST /api/appointments/ai/chat",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "message": "Probably not.",
+        "recommendationId": 801,
+        "model": {
+          "id": 2,
+          "name": "Llama",
+          "provider": "groq"
+        },
+        "aiFallback": true,
+        "aiHint": "local model",
+        "modelFallbackReason": "selected-model-invalid"
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id, name, provider, version FROM AI_MODEL WHERE id = :id LIMIT 1",
+        "replacements": {
+          "id": 99
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id, name, provider, version FROM AI_MODEL WHERE status = 'active' ORDER BY release_date DESC, id DESC LIMIT 1",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "fetch",
+        "url": "http://medai.test/api/ai/chat",
+        "body": {
+          "messages": [
+            {
+              "role": "user",
+              "content": "I cough"
+            },
+            {
+              "role": "assistant",
+              "content": "Since when?"
+            },
+            {
+              "role": "user",
+              "content": "Is it serious?"
+            }
+          ],
+          "preferredModel": {
+            "id": 2,
+            "name": "Llama",
+            "provider": "groq",
+            "modelApiId": "llama-3.1"
+          }
+        }
+      },
+      {
+        "sql": "SELECT t.id FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id WHERE r.patient_id = :patientId ORDER BY t.time DESC, t.id DESC LIMIT 1",
+        "replacements": {
+          "patientId": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "INSERT INTO CHAT_TURN (question, ask_time, response, rep_time, patient_id, model_id) VALUES (:question, :askTime, :response, :repTime, :patientId, :modelId)",
+        "replacements": {
+          "question": "Is it serious?",
+          "askTime": "<now>",
+          "response": "Probably not.",
+          "repTime": "<now>",
+          "patientId": 7,
+          "modelId": 2
+        },
+        "type": "INSERT",
+        "tx": null
+      },
+      {
+        "sql": "INSERT INTO AI_RECOMMENDATION (time, model_id, `Type`, content, treatment_id, patient_id) VALUES (:time, :modelId, :type, :content, :treatmentId, :patientId)",
+        "replacements": {
+          "time": "<now>",
+          "modelId": 2,
+          "type": "chatbot",
+          "content": "Probably not.",
+          "treatmentId": 501,
+          "patientId": 7
+        },
+        "type": "INSERT",
+        "tx": null
+      }
+    ]
+  },
+  "chat, db down": {
+    "request": "POST /api/appointments/ai/chat",
+    "response": {
+      "status": 500,
+      "message": "internal server error"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "symptoms, no patient row": {
+    "request": "POST /api/appointments/ai/symptom-analysis",
+    "response": {
+      "status": 404,
+      "message": "Patient profile not found"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "symptoms, no model configured": {
+    "request": "POST /api/appointments/ai/symptom-analysis",
+    "response": {
+      "status": 400,
+      "message": "No AI model configured in AI_MODEL table"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id, name, provider, version FROM AI_MODEL WHERE status = 'active' ORDER BY release_date DESC, id DESC LIMIT 1",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id, name, provider, version FROM AI_MODEL ORDER BY id DESC LIMIT 1",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "symptoms, AI service unreachable": {
+    "request": "POST /api/appointments/ai/symptom-analysis",
+    "response": {
+      "status": 503,
+      "message": "ai symptom analysis is temporarily unavailable. please try again later or consult a doctor."
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id, name, provider, version FROM AI_MODEL WHERE status = 'active' ORDER BY release_date DESC, id DESC LIMIT 1",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT p.patient_id AS patientId, p.blood_type AS bloodType, p.allergic_info AS allergicInfo, p.medical_history AS medicalHistory, u.sex AS sex, u.dob AS dob FROM PATIENT p JOIN USER u ON u.id = p.user_id WHERE p.patient_id = :pid LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id, time, `condition` AS currentSymptoms, blood_pressure AS bloodPressure, heart_rate AS heartRate, temperature, weight, height, respiratory_rate AS respiratoryRate, spo2 FROM MEDICAL_RECORD WHERE patient_id = :pid ORDER BY time DESC, id DESC LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT DISTINCT TRIM(m.name) AS name FROM MEDICAL_PRESCRIPTION rx JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id JOIN MEDICINE m ON m.id = pd.medicine_id JOIN `ORDER` o ON o.id = rx.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id WHERE r.patient_id = :pid AND CHAR_LENGTH(TRIM(COALESCE(m.name, ''))) > 0 AND DATE(rx.time) >= DATE_SUB(CURDATE(), INTERVAL 90 DAY) ORDER BY rx.time DESC LIMIT 25",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "fetch",
+        "url": "http://medai.test/api/ai/symptom-analysis",
+        "body": {
+          "symptoms": [
+            {
+              "name": "Cough",
+              "severity": "mild",
+              "duration": "1to3days"
+            }
+          ],
+          "patientContext": {
+            "demographics": {
+              "sex": "M",
+              "age": 36,
+              "bloodType": "O+"
+            },
+            "vitalsFromLatestRecord": {
+              "recordId": 3,
+              "recordTime": "2026-09-01T08:00:00.000Z",
+              "heightCm": 170,
+              "weightKg": 60,
+              "bmi": 20.8,
+              "bloodPressure": "120/80",
+              "heartRate": 72,
+              "symptomsOrNotesInRecord": "cough"
+            },
+            "history": {
+              "drugAllergies": [
+                "penicillin"
+              ]
+            }
+          }
+        }
+      }
+    ]
+  },
+  "symptoms, AI service error": {
+    "request": "POST /api/appointments/ai/symptom-analysis",
+    "response": {
+      "status": 503,
+      "message": "ai symptom analysis is temporarily unavailable. please try again later or consult a doctor."
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id, name, provider, version FROM AI_MODEL WHERE status = 'active' ORDER BY release_date DESC, id DESC LIMIT 1",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT p.patient_id AS patientId, p.blood_type AS bloodType, p.allergic_info AS allergicInfo, p.medical_history AS medicalHistory, u.sex AS sex, u.dob AS dob FROM PATIENT p JOIN USER u ON u.id = p.user_id WHERE p.patient_id = :pid LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id, time, `condition` AS currentSymptoms, blood_pressure AS bloodPressure, heart_rate AS heartRate, temperature, weight, height, respiratory_rate AS respiratoryRate, spo2 FROM MEDICAL_RECORD WHERE patient_id = :pid ORDER BY time DESC, id DESC LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT DISTINCT TRIM(m.name) AS name FROM MEDICAL_PRESCRIPTION rx JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id JOIN MEDICINE m ON m.id = pd.medicine_id JOIN `ORDER` o ON o.id = rx.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id WHERE r.patient_id = :pid AND CHAR_LENGTH(TRIM(COALESCE(m.name, ''))) > 0 AND DATE(rx.time) >= DATE_SUB(CURDATE(), INTERVAL 90 DAY) ORDER BY rx.time DESC LIMIT 25",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "fetch",
+        "url": "http://medai.test/api/ai/symptom-analysis",
+        "body": {
+          "symptoms": [
+            {
+              "name": "Cough",
+              "severity": "mild",
+              "duration": "1to3days"
+            }
+          ],
+          "patientContext": {}
+        }
+      }
+    ]
+  },
+  "symptoms, analysed and saved": {
+    "request": "POST /api/appointments/ai/symptom-analysis",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "analysis": {
+          "results": [
+            {
+              "condition": "Common cold",
+              "severity": "high",
+              "recommendation": "Rest",
+              "details": "cough",
+              "possibleCauses": [
+                "antipyretic"
+              ],
+              "whenToSeekHelp": "Consult a doctor if symptoms worsen or do not improve within 48 hours."
+            },
+            {
+              "condition": "Unknown",
+              "severity": "low",
+              "recommendation": "Rest",
+              "details": "",
+              "possibleCauses": [
+                "antipyretic"
+              ],
+              "whenToSeekHelp": "Consult a doctor if symptoms worsen or do not improve within 48 hours."
+            }
+          ],
+          "disclaimer": "This is not a medical diagnosis. Always consult a qualified healthcare professional for proper evaluation and treatment."
+        },
+        "recommendationId": 801,
+        "model": {
+          "id": 2,
+          "name": "Llama",
+          "provider": "groq"
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id, name, provider, version FROM AI_MODEL WHERE status = 'active' ORDER BY release_date DESC, id DESC LIMIT 1",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT p.patient_id AS patientId, p.blood_type AS bloodType, p.allergic_info AS allergicInfo, p.medical_history AS medicalHistory, u.sex AS sex, u.dob AS dob FROM PATIENT p JOIN USER u ON u.id = p.user_id WHERE p.patient_id = :pid LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id, time, `condition` AS currentSymptoms, blood_pressure AS bloodPressure, heart_rate AS heartRate, temperature, weight, height, respiratory_rate AS respiratoryRate, spo2 FROM MEDICAL_RECORD WHERE patient_id = :pid ORDER BY time DESC, id DESC LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT DISTINCT TRIM(m.name) AS name FROM MEDICAL_PRESCRIPTION rx JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id JOIN MEDICINE m ON m.id = pd.medicine_id JOIN `ORDER` o ON o.id = rx.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id WHERE r.patient_id = :pid AND CHAR_LENGTH(TRIM(COALESCE(m.name, ''))) > 0 AND DATE(rx.time) >= DATE_SUB(CURDATE(), INTERVAL 90 DAY) ORDER BY rx.time DESC LIMIT 25",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "fetch",
+        "url": "http://medai.test/api/ai/symptom-analysis",
+        "body": {
+          "symptoms": [
+            {
+              "name": "Cough",
+              "severity": "mild",
+              "duration": "1to3days"
+            }
+          ],
+          "patientContext": {
+            "demographics": {
+              "sex": "M",
+              "age": 36,
+              "bloodType": "O+"
+            },
+            "vitalsFromLatestRecord": {
+              "recordId": 3,
+              "recordTime": "2026-09-01T08:00:00.000Z",
+              "heightCm": 170,
+              "weightKg": 60,
+              "bmi": 20.8,
+              "bloodPressure": "120/80",
+              "heartRate": 72,
+              "symptomsOrNotesInRecord": "cough"
+            },
+            "history": {
+              "drugAllergies": [
+                "penicillin"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "sql": "SELECT t.id FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id WHERE r.patient_id = :patientId ORDER BY t.time DESC, t.id DESC LIMIT 1",
+        "replacements": {
+          "patientId": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "INSERT INTO AI_RECOMMENDATION (time, model_id, `Type`, content, treatment_id, patient_id) VALUES (:time, :modelId, :type, :content, :treatmentId, :patientId)",
+        "replacements": {
+          "time": "<now>",
+          "modelId": 2,
+          "type": "symptomchecker",
+          "content": "{\"symptoms\":[{\"name\":\"Cough\",\"severity\":\"mild\",\"duration\":\"1to3days\"}],\"patientContext\":{\"demographics\":{\"sex\":\"M\",\"age\":36,\"bloodType\":\"O+\"},\"vitalsFromLatestRecord\":{\"recordId\":3,\"recordTime\":\"2026-09-01T08:00:00.000Z\",\"heightCm\":170,\"weightKg\":60,\"bmi\":20.8,\"bloodPressure\":\"120/80\",\"heartRate\":72,\"symptomsOrNotesInRecord\":\"cough\"},\"history\":{\"drugAllergies\":[\"penicillin\"]}},\"possible_conditions\":[{\"disease\":\"Common cold\",\"probability\":\"High\",\"reason\":\"cough\"},{\"probability\":\"x\"}],\"recommended_action\":\"Rest\"}",
+          "treatmentId": 501,
+          "patientId": 7
+        },
+        "type": "INSERT",
+        "tx": null
+      }
+    ]
+  },
+  "recovery, no patient row": {
+    "request": "GET /api/appointments/ai/recovery-prediction",
+    "response": {
+      "status": 404,
+      "message": "Patient profile not found"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "recovery, not eligible (general check-up)": {
+    "request": "GET /api/appointments/ai/recovery-prediction",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": false,
+        "eligible": false,
+        "message": "Recovery estimates are available only with a recorded diagnosis (other than general check-up) and prescribed treatment."
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT dis.icd_code AS icd10, dis.description AS interpretation FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DISEASE dis ON dis.id = r.disease_id WHERE r.patient_id = :pid ORDER BY t.time DESC, t.id DESC LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT t.`condition` AS complaint FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id WHERE r.patient_id = :pid ORDER BY t.time DESC, t.id DESC LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT rx.time AS prescribedAt, GROUP_CONCAT(DISTINCT NULLIF(TRIM(m.name), '') ORDER BY m.name SEPARATOR ', ') AS medicineNames FROM MEDICAL_PRESCRIPTION rx JOIN `ORDER` o ON o.id = rx.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id LEFT JOIN MEDICINE m ON m.id = pd.medicine_id WHERE r.patient_id = :pid GROUP BY rx.order_id, rx.time ORDER BY rx.time DESC LIMIT 3",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "recovery, from cache": {
+    "request": "GET /api/appointments/ai/recovery-prediction",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "eligible": true,
+        "cached": true,
+        "recommendationId": 800,
+        "prediction": {
+          "daysMin": 3,
+          "daysMax": 9,
+          "confidence": "high",
+          "note": "This estimate uses limited information; recovery varies by individual. Follow your care team.",
+          "disclaimer": "This is not medical advice. Always follow your doctor or nurse instructions."
+        },
+        "model": {
+          "id": null,
+          "name": "llama",
+          "provider": "groq"
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT dis.icd_code AS icd10, dis.description AS interpretation FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DISEASE dis ON dis.id = r.disease_id WHERE r.patient_id = :pid ORDER BY t.time DESC, t.id DESC LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT t.`condition` AS complaint FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id WHERE r.patient_id = :pid ORDER BY t.time DESC, t.id DESC LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT rx.time AS prescribedAt, GROUP_CONCAT(DISTINCT NULLIF(TRIM(m.name), '') ORDER BY m.name SEPARATOR ', ') AS medicineNames FROM MEDICAL_PRESCRIPTION rx JOIN `ORDER` o ON o.id = rx.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id LEFT JOIN MEDICINE m ON m.id = pd.medicine_id WHERE r.patient_id = :pid GROUP BY rx.order_id, rx.time ORDER BY rx.time DESC LIMIT 3",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT 1 AS ok FROM MEDICAL_PRESCRIPTION rx INNER JOIN `ORDER` o ON o.id = rx.order_id INNER JOIN TREATMENT t ON t.id = o.treatment_id INNER JOIN REGIMEN r ON r.id = t.regimen_id INNER JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id INNER JOIN MEDICINE m ON m.id = pd.medicine_id WHERE r.patient_id = :pid AND CHAR_LENGTH(TRIM(COALESCE(m.name, ''))) > 0 LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id, time, content FROM AI_RECOMMENDATION WHERE patient_id = :patientId AND `Type` = 'recoveryprediction' ORDER BY time DESC, id DESC LIMIT 1",
+        "replacements": {
+          "patientId": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "recovery, refresh skips the cache": {
+    "request": "GET /api/appointments/ai/recovery-prediction?refresh=1",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "eligible": true,
+        "cached": false,
+        "recommendationId": 801,
+        "prediction": {
+          "daysMin": 3,
+          "daysMax": 9,
+          "confidence": "high",
+          "note": "This estimate uses limited information; recovery varies by individual. Follow your care team.",
+          "disclaimer": "This is not medical advice. Always follow your doctor or nurse instructions."
+        },
+        "model": {
+          "id": 2,
+          "name": "Llama",
+          "provider": "groq"
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT dis.icd_code AS icd10, dis.description AS interpretation FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DISEASE dis ON dis.id = r.disease_id WHERE r.patient_id = :pid ORDER BY t.time DESC, t.id DESC LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT t.`condition` AS complaint FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id WHERE r.patient_id = :pid ORDER BY t.time DESC, t.id DESC LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT rx.time AS prescribedAt, GROUP_CONCAT(DISTINCT NULLIF(TRIM(m.name), '') ORDER BY m.name SEPARATOR ', ') AS medicineNames FROM MEDICAL_PRESCRIPTION rx JOIN `ORDER` o ON o.id = rx.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id LEFT JOIN MEDICINE m ON m.id = pd.medicine_id WHERE r.patient_id = :pid GROUP BY rx.order_id, rx.time ORDER BY rx.time DESC LIMIT 3",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT 1 AS ok FROM MEDICAL_PRESCRIPTION rx INNER JOIN `ORDER` o ON o.id = rx.order_id INNER JOIN TREATMENT t ON t.id = o.treatment_id INNER JOIN REGIMEN r ON r.id = t.regimen_id INNER JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id INNER JOIN MEDICINE m ON m.id = pd.medicine_id WHERE r.patient_id = :pid AND CHAR_LENGTH(TRIM(COALESCE(m.name, ''))) > 0 LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id, name, provider, version FROM AI_MODEL WHERE status = 'active' ORDER BY release_date DESC, id DESC LIMIT 1",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT dis.icd_code AS icd10, dis.description AS interpretation FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DISEASE dis ON dis.id = r.disease_id WHERE r.patient_id = :pid ORDER BY t.time DESC, t.id DESC LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT t.`condition` AS complaint FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id WHERE r.patient_id = :pid ORDER BY t.time DESC, t.id DESC LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT rx.time AS prescribedAt, GROUP_CONCAT(DISTINCT NULLIF(TRIM(m.name), '') ORDER BY m.name SEPARATOR ', ') AS medicineNames FROM MEDICAL_PRESCRIPTION rx JOIN `ORDER` o ON o.id = rx.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id LEFT JOIN MEDICINE m ON m.id = pd.medicine_id WHERE r.patient_id = :pid GROUP BY rx.order_id, rx.time ORDER BY rx.time DESC LIMIT 3",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT p.patient_id AS patientId, p.blood_type AS bloodType, p.allergic_info AS allergicInfo, p.medical_history AS medicalHistory, u.sex AS sex, u.dob AS dob FROM PATIENT p JOIN USER u ON u.id = p.user_id WHERE p.patient_id = :pid LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id, time, `condition` AS currentSymptoms, blood_pressure AS bloodPressure, heart_rate AS heartRate, temperature, weight, height, respiratory_rate AS respiratoryRate, spo2 FROM MEDICAL_RECORD WHERE patient_id = :pid ORDER BY time DESC, id DESC LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT DISTINCT TRIM(m.name) AS name FROM MEDICAL_PRESCRIPTION rx JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id JOIN MEDICINE m ON m.id = pd.medicine_id JOIN `ORDER` o ON o.id = rx.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id WHERE r.patient_id = :pid AND CHAR_LENGTH(TRIM(COALESCE(m.name, ''))) > 0 AND DATE(rx.time) >= DATE_SUB(CURDATE(), INTERVAL 90 DAY) ORDER BY rx.time DESC LIMIT 25",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "fetch",
+        "url": "http://medai.test/api/ai/recovery-prediction",
+        "body": {
+          "clinicalSummary": {
+            "currentDiagnosis": {
+              "icd10": "J06",
+              "interpretation": "URI"
+            }
+          },
+          "patientContext": {}
+        }
+      },
+      {
+        "sql": "SELECT t.id FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id WHERE r.patient_id = :patientId ORDER BY t.time DESC, t.id DESC LIMIT 1",
+        "replacements": {
+          "patientId": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "INSERT INTO AI_RECOMMENDATION (time, model_id, `Type`, content, treatment_id, patient_id) VALUES (:time, :modelId, :type, :content, :treatmentId, :patientId)",
+        "replacements": {
+          "time": "<now>",
+          "modelId": 2,
+          "type": "recoveryprediction",
+          "content": "{\"clinicalSummary\":{\"currentDiagnosis\":{\"icd10\":\"J06\",\"interpretation\":\"URI\"}},\"patientContext\":{},\"predicted_recovery_days_min\":3,\"predicted_recovery_days_max\":9,\"confidence\":\"high\",\"note\":\"This estimate uses limited information; recovery varies by individual. Follow your care team.\",\"disclaimer\":\"This is not medical advice. Always follow your doctor or nurse instructions.\",\"aiMeta\":{\"provider\":\"groq\",\"model\":\"llama\"}}",
+          "treatmentId": 501,
+          "patientId": 7
+        },
+        "type": "INSERT",
+        "tx": null
+      }
+    ]
+  },
+  "recovery, no model configured": {
+    "request": "GET /api/appointments/ai/recovery-prediction?refresh=true",
+    "response": {
+      "status": 400,
+      "message": "No AI model configured in AI_MODEL table"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT dis.icd_code AS icd10, dis.description AS interpretation FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DISEASE dis ON dis.id = r.disease_id WHERE r.patient_id = :pid ORDER BY t.time DESC, t.id DESC LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT t.`condition` AS complaint FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id WHERE r.patient_id = :pid ORDER BY t.time DESC, t.id DESC LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT rx.time AS prescribedAt, GROUP_CONCAT(DISTINCT NULLIF(TRIM(m.name), '') ORDER BY m.name SEPARATOR ', ') AS medicineNames FROM MEDICAL_PRESCRIPTION rx JOIN `ORDER` o ON o.id = rx.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id LEFT JOIN MEDICINE m ON m.id = pd.medicine_id WHERE r.patient_id = :pid GROUP BY rx.order_id, rx.time ORDER BY rx.time DESC LIMIT 3",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT 1 AS ok FROM MEDICAL_PRESCRIPTION rx INNER JOIN `ORDER` o ON o.id = rx.order_id INNER JOIN TREATMENT t ON t.id = o.treatment_id INNER JOIN REGIMEN r ON r.id = t.regimen_id INNER JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id INNER JOIN MEDICINE m ON m.id = pd.medicine_id WHERE r.patient_id = :pid AND CHAR_LENGTH(TRIM(COALESCE(m.name, ''))) > 0 LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id, name, provider, version FROM AI_MODEL WHERE status = 'active' ORDER BY release_date DESC, id DESC LIMIT 1",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id, name, provider, version FROM AI_MODEL ORDER BY id DESC LIMIT 1",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "recovery, AI service unreachable": {
+    "request": "GET /api/appointments/ai/recovery-prediction?refresh=1",
+    "response": {
+      "status": 503,
+      "message": "ai recovery prediction is temporarily unavailable. please try again later."
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT dis.icd_code AS icd10, dis.description AS interpretation FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DISEASE dis ON dis.id = r.disease_id WHERE r.patient_id = :pid ORDER BY t.time DESC, t.id DESC LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT t.`condition` AS complaint FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id WHERE r.patient_id = :pid ORDER BY t.time DESC, t.id DESC LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT rx.time AS prescribedAt, GROUP_CONCAT(DISTINCT NULLIF(TRIM(m.name), '') ORDER BY m.name SEPARATOR ', ') AS medicineNames FROM MEDICAL_PRESCRIPTION rx JOIN `ORDER` o ON o.id = rx.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id LEFT JOIN MEDICINE m ON m.id = pd.medicine_id WHERE r.patient_id = :pid GROUP BY rx.order_id, rx.time ORDER BY rx.time DESC LIMIT 3",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT 1 AS ok FROM MEDICAL_PRESCRIPTION rx INNER JOIN `ORDER` o ON o.id = rx.order_id INNER JOIN TREATMENT t ON t.id = o.treatment_id INNER JOIN REGIMEN r ON r.id = t.regimen_id INNER JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id INNER JOIN MEDICINE m ON m.id = pd.medicine_id WHERE r.patient_id = :pid AND CHAR_LENGTH(TRIM(COALESCE(m.name, ''))) > 0 LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id, name, provider, version FROM AI_MODEL WHERE status = 'active' ORDER BY release_date DESC, id DESC LIMIT 1",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT dis.icd_code AS icd10, dis.description AS interpretation FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DISEASE dis ON dis.id = r.disease_id WHERE r.patient_id = :pid ORDER BY t.time DESC, t.id DESC LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT t.`condition` AS complaint FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id WHERE r.patient_id = :pid ORDER BY t.time DESC, t.id DESC LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT rx.time AS prescribedAt, GROUP_CONCAT(DISTINCT NULLIF(TRIM(m.name), '') ORDER BY m.name SEPARATOR ', ') AS medicineNames FROM MEDICAL_PRESCRIPTION rx JOIN `ORDER` o ON o.id = rx.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id LEFT JOIN MEDICINE m ON m.id = pd.medicine_id WHERE r.patient_id = :pid GROUP BY rx.order_id, rx.time ORDER BY rx.time DESC LIMIT 3",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT p.patient_id AS patientId, p.blood_type AS bloodType, p.allergic_info AS allergicInfo, p.medical_history AS medicalHistory, u.sex AS sex, u.dob AS dob FROM PATIENT p JOIN USER u ON u.id = p.user_id WHERE p.patient_id = :pid LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id, time, `condition` AS currentSymptoms, blood_pressure AS bloodPressure, heart_rate AS heartRate, temperature, weight, height, respiratory_rate AS respiratoryRate, spo2 FROM MEDICAL_RECORD WHERE patient_id = :pid ORDER BY time DESC, id DESC LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT DISTINCT TRIM(m.name) AS name FROM MEDICAL_PRESCRIPTION rx JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id JOIN MEDICINE m ON m.id = pd.medicine_id JOIN `ORDER` o ON o.id = rx.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id WHERE r.patient_id = :pid AND CHAR_LENGTH(TRIM(COALESCE(m.name, ''))) > 0 AND DATE(rx.time) >= DATE_SUB(CURDATE(), INTERVAL 90 DAY) ORDER BY rx.time DESC LIMIT 25",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "fetch",
+        "url": "http://medai.test/api/ai/recovery-prediction",
+        "body": {
+          "clinicalSummary": {
+            "currentDiagnosis": {
+              "icd10": "J06",
+              "interpretation": "URI"
+            }
+          },
+          "patientContext": {}
+        }
+      }
+    ]
+  },
+  "recovery, AI service error": {
+    "request": "GET /api/appointments/ai/recovery-prediction?refresh=1",
+    "response": {
+      "status": 503,
+      "message": "ai recovery prediction is temporarily unavailable. please try again later."
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT dis.icd_code AS icd10, dis.description AS interpretation FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DISEASE dis ON dis.id = r.disease_id WHERE r.patient_id = :pid ORDER BY t.time DESC, t.id DESC LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT t.`condition` AS complaint FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id WHERE r.patient_id = :pid ORDER BY t.time DESC, t.id DESC LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT rx.time AS prescribedAt, GROUP_CONCAT(DISTINCT NULLIF(TRIM(m.name), '') ORDER BY m.name SEPARATOR ', ') AS medicineNames FROM MEDICAL_PRESCRIPTION rx JOIN `ORDER` o ON o.id = rx.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id LEFT JOIN MEDICINE m ON m.id = pd.medicine_id WHERE r.patient_id = :pid GROUP BY rx.order_id, rx.time ORDER BY rx.time DESC LIMIT 3",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT 1 AS ok FROM MEDICAL_PRESCRIPTION rx INNER JOIN `ORDER` o ON o.id = rx.order_id INNER JOIN TREATMENT t ON t.id = o.treatment_id INNER JOIN REGIMEN r ON r.id = t.regimen_id INNER JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id INNER JOIN MEDICINE m ON m.id = pd.medicine_id WHERE r.patient_id = :pid AND CHAR_LENGTH(TRIM(COALESCE(m.name, ''))) > 0 LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id, name, provider, version FROM AI_MODEL WHERE status = 'active' ORDER BY release_date DESC, id DESC LIMIT 1",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT dis.icd_code AS icd10, dis.description AS interpretation FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DISEASE dis ON dis.id = r.disease_id WHERE r.patient_id = :pid ORDER BY t.time DESC, t.id DESC LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT t.`condition` AS complaint FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id WHERE r.patient_id = :pid ORDER BY t.time DESC, t.id DESC LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT rx.time AS prescribedAt, GROUP_CONCAT(DISTINCT NULLIF(TRIM(m.name), '') ORDER BY m.name SEPARATOR ', ') AS medicineNames FROM MEDICAL_PRESCRIPTION rx JOIN `ORDER` o ON o.id = rx.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id LEFT JOIN MEDICINE m ON m.id = pd.medicine_id WHERE r.patient_id = :pid GROUP BY rx.order_id, rx.time ORDER BY rx.time DESC LIMIT 3",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT p.patient_id AS patientId, p.blood_type AS bloodType, p.allergic_info AS allergicInfo, p.medical_history AS medicalHistory, u.sex AS sex, u.dob AS dob FROM PATIENT p JOIN USER u ON u.id = p.user_id WHERE p.patient_id = :pid LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id, time, `condition` AS currentSymptoms, blood_pressure AS bloodPressure, heart_rate AS heartRate, temperature, weight, height, respiratory_rate AS respiratoryRate, spo2 FROM MEDICAL_RECORD WHERE patient_id = :pid ORDER BY time DESC, id DESC LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT DISTINCT TRIM(m.name) AS name FROM MEDICAL_PRESCRIPTION rx JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id JOIN MEDICINE m ON m.id = pd.medicine_id JOIN `ORDER` o ON o.id = rx.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id WHERE r.patient_id = :pid AND CHAR_LENGTH(TRIM(COALESCE(m.name, ''))) > 0 AND DATE(rx.time) >= DATE_SUB(CURDATE(), INTERVAL 90 DAY) ORDER BY rx.time DESC LIMIT 25",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "fetch",
+        "url": "http://medai.test/api/ai/recovery-prediction",
+        "body": {
+          "clinicalSummary": {
+            "currentDiagnosis": {
+              "icd10": "J06",
+              "interpretation": "URI"
+            }
+          },
+          "patientContext": {}
+        }
+      }
+    ]
+  },
+  "recovery, unusable prediction": {
+    "request": "GET /api/appointments/ai/recovery-prediction?refresh=1",
+    "response": {
+      "status": 502,
+      "message": "invalid recovery prediction from ai service"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT dis.icd_code AS icd10, dis.description AS interpretation FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DISEASE dis ON dis.id = r.disease_id WHERE r.patient_id = :pid ORDER BY t.time DESC, t.id DESC LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT t.`condition` AS complaint FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id WHERE r.patient_id = :pid ORDER BY t.time DESC, t.id DESC LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT rx.time AS prescribedAt, GROUP_CONCAT(DISTINCT NULLIF(TRIM(m.name), '') ORDER BY m.name SEPARATOR ', ') AS medicineNames FROM MEDICAL_PRESCRIPTION rx JOIN `ORDER` o ON o.id = rx.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id LEFT JOIN MEDICINE m ON m.id = pd.medicine_id WHERE r.patient_id = :pid GROUP BY rx.order_id, rx.time ORDER BY rx.time DESC LIMIT 3",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT 1 AS ok FROM MEDICAL_PRESCRIPTION rx INNER JOIN `ORDER` o ON o.id = rx.order_id INNER JOIN TREATMENT t ON t.id = o.treatment_id INNER JOIN REGIMEN r ON r.id = t.regimen_id INNER JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id INNER JOIN MEDICINE m ON m.id = pd.medicine_id WHERE r.patient_id = :pid AND CHAR_LENGTH(TRIM(COALESCE(m.name, ''))) > 0 LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id, name, provider, version FROM AI_MODEL WHERE status = 'active' ORDER BY release_date DESC, id DESC LIMIT 1",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT dis.icd_code AS icd10, dis.description AS interpretation FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DISEASE dis ON dis.id = r.disease_id WHERE r.patient_id = :pid ORDER BY t.time DESC, t.id DESC LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT t.`condition` AS complaint FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id WHERE r.patient_id = :pid ORDER BY t.time DESC, t.id DESC LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT rx.time AS prescribedAt, GROUP_CONCAT(DISTINCT NULLIF(TRIM(m.name), '') ORDER BY m.name SEPARATOR ', ') AS medicineNames FROM MEDICAL_PRESCRIPTION rx JOIN `ORDER` o ON o.id = rx.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id LEFT JOIN MEDICINE m ON m.id = pd.medicine_id WHERE r.patient_id = :pid GROUP BY rx.order_id, rx.time ORDER BY rx.time DESC LIMIT 3",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT p.patient_id AS patientId, p.blood_type AS bloodType, p.allergic_info AS allergicInfo, p.medical_history AS medicalHistory, u.sex AS sex, u.dob AS dob FROM PATIENT p JOIN USER u ON u.id = p.user_id WHERE p.patient_id = :pid LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id, time, `condition` AS currentSymptoms, blood_pressure AS bloodPressure, heart_rate AS heartRate, temperature, weight, height, respiratory_rate AS respiratoryRate, spo2 FROM MEDICAL_RECORD WHERE patient_id = :pid ORDER BY time DESC, id DESC LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT DISTINCT TRIM(m.name) AS name FROM MEDICAL_PRESCRIPTION rx JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id JOIN MEDICINE m ON m.id = pd.medicine_id JOIN `ORDER` o ON o.id = rx.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id WHERE r.patient_id = :pid AND CHAR_LENGTH(TRIM(COALESCE(m.name, ''))) > 0 AND DATE(rx.time) >= DATE_SUB(CURDATE(), INTERVAL 90 DAY) ORDER BY rx.time DESC LIMIT 25",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "fetch",
+        "url": "http://medai.test/api/ai/recovery-prediction",
+        "body": {
+          "clinicalSummary": {
+            "currentDiagnosis": {
+              "icd10": "J06",
+              "interpretation": "URI"
+            }
+          },
+          "patientContext": {}
+        }
+      }
+    ]
+  }
+}

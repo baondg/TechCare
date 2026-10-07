@@ -1,0 +1,1332 @@
+{
+  "profile, bad id": {
+    "request": "GET /api/profile/abc",
+    "response": {
+      "status": 400,
+      "message": "Invalid user ID"
+    },
+    "db": []
+  },
+  "profile, another patient": {
+    "request": "GET /api/profile/70",
+    "response": {
+      "status": 403,
+      "message": "Forbidden"
+    },
+    "db": []
+  },
+  "profile, no account": {
+    "request": "GET /api/profile/70",
+    "response": {
+      "status": 404,
+      "message": "Account not found"
+    },
+    "db": [
+      {
+        "event": "Account.findOne",
+        "where": {
+          "user_id": 70
+        },
+        "tx": null
+      },
+      {
+        "event": "Account.findOne",
+        "where": {
+          "user_id": 70
+        },
+        "include": [
+          {
+            "model": "User",
+            "attributes": [
+              "idcard",
+              "first_name",
+              "last_name",
+              "dob",
+              "sex",
+              "tel",
+              "email"
+            ]
+          }
+        ],
+        "tx": null
+      }
+    ]
+  },
+  "profile, own with relative + insurance": {
+    "request": "GET /api/profile/70",
+    "response": {
+      "status": 200,
+      "body": {
+        "profile": {
+          "user_id": 70,
+          "username": "bao",
+          "role": "PAT",
+          "firstName": "Bao",
+          "lastName": "Do",
+          "fullName": "Bao Do",
+          "dateOfBirth": "1990-01-15",
+          "sex": "M",
+          "phone": "090",
+          "email": "b@x.vn",
+          "nationalId": "79123"
+        },
+        "relative": {
+          "name": "Lan",
+          "tel": "091"
+        },
+        "insurance": {
+          "id": "HI1",
+          "expired_date": "2027-01-01"
+        }
+      }
+    },
+    "db": [
+      {
+        "event": "Account.findOne",
+        "where": {
+          "user_id": 70
+        },
+        "tx": null
+      },
+      {
+        "event": "Account.findOne",
+        "where": {
+          "user_id": 70
+        },
+        "include": [
+          {
+            "model": "User",
+            "attributes": [
+              "idcard",
+              "first_name",
+              "last_name",
+              "dob",
+              "sex",
+              "tel",
+              "email"
+            ]
+          }
+        ],
+        "tx": null
+      },
+      {
+        "event": "User.findOne",
+        "where": {
+          "id": 70
+        },
+        "include": [
+          {
+            "model": "Patient",
+            "attributes": [
+              "patient_id"
+            ]
+          }
+        ],
+        "tx": null
+      },
+      {
+        "event": "User.findOne",
+        "where": {
+          "id": 70
+        },
+        "include": [
+          {
+            "model": "Patient",
+            "attributes": [
+              "patient_id"
+            ]
+          }
+        ],
+        "tx": null
+      }
+    ]
+  },
+  "profile, staff reads a patient without relative / insurance": {
+    "request": "GET /api/profile/70",
+    "response": {
+      "status": 200,
+      "body": {
+        "profile": {
+          "user_id": 70,
+          "username": "bao",
+          "role": "PAT",
+          "firstName": "",
+          "lastName": "",
+          "fullName": "bao",
+          "nationalId": ""
+        },
+        "relative": null,
+        "insurance": null
+      }
+    },
+    "db": [
+      {
+        "event": "Account.findOne",
+        "where": {
+          "user_id": 41
+        },
+        "tx": null
+      },
+      {
+        "event": "Account.findOne",
+        "where": {
+          "user_id": 70
+        },
+        "include": [
+          {
+            "model": "User",
+            "attributes": [
+              "idcard",
+              "first_name",
+              "last_name",
+              "dob",
+              "sex",
+              "tel",
+              "email"
+            ]
+          }
+        ],
+        "tx": null
+      },
+      {
+        "event": "User.findOne",
+        "where": {
+          "id": 70
+        },
+        "include": [
+          {
+            "model": "Patient",
+            "attributes": [
+              "patient_id"
+            ]
+          }
+        ],
+        "tx": null
+      },
+      {
+        "event": "User.findOne",
+        "where": {
+          "id": 70
+        },
+        "include": [
+          {
+            "model": "Patient",
+            "attributes": [
+              "patient_id"
+            ]
+          }
+        ],
+        "tx": null
+      }
+    ]
+  },
+  "profile, admin": {
+    "request": "GET /api/profile/70",
+    "response": {
+      "status": 200,
+      "body": {
+        "profile": {
+          "user_id": 70,
+          "username": "bao",
+          "role": "PAT",
+          "firstName": "",
+          "lastName": "",
+          "fullName": "bao",
+          "nationalId": ""
+        },
+        "relative": null,
+        "insurance": null
+      }
+    },
+    "db": [
+      {
+        "event": "Account.findOne",
+        "where": {
+          "user_id": 1
+        },
+        "tx": null
+      },
+      {
+        "event": "Account.findOne",
+        "where": {
+          "user_id": 70
+        },
+        "include": [
+          {
+            "model": "User",
+            "attributes": [
+              "idcard",
+              "first_name",
+              "last_name",
+              "dob",
+              "sex",
+              "tel",
+              "email"
+            ]
+          }
+        ],
+        "tx": null
+      },
+      {
+        "event": "User.findOne",
+        "where": {
+          "id": 70
+        },
+        "include": [
+          {
+            "model": "Patient",
+            "attributes": [
+              "patient_id"
+            ]
+          }
+        ],
+        "tx": null
+      },
+      {
+        "event": "User.findOne",
+        "where": {
+          "id": 70
+        },
+        "include": [
+          {
+            "model": "Patient",
+            "attributes": [
+              "patient_id"
+            ]
+          }
+        ],
+        "tx": null
+      }
+    ]
+  },
+  "profile, db down": {
+    "request": "GET /api/profile/70",
+    "response": {
+      "status": 500,
+      "message": "internal server error"
+    },
+    "db": [
+      {
+        "event": "Account.findOne",
+        "where": {
+          "user_id": 70
+        },
+        "tx": null
+      },
+      {
+        "event": "Account.findOne",
+        "where": {
+          "user_id": 70
+        },
+        "include": [
+          {
+            "model": "User",
+            "attributes": [
+              "idcard",
+              "first_name",
+              "last_name",
+              "dob",
+              "sex",
+              "tel",
+              "email"
+            ]
+          }
+        ],
+        "tx": null
+      }
+    ]
+  },
+  "update profile, bad id": {
+    "request": "PUT /api/profile/x",
+    "response": {
+      "status": 400,
+      "message": "Invalid user ID"
+    },
+    "db": []
+  },
+  "update profile, another patient": {
+    "request": "PUT /api/profile/70",
+    "response": {
+      "status": 403,
+      "message": "Forbidden"
+    },
+    "db": []
+  },
+  "update profile, digits in first name": {
+    "request": "PUT /api/profile/70",
+    "response": {
+      "status": 400,
+      "message": "Invalid first name"
+    },
+    "db": []
+  },
+  "update profile, missing last name": {
+    "request": "PUT /api/profile/70",
+    "response": {
+      "status": 400,
+      "message": "Invalid last name"
+    },
+    "db": []
+  },
+  "update profile, missing relative name": {
+    "request": "PUT /api/profile/70",
+    "response": {
+      "status": 400,
+      "message": "Invalid relative name"
+    },
+    "db": []
+  },
+  "update profile, user + relative replaced": {
+    "request": "PUT /api/profile/70",
+    "response": {
+      "status": 200,
+      "body": {
+        "message": "Profile updated successfully"
+      }
+    },
+    "db": [
+      {
+        "event": "User.findByPk",
+        "pk": 70,
+        "tx": null
+      },
+      {
+        "event": "User#update",
+        "id": 70,
+        "values": {
+          "first_name": "Bảo",
+          "last_name": "Đỗ Ngọc",
+          "dob": "1990-01-15",
+          "sex": "M",
+          "tel": "090",
+          "email": "b@x.vn",
+          "idcard": "<idcard>"
+        }
+      },
+      {
+        "event": "Patient.findOne",
+        "where": {
+          "user_id": 70
+        },
+        "tx": null
+      },
+      {
+        "event": "Relative.destroy",
+        "where": {
+          "patient_id": 7
+        },
+        "tx": null
+      },
+      {
+        "event": "Relative.create",
+        "values": {
+          "patient_id": 7,
+          "name": "Lan",
+          "relationship": "Mother",
+          "dob": null,
+          "sex": "F",
+          "tel": null,
+          "email": "lan@x.vn",
+          "idcard": "<idcard>"
+        },
+        "tx": null
+      }
+    ]
+  },
+  "update profile, snake_case names, staff, no patient row": {
+    "request": "PUT /api/profile/70",
+    "response": {
+      "status": 200,
+      "body": {
+        "message": "Profile updated successfully"
+      }
+    },
+    "db": [
+      {
+        "event": "User.findByPk",
+        "pk": 70,
+        "tx": null
+      },
+      {
+        "event": "User#update",
+        "id": 70,
+        "values": {
+          "first_name": "Lan",
+          "last_name": "O'Neil",
+          "sex": "O",
+          "idcard": "<idcard>"
+        }
+      },
+      {
+        "event": "Patient.findOne",
+        "where": {
+          "user_id": 70
+        },
+        "tx": null
+      }
+    ]
+  },
+  "update profile, no user row": {
+    "request": "PUT /api/profile/70",
+    "response": {
+      "status": 200,
+      "body": {
+        "message": "Profile updated successfully"
+      }
+    },
+    "db": [
+      {
+        "event": "User.findByPk",
+        "pk": 70,
+        "tx": null
+      },
+      {
+        "event": "Patient.findOne",
+        "where": {
+          "user_id": 70
+        },
+        "tx": null
+      }
+    ]
+  },
+  "update profile, db down": {
+    "request": "PUT /api/profile/70",
+    "response": {
+      "status": 500,
+      "message": "internal server error"
+    },
+    "db": [
+      {
+        "event": "User.findByPk",
+        "pk": 70,
+        "tx": null
+      }
+    ]
+  },
+  "delete profile, another patient": {
+    "request": "DELETE /api/profile/70",
+    "response": {
+      "status": 403,
+      "message": "Forbidden"
+    },
+    "db": []
+  },
+  "delete profile, nurse": {
+    "request": "DELETE /api/profile/70",
+    "response": {
+      "status": 403,
+      "message": "Forbidden"
+    },
+    "db": []
+  },
+  "delete profile, own": {
+    "request": "DELETE /api/profile/70",
+    "response": {
+      "status": 501,
+      "message": "deleting the full patient profile is not supported; user data lives on the user record."
+    },
+    "db": []
+  },
+  "health info, no patient row": {
+    "request": "GET /api/health-info/70",
+    "response": {
+      "status": 404,
+      "message": "Patient not found"
+    },
+    "db": [
+      {
+        "event": "Patient.findOne",
+        "where": {
+          "user_id": 70
+        },
+        "attributes": [
+          "patient_id",
+          "user_id",
+          "blood_type",
+          "allergic_info",
+          "medical_history"
+        ],
+        "include": [
+          {
+            "model": "MedicalRecord"
+          }
+        ],
+        "tx": null
+      }
+    ]
+  },
+  "health info, records + JSON columns": {
+    "request": "GET /api/health-info/999",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "healthInfo": {
+          "id": 2,
+          "height": 0,
+          "weight": 0,
+          "bmi": 0,
+          "bloodPressureSys": 0,
+          "bloodPressureDia": 0,
+          "heartRate": null,
+          "respiratoryRate": 0,
+          "temperature": null,
+          "spo2": null,
+          "currentSymptoms": "",
+          "status": "draft",
+          "updatedAt": "<now>",
+          "createdAt": "2026-09-15T08:00:00.000Z",
+          "updatedBy": "Patient",
+          "bloodType": "O+",
+          "drugAllergies": [
+            "penicillin"
+          ],
+          "foodAllergies": [],
+          "otherAllergies": [],
+          "chronicConditions": [
+            "asthma"
+          ],
+          "pastSurgeries": [],
+          "familyHistory": [],
+          "pastIllnesses": [],
+          "vaccinations": [
+            "BCG"
+          ],
+          "substanceAbuse": []
+        },
+        "history": [
+          {
+            "id": 2,
+            "height": 0,
+            "weight": 0,
+            "bmi": 0,
+            "bloodPressureSys": 0,
+            "bloodPressureDia": 0,
+            "heartRate": null,
+            "respiratoryRate": 0,
+            "temperature": null,
+            "spo2": null,
+            "currentSymptoms": "",
+            "status": "draft",
+            "updatedAt": "<now>",
+            "createdAt": "2026-09-15T08:00:00.000Z",
+            "updatedBy": "Patient"
+          },
+          {
+            "id": 1,
+            "height": 170,
+            "weight": 60,
+            "bmi": 20.8,
+            "bloodPressureSys": 120,
+            "bloodPressureDia": 80,
+            "heartRate": 72,
+            "respiratoryRate": 0,
+            "temperature": 37,
+            "spo2": 98,
+            "currentSymptoms": "cough",
+            "status": "confirmed",
+            "updatedAt": "<now>",
+            "createdAt": "2026-09-01T08:00:00.000Z",
+            "updatedBy": "Patient"
+          }
+        ]
+      }
+    },
+    "db": [
+      {
+        "event": "Patient.findOne",
+        "where": {
+          "user_id": 70
+        },
+        "attributes": [
+          "patient_id",
+          "user_id",
+          "blood_type",
+          "allergic_info",
+          "medical_history"
+        ],
+        "include": [
+          {
+            "model": "MedicalRecord"
+          }
+        ],
+        "tx": null
+      }
+    ]
+  },
+  "health info, no records, broken JSON": {
+    "request": "GET /api/health-info/70",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "healthInfo": {
+          "bloodType": null,
+          "drugAllergies": [],
+          "foodAllergies": [],
+          "otherAllergies": [],
+          "chronicConditions": [],
+          "pastSurgeries": [],
+          "familyHistory": [],
+          "pastIllnesses": [],
+          "vaccinations": [],
+          "substanceAbuse": []
+        },
+        "history": []
+      }
+    },
+    "db": [
+      {
+        "event": "Patient.findOne",
+        "where": {
+          "user_id": 70
+        },
+        "attributes": [
+          "patient_id",
+          "user_id",
+          "blood_type",
+          "allergic_info",
+          "medical_history"
+        ],
+        "include": [
+          {
+            "model": "MedicalRecord"
+          }
+        ],
+        "tx": null
+      }
+    ]
+  },
+  "health info, db down": {
+    "request": "GET /api/health-info/70",
+    "response": {
+      "status": 500,
+      "message": "internal server error"
+    },
+    "db": [
+      {
+        "event": "Patient.findOne",
+        "where": {
+          "user_id": 70
+        },
+        "attributes": [
+          "patient_id",
+          "user_id",
+          "blood_type",
+          "allergic_info",
+          "medical_history"
+        ],
+        "include": [
+          {
+            "model": "MedicalRecord"
+          }
+        ],
+        "tx": null
+      }
+    ]
+  },
+  "create health info, another patient": {
+    "request": "POST /api/health-info/70",
+    "response": {
+      "status": 403,
+      "message": "Forbidden"
+    },
+    "db": []
+  },
+  "create health info, admin for a patient": {
+    "request": "POST /api/health-info/70",
+    "response": {
+      "status": 403,
+      "message": "Forbidden"
+    },
+    "db": []
+  },
+  "create health info, no patient row": {
+    "request": "POST /api/health-info/70",
+    "response": {
+      "status": 404,
+      "message": "Patient not found"
+    },
+    "db": [
+      {
+        "event": "Patient.findOne",
+        "where": {
+          "user_id": 70
+        },
+        "tx": null
+      }
+    ]
+  },
+  "create health info": {
+    "request": "POST /api/health-info/70",
+    "response": {
+      "status": 201,
+      "body": {
+        "success": true,
+        "healthInfo": {
+          "id": 500,
+          "height": 170,
+          "weight": 61.5,
+          "bmi": 21.3,
+          "bloodPressureSys": 120,
+          "bloodPressureDia": 0,
+          "heartRate": 72,
+          "respiratoryRate": 0,
+          "temperature": 37.2,
+          "spo2": null,
+          "currentSymptoms": "cough",
+          "status": "confirmed",
+          "updatedAt": "<now>",
+          "createdAt": "<now>",
+          "updatedBy": "Patient",
+          "bloodType": "AB-",
+          "drugAllergies": [
+            "penicillin"
+          ],
+          "foodAllergies": [],
+          "otherAllergies": []
+        }
+      }
+    },
+    "db": [
+      {
+        "event": "Patient.findOne",
+        "where": {
+          "user_id": 70
+        },
+        "tx": null
+      },
+      {
+        "event": "MedicalRecord.create",
+        "values": {
+          "patient_id": 7,
+          "time": "<now>",
+          "condition": "cough",
+          "weight": 61.5,
+          "height": 170,
+          "spo2": null,
+          "heart_rate": 72,
+          "blood_pressure": "120/0",
+          "temperature": 37.2,
+          "respiratory_rate": null,
+          "status": "confirmed"
+        },
+        "tx": null
+      },
+      {
+        "event": "Patient#update",
+        "id": 70,
+        "values": {
+          "blood_type": "AB-",
+          "allergic_info": "{\"drugAllergies\":[\"penicillin\"],\"foodAllergies\":[],\"otherAllergies\":[]}",
+          "medical_history": "{\"chronicConditions\":[\"asthma\"],\"pastSurgeries\":[],\"familyHistory\":[],\"pastIllnesses\":[],\"vaccinations\":[\"BCG\"],\"substanceAbuse\":[]}"
+        }
+      }
+    ]
+  },
+  "create health info, empty body": {
+    "request": "POST /api/health-info/70",
+    "response": {
+      "status": 201,
+      "body": {
+        "success": true,
+        "healthInfo": {
+          "id": 500,
+          "height": 0.1,
+          "weight": 0.1,
+          "bmi": 100000,
+          "bloodPressureSys": 0,
+          "bloodPressureDia": 0,
+          "heartRate": null,
+          "respiratoryRate": 0,
+          "temperature": null,
+          "spo2": null,
+          "currentSymptoms": "",
+          "status": "draft",
+          "updatedAt": "<now>",
+          "createdAt": "<now>",
+          "updatedBy": "Patient",
+          "bloodType": "A+",
+          "drugAllergies": [],
+          "foodAllergies": [],
+          "otherAllergies": []
+        }
+      }
+    },
+    "db": [
+      {
+        "event": "Patient.findOne",
+        "where": {
+          "user_id": 70
+        },
+        "tx": null
+      },
+      {
+        "event": "MedicalRecord.create",
+        "values": {
+          "patient_id": 7,
+          "time": "<now>",
+          "condition": "",
+          "weight": 0.1,
+          "height": 0.1,
+          "spo2": null,
+          "heart_rate": null,
+          "blood_pressure": null,
+          "temperature": null,
+          "respiratory_rate": null,
+          "status": "draft"
+        },
+        "tx": null
+      },
+      {
+        "event": "Patient#update",
+        "id": 70,
+        "values": {
+          "allergic_info": "{\"drugAllergies\":[],\"foodAllergies\":[],\"otherAllergies\":[]}",
+          "medical_history": "{\"chronicConditions\":[],\"pastSurgeries\":[],\"familyHistory\":[],\"pastIllnesses\":[],\"vaccinations\":[],\"substanceAbuse\":[]}"
+        }
+      }
+    ]
+  },
+  "create health info, db down": {
+    "request": "POST /api/health-info/70",
+    "response": {
+      "status": 500,
+      "message": "internal server error"
+    },
+    "db": [
+      {
+        "event": "Patient.findOne",
+        "where": {
+          "user_id": 70
+        },
+        "tx": null
+      },
+      {
+        "event": "MedicalRecord.create",
+        "values": {
+          "patient_id": 7,
+          "time": "<now>",
+          "condition": "cough",
+          "weight": 61.5,
+          "height": 170,
+          "spo2": null,
+          "heart_rate": 72,
+          "blood_pressure": "120/0",
+          "temperature": 37.2,
+          "respiratory_rate": null,
+          "status": "confirmed"
+        },
+        "tx": null
+      }
+    ]
+  },
+  "update health info, another patient": {
+    "request": "PUT /api/health-info/70",
+    "response": {
+      "status": 403,
+      "message": "Forbidden"
+    },
+    "db": []
+  },
+  "update health info, no patient row": {
+    "request": "PUT /api/health-info/70",
+    "response": {
+      "status": 404,
+      "message": "Patient not found"
+    },
+    "db": [
+      {
+        "event": "Patient.findOne",
+        "where": {
+          "user_id": 70
+        },
+        "tx": null
+      }
+    ]
+  },
+  "update health info, record not found": {
+    "request": "PUT /api/health-info/70",
+    "response": {
+      "status": 404,
+      "message": "Medical record not found"
+    },
+    "db": [
+      {
+        "event": "Patient.findOne",
+        "where": {
+          "user_id": 70
+        },
+        "tx": null
+      },
+      {
+        "event": "MedicalRecord.findOne",
+        "where": {
+          "id": 3,
+          "patient_id": 7
+        },
+        "tx": null
+      }
+    ]
+  },
+  "update health info, confirmed record": {
+    "request": "PUT /api/health-info/70",
+    "response": {
+      "status": 400,
+      "message": "Only draft records can be edited"
+    },
+    "db": [
+      {
+        "event": "Patient.findOne",
+        "where": {
+          "user_id": 70
+        },
+        "tx": null
+      },
+      {
+        "event": "MedicalRecord.findOne",
+        "where": {
+          "id": 3,
+          "patient_id": 7
+        },
+        "tx": null
+      }
+    ]
+  },
+  "update health info": {
+    "request": "PUT /api/health-info/70",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "healthInfo": {
+          "id": 3,
+          "height": 170,
+          "weight": 61.5,
+          "bmi": 21.3,
+          "bloodPressureSys": 120,
+          "bloodPressureDia": 0,
+          "heartRate": 72,
+          "respiratoryRate": 0,
+          "temperature": 37.2,
+          "spo2": null,
+          "currentSymptoms": "cough",
+          "status": "confirmed",
+          "updatedAt": "<now>",
+          "createdAt": "<now>",
+          "updatedBy": "Patient",
+          "bloodType": "AB-",
+          "drugAllergies": [
+            "penicillin"
+          ],
+          "foodAllergies": [],
+          "otherAllergies": [],
+          "chronicConditions": [
+            "asthma"
+          ],
+          "pastSurgeries": [],
+          "familyHistory": [],
+          "pastIllnesses": [],
+          "vaccinations": [
+            "BCG"
+          ],
+          "substanceAbuse": []
+        }
+      }
+    },
+    "db": [
+      {
+        "event": "Patient.findOne",
+        "where": {
+          "user_id": 70
+        },
+        "tx": null
+      },
+      {
+        "event": "MedicalRecord.findOne",
+        "where": {
+          "id": 3,
+          "patient_id": 7
+        },
+        "tx": null
+      },
+      {
+        "event": "MedicalRecord#update",
+        "id": 3,
+        "values": {
+          "condition": "cough",
+          "weight": 61.5,
+          "height": 170,
+          "spo2": null,
+          "heart_rate": 72,
+          "blood_pressure": "120/0",
+          "temperature": 37.2,
+          "respiratory_rate": null,
+          "time": "<now>",
+          "status": "confirmed"
+        }
+      },
+      {
+        "event": "Patient#update",
+        "id": 70,
+        "values": {
+          "blood_type": "AB-",
+          "allergic_info": "{\"drugAllergies\":[\"penicillin\"],\"foodAllergies\":[],\"otherAllergies\":[],\"chronicConditions\":[\"asthma\"],\"pastSurgeries\":[],\"familyHistory\":[],\"pastIllnesses\":[],\"vaccinations\":[\"BCG\"],\"substanceAbuse\":[]}"
+        }
+      }
+    ]
+  },
+  "update health info, keeps height / weight / status": {
+    "request": "PUT /api/health-info/70",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "healthInfo": {
+          "id": 3,
+          "height": 170,
+          "weight": 60,
+          "bmi": 20.8,
+          "bloodPressureSys": 0,
+          "bloodPressureDia": 0,
+          "heartRate": null,
+          "respiratoryRate": 0,
+          "temperature": null,
+          "spo2": null,
+          "currentSymptoms": "",
+          "status": "draft",
+          "updatedAt": "<now>",
+          "createdAt": "<now>",
+          "updatedBy": "Patient",
+          "bloodType": "O+",
+          "drugAllergies": [],
+          "foodAllergies": [],
+          "otherAllergies": [],
+          "chronicConditions": [],
+          "pastSurgeries": [],
+          "familyHistory": [],
+          "pastIllnesses": [],
+          "vaccinations": [],
+          "substanceAbuse": []
+        }
+      }
+    },
+    "db": [
+      {
+        "event": "Patient.findOne",
+        "where": {
+          "user_id": 70
+        },
+        "tx": null
+      },
+      {
+        "event": "MedicalRecord.findOne",
+        "where": {
+          "id": "3",
+          "patient_id": 7
+        },
+        "tx": null
+      },
+      {
+        "event": "MedicalRecord#update",
+        "id": 3,
+        "values": {
+          "condition": "",
+          "weight": 60,
+          "height": 170,
+          "spo2": null,
+          "heart_rate": null,
+          "blood_pressure": null,
+          "temperature": null,
+          "respiratory_rate": null,
+          "time": "<now>",
+          "status": null
+        }
+      },
+      {
+        "event": "Patient#update",
+        "id": 70,
+        "values": {
+          "allergic_info": "{\"drugAllergies\":[],\"foodAllergies\":[],\"otherAllergies\":[],\"chronicConditions\":[],\"pastSurgeries\":[],\"familyHistory\":[],\"pastIllnesses\":[],\"vaccinations\":[],\"substanceAbuse\":[]}"
+        }
+      }
+    ]
+  },
+  "confirm health info, another patient": {
+    "request": "PATCH /api/health-info/70/3/confirm",
+    "response": {
+      "status": 403,
+      "message": "Forbidden"
+    },
+    "db": []
+  },
+  "confirm health info, record not found": {
+    "request": "PATCH /api/health-info/70/3/confirm",
+    "response": {
+      "status": 404,
+      "message": "Medical record not found"
+    },
+    "db": [
+      {
+        "event": "Patient.findOne",
+        "where": {
+          "user_id": 70
+        },
+        "tx": null
+      },
+      {
+        "event": "MedicalRecord.findOne",
+        "where": {
+          "id": 3,
+          "patient_id": 7
+        },
+        "tx": null
+      }
+    ]
+  },
+  "confirm health info, already confirmed": {
+    "request": "PATCH /api/health-info/70/3/confirm",
+    "response": {
+      "status": 400,
+      "message": "Only draft records can be confirmed"
+    },
+    "db": [
+      {
+        "event": "Patient.findOne",
+        "where": {
+          "user_id": 70
+        },
+        "tx": null
+      },
+      {
+        "event": "MedicalRecord.findOne",
+        "where": {
+          "id": 3,
+          "patient_id": 7
+        },
+        "tx": null
+      }
+    ]
+  },
+  "confirm health info": {
+    "request": "PATCH /api/health-info/70/3/confirm",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "id": 3,
+        "status": "confirmed"
+      }
+    },
+    "db": [
+      {
+        "event": "Patient.findOne",
+        "where": {
+          "user_id": 70
+        },
+        "tx": null
+      },
+      {
+        "event": "MedicalRecord.findOne",
+        "where": {
+          "id": 3,
+          "patient_id": 7
+        },
+        "tx": null
+      },
+      {
+        "event": "MedicalRecord#update",
+        "id": 3,
+        "values": {
+          "status": "confirmed",
+          "time": "<now>"
+        }
+      }
+    ]
+  },
+  "delete health info, no ids": {
+    "request": "DELETE /api/health-info/70",
+    "response": {
+      "status": 400,
+      "message": "No record IDs provided"
+    },
+    "db": [
+      {
+        "event": "Patient.findOne",
+        "where": {
+          "user_id": 70
+        },
+        "tx": null
+      }
+    ]
+  },
+  "delete health info": {
+    "request": "DELETE /api/health-info/70",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "message": "2 record(s) deleted successfully"
+      }
+    },
+    "db": [
+      {
+        "event": "Patient.findOne",
+        "where": {
+          "user_id": 70
+        },
+        "tx": null
+      },
+      {
+        "event": "MedicalRecord.destroy",
+        "where": {
+          "patient_id": 7,
+          "id": [
+            1,
+            2,
+            2
+          ]
+        },
+        "tx": null
+      }
+    ]
+  },
+  "delete health info via POST": {
+    "request": "POST /api/health-info/70/delete",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "message": "0 record(s) deleted successfully"
+      }
+    },
+    "db": [
+      {
+        "event": "Patient.findOne",
+        "where": {
+          "user_id": 70
+        },
+        "tx": null
+      },
+      {
+        "event": "MedicalRecord.destroy",
+        "where": {
+          "patient_id": 7,
+          "id": [
+            1,
+            1
+          ]
+        },
+        "tx": null
+      }
+    ]
+  },
+  "delete health info, another patient": {
+    "request": "POST /api/health-info/70/delete",
+    "response": {
+      "status": 403,
+      "message": "Forbidden"
+    },
+    "db": []
+  }
+}

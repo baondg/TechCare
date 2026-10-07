@@ -19,7 +19,12 @@ router.get('/patients', authorizeCapability('doctor.emr.read'), appointmentContr
 
 // Get already-booked slots for a date
 router.get('/booked-slots', validateRequest(appointmentSchemas.bookedSlotsQuery), appointmentController.getBookedSlots);
-router.get('/open-slots', validateRequest(appointmentSchemas.openSlotsQuery), appointmentController.getOpenSlots);
+router.get(
+  '/open-slots',
+  authorizeCapability('appointments.read.open_slots'),
+  validateRequest(appointmentSchemas.openSlotsQuery),
+  appointmentController.getOpenSlots
+);
 router.post(
   '/open-slots',
   authorizeCapability('appointments.manage.open_slots'),

@@ -2,16 +2,12 @@ const sequelize = require('../common/database');
 const { getClinicTimezone } = require('../common/clinicDate');
 const nurseCheckInRepository = require('../repositories/nurseCheckInRepository');
 const { notifyDoctorsAfterNurseReschedule } = require('./appointmentNotifications');
+const { BadRequestError, ConflictError, NotFoundError } = require('../errors/AppError');
 
-function nurseOrAdminForbidden() {
-  return { ok: false, status: 403, json: { success: false, message: 'Forbidden' } };
-}
-
-function ensureNurseOrAdmin(role) {
-  const r = String(role || '').toLowerCase();
-  if (!['nurse', 'admin'].includes(r)) return nurseOrAdminForbidden();
-  return null;
-}
+/*
+ * Nurse check-in (routes require appointments.nurse.checkin; validators check patientId / ids).
+ * `patientId` in requests is the route form (OP… / number), resolved to PATIENT.patient_id.
+ */
 
 function parseNursePatientId(raw) {
   const s = String(raw ?? '').trim();
@@ -41,10 +37,6 @@ function mapNurseCheckInRow(r) {
     roomName: r.roomName || '',
     condition: r.conditionNote || '',
   };
-}
-
-async function syncPatientInDeptFromAppointmentRoom(_patientId, _appointmentId, _transaction) {
-  return { synced: false };
 }
 
 async function getDefaultDiseaseIdForNurseRegimen(patientId, transaction) {
@@ -81,18 +73,17 @@ async function resolvePatientPkForNurseCheckIn(query) {
   return nurseCheckInRepository.findNursePatientPkFromNumeric(n);
 }
 
-async function getNurseCheckInOptions({ role, query }) {
-  const denied = ensureNurseOrAdmin(role);
-  if (denied) return denied;
+/** PATIENT.patient_id for the request's `patientId`; 404 when there is no such patient. */
+async function requirePatientPk(patientIdParam) {
+  const patientId = await nurseCheckInRepository.findNursePatientPkFromNumeric(parseNursePatientId(patientIdParam));
+  if (!patientId) throw new NotFoundError('Patient not found');
+  return patientId;
+}
 
-  if (!parseNursePatientId(query.patientId)) {
-    return { ok: false, status: 400, json: { success: false, message: 'patientId is required' } };
-  }
-
+/** The patient's bookings today (plus a hinted appointment) and today's open slots. */
+async function getNurseCheckInOptions({ query }) {
   const patientId = await resolvePatientPkForNurseCheckIn(query);
-  if (!patientId) {
-    return { ok: false, status: 404, json: { success: false, message: 'Patient not found' } };
-  }
+  if (!patientId) throw new NotFoundError('Patient not found');
 
   const bookedRows = await nurseCheckInRepository.listNurseBookedTodayForPatient(patientId);
   const bookedMap = new Map();
@@ -117,49 +108,29 @@ async function getNurseCheckInOptions({ role, query }) {
   const today = await nurseCheckInRepository.selectCurDate();
 
   return {
-    ok: true,
-    status: 200,
-    json: {
-      success: true,
-      today,
-      todayTimezone: getClinicTimezone(),
-      patientBookings: mergedBooked.map(mapNurseCheckInRow),
-      openSlots: (openRows || []).map(mapNurseCheckInRow),
-    },
+    today,
+    todayTimezone: getClinicTimezone(),
+    patientBookings: mergedBooked.map(mapNurseCheckInRow),
+    openSlots: (openRows || []).map(mapNurseCheckInRow),
   };
 }
 
-async function postNurseCheckInAccept({ role, body }) {
-  const denied = ensureNurseOrAdmin(role);
-  if (denied) return denied;
-
-  const nAccept = parseNursePatientId(body?.patientId);
-  const appointmentId = Number(body?.appointmentId);
-  if (!nAccept || !Number.isFinite(appointmentId)) {
-    return { ok: false, status: 400, json: { success: false, message: 'patientId and appointmentId are required' } };
-  }
-  const patientId = await nurseCheckInRepository.findNursePatientPkFromNumeric(nAccept);
-  if (!patientId) {
-    return { ok: false, status: 404, json: { success: false, message: 'Patient not found' } };
-  }
-
+/**
+ * Checks the patient in on their booking today (optionally moving it to `roomId`) and links it to the
+ * open visit: the one already linked if still open, else the patient's open visit, else a new one.
+ */
+async function postNurseCheckInAccept({ body }) {
+  const appointmentId = Number(body.appointmentId);
+  const patientId = await requirePatientPk(body.patientId);
   const row = await nurseCheckInRepository.findNurseAcceptAppointment(appointmentId, patientId);
-  if (!row) {
-    return {
-      ok: false,
-      status: 404,
-      json: { success: false, message: 'No matching appointment for this patient today' },
-    };
-  }
+  if (!row) throw new NotFoundError('No matching appointment for this patient today');
 
   const optionalRoomIdRaw = body?.roomId;
   const optionalRoomId =
     optionalRoomIdRaw != null && optionalRoomIdRaw !== '' ? Number(optionalRoomIdRaw) : null;
   if (Number.isFinite(optionalRoomId) && optionalRoomId > 0) {
     const roomRow = await nurseCheckInRepository.findClinicRoomIdExists(optionalRoomId);
-    if (!roomRow) {
-      return { ok: false, status: 400, json: { success: false, message: 'Invalid clinic room' } };
-    }
+    if (!roomRow) throw new BadRequestError('Invalid clinic room');
   }
 
   let regimenId;
@@ -187,7 +158,6 @@ async function postNurseCheckInAccept({ role, body }) {
     }
 
     regimenId = await ensureNurseVisitRegimenOpenEnd(patientId, transaction);
-    await syncPatientInDeptFromAppointmentRoom(patientId, appointmentId, transaction);
     await nurseCheckInRepository.updateAppointmentRegimenId(
       appointmentId,
       patientId,
@@ -197,187 +167,73 @@ async function postNurseCheckInAccept({ role, body }) {
   });
 
   const display = (await nurseCheckInRepository.getNurseAppointmentDisplay(appointmentId)) || row;
-  return {
-    ok: true,
-    status: 200,
-    json: { success: true, appointment: mapNurseCheckInRow(display), regimenId },
-  };
+  return { appointment: mapNurseCheckInRow(display), regimenId };
 }
 
-async function postNurseCheckInAssign({ role, body }) {
-  const denied = ensureNurseOrAdmin(role);
-  if (denied) return denied;
-
-  const nAssign = parseNursePatientId(body?.patientId);
-  const appointmentId = Number(body?.appointmentId);
-  const condition = String(body?.condition || 'Nurse walk-in check-in').trim() || 'Nurse walk-in check-in';
-  if (!nAssign || !Number.isFinite(appointmentId)) {
-    return { ok: false, status: 400, json: { success: false, message: 'patientId and appointmentId are required' } };
-  }
-  const patientId = await nurseCheckInRepository.findNursePatientPkFromNumeric(nAssign);
-  if (!patientId) {
-    return { ok: false, status: 404, json: { success: false, message: 'Patient not found' } };
-  }
-
+/** Walk-in: puts the patient on one of today's open slots and opens / reuses their visit. */
+async function postNurseCheckInAssign({ body }) {
+  const appointmentId = Number(body.appointmentId);
+  const condition = String(body.condition || 'Nurse walk-in check-in').trim() || 'Nurse walk-in check-in';
+  const patientId = await requirePatientPk(body.patientId);
   const slot = await nurseCheckInRepository.findOpenSlotForAssignToday(appointmentId);
-  if (!slot) {
-    return {
-      ok: false,
-      status: 400,
-      json: { success: false, message: 'Slot is not available or not an open slot today' },
-    };
-  }
+  if (!slot) throw new BadRequestError('Slot is not available or not an open slot today');
 
-  let regimenId;
-  try {
-    await sequelize.transaction(async (transaction) => {
-      await nurseCheckInRepository.assignPatientToOpenSlot(appointmentId, patientId, condition, transaction);
-      const check = await nurseCheckInRepository.getAppointmentPatientIdRow(appointmentId, transaction);
-      if (Number(check?.patientId) !== patientId) {
-        throw new Error('ASSIGN_CONFLICT');
-      }
-      regimenId = await ensureNurseVisitRegimenOpenEnd(patientId, transaction);
-      await syncPatientInDeptFromAppointmentRoom(patientId, appointmentId, transaction);
-      await nurseCheckInRepository.updateAppointmentRegimenId(appointmentId, patientId, regimenId, transaction);
-    });
-  } catch (error) {
-    if (error.message === 'ASSIGN_CONFLICT') {
-      return { ok: false, status: 409, json: { success: false, message: 'Could not assign patient to this slot' } };
-    }
-    throw error;
-  }
-
-  const updated = await nurseCheckInRepository.getNurseAppointmentDisplay(appointmentId);
-  return {
-    ok: true,
-    status: 200,
-    json: {
-      success: true,
-      appointment: updated ? mapNurseCheckInRow(updated) : { id: appointmentId },
-      regimenId,
-    },
-  };
-}
-
-async function postNurseCheckInReschedule({ role, body }) {
-  const denied = ensureNurseOrAdmin(role);
-  if (denied) return denied;
-
-  const nRe = parseNursePatientId(body?.patientId);
-  const fromAppointmentId = Number(body?.fromAppointmentId);
-  const toAppointmentId = Number(body?.toAppointmentId);
-  if (!nRe || !Number.isFinite(fromAppointmentId) || !Number.isFinite(toAppointmentId)) {
-    return {
-      ok: false,
-      status: 400,
-      json: { success: false, message: 'patientId, fromAppointmentId and toAppointmentId are required' },
-    };
-  }
-  if (fromAppointmentId === toAppointmentId) {
-    return { ok: false, status: 400, json: { success: false, message: 'Cannot reschedule to the same slot' } };
-  }
-  const patientId = await nurseCheckInRepository.findNursePatientPkFromNumeric(nRe);
-  if (!patientId) {
-    return { ok: false, status: 404, json: { success: false, message: 'Patient not found' } };
-  }
-
-  let regimenId;
-  try {
-    await sequelize.transaction(async (transaction) => {
-      const fromRow = await nurseCheckInRepository.findRescheduleSourceAppointmentToday(
-        fromAppointmentId,
-        patientId,
-        transaction
-      );
-      if (!fromRow) {
-        throw new Error('SOURCE_APPT_NOT_FOUND');
-      }
-
-      const toRow = await nurseCheckInRepository.findRescheduleTargetOpenToday(toAppointmentId, transaction);
-      if (!toRow) {
-        throw new Error('TARGET_SLOT_NOT_OPEN');
-      }
-
-      const carriedCondition = String(fromRow.cond || '').trim() || 'Rescheduled check-in';
-
-      await nurseCheckInRepository.clearPatientFromSlot(fromAppointmentId, patientId, transaction);
-      await nurseCheckInRepository.assignPatientToSlotReserved(toAppointmentId, patientId, carriedCondition, transaction);
-
-      const checkTo = await nurseCheckInRepository.getAppointmentPatientIdRow(toAppointmentId, transaction);
-      if (Number(checkTo?.patientId) !== patientId) {
-        throw new Error('RESCHEDULE_ASSIGN_FAILED');
-      }
-
-      regimenId = await ensureNurseVisitRegimenOpenEnd(patientId, transaction);
-      await syncPatientInDeptFromAppointmentRoom(patientId, toAppointmentId, transaction);
-      await nurseCheckInRepository.updateAppointmentRegimenId(toAppointmentId, patientId, regimenId, transaction);
-    });
-  } catch (error) {
-    if (error.message === 'SOURCE_APPT_NOT_FOUND') {
-      return {
-        ok: false,
-        status: 404,
-        json: { success: false, message: 'Current appointment not found for this patient today' },
-      };
-    }
-    if (error.message === 'TARGET_SLOT_NOT_OPEN') {
-      return {
-        ok: false,
-        status: 400,
-        json: { success: false, message: 'Target slot is not an open slot today' },
-      };
-    }
-    if (error.message === 'RESCHEDULE_ASSIGN_FAILED') {
-      return { ok: false, status: 409, json: { success: false, message: 'Reschedule could not be completed' } };
-    }
-    throw error;
-  }
-
-  const updated = await nurseCheckInRepository.getNurseAppointmentDisplay(toAppointmentId);
-  await notifyDoctorsAfterNurseReschedule({
-    fromAppointmentId,
-    toAppointmentId,
-    patientId,
+  const regimenId = await sequelize.transaction(async (transaction) => {
+    await nurseCheckInRepository.assignPatientToOpenSlot(appointmentId, patientId, condition, transaction);
+    // The update only applies to a still-open slot: someone else may have taken it meanwhile.
+    const check = await nurseCheckInRepository.getAppointmentPatientIdRow(appointmentId, transaction);
+    if (Number(check?.patientId) !== patientId) throw new ConflictError('Could not assign patient to this slot');
+    const id = await ensureNurseVisitRegimenOpenEnd(patientId, transaction);
+    await nurseCheckInRepository.updateAppointmentRegimenId(appointmentId, patientId, id, transaction);
+    return id;
   });
 
-  return {
-    ok: true,
-    status: 200,
-    json: {
-      success: true,
-      appointment: updated ? mapNurseCheckInRow(updated) : { id: toAppointmentId },
-      regimenId,
-    },
-  };
+  const updated = await nurseCheckInRepository.getNurseAppointmentDisplay(appointmentId);
+  return { appointment: updated ? mapNurseCheckInRow(updated) : { id: appointmentId }, regimenId };
 }
 
-async function postNurseRegimenCheckout({ role, body }) {
-  const denied = ensureNurseOrAdmin(role);
-  if (denied) return denied;
+/**
+ * Moves the patient's booking today to one of today's open slots (condition carried over), links the
+ * new slot to the open visit and tells both doctors.
+ */
+async function postNurseCheckInReschedule({ body }) {
+  const fromAppointmentId = Number(body.fromAppointmentId);
+  const toAppointmentId = Number(body.toAppointmentId);
+  const patientId = await requirePatientPk(body.patientId);
 
-  const nCo = parseNursePatientId(body?.patientId);
-  const regimenId = Number(body?.regimenId);
-  if (!nCo || !Number.isFinite(regimenId)) {
-    return { ok: false, status: 400, json: { success: false, message: 'patientId and regimenId are required' } };
-  }
-  const patientId = await nurseCheckInRepository.findNursePatientPkFromNumeric(nCo);
-  if (!patientId) {
-    return { ok: false, status: 404, json: { success: false, message: 'Patient not found' } };
-  }
+  const regimenId = await sequelize.transaction(async (transaction) => {
+    const fromRow = await nurseCheckInRepository.findRescheduleSourceAppointmentToday(fromAppointmentId, patientId, transaction);
+    if (!fromRow) throw new NotFoundError('Current appointment not found for this patient today');
+    const toRow = await nurseCheckInRepository.findRescheduleTargetOpenToday(toAppointmentId, transaction);
+    if (!toRow) throw new BadRequestError('Target slot is not an open slot today');
 
-  const active = await nurseCheckInRepository.findOpenRegimenForPatient(regimenId, patientId);
-  if (!active) {
-    return {
-      ok: false,
-      status: 404,
-      json: { success: false, message: 'No open visit regimen found for this patient' },
-    };
-  }
+    const carriedCondition = String(fromRow.cond || '').trim() || 'Rescheduled check-in';
+    await nurseCheckInRepository.clearPatientFromSlot(fromAppointmentId, patientId, transaction);
+    await nurseCheckInRepository.assignPatientToSlotReserved(toAppointmentId, patientId, carriedCondition, transaction);
+    const checkTo = await nurseCheckInRepository.getAppointmentPatientIdRow(toAppointmentId, transaction);
+    if (Number(checkTo?.patientId) !== patientId) throw new ConflictError('Reschedule could not be completed');
 
+    const id = await ensureNurseVisitRegimenOpenEnd(patientId, transaction);
+    await nurseCheckInRepository.updateAppointmentRegimenId(toAppointmentId, patientId, id, transaction);
+    return id;
+  });
+
+  const updated = await nurseCheckInRepository.getNurseAppointmentDisplay(toAppointmentId);
+  await notifyDoctorsAfterNurseReschedule({ fromAppointmentId, toAppointmentId, patientId });
+  return { appointment: updated ? mapNurseCheckInRow(updated) : { id: toAppointmentId }, regimenId };
+}
+
+/** Legacy / admin: ends one open visit of the patient (doctors close visits on the doctor routes). */
+async function postNurseRegimenCheckout({ body }) {
+  const regimenId = Number(body.regimenId);
+  const patientId = await requirePatientPk(body.patientId);
+  if (!(await nurseCheckInRepository.findOpenRegimenForPatient(regimenId, patientId))) {
+    throw new NotFoundError('No open visit regimen found for this patient');
+  }
   await sequelize.transaction(async (transaction) => {
     await nurseCheckInRepository.closeRegimenEndNow(regimenId, patientId, transaction);
   });
-  return { ok: true, status: 200, json: { success: true, regimenId } };
+  return regimenId;
 }
 
 module.exports = {

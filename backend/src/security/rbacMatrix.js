@@ -4,6 +4,7 @@ const RBAC_MATRIX = Object.freeze({
   'doctor.cover.manage': ['doctor'],
   'appointments.read.self': ['patient'],
   'appointments.write.self': ['patient'],
+  'appointments.read.open_slots': ['admin', 'nurse', 'patient'],
   'appointments.manage.open_slots': ['admin', 'nurse'],
   'appointments.nurse.checkin': ['admin', 'nurse'],
   'ai.models.inspect': ['admin'],

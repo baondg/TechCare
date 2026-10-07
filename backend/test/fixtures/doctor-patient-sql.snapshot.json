@@ -1,0 +1,2337 @@
+{
+  "patients, empty": {
+    "request": "GET /api/doctor/patients",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "patients": [],
+        "pagination": {
+          "total": 0,
+          "page": 1,
+          "limit": 50,
+          "totalPages": 0
+        }
+      }
+    },
+    "db": [
+      {
+        "event": "User.findAndCountAll",
+        "attributes": [
+          "id",
+          "email",
+          "first_name",
+          "last_name",
+          "dob",
+          "sex",
+          "idcard",
+          "tel"
+        ],
+        "include": [
+          {
+            "model": "ACCOUNT",
+            "attributes": [
+              "username"
+            ],
+            "required": true,
+            "where": {
+              "type": "PAT"
+            }
+          }
+        ],
+        "order": [
+          [
+            "id",
+            "DESC"
+          ]
+        ],
+        "limit": 50,
+        "offset": 0,
+        "tx": null
+      }
+    ]
+  },
+  "patients, page with enrichment": {
+    "request": "GET /api/doctor/patients?search=an&page=2&limit=500",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "patients": [
+          {
+            "id": 70,
+            "username": "an",
+            "firstName": "An",
+            "lastName": "Le",
+            "gender": "M",
+            "age": "30",
+            "latestDiagnosis": {
+              "icd10": "J06",
+              "interpretation": "URI"
+            },
+            "latestVisit": "2026-09-01T08:00:00.000Z",
+            "doctor": "Dr A",
+            "bmi": 22.9,
+            "inDepartment": "Cardiology"
+          },
+          {
+            "id": 80,
+            "username": "",
+            "firstName": "Bao",
+            "lastName": null,
+            "gender": "F",
+            "age": "10 months",
+            "latestDiagnosis": null,
+            "latestVisit": null,
+            "doctor": null,
+            "bmi": null,
+            "inDepartment": null
+          }
+        ],
+        "pagination": {
+          "total": 51,
+          "page": 2,
+          "limit": 100,
+          "totalPages": 1
+        }
+      }
+    },
+    "db": [
+      {
+        "event": "User.findAndCountAll",
+        "attributes": [
+          "id",
+          "email",
+          "first_name",
+          "last_name",
+          "dob",
+          "sex",
+          "idcard",
+          "tel"
+        ],
+        "include": [
+          {
+            "model": "ACCOUNT",
+            "attributes": [
+              "username"
+            ],
+            "required": true,
+            "where": {
+              "type": "PAT"
+            }
+          }
+        ],
+        "order": [
+          [
+            "id",
+            "DESC"
+          ]
+        ],
+        "limit": 100,
+        "offset": 100,
+        "tx": null
+      },
+      {
+        "sql": "SELECT pt.user_id AS userId, COALESCE( ( SELECT dep_t.name FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DEPARTMENT dep_t ON dep_t.id = t.dept_id WHERE r.patient_id = pt.patient_id AND t.dept_id IS NOT NULL ORDER BY t.time DESC, t.id DESC LIMIT 1 ), ( SELECT dep_a.name FROM APPOINTMENT a2 JOIN CLINIC_ROOM cr2 ON cr2.id = a2.room_id LEFT JOIN DEPARTMENT dep_a ON dep_a.id = cr2.department_id WHERE a2.patient_id = pt.patient_id ORDER BY a2.time DESC, a2.id DESC LIMIT 1 ) ) AS inDepartment FROM PATIENT pt WHERE pt.user_id IN (?,?)",
+        "replacements": [
+          70,
+          80
+        ],
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT user_id AS userId, patient_id AS patientPk FROM PATIENT WHERE user_id IN (?,?)",
+        "replacements": [
+          70,
+          80
+        ],
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT * FROM ( SELECT r.patient_id AS patientPk, t.time AS visitTime, t.type AS department, t.`condition` AS complaint, dis.icd_code AS icd10, dis.description AS interpretation, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username, CONCAT('doctor#', d.user_id)) AS doctorName, ROW_NUMBER() OVER (PARTITION BY r.patient_id ORDER BY t.time DESC, t.id DESC) AS rn FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DISEASE dis ON dis.id = r.disease_id LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id LEFT JOIN USER u ON u.id = d.user_id LEFT JOIN ACCOUNT a ON a.user_id = d.user_id WHERE r.patient_id IN (?) AND NOT EXISTS ( SELECT 1 FROM `ORDER` o WHERE o.treatment_id = t.id AND ( EXISTS (SELECT 1 FROM SURGERY s WHERE s.id = o.id) OR EXISTS (SELECT 1 FROM TEST tst WHERE tst.id = o.id) OR EXISTS (SELECT 1 FROM MEDICAL_PRESCRIPTION rx WHERE rx.order_id = o.id) OR EXISTS (SELECT 1 FROM TRANSFERENCE tf WHERE tf.order_id = o.id) ) ) ) ranked WHERE ranked.rn = 1",
+        "replacements": [
+          7
+        ],
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT * FROM ( SELECT patient_id AS patientPk, weight, height, ROW_NUMBER() OVER (PARTITION BY patient_id ORDER BY time DESC, id DESC) AS rn FROM MEDICAL_RECORD WHERE patient_id IN (?) ) x WHERE x.rn = 1",
+        "replacements": [
+          7
+        ],
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "patients, junk paging": {
+    "request": "GET /api/doctor/patients?page=-4&limit=abc",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "patients": [],
+        "pagination": {
+          "total": 0,
+          "page": 1,
+          "limit": 50,
+          "totalPages": 0
+        }
+      }
+    },
+    "db": [
+      {
+        "event": "User.findAndCountAll",
+        "attributes": [
+          "id",
+          "email",
+          "first_name",
+          "last_name",
+          "dob",
+          "sex",
+          "idcard",
+          "tel"
+        ],
+        "include": [
+          {
+            "model": "ACCOUNT",
+            "attributes": [
+              "username"
+            ],
+            "required": true,
+            "where": {
+              "type": "PAT"
+            }
+          }
+        ],
+        "order": [
+          [
+            "id",
+            "DESC"
+          ]
+        ],
+        "limit": 50,
+        "offset": 0,
+        "tx": null
+      }
+    ]
+  },
+  "patients, db down": {
+    "request": "GET /api/doctor/patients",
+    "response": {
+      "status": 500,
+      "message": "internal server error"
+    },
+    "db": [
+      {
+        "event": "User.findAndCountAll",
+        "attributes": [
+          "id",
+          "email",
+          "first_name",
+          "last_name",
+          "dob",
+          "sex",
+          "idcard",
+          "tel"
+        ],
+        "include": [
+          {
+            "model": "ACCOUNT",
+            "attributes": [
+              "username"
+            ],
+            "required": true,
+            "where": {
+              "type": "PAT"
+            }
+          }
+        ],
+        "order": [
+          [
+            "id",
+            "DESC"
+          ]
+        ],
+        "limit": 50,
+        "offset": 0,
+        "tx": null
+      }
+    ]
+  },
+  "patient, bad id": {
+    "request": "GET /api/doctor/patients/OPxyz",
+    "response": {
+      "status": 400,
+      "message": "Invalid patient id"
+    },
+    "db": []
+  },
+  "patient, not found": {
+    "request": "GET /api/doctor/patients/OP0070",
+    "response": {
+      "status": 404,
+      "message": "Patient not found"
+    },
+    "db": [
+      {
+        "sql": "SELECT u.id, u.email, u.first_name, u.last_name, u.dob, u.sex, u.idcard, u.tel, p.patient_id AS patientPk, acc.username, hi.id AS healthInsuranceId, hi.expired_date AS healthInsuranceExpiredDate FROM USER u LEFT JOIN PATIENT p ON p.user_id = u.id LEFT JOIN ACCOUNT acc ON acc.user_id = u.id LEFT JOIN HEALTH_INSURANCE hi ON hi.patient_id = p.patient_id WHERE u.id = :routeId OR p.patient_id = :routeId ORDER BY CASE WHEN u.id = :routeId THEN 0 ELSE 1 END LIMIT 1",
+        "replacements": {
+          "routeId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "patient, full record (cache miss)": {
+    "request": "GET /api/doctor/patients/OP0070",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "patient": {
+          "id": 70,
+          "patientPk": 7,
+          "username": "an",
+          "firstName": "An",
+          "lastName": "Le",
+          "idCard": "0791",
+          "phone": "090",
+          "gender": "M",
+          "dateOfBirth": "2026-10-02",
+          "age": "5 days",
+          "latestDiagnosis": {
+            "icd10": "J06",
+            "interpretation": "URI",
+            "department": "Outpatient",
+            "doctorName": "Dr A"
+          },
+          "inDepartment": "Lab",
+          "inDeptId": 4,
+          "bmi": null,
+          "healthInsuranceId": "HI1",
+          "healthInsuranceExpiredDate": "2027-01-01",
+          "bloodType": null,
+          "todayAppointment": {
+            "appointmentId": 11,
+            "timeDisplay": "09:30",
+            "checkedIn": true,
+            "roomId": 2,
+            "roomName": "R2"
+          }
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT u.id, u.email, u.first_name, u.last_name, u.dob, u.sex, u.idcard, u.tel, p.patient_id AS patientPk, acc.username, hi.id AS healthInsuranceId, hi.expired_date AS healthInsuranceExpiredDate FROM USER u LEFT JOIN PATIENT p ON p.user_id = u.id LEFT JOIN ACCOUNT acc ON acc.user_id = u.id LEFT JOIN HEALTH_INSURANCE hi ON hi.patient_id = p.patient_id WHERE u.id = :routeId OR p.patient_id = :routeId ORDER BY CASE WHEN u.id = :routeId THEN 0 ELSE 1 END LIMIT 1",
+        "replacements": {
+          "routeId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "cache.get",
+        "key": "doctor:patient_record:v1:7",
+        "hit": false
+      },
+      {
+        "sql": "SELECT t.time AS visitTime, t.type AS department, t.`condition` AS complaint, dis.icd_code AS icd10, dis.description AS interpretation, COALESCE( NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username, CONCAT('doctor#', d.user_id) ) AS doctorName FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DISEASE dis ON dis.id = r.disease_id LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id LEFT JOIN USER u ON u.id = d.user_id LEFT JOIN ACCOUNT a ON a.user_id = d.user_id WHERE r.patient_id = :patientPk AND NOT EXISTS ( SELECT 1 FROM `ORDER` o WHERE o.treatment_id = t.id AND ( EXISTS (SELECT 1 FROM SURGERY s WHERE s.id = o.id) OR EXISTS (SELECT 1 FROM TEST tst WHERE tst.id = o.id) OR EXISTS (SELECT 1 FROM MEDICAL_PRESCRIPTION rx WHERE rx.order_id = o.id) OR EXISTS (SELECT 1 FROM TRANSFERENCE tf WHERE tf.order_id = o.id) ) ) ORDER BY t.time DESC, t.id DESC LIMIT 1",
+        "replacements": {
+          "patientPk": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT weight, height FROM MEDICAL_RECORD WHERE patient_id = :patientPk ORDER BY time DESC, id DESC LIMIT 1",
+        "replacements": {
+          "patientPk": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT dep.name AS inDepartment, t.dept_id AS inDeptId FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DEPARTMENT dep ON dep.id = t.dept_id WHERE r.patient_id = :patientPk AND t.dept_id IS NOT NULL ORDER BY t.time DESC, t.id DESC LIMIT 1",
+        "replacements": {
+          "patientPk": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT dep.name AS inDepartment, cr.department_id AS inDeptId FROM APPOINTMENT a LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id LEFT JOIN DEPARTMENT dep ON dep.id = cr.department_id WHERE a.patient_id = :patientPk ORDER BY a.time DESC, a.id DESC LIMIT 1",
+        "replacements": {
+          "patientPk": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT a.id, a.time AS slotTime, DATE_FORMAT(a.time, '%Y-%m-%d') AS wallDate, TIME_FORMAT(a.time, '%H:%i:%s') AS wallTime, a.`condition` AS conditionNote, a.regimen_id AS regimenId, a.doctor_id AS doctorId, a.room_id AS roomId, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(du.first_name,''), ' ', COALESCE(du.last_name,''))), ''), dacc.username) AS doctorName, COALESCE(d.specifications, '') AS department, COALESCE(cr.name, '') AS roomName FROM APPOINTMENT a JOIN DOCTOR d ON d.doctor_id = a.doctor_id JOIN USER du ON du.id = d.user_id JOIN ACCOUNT dacc ON dacc.user_id = d.user_id LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id WHERE a.status = 'scheduled' AND DATE(a.time) = :clinicToday AND ( a.patient_id = :patientId OR a.patient_id = ( SELECT p.user_id FROM PATIENT p WHERE p.patient_id = :patientId LIMIT 1 ) ) ORDER BY a.time ASC, a.id ASC",
+        "replacements": {
+          "patientId": 7,
+          "clinicToday": "<today>"
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id FROM REGIMEN WHERE id = :regimenId AND patient_id = :patientId AND `end` IS NULL LIMIT 1",
+        "replacements": {
+          "regimenId": 99,
+          "patientId": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "cache.set",
+        "key": "doctor:patient_record:v1:7",
+        "ttlSeconds": 30
+      }
+    ]
+  },
+  "patient, department from appointment, no visit today": {
+    "request": "GET /api/doctor/patients/7",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "patient": {
+          "id": 70,
+          "patientPk": 7,
+          "username": "",
+          "firstName": "An",
+          "idCard": null,
+          "phone": null,
+          "dateOfBirth": null,
+          "age": null,
+          "latestDiagnosis": null,
+          "inDepartment": null,
+          "inDeptId": null,
+          "bmi": null,
+          "healthInsuranceId": null,
+          "healthInsuranceExpiredDate": null,
+          "bloodType": null,
+          "todayAppointment": {
+            "appointmentId": 12,
+            "timeDisplay": "",
+            "checkedIn": false,
+            "roomId": null,
+            "roomName": ""
+          }
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT u.id, u.email, u.first_name, u.last_name, u.dob, u.sex, u.idcard, u.tel, p.patient_id AS patientPk, acc.username, hi.id AS healthInsuranceId, hi.expired_date AS healthInsuranceExpiredDate FROM USER u LEFT JOIN PATIENT p ON p.user_id = u.id LEFT JOIN ACCOUNT acc ON acc.user_id = u.id LEFT JOIN HEALTH_INSURANCE hi ON hi.patient_id = p.patient_id WHERE u.id = :routeId OR p.patient_id = :routeId ORDER BY CASE WHEN u.id = :routeId THEN 0 ELSE 1 END LIMIT 1",
+        "replacements": {
+          "routeId": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "cache.get",
+        "key": "doctor:patient_record:v1:7",
+        "hit": false
+      },
+      {
+        "sql": "SELECT t.time AS visitTime, t.type AS department, t.`condition` AS complaint, dis.icd_code AS icd10, dis.description AS interpretation, COALESCE( NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username, CONCAT('doctor#', d.user_id) ) AS doctorName FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DISEASE dis ON dis.id = r.disease_id LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id LEFT JOIN USER u ON u.id = d.user_id LEFT JOIN ACCOUNT a ON a.user_id = d.user_id WHERE r.patient_id = :patientPk AND NOT EXISTS ( SELECT 1 FROM `ORDER` o WHERE o.treatment_id = t.id AND ( EXISTS (SELECT 1 FROM SURGERY s WHERE s.id = o.id) OR EXISTS (SELECT 1 FROM TEST tst WHERE tst.id = o.id) OR EXISTS (SELECT 1 FROM MEDICAL_PRESCRIPTION rx WHERE rx.order_id = o.id) OR EXISTS (SELECT 1 FROM TRANSFERENCE tf WHERE tf.order_id = o.id) ) ) ORDER BY t.time DESC, t.id DESC LIMIT 1",
+        "replacements": {
+          "patientPk": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT weight, height FROM MEDICAL_RECORD WHERE patient_id = :patientPk ORDER BY time DESC, id DESC LIMIT 1",
+        "replacements": {
+          "patientPk": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT dep.name AS inDepartment, t.dept_id AS inDeptId FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DEPARTMENT dep ON dep.id = t.dept_id WHERE r.patient_id = :patientPk AND t.dept_id IS NOT NULL ORDER BY t.time DESC, t.id DESC LIMIT 1",
+        "replacements": {
+          "patientPk": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT dep.name AS inDepartment, cr.department_id AS inDeptId FROM APPOINTMENT a LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id LEFT JOIN DEPARTMENT dep ON dep.id = cr.department_id WHERE a.patient_id = :patientPk ORDER BY a.time DESC, a.id DESC LIMIT 1",
+        "replacements": {
+          "patientPk": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT a.id, a.time AS slotTime, DATE_FORMAT(a.time, '%Y-%m-%d') AS wallDate, TIME_FORMAT(a.time, '%H:%i:%s') AS wallTime, a.`condition` AS conditionNote, a.regimen_id AS regimenId, a.doctor_id AS doctorId, a.room_id AS roomId, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(du.first_name,''), ' ', COALESCE(du.last_name,''))), ''), dacc.username) AS doctorName, COALESCE(d.specifications, '') AS department, COALESCE(cr.name, '') AS roomName FROM APPOINTMENT a JOIN DOCTOR d ON d.doctor_id = a.doctor_id JOIN USER du ON du.id = d.user_id JOIN ACCOUNT dacc ON dacc.user_id = d.user_id LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id WHERE a.status = 'scheduled' AND DATE(a.time) = :clinicToday AND ( a.patient_id = :patientId OR a.patient_id = ( SELECT p.user_id FROM PATIENT p WHERE p.patient_id = :patientId LIMIT 1 ) ) ORDER BY a.time ASC, a.id ASC",
+        "replacements": {
+          "patientId": 7,
+          "clinicToday": "<today>"
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "cache.set",
+        "key": "doctor:patient_record:v1:7",
+        "ttlSeconds": 30
+      }
+    ]
+  },
+  "patient, cache hit": {
+    "request": "GET /api/doctor/patients/OP0070",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "patient": {
+          "id": 70,
+          "cached": true
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT u.id, u.email, u.first_name, u.last_name, u.dob, u.sex, u.idcard, u.tel, p.patient_id AS patientPk, acc.username, hi.id AS healthInsuranceId, hi.expired_date AS healthInsuranceExpiredDate FROM USER u LEFT JOIN PATIENT p ON p.user_id = u.id LEFT JOIN ACCOUNT acc ON acc.user_id = u.id LEFT JOIN HEALTH_INSURANCE hi ON hi.patient_id = p.patient_id WHERE u.id = :routeId OR p.patient_id = :routeId ORDER BY CASE WHEN u.id = :routeId THEN 0 ELSE 1 END LIMIT 1",
+        "replacements": {
+          "routeId": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "cache.get",
+        "key": "doctor:patient_record:v1:7",
+        "hit": true
+      }
+    ]
+  },
+  "patient, user without PATIENT row": {
+    "request": "GET /api/doctor/patients/90",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "patient": {
+          "id": 90,
+          "patientPk": null,
+          "username": "",
+          "firstName": "Staff",
+          "idCard": null,
+          "phone": null,
+          "dateOfBirth": null,
+          "age": null,
+          "latestDiagnosis": null,
+          "inDepartment": null,
+          "inDeptId": null,
+          "bmi": null,
+          "healthInsuranceId": null,
+          "healthInsuranceExpiredDate": null,
+          "bloodType": null,
+          "todayAppointment": null
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT u.id, u.email, u.first_name, u.last_name, u.dob, u.sex, u.idcard, u.tel, p.patient_id AS patientPk, acc.username, hi.id AS healthInsuranceId, hi.expired_date AS healthInsuranceExpiredDate FROM USER u LEFT JOIN PATIENT p ON p.user_id = u.id LEFT JOIN ACCOUNT acc ON acc.user_id = u.id LEFT JOIN HEALTH_INSURANCE hi ON hi.patient_id = p.patient_id WHERE u.id = :routeId OR p.patient_id = :routeId ORDER BY CASE WHEN u.id = :routeId THEN 0 ELSE 1 END LIMIT 1",
+        "replacements": {
+          "routeId": 90
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "patient, db down": {
+    "request": "GET /api/doctor/patients/7",
+    "response": {
+      "status": 500,
+      "message": "internal server error"
+    },
+    "db": [
+      {
+        "sql": "SELECT u.id, u.email, u.first_name, u.last_name, u.dob, u.sex, u.idcard, u.tel, p.patient_id AS patientPk, acc.username, hi.id AS healthInsuranceId, hi.expired_date AS healthInsuranceExpiredDate FROM USER u LEFT JOIN PATIENT p ON p.user_id = u.id LEFT JOIN ACCOUNT acc ON acc.user_id = u.id LEFT JOIN HEALTH_INSURANCE hi ON hi.patient_id = p.patient_id WHERE u.id = :routeId OR p.patient_id = :routeId ORDER BY CASE WHEN u.id = :routeId THEN 0 ELSE 1 END LIMIT 1",
+        "replacements": {
+          "routeId": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "health info, bad id": {
+    "request": "GET /api/doctor/patients/abc/health-info",
+    "response": {
+      "status": 404,
+      "message": "Patient not found"
+    },
+    "db": []
+  },
+  "health info, unknown patient": {
+    "request": "GET /api/doctor/patients/OP0070/health-info",
+    "response": {
+      "status": 404,
+      "message": "Patient not found"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE patient_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "MedicalRecord.findOne",
+        "where": {
+          "patient_id": 70
+        },
+        "order": [
+          [
+            "time",
+            "DESC"
+          ]
+        ],
+        "tx": null
+      },
+      {
+        "event": "Patient.findByPk",
+        "pk": 70,
+        "tx": null
+      }
+    ]
+  },
+  "health info, latest + patient JSON columns": {
+    "request": "GET /api/doctor/patients/OP0070/health-info",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "healthInfo": {
+          "id": 3,
+          "patient_id": 7,
+          "height": 170,
+          "status": "draft"
+        },
+        "patientInfo": {
+          "blood_type": "O+",
+          "allergic_info": {
+            "drugAllergies": [
+              "penicillin"
+            ]
+          },
+          "medical_history": {}
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "MedicalRecord.findOne",
+        "where": {
+          "patient_id": 7
+        },
+        "order": [
+          [
+            "time",
+            "DESC"
+          ]
+        ],
+        "tx": null
+      },
+      {
+        "event": "Patient.findByPk",
+        "pk": 7,
+        "tx": null
+      }
+    ]
+  },
+  "health info, none recorded": {
+    "request": "GET /api/doctor/patients/OP0070/health-info",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "healthInfo": null,
+        "patientInfo": {
+          "blood_type": null,
+          "allergic_info": {
+            "foodAllergies": []
+          },
+          "medical_history": {}
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "MedicalRecord.findOne",
+        "where": {
+          "patient_id": 7
+        },
+        "order": [
+          [
+            "time",
+            "DESC"
+          ]
+        ],
+        "tx": null
+      },
+      {
+        "event": "Patient.findByPk",
+        "pk": 7,
+        "tx": null
+      }
+    ]
+  },
+  "health info, db down": {
+    "request": "GET /api/doctor/patients/OP0070/health-info",
+    "response": {
+      "status": 500,
+      "message": "internal server error"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "MedicalRecord.findOne",
+        "where": {
+          "patient_id": 7
+        },
+        "order": [
+          [
+            "time",
+            "DESC"
+          ]
+        ],
+        "tx": null
+      }
+    ]
+  },
+  "health history, defaults": {
+    "request": "GET /api/doctor/patients/OP0070/health-info/history",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "history": [
+          {
+            "id": 1
+          },
+          {
+            "id": 2
+          }
+        ],
+        "pagination": {
+          "total": 11,
+          "page": 1,
+          "limit": 10,
+          "totalPages": 2
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "MedicalRecord.findAndCountAll",
+        "where": {
+          "patient_id": 7
+        },
+        "order": [
+          [
+            "time",
+            "DESC"
+          ]
+        ],
+        "limit": 10,
+        "offset": 0,
+        "tx": null
+      }
+    ]
+  },
+  "health history, page 2 of 5": {
+    "request": "GET /api/doctor/patients/OP0070/health-info/history?page=2&limit=5",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "history": [],
+        "pagination": {
+          "total": 0,
+          "page": 2,
+          "limit": 5,
+          "totalPages": 0
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "MedicalRecord.findAndCountAll",
+        "where": {
+          "patient_id": 7
+        },
+        "order": [
+          [
+            "time",
+            "DESC"
+          ]
+        ],
+        "limit": 5,
+        "offset": 5,
+        "tx": null
+      }
+    ]
+  },
+  "create health info, unknown patient": {
+    "request": "POST /api/doctor/patients/OP0070/health-info",
+    "response": {
+      "status": 404,
+      "message": "Patient not found"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "Patient.findByPk",
+        "pk": 7,
+        "tx": null
+      }
+    ]
+  },
+  "create health info, bad height": {
+    "request": "POST /api/doctor/patients/OP0070/health-info",
+    "response": {
+      "status": 400,
+      "message": "Height is required and must be a positive number"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "Patient.findByPk",
+        "pk": 7,
+        "tx": null
+      }
+    ]
+  },
+  "create health info, bad time": {
+    "request": "POST /api/doctor/patients/OP0070/health-info",
+    "response": {
+      "status": 400,
+      "message": "Invalid time"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "Patient.findByPk",
+        "pk": 7,
+        "tx": null
+      }
+    ]
+  },
+  "create health info": {
+    "request": "POST /api/doctor/patients/OP0070/health-info",
+    "response": {
+      "status": 201,
+      "body": {
+        "success": true,
+        "healthInfo": {
+          "id": 500,
+          "patient_id": 7,
+          "time": "2026-10-01T08:00:00.000Z",
+          "condition": "cough",
+          "height": 170,
+          "weight": 60.5,
+          "blood_pressure": "120/80",
+          "heart_rate": 72,
+          "respiratory_rate": null,
+          "temperature": 37.2,
+          "spo2": null,
+          "status": "confirmed"
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "Patient.findByPk",
+        "pk": 7,
+        "tx": null
+      },
+      {
+        "event": "MedicalRecord.create",
+        "values": {
+          "patient_id": 7,
+          "time": "2026-10-01T08:00:00.000Z",
+          "condition": "cough",
+          "height": 170,
+          "weight": 60.5,
+          "blood_pressure": "120/80",
+          "heart_rate": 72,
+          "respiratory_rate": null,
+          "temperature": 37.2,
+          "spo2": null,
+          "status": "confirmed"
+        },
+        "tx": null
+      }
+    ]
+  },
+  "create health info, defaults": {
+    "request": "POST /api/doctor/patients/OP0070/health-info",
+    "response": {
+      "status": 201,
+      "body": {
+        "success": true,
+        "healthInfo": {
+          "id": 500,
+          "patient_id": 7,
+          "time": "<now>",
+          "condition": "No symptoms recorded",
+          "height": 1,
+          "weight": 1,
+          "blood_pressure": "110/70",
+          "heart_rate": null,
+          "respiratory_rate": null,
+          "temperature": null,
+          "spo2": null,
+          "status": "draft"
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "Patient.findByPk",
+        "pk": 7,
+        "tx": null
+      },
+      {
+        "event": "MedicalRecord.create",
+        "values": {
+          "patient_id": 7,
+          "time": "<now>",
+          "condition": "No symptoms recorded",
+          "height": 1,
+          "weight": 1,
+          "blood_pressure": "110/70",
+          "heart_rate": null,
+          "respiratory_rate": null,
+          "temperature": null,
+          "spo2": null,
+          "status": "draft"
+        },
+        "tx": null
+      }
+    ]
+  },
+  "update health info, not found": {
+    "request": "PUT /api/doctor/patients/OP0070/health-info/3",
+    "response": {
+      "status": 404,
+      "message": "Health info record not found"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "MedicalRecord.findOne",
+        "where": {
+          "id": "3",
+          "patient_id": 7
+        },
+        "tx": null
+      }
+    ]
+  },
+  "update health info, confirmed record": {
+    "request": "PUT /api/doctor/patients/OP0070/health-info/3",
+    "response": {
+      "status": 400,
+      "message": "Only draft records can be edited"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "MedicalRecord.findOne",
+        "where": {
+          "id": "3",
+          "patient_id": 7
+        },
+        "tx": null
+      }
+    ]
+  },
+  "update health info": {
+    "request": "PUT /api/doctor/patients/OP0070/health-info/3",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "healthInfo": {
+          "id": 3,
+          "status": "draft",
+          "height": 170
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "MedicalRecord.findOne",
+        "where": {
+          "id": "3",
+          "patient_id": 7
+        },
+        "tx": null
+      },
+      {
+        "event": "MedicalRecord#update",
+        "id": 3,
+        "values": {
+          "condition": "fever",
+          "time": "2026-10-02T00:00:00.000Z",
+          "weight": 61,
+          "blood_pressure": "1/2",
+          "respiratory_rate": 18,
+          "temperature": 38,
+          "spo2": 97,
+          "status": "confirmed"
+        }
+      }
+    ]
+  },
+  "update health info, nothing to change": {
+    "request": "PUT /api/doctor/patients/OP0070/health-info/3",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "healthInfo": {
+          "id": 3,
+          "status": null
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "MedicalRecord.findOne",
+        "where": {
+          "id": "3",
+          "patient_id": 7
+        },
+        "tx": null
+      }
+    ]
+  },
+  "delete health info": {
+    "request": "DELETE /api/doctor/patients/OP0070/health-info/3",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "message": "Health info record deleted"
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "MedicalRecord.findOne",
+        "where": {
+          "id": "3",
+          "patient_id": 7
+        },
+        "tx": null
+      },
+      {
+        "event": "MedicalRecord#destroy",
+        "id": 3
+      }
+    ]
+  },
+  "delete health info, not found": {
+    "request": "DELETE /api/doctor/patients/OP0070/health-info/3",
+    "response": {
+      "status": 404,
+      "message": "Health info record not found"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "MedicalRecord.findOne",
+        "where": {
+          "id": "3",
+          "patient_id": 7
+        },
+        "tx": null
+      }
+    ]
+  },
+  "confirm health info": {
+    "request": "PATCH /api/doctor/patients/OP0070/health-info/3/confirm",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "id": 3,
+        "status": "confirmed"
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "MedicalRecord.findOne",
+        "where": {
+          "id": 3,
+          "patient_id": 7
+        },
+        "tx": null
+      },
+      {
+        "event": "MedicalRecord#update",
+        "id": 3,
+        "values": {
+          "status": "confirmed",
+          "time": "<now>"
+        }
+      }
+    ]
+  },
+  "confirm health info, already confirmed": {
+    "request": "PATCH /api/doctor/patients/OP0070/health-info/3/confirm",
+    "response": {
+      "status": 400,
+      "message": "Only draft records can be confirmed"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "MedicalRecord.findOne",
+        "where": {
+          "id": 3,
+          "patient_id": 7
+        },
+        "tx": null
+      }
+    ]
+  },
+  "confirm health info, db down": {
+    "request": "PATCH /api/doctor/patients/OP0070/health-info/3/confirm",
+    "response": {
+      "status": 500,
+      "message": "internal server error"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "MedicalRecord.findOne",
+        "where": {
+          "id": 3,
+          "patient_id": 7
+        },
+        "tx": null
+      }
+    ]
+  },
+  "diagnoses, unknown patient": {
+    "request": "GET /api/doctor/patients/OP0070/diagnoses",
+    "response": {
+      "status": 400,
+      "message": "Invalid patient id"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE patient_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "diagnoses": {
+    "request": "GET /api/doctor/patients/OP0070/diagnoses",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "diagnoses": [
+          {
+            "id": 5,
+            "patientId": 7,
+            "icd10": "J06"
+          }
+        ]
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT t.id, r.patient_id AS patientId, d.user_id AS doctorId, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username, CONCAT('doctor#', d.user_id)) AS doctorName, COALESCE(NULLIF(TRIM(dep_dx.name), ''), '') AS department, t.`condition` AS complaint, dis.icd_code AS icd10, dis.description AS interpretation, '' AS note, t.time AS createdAt, t.time AS updatedAt FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DEPARTMENT dep_dx ON dep_dx.id = t.dept_id LEFT JOIN DISEASE dis ON dis.id = r.disease_id LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id LEFT JOIN USER u ON u.id = d.user_id LEFT JOIN ACCOUNT a ON a.user_id = d.user_id WHERE r.patient_id = :patientId AND NOT EXISTS ( SELECT 1 FROM `ORDER` o WHERE o.treatment_id = t.id AND ( EXISTS (SELECT 1 FROM SURGERY s WHERE s.id = o.id) OR EXISTS (SELECT 1 FROM TEST tst WHERE tst.id = o.id) OR EXISTS (SELECT 1 FROM MEDICAL_PRESCRIPTION rx WHERE rx.order_id = o.id) OR EXISTS (SELECT 1 FROM TRANSFERENCE tf WHERE tf.order_id = o.id) ) ) ORDER BY t.time DESC, t.id DESC",
+        "replacements": {
+          "patientId": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "diagnoses, db down": {
+    "request": "GET /api/doctor/patients/OP0070/diagnoses",
+    "response": {
+      "status": 500,
+      "message": "internal server error"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT t.id, r.patient_id AS patientId, d.user_id AS doctorId, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username, CONCAT('doctor#', d.user_id)) AS doctorName, COALESCE(NULLIF(TRIM(dep_dx.name), ''), '') AS department, t.`condition` AS complaint, dis.icd_code AS icd10, dis.description AS interpretation, '' AS note, t.time AS createdAt, t.time AS updatedAt FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DEPARTMENT dep_dx ON dep_dx.id = t.dept_id LEFT JOIN DISEASE dis ON dis.id = r.disease_id LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id LEFT JOIN USER u ON u.id = d.user_id LEFT JOIN ACCOUNT a ON a.user_id = d.user_id WHERE r.patient_id = :patientId AND NOT EXISTS ( SELECT 1 FROM `ORDER` o WHERE o.treatment_id = t.id AND ( EXISTS (SELECT 1 FROM SURGERY s WHERE s.id = o.id) OR EXISTS (SELECT 1 FROM TEST tst WHERE tst.id = o.id) OR EXISTS (SELECT 1 FROM MEDICAL_PRESCRIPTION rx WHERE rx.order_id = o.id) OR EXISTS (SELECT 1 FROM TRANSFERENCE tf WHERE tf.order_id = o.id) ) ) ORDER BY t.time DESC, t.id DESC",
+        "replacements": {
+          "patientId": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "create diagnosis, gate: no active visit": {
+    "request": "POST /api/doctor/patients/OP0070/diagnoses",
+    "response": {
+      "status": 403,
+      "message": "Patient has no active visit. Complete nurse check-in before recording data."
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "create diagnosis, missing fields": {
+    "request": "POST /api/doctor/patients/OP0070/diagnoses",
+    "response": {
+      "status": 400,
+      "message": "Complaint and ICD-10 code are required"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "event": "rollback",
+        "tx": "tx1"
+      }
+    ]
+  },
+  "create diagnosis, no doctor resolvable": {
+    "request": "POST /api/doctor/patients/OP0070/diagnoses",
+    "response": {
+      "status": 400,
+      "message": "No doctor could be resolved for this lab order: the patient needs a scheduled appointment or a prior visit (treatment), or the action must be done by a user linked to a doctor profile."
+    },
+    "db": [
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT doctor_id FROM DOCTOR WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 41
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT t.doctor_id FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id WHERE r.patient_id = :patientId ORDER BY t.time DESC LIMIT 1",
+        "replacements": {
+          "patientId": 7
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT doctor_id AS doctorId FROM APPOINTMENT WHERE patient_id = :patientPk AND status = 'scheduled' ORDER BY `time` DESC LIMIT 1",
+        "replacements": {
+          "patientPk": 7
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT doctor_id AS doctorId FROM APPOINTMENT WHERE patient_id = :patientPk ORDER BY `time` DESC LIMIT 1",
+        "replacements": {
+          "patientPk": 7
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "event": "rollback",
+        "tx": "tx1"
+      }
+    ]
+  },
+  "create diagnosis, new disease + regimen, department by name": {
+    "request": "POST /api/doctor/patients/OP0070/diagnoses",
+    "response": {
+      "status": 201,
+      "body": {
+        "success": true,
+        "diagnosis": {
+          "id": 501,
+          "patientId": 7,
+          "doctorId": 21,
+          "doctorName": "Dr. Hoa Tran",
+          "department": "ENT",
+          "complaint": "Sore throat",
+          "icd10": "J02",
+          "interpretation": "Pharyngitis",
+          "note": "n",
+          "createdAt": "<now>",
+          "updatedAt": "<now>"
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT doctor_id FROM DOCTOR WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 21
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT id FROM DISEASE WHERE icd_code = :icd LIMIT 1",
+        "replacements": {
+          "icd": "J02"
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "INSERT INTO DISEASE (icd_code, description, category, symptoms) VALUES (:icd, :description, 'General', NULL)",
+        "replacements": {
+          "icd": "J02",
+          "description": "Pharyngitis"
+        },
+        "type": "INSERT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT id FROM REGIMEN WHERE patient_id = :patientId AND disease_id = :diseaseId AND `end` IS NULL ORDER BY id DESC LIMIT 1",
+        "replacements": {
+          "patientId": 7,
+          "diseaseId": 301
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "INSERT INTO REGIMEN (`start`, `end`, patient_id, disease_id) VALUES (NOW(), NULL, :patientId, :diseaseId)",
+        "replacements": {
+          "patientId": 7,
+          "diseaseId": 301
+        },
+        "type": "INSERT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT id FROM DEPARTMENT WHERE TRIM(name) = TRIM(:name) LIMIT 1",
+        "replacements": {
+          "name": "ENT",
+          "byId": "ENT"
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "INSERT INTO TREATMENT (time, `condition`, type, regimen_id, doctor_id, room_id, dept_id) VALUES (NOW(), :complaint, :type, :regimenId, :doctorId, :roomId, :deptId)",
+        "replacements": {
+          "complaint": "Sore throat",
+          "type": "Outpatient",
+          "regimenId": 401,
+          "doctorId": 5,
+          "deptId": 6,
+          "roomId": null
+        },
+        "type": "INSERT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT first_name, last_name FROM USER WHERE id = :id LIMIT 1",
+        "replacements": {
+          "id": 21
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "commit",
+        "tx": "tx1"
+      },
+      {
+        "event": "cache.del",
+        "key": "doctor:patient_record:v2:7"
+      }
+    ]
+  },
+  "create diagnosis, known disease, dept from appointment, legacy TREATMENT": {
+    "request": "POST /api/doctor/patients/OP0070/diagnoses",
+    "response": {
+      "status": 201,
+      "body": {
+        "success": true,
+        "diagnosis": {
+          "id": 502,
+          "patientId": 7,
+          "doctorId": 41,
+          "doctorName": "Dr. nur41",
+          "department": "Outpatient",
+          "complaint": "Cough",
+          "icd10": "J06",
+          "interpretation": "",
+          "note": "",
+          "createdAt": "<now>",
+          "updatedAt": "<now>"
+        }
+      }
+    },
+    "db": [
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT doctor_id FROM DOCTOR WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 41
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT t.doctor_id FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id WHERE r.patient_id = :patientId ORDER BY t.time DESC LIMIT 1",
+        "replacements": {
+          "patientId": 7
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT id FROM DISEASE WHERE icd_code = :icd LIMIT 1",
+        "replacements": {
+          "icd": "J06"
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT id FROM REGIMEN WHERE patient_id = :patientId AND disease_id = :diseaseId AND `end` IS NULL ORDER BY id DESC LIMIT 1",
+        "replacements": {
+          "patientId": 7,
+          "diseaseId": 300
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT cr.department_id AS deptId FROM APPOINTMENT a JOIN CLINIC_ROOM cr ON cr.id = a.room_id WHERE a.patient_id = :patientId AND cr.department_id IS NOT NULL ORDER BY a.time DESC, a.id DESC LIMIT 1",
+        "replacements": {
+          "patientId": 7
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "INSERT INTO TREATMENT (time, `condition`, type, regimen_id, doctor_id, room_id, dept_id) VALUES (NOW(), :complaint, :type, :regimenId, :doctorId, :roomId, :deptId)",
+        "replacements": {
+          "complaint": "Cough",
+          "type": "Outpatient",
+          "regimenId": 400,
+          "doctorId": 6,
+          "deptId": 2,
+          "roomId": null
+        },
+        "type": "INSERT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "INSERT INTO TREATMENT (time, `condition`, type, regimen_id, doctor_id, room_id) VALUES (NOW(), :complaint, :type, :regimenId, :doctorId, :roomId)",
+        "replacements": {
+          "complaint": "Cough",
+          "type": "Outpatient",
+          "regimenId": 400,
+          "doctorId": 6,
+          "roomId": null
+        },
+        "type": "INSERT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT first_name, last_name FROM USER WHERE id = :id LIMIT 1",
+        "replacements": {
+          "id": 41
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "commit",
+        "tx": "tx1"
+      },
+      {
+        "event": "cache.del",
+        "key": "doctor:patient_record:v2:7"
+      }
+    ]
+  },
+  "create diagnosis, dept from doctor mapping, numeric department label": {
+    "request": "POST /api/doctor/patients/OP0070/diagnoses",
+    "response": {
+      "status": 201,
+      "body": {
+        "success": true,
+        "diagnosis": {
+          "id": 503,
+          "patientId": 7,
+          "doctorId": 21,
+          "doctorName": "Dr. doc21",
+          "department": "9",
+          "complaint": "x",
+          "icd10": "Z00",
+          "interpretation": "",
+          "note": "",
+          "createdAt": "<now>",
+          "updatedAt": "<now>"
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT doctor_id FROM DOCTOR WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 21
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT id FROM DISEASE WHERE icd_code = :icd LIMIT 1",
+        "replacements": {
+          "icd": "Z00"
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT id FROM REGIMEN WHERE patient_id = :patientId AND disease_id = :diseaseId AND `end` IS NULL ORDER BY id DESC LIMIT 1",
+        "replacements": {
+          "patientId": 7,
+          "diseaseId": 300
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT id FROM DEPARTMENT WHERE TRIM(name) = TRIM(:name) LIMIT 1",
+        "replacements": {
+          "name": "9",
+          "byId": "9"
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT id FROM DEPARTMENT WHERE id = :byId LIMIT 1",
+        "replacements": {
+          "name": "9",
+          "byId": "9"
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT cr.department_id AS deptId FROM APPOINTMENT a JOIN CLINIC_ROOM cr ON cr.id = a.room_id WHERE a.patient_id = :patientId AND cr.department_id IS NOT NULL ORDER BY a.time DESC, a.id DESC LIMIT 1",
+        "replacements": {
+          "patientId": 7
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT cr.department_id AS deptId FROM DOCTOR d LEFT JOIN CLINIC_ROOM cr ON cr.id = d.room_id WHERE d.doctor_id = :doctorId LIMIT 1",
+        "replacements": {
+          "doctorId": 5
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT dd.department_id AS deptId FROM DOCTOR_DEPARTMENT dd WHERE dd.doctor_id = :doctorId ORDER BY dd.department_id ASC LIMIT 1",
+        "replacements": {
+          "doctorId": 5
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "INSERT INTO TREATMENT (time, `condition`, type, regimen_id, doctor_id, room_id, dept_id) VALUES (NOW(), :complaint, :type, :regimenId, :doctorId, :roomId, :deptId)",
+        "replacements": {
+          "complaint": "x",
+          "type": "Outpatient",
+          "regimenId": 400,
+          "doctorId": 5,
+          "deptId": 8,
+          "roomId": null
+        },
+        "type": "INSERT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT first_name, last_name FROM USER WHERE id = :id LIMIT 1",
+        "replacements": {
+          "id": 21
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "commit",
+        "tx": "tx1"
+      },
+      {
+        "event": "cache.del",
+        "key": "doctor:patient_record:v2:7"
+      }
+    ]
+  },
+  "create diagnosis, db down": {
+    "request": "POST /api/doctor/patients/OP0070/diagnoses",
+    "response": {
+      "status": 500,
+      "message": "internal server error"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT doctor_id FROM DOCTOR WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 21
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT id FROM DISEASE WHERE icd_code = :icd LIMIT 1",
+        "replacements": {
+          "icd": "J06"
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "event": "rollback",
+        "tx": "tx1"
+      }
+    ]
+  },
+  "update diagnosis, bad id": {
+    "request": "PUT /api/doctor/patients/OP0070/diagnoses/x",
+    "response": {
+      "status": 400,
+      "message": "Invalid patient or diagnosis id"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "event": "rollback",
+        "tx": "tx1"
+      }
+    ]
+  },
+  "update diagnosis, missing fields": {
+    "request": "PUT /api/doctor/patients/OP0070/diagnoses/5",
+    "response": {
+      "status": 400,
+      "message": "Complaint and ICD-10 code are required"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "event": "rollback",
+        "tx": "tx1"
+      }
+    ]
+  },
+  "update diagnosis, not found": {
+    "request": "PUT /api/doctor/patients/OP0070/diagnoses/5",
+    "response": {
+      "status": 404,
+      "message": "Diagnosis not found"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT t.id, t.regimen_id, r.patient_id, r.disease_id AS regimen_disease_id FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id WHERE t.id = :treatmentId AND r.patient_id = :patientId LIMIT 1",
+        "replacements": {
+          "treatmentId": 5,
+          "patientId": 7
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "event": "rollback",
+        "tx": "tx1"
+      }
+    ]
+  },
+  "update diagnosis, same disease": {
+    "request": "PUT /api/doctor/patients/OP0070/diagnoses/5",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "diagnosis": {
+          "id": 5,
+          "patientId": 7,
+          "doctorId": 21,
+          "doctorName": "Dr. doc21",
+          "department": "Lab",
+          "complaint": "Cough",
+          "icd10": "J06",
+          "interpretation": "",
+          "note": "",
+          "createdAt": "<now>",
+          "updatedAt": "<now>"
+        }
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT t.id, t.regimen_id, r.patient_id, r.disease_id AS regimen_disease_id FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id WHERE t.id = :treatmentId AND r.patient_id = :patientId LIMIT 1",
+        "replacements": {
+          "treatmentId": 5,
+          "patientId": 7
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT id FROM DISEASE WHERE icd_code = :icd LIMIT 1",
+        "replacements": {
+          "icd": " J06 "
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "UPDATE TREATMENT SET `condition` = :complaint, type = :type WHERE id = :treatmentId",
+        "replacements": {
+          "complaint": "Cough",
+          "type": "Lab",
+          "treatmentId": 5
+        },
+        "type": "UPDATE",
+        "tx": "tx1"
+      },
+      {
+        "event": "commit",
+        "tx": "tx1"
+      },
+      {
+        "event": "cache.del",
+        "key": "doctor:patient_record:v2:7"
+      },
+      {
+        "sql": "SELECT first_name, last_name FROM USER WHERE id = :id LIMIT 1",
+        "replacements": {
+          "id": 21
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "update diagnosis, new disease moves regimen + description": {
+    "request": "PUT /api/doctor/patients/OP0070/diagnoses/5",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "diagnosis": {
+          "id": 5,
+          "patientId": 7,
+          "doctorId": 41,
+          "doctorName": "Dr. nur41",
+          "department": "",
+          "complaint": "Flu",
+          "icd10": "J11",
+          "interpretation": " Influenza ",
+          "note": "x",
+          "createdAt": "<now>",
+          "updatedAt": "<now>"
+        }
+      }
+    },
+    "db": [
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT t.id, t.regimen_id, r.patient_id, r.disease_id AS regimen_disease_id FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id WHERE t.id = :treatmentId AND r.patient_id = :patientId LIMIT 1",
+        "replacements": {
+          "treatmentId": 5,
+          "patientId": 7
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT id FROM DISEASE WHERE icd_code = :icd LIMIT 1",
+        "replacements": {
+          "icd": "J11"
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT id FROM REGIMEN WHERE patient_id = :patientId AND disease_id = :diseaseId AND `end` IS NULL ORDER BY id DESC LIMIT 1",
+        "replacements": {
+          "patientId": 7,
+          "diseaseId": 310
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "INSERT INTO REGIMEN (`start`, `end`, patient_id, disease_id) VALUES (NOW(), NULL, :patientId, :diseaseId)",
+        "replacements": {
+          "patientId": 7,
+          "diseaseId": 310
+        },
+        "type": "INSERT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "UPDATE TREATMENT SET regimen_id = :newRegimenId, `condition` = :complaint, type = :type WHERE id = :treatmentId",
+        "replacements": {
+          "newRegimenId": 410,
+          "complaint": "Flu",
+          "type": "Outpatient",
+          "treatmentId": 5
+        },
+        "type": "UPDATE",
+        "tx": "tx1"
+      },
+      {
+        "sql": "UPDATE DISEASE SET description = :description WHERE id = :diseaseId",
+        "replacements": {
+          "description": "Influenza",
+          "diseaseId": 310
+        },
+        "type": "UPDATE",
+        "tx": "tx1"
+      },
+      {
+        "event": "commit",
+        "tx": "tx1"
+      },
+      {
+        "event": "cache.del",
+        "key": "doctor:patient_record:v2:7"
+      },
+      {
+        "sql": "SELECT first_name, last_name FROM USER WHERE id = :id LIMIT 1",
+        "replacements": {
+          "id": 41
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "update diagnosis, db down": {
+    "request": "PUT /api/doctor/patients/OP0070/diagnoses/5",
+    "response": {
+      "status": 500,
+      "message": "internal server error"
+    },
+    "db": [
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT patient_id AS id FROM PATIENT WHERE user_id = :n LIMIT 1",
+        "replacements": {
+          "n": 70
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT t.id, t.regimen_id, r.patient_id, r.disease_id AS regimen_disease_id FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id WHERE t.id = :treatmentId AND r.patient_id = :patientId LIMIT 1",
+        "replacements": {
+          "treatmentId": 5,
+          "patientId": 7
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
+        "event": "rollback",
+        "tx": "tx1"
+      }
+    ]
+  }
+}

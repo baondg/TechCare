@@ -31,10 +31,11 @@ const nurseCheckInRepository = require('../repositories/nurseCheckInRepository')
 const { encryptField, decryptField } = require('../common/fieldEncryption');
 const { BadRequestError } = require('../errors/AppError');
 const logger = require('../common/logger');
+const { config } = require('../config/env');
 
 // Hotpath cache: tuned for NFR load runs; override via env if needed.
-const PATIENT_RECORD_CACHE_TTL_SECONDS = Number(process.env.PATIENT_RECORD_CACHE_TTL_SECONDS || 30);
-const isHotpathProfilingEnabled = () => process.env.PROFILE_HOTPATHS === '1';
+const PATIENT_RECORD_CACHE_TTL_SECONDS = config.cache.patientRecordTtlSeconds;
+const isHotpathProfilingEnabled = () => config.profileHotpaths;
 const patientRecordCacheKey = (patientPk) => `doctor:patient_record:v2:${Number(patientPk)}`;
 
 async function buildTodayAppointmentForPatientPk(patientPk) {
@@ -128,22 +129,13 @@ const normalizeMedicalRecordStatus = (value) => {
   return 'draft';
 };
 
-const BYT_PRESCRIPTION_TYPE = String(process.env.BYT_PRESCRIPTION_TYPE || 'C').trim().toUpperCase() === 'N'
-  ? 'N'
-  : String(process.env.BYT_PRESCRIPTION_TYPE || 'C').trim().toUpperCase() === 'H'
-    ? 'H'
-    : 'C';
-const BYT_FACILITY_CODE = String(process.env.BYT_FACILITY_CODE || 'TC001')
-  .trim()
-  .toUpperCase()
-  .replace(/[^A-Z0-9]/g, '')
-  .padEnd(5, '0')
-  .slice(0, 5);
-const BYT_FACILITY_PHONE = String(process.env.BYT_FACILITY_PHONE || '1900 1800').trim();
-const BYT_FACILITY_NAME = String(process.env.BYT_FACILITY_NAME || 'TechCare').trim();
-const BYT_FACILITY_ADDRESS = String(
-  process.env.BYT_FACILITY_ADDRESS || '268 Lý Thường Kiệt, phường Diên Hồng, Hồ Chí Minh'
-).trim();
+const {
+  prescriptionType: BYT_PRESCRIPTION_TYPE,
+  facilityCode: BYT_FACILITY_CODE,
+  facilityPhone: BYT_FACILITY_PHONE,
+  facilityName: BYT_FACILITY_NAME,
+  facilityAddress: BYT_FACILITY_ADDRESS,
+} = config.byt;
 const BYT_DEFAULT_PATIENT_ADDRESS = BYT_FACILITY_ADDRESS;
 
 async function resolveBytDefaultsForPatient(sequelize, patientPk, bodyByt, patientDemo, ageMonths, transaction) {

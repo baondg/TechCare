@@ -3,6 +3,7 @@ const sequelize = require('../common/database');
 const bcrypt = require('bcrypt');
 const { getClinicTodayYmd, getClinicTimezone, getClinicTzOffset } = require('../common/clinicDate');
 const logger = require('../common/logger');
+const { config } = require('../config/env');
 
 const ACCOUNT_ROLE_LABEL = {
   ADM: 'Admin',
@@ -499,8 +500,7 @@ exports.createAccount = async (req, res) => {
     const { firstName, lastName } = splitName(name);
     const idcard = String(Date.now()).slice(-12).padStart(12, '0');
     const initialPassword =
-      process.env.DEFAULT_ACCOUNT_PASSWORD ||
-      process.env.DEMO_ACCOUNT_PASSWORD ||
+      config.auth.defaultAccountPassword ||
       'Test@1234';
     if (!initialPassword) {
       await tx.rollback();

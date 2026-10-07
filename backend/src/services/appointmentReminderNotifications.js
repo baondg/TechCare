@@ -1,5 +1,6 @@
 const appointmentReminderRepository = require('../repositories/appointmentReminderRepository');
 const logger = require('../common/logger');
+const { config } = require('../config/env');
 
 /** Shown under Appointments tab (`getNotificationTabId` matches `appointment_*`). */
 const TYPE_APPOINTMENT_REMINDER_1DAY = 'appointment_reminder_1day_before';
@@ -69,15 +70,14 @@ async function runAppointmentReminderDayBeforeSlot(hour) {
 
 /** Default morning slot (local server time); override with APPOINTMENT_REMINDER_HOUR=… */
 function reminderHour() {
-  const h = Number(process.env.APPOINTMENT_REMINDER_HOUR);
-  return Number.isFinite(h) && h >= 0 && h <= 23 ? h : 8;
+  return config.reminders.appointmentHour;
 }
 
 let lastFiredSlotKey = null;
 
 /** Every ~20s: at REMINDER_HOUR:00 fire once per calendar day (like medication-reminder scheduler). */
 function startAppointmentReminderScheduler() {
-  if (process.env.DISABLE_APPOINTMENT_REMINDERS === '1') {
+  if (config.reminders.appointmentDisabled) {
     logger.info('[appointment-reminder] scheduler disabled (DISABLE_APPOINTMENT_REMINDERS=1)');
     return;
   }

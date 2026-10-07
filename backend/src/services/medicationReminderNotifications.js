@@ -1,5 +1,6 @@
 const medicationReminderRepository = require('../repositories/medicationReminderRepository');
 const logger = require('../common/logger');
+const { config } = require('../config/env');
 
 const MAX_REMINDER_DAYS = medicationReminderRepository.MAX_REMINDER_DAYS;
 const TYPE_MEDICATION_REMINDER = 'medication_reminder';
@@ -72,7 +73,7 @@ let lastFiredSlotKey = null;
  * Tắt: DISABLE_MEDICATION_REMINDERS=1
  */
 function startMedicationReminderScheduler() {
-  if (process.env.DISABLE_MEDICATION_REMINDERS === '1') {
+  if (config.reminders.medicationDisabled) {
     logger.info('[medication-reminder] scheduler disabled (DISABLE_MEDICATION_REMINDERS=1)');
     return;
   }

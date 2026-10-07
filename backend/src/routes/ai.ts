@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import logger from '../common/logger';
+import { config } from '../config/env';
 const router = Router();
 router.use((req: Request, _res: Response, next) => {
   logAiHttp(req);
@@ -48,31 +49,31 @@ const requireClinicalStaff = (req: any, res: Response, next: Function) => {
 // ============================================================
 
 const getGroqConfig = () => ({
-  apiKey: process.env.GROQ_API_KEY || '',
-  model: process.env.GROQ_MODEL || 'llama-3.1-8b-instant',
+  apiKey: config.ai.groq.apiKey,
+  model: config.ai.groq.model,
   baseUrl: 'https://api.groq.com/openai/v1',
 });
 
 const getLocalLLMConfig = () => ({
-  baseUrl: process.env.LOCAL_LLM_BASE_URL || 'http://localhost:11434',
-  model:   process.env.LOCAL_LLM_MODEL   || 'llama3',
-  apiKey:  process.env.LOCAL_LLM_API_KEY || 'ollama',
+  baseUrl: config.ai.localLlm.baseUrl,
+  model:   config.ai.localLlm.model,
+  apiKey:  config.ai.localLlm.apiKey,
 });
 
 function getActiveProvider(): 'groq' | 'local' {
-  return process.env.GROQ_API_KEY ? 'groq' : 'local';
+  return config.ai.groq.apiKey ? 'groq' : 'local';
 }
 
 function getFeatureProviderOverride(feature: string): 'groq' | 'local' | null {
-  const key = `AI_PROVIDER_${feature.toUpperCase().replace(/[^A-Z0-9]/g, '_')}`;
-  const raw = String(process.env[key] || '').trim().toLowerCase();
+  const key = feature.toUpperCase().replace(/[^A-Z0-9]/g, '_').toLowerCase();
+  const raw = String(config.ai.providerOverrides[key] || '').toLowerCase();
   if (raw === 'groq' || raw === 'local') return raw;
   return null;
 }
 
 function getFeatureModelOverride(feature: string): string | null {
-  const key = `AI_MODEL_${feature.toUpperCase().replace(/[^A-Z0-9]/g, '_')}`;
-  const raw = String(process.env[key] || '').trim();
+  const key = feature.toUpperCase().replace(/[^A-Z0-9]/g, '_').toLowerCase();
+  const raw = String(config.ai.modelOverrides[key] || '');
   return raw || null;
 }
 
@@ -436,7 +437,7 @@ router.get('/chat', authenticateToken, requireAdmin, async (_req: Request, res: 
       recommendDoctor: 'POST /api/ai/recommend-doctor',
     },
     env: {
-      GROQ_API_KEY: process.env.GROQ_API_KEY ? '***set***' : '(not set — using local LLM)',
+      GROQ_API_KEY: config.ai.groq.apiKey ? '***set***' : '(not set — using local LLM)',
       LOCAL_LLM_BASE_URL: getLocalLLMConfig().baseUrl,
       LOCAL_LLM_MODEL: getLocalLLMConfig().model,
     },

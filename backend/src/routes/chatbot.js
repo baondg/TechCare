@@ -1,5 +1,6 @@
 const express = require('express');
 const logger = require('../common/logger');
+const { config } = require('../config/env');
 const router = express.Router();
 
 // POST /api/chatbot — OpenRouter proxy using server-side OPENROUTER_API_KEY only
@@ -9,7 +10,7 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ error: 'No message provided' });
   }
 
-  const apiKey = String(process.env.OPENROUTER_API_KEY || '').trim();
+  const apiKey = config.ai.openRouterApiKey;
   if (!apiKey) {
     return res.status(503).json({
       error: 'OpenRouter is not configured',

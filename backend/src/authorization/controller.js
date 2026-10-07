@@ -12,6 +12,7 @@ const { normalizeRoleFromCode } = require('../security/roleMapping');
 const { getJwtSecret } = require('../security/jwtConfig');
 const { isAccountStatusActive } = require('../common/accountStatus');
 const logger = require('../common/logger');
+const { config } = require('../config/env');
 
 
 const SystemConfig = defineSystemConfig(sequelize);
@@ -36,16 +37,16 @@ const generateRefreshToken = (username, userId) =>
   jwt.sign({ username, userId, type: 'refresh' }, getJwtSecret(), { expiresIn: REFRESH_TOKEN_EXPIRY });
 
 const resolveSameSite = () => {
-  const raw = String(process.env.AUTH_REFRESH_COOKIE_SAMESITE || '').trim().toLowerCase();
+  const raw = config.auth.refreshCookieSameSite;
   if (raw === 'lax' || raw === 'strict' || raw === 'none') return raw;
-  return process.env.NODE_ENV === 'production' ? 'none' : 'lax';
+  return config.isProduction ? 'none' : 'lax';
 };
 
 const shouldUseSecureCookies = () => {
-  if (process.env.AUTH_REFRESH_COOKIE_SECURE !== undefined) {
-    return String(process.env.AUTH_REFRESH_COOKIE_SECURE).toLowerCase() === 'true';
+  if (config.auth.refreshCookieSecure !== undefined) {
+    return config.auth.refreshCookieSecure;
   }
-  return process.env.NODE_ENV === 'production';
+  return config.isProduction;
 };
 
 const getRefreshCookieOptions = (expiresAt) => ({

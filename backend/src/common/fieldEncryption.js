@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const { config } = require('../config/env');
 
 const ENC_PREFIX = 'enc:v1:';
 const IV_LENGTH = 12;
@@ -6,7 +7,7 @@ const AUTH_TAG_LENGTH = 16;
 const KEY_LENGTH = 32;
 
 function getEncryptionKey() {
-  const raw = String(process.env.IMAGE_ENCRYPTION_KEY || '').trim();
+  const raw = config.auth.imageEncryptionKey;
   if (!raw) {
     throw new Error('IMAGE_ENCRYPTION_KEY is not configured');
   }

@@ -3,19 +3,15 @@ const appointmentAiRepository = require('../repositories/appointmentAiRepository
 const { INTERNAL_API_SECRET_HEADER } = require('../middleware/requireInternalApiSecret');
 const { normalizeSymptomsForAi } = require('../lib/symptomNormalize');
 const logger = require('../common/logger');
+const { config } = require('../config/env');
 
-const INTERNAL_API_BASE =
-  process.env.BACKEND_INTERNAL_URL || `http://127.0.0.1:${Number(process.env.PORT) || 3000}`;
-const MEDAI_CHAT_ENDPOINT =
-  process.env.MEDAI_CHAT_ENDPOINT || `${INTERNAL_API_BASE}/api/ai/chat`;
-const MEDAI_SYMPTOM_ENDPOINT =
-  process.env.MEDAI_SYMPTOM_ENDPOINT || `${INTERNAL_API_BASE}/api/ai/symptom-analysis`;
-const MEDAI_RECOVERY_ENDPOINT =
-  process.env.MEDAI_RECOVERY_ENDPOINT || `${INTERNAL_API_BASE}/api/ai/recovery-prediction`;
+const MEDAI_CHAT_ENDPOINT = config.ai.endpoints.chat;
+const MEDAI_SYMPTOM_ENDPOINT = config.ai.endpoints.symptom;
+const MEDAI_RECOVERY_ENDPOINT = config.ai.endpoints.recovery;
 
 function internalAiFetchHeaders() {
   const headers = { 'Content-Type': 'application/json' };
-  const secret = String(process.env.INTERNAL_API_SECRET || '').trim();
+  const secret = config.auth.internalApiSecret;
   if (secret) headers[INTERNAL_API_SECRET_HEADER] = secret;
   return headers;
 }
@@ -567,7 +563,7 @@ async function recoveryPredictionForPatient(req, patientId, refresh) {
     };
   }
 
-  const cacheHours = Number(process.env.RECOVERY_PREDICTION_CACHE_HOURS || 24);
+  const cacheHours = config.cache.recoveryPredictionHours;
   const cacheMs = Math.max(1, Math.min(168, cacheHours)) * 3600000;
 
   if (!refresh) {

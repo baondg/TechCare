@@ -37,7 +37,6 @@
       {
         "sql": "SELECT a.room_id AS roomId, COALESCE(NULLIF(TRIM(cr.name), ''), CONCAT('Room #', a.room_id)) AS roomName FROM APPOINTMENT a LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id WHERE (a.patient_id IN (SELECT p2.patient_id FROM PATIENT p2 WHERE p2.patient_id = :emrStrip OR p2.user_id = :emrStrip)) AND a.status = 'scheduled' AND DATE(a.time) = CURDATE() ORDER BY a.time DESC, a.id DESC LIMIT 1",
         "replacements": {
-          "pid": 7,
           "emrStrip": 70
         },
         "type": "SELECT",
@@ -86,7 +85,6 @@
       {
         "sql": "SELECT a.room_id AS roomId, COALESCE(NULLIF(TRIM(cr.name), ''), CONCAT('Room #', a.room_id)) AS roomName FROM APPOINTMENT a LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id WHERE (a.patient_id IN (SELECT p2.patient_id FROM PATIENT p2 WHERE p2.patient_id = :emrStrip OR p2.user_id = :emrStrip)) AND a.status = 'scheduled' AND DATE(a.time) = CURDATE() ORDER BY a.time DESC, a.id DESC LIMIT 1",
         "replacements": {
-          "pid": 70,
           "emrStrip": 70
         },
         "type": "SELECT",
@@ -130,7 +128,6 @@
       {
         "sql": "SELECT a.room_id AS roomId, COALESCE(NULLIF(TRIM(cr.name), ''), CONCAT('Room #', a.room_id)) AS roomName FROM APPOINTMENT a LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id WHERE (a.patient_id IN (SELECT p2.patient_id FROM PATIENT p2 WHERE p2.patient_id = :emrStrip OR p2.user_id = :emrStrip)) AND a.status = 'scheduled' AND a.regimen_id = :regimenId LIMIT 1",
         "replacements": {
-          "pid": 7,
           "emrStrip": 70,
           "regimenId": 99
         },
@@ -175,7 +172,6 @@
       {
         "sql": "SELECT a.room_id AS roomId, COALESCE(NULLIF(TRIM(cr.name), ''), CONCAT('Room #', a.room_id)) AS roomName FROM APPOINTMENT a LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id WHERE (a.patient_id IN (SELECT p2.patient_id FROM PATIENT p2 WHERE p2.patient_id = :emrStrip OR p2.user_id = :emrStrip)) AND a.status = 'scheduled' AND a.regimen_id = :regimenId LIMIT 1",
         "replacements": {
-          "pid": 7,
           "emrStrip": 70,
           "regimenId": 99
         },
@@ -185,7 +181,6 @@
       {
         "sql": "SELECT a.room_id AS roomId, COALESCE(NULLIF(TRIM(cr.name), ''), CONCAT('Room #', a.room_id)) AS roomName FROM APPOINTMENT a LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id INNER JOIN REGIMEN r ON r.patient_id = a.patient_id AND r.id = :regimenId AND r.`end` IS NULL WHERE (a.patient_id IN (SELECT p2.patient_id FROM PATIENT p2 WHERE p2.patient_id = :emrStrip OR p2.user_id = :emrStrip)) AND a.status = 'scheduled' AND a.patient_id IS NOT NULL AND a.time BETWEEN DATE_SUB(r.`start`, INTERVAL 3 DAY) AND DATE_ADD(r.`start`, INTERVAL 2 DAY) ORDER BY ABS(TIMESTAMPDIFF(SECOND, a.time, r.`start`)) ASC, a.id DESC LIMIT 1",
         "replacements": {
-          "pid": 7,
           "emrStrip": 70,
           "regimenId": 99
         },
@@ -230,7 +225,6 @@
       {
         "sql": "SELECT a.room_id AS roomId, COALESCE(NULLIF(TRIM(cr.name), ''), CONCAT('Room #', a.room_id)) AS roomName FROM APPOINTMENT a LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id WHERE (a.patient_id IN (SELECT p2.patient_id FROM PATIENT p2 WHERE p2.patient_id = :emrStrip OR p2.user_id = :emrStrip)) AND a.status = 'scheduled' AND a.regimen_id = :regimenId LIMIT 1",
         "replacements": {
-          "pid": 7,
           "emrStrip": 70,
           "regimenId": 99
         },
@@ -240,7 +234,6 @@
       {
         "sql": "SELECT a.room_id AS roomId, COALESCE(NULLIF(TRIM(cr.name), ''), CONCAT('Room #', a.room_id)) AS roomName FROM APPOINTMENT a LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id INNER JOIN REGIMEN r ON r.patient_id = a.patient_id AND r.id = :regimenId AND r.`end` IS NULL WHERE (a.patient_id IN (SELECT p2.patient_id FROM PATIENT p2 WHERE p2.patient_id = :emrStrip OR p2.user_id = :emrStrip)) AND a.status = 'scheduled' AND a.patient_id IS NOT NULL AND a.time BETWEEN DATE_SUB(r.`start`, INTERVAL 3 DAY) AND DATE_ADD(r.`start`, INTERVAL 2 DAY) ORDER BY ABS(TIMESTAMPDIFF(SECOND, a.time, r.`start`)) ASC, a.id DESC LIMIT 1",
         "replacements": {
-          "pid": 7,
           "emrStrip": 70,
           "regimenId": 99
         },
@@ -250,7 +243,6 @@
       {
         "sql": "SELECT a.room_id AS roomId, COALESCE(NULLIF(TRIM(cr.name), ''), CONCAT('Room #', a.room_id)) AS roomName FROM APPOINTMENT a LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id WHERE (a.patient_id IN (SELECT p2.patient_id FROM PATIENT p2 WHERE p2.patient_id = :emrStrip OR p2.user_id = :emrStrip)) AND a.status = 'scheduled' AND DATE(a.time) = DATE(:regimenStart) ORDER BY a.time DESC, a.id DESC LIMIT 1",
         "replacements": {
-          "pid": 7,
           "emrStrip": 70,
           "regimenStart": "2026-10-01T08:00:00.000Z"
         },
@@ -295,7 +287,6 @@
       {
         "sql": "SELECT a.room_id AS roomId, COALESCE(NULLIF(TRIM(cr.name), ''), CONCAT('Room #', a.room_id)) AS roomName FROM APPOINTMENT a LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id WHERE (a.patient_id IN (SELECT p2.patient_id FROM PATIENT p2 WHERE p2.patient_id = :emrStrip OR p2.user_id = :emrStrip)) AND a.status = 'scheduled' AND a.regimen_id = :regimenId LIMIT 1",
         "replacements": {
-          "pid": 7,
           "emrStrip": 70,
           "regimenId": 99
         },
@@ -305,7 +296,6 @@
       {
         "sql": "SELECT a.room_id AS roomId, COALESCE(NULLIF(TRIM(cr.name), ''), CONCAT('Room #', a.room_id)) AS roomName FROM APPOINTMENT a LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id INNER JOIN REGIMEN r ON r.patient_id = a.patient_id AND r.id = :regimenId AND r.`end` IS NULL WHERE (a.patient_id IN (SELECT p2.patient_id FROM PATIENT p2 WHERE p2.patient_id = :emrStrip OR p2.user_id = :emrStrip)) AND a.status = 'scheduled' AND a.patient_id IS NOT NULL AND a.time BETWEEN DATE_SUB(r.`start`, INTERVAL 3 DAY) AND DATE_ADD(r.`start`, INTERVAL 2 DAY) ORDER BY ABS(TIMESTAMPDIFF(SECOND, a.time, r.`start`)) ASC, a.id DESC LIMIT 1",
         "replacements": {
-          "pid": 7,
           "emrStrip": 70,
           "regimenId": 99
         },
@@ -315,7 +305,6 @@
       {
         "sql": "SELECT a.room_id AS roomId, COALESCE(NULLIF(TRIM(cr.name), ''), CONCAT('Room #', a.room_id)) AS roomName FROM APPOINTMENT a LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id WHERE (a.patient_id IN (SELECT p2.patient_id FROM PATIENT p2 WHERE p2.patient_id = :emrStrip OR p2.user_id = :emrStrip)) AND a.status = 'scheduled' AND DATE(a.time) = DATE(:regimenStart) ORDER BY a.time DESC, a.id DESC LIMIT 1",
         "replacements": {
-          "pid": 7,
           "emrStrip": 70,
           "regimenStart": "2026-10-01T08:00:00.000Z"
         },
@@ -325,7 +314,6 @@
       {
         "sql": "SELECT a.room_id AS roomId, COALESCE(NULLIF(TRIM(cr.name), ''), CONCAT('Room #', a.room_id)) AS roomName FROM APPOINTMENT a LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id WHERE (a.patient_id IN (SELECT p2.patient_id FROM PATIENT p2 WHERE p2.patient_id = :emrStrip OR p2.user_id = :emrStrip)) AND a.status = 'scheduled' AND DATE(a.time) = CURDATE() ORDER BY a.time DESC, a.id DESC LIMIT 1",
         "replacements": {
-          "pid": 7,
           "emrStrip": 70
         },
         "type": "SELECT",
@@ -334,7 +322,6 @@
       {
         "sql": "SELECT a.room_id AS roomId, COALESCE(NULLIF(TRIM(cr.name), ''), CONCAT('Room #', a.room_id)) AS roomName FROM APPOINTMENT a LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id WHERE (a.patient_id IN (SELECT p2.patient_id FROM PATIENT p2 WHERE p2.patient_id = :emrStrip OR p2.user_id = :emrStrip)) AND a.status = 'scheduled' AND a.time BETWEEN DATE_SUB(:regimenStart, INTERVAL 5 DAY) AND DATE_ADD(:regimenStart, INTERVAL 2 DAY) ORDER BY ABS(TIMESTAMPDIFF(SECOND, a.time, :regimenStart)) ASC, a.id DESC LIMIT 1",
         "replacements": {
-          "pid": 7,
           "emrStrip": 70,
           "regimenStart": "2026-10-01T08:00:00.000Z"
         },
@@ -379,7 +366,6 @@
       {
         "sql": "SELECT a.room_id AS roomId, COALESCE(NULLIF(TRIM(cr.name), ''), CONCAT('Room #', a.room_id)) AS roomName FROM APPOINTMENT a LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id WHERE (a.patient_id IN (SELECT p2.patient_id FROM PATIENT p2 WHERE p2.patient_id = :emrStrip OR p2.user_id = :emrStrip)) AND a.status = 'scheduled' AND a.regimen_id = :regimenId LIMIT 1",
         "replacements": {
-          "pid": 7,
           "emrStrip": 70,
           "regimenId": 99
         },
@@ -389,7 +375,6 @@
       {
         "sql": "SELECT a.room_id AS roomId, COALESCE(NULLIF(TRIM(cr.name), ''), CONCAT('Room #', a.room_id)) AS roomName FROM APPOINTMENT a LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id INNER JOIN REGIMEN r ON r.patient_id = a.patient_id AND r.id = :regimenId AND r.`end` IS NULL WHERE (a.patient_id IN (SELECT p2.patient_id FROM PATIENT p2 WHERE p2.patient_id = :emrStrip OR p2.user_id = :emrStrip)) AND a.status = 'scheduled' AND a.patient_id IS NOT NULL AND a.time BETWEEN DATE_SUB(r.`start`, INTERVAL 3 DAY) AND DATE_ADD(r.`start`, INTERVAL 2 DAY) ORDER BY ABS(TIMESTAMPDIFF(SECOND, a.time, r.`start`)) ASC, a.id DESC LIMIT 1",
         "replacements": {
-          "pid": 7,
           "emrStrip": 70,
           "regimenId": 99
         },
@@ -399,7 +384,6 @@
       {
         "sql": "SELECT a.room_id AS roomId, COALESCE(NULLIF(TRIM(cr.name), ''), CONCAT('Room #', a.room_id)) AS roomName FROM APPOINTMENT a LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id WHERE (a.patient_id IN (SELECT p2.patient_id FROM PATIENT p2 WHERE p2.patient_id = :emrStrip OR p2.user_id = :emrStrip)) AND a.status = 'scheduled' AND DATE(a.time) = DATE(:regimenStart) ORDER BY a.time DESC, a.id DESC LIMIT 1",
         "replacements": {
-          "pid": 7,
           "emrStrip": 70,
           "regimenStart": "2026-10-01T08:00:00.000Z"
         },
@@ -409,7 +393,6 @@
       {
         "sql": "SELECT a.room_id AS roomId, COALESCE(NULLIF(TRIM(cr.name), ''), CONCAT('Room #', a.room_id)) AS roomName FROM APPOINTMENT a LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id WHERE (a.patient_id IN (SELECT p2.patient_id FROM PATIENT p2 WHERE p2.patient_id = :emrStrip OR p2.user_id = :emrStrip)) AND a.status = 'scheduled' AND DATE(a.time) = CURDATE() ORDER BY a.time DESC, a.id DESC LIMIT 1",
         "replacements": {
-          "pid": 7,
           "emrStrip": 70
         },
         "type": "SELECT",
@@ -418,7 +401,6 @@
       {
         "sql": "SELECT a.room_id AS roomId, COALESCE(NULLIF(TRIM(cr.name), ''), CONCAT('Room #', a.room_id)) AS roomName FROM APPOINTMENT a LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id WHERE (a.patient_id IN (SELECT p2.patient_id FROM PATIENT p2 WHERE p2.patient_id = :emrStrip OR p2.user_id = :emrStrip)) AND a.status = 'scheduled' AND a.time BETWEEN DATE_SUB(:regimenStart, INTERVAL 5 DAY) AND DATE_ADD(:regimenStart, INTERVAL 2 DAY) ORDER BY ABS(TIMESTAMPDIFF(SECOND, a.time, :regimenStart)) ASC, a.id DESC LIMIT 1",
         "replacements": {
-          "pid": 7,
           "emrStrip": 70,
           "regimenStart": "2026-10-01T08:00:00.000Z"
         },
@@ -428,7 +410,6 @@
       {
         "sql": "SELECT a.room_id AS roomId, COALESCE(NULLIF(TRIM(cr.name), ''), CONCAT('Room #', a.room_id)) AS roomName FROM APPOINTMENT a LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id WHERE (a.patient_id IN (SELECT p2.patient_id FROM PATIENT p2 WHERE p2.patient_id = :emrStrip OR p2.user_id = :emrStrip)) AND a.status = 'scheduled' AND a.time >= DATE_SUB(:regimenStart, INTERVAL 36 HOUR) AND a.time <= DATE_ADD(:regimenStart, INTERVAL 36 HOUR) ORDER BY a.time DESC, a.id DESC LIMIT 1",
         "replacements": {
-          "pid": 7,
           "emrStrip": 70,
           "regimenStart": "2026-10-01T08:00:00.000Z"
         },
@@ -473,7 +454,6 @@
       {
         "sql": "SELECT a.room_id AS roomId, COALESCE(NULLIF(TRIM(cr.name), ''), CONCAT('Room #', a.room_id)) AS roomName FROM APPOINTMENT a LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id WHERE (a.patient_id IN (SELECT p2.patient_id FROM PATIENT p2 WHERE p2.patient_id = :emrStrip OR p2.user_id = :emrStrip)) AND a.status = 'scheduled' AND a.regimen_id = :regimenId LIMIT 1",
         "replacements": {
-          "pid": 7,
           "emrStrip": 70,
           "regimenId": 99
         },
@@ -483,7 +463,6 @@
       {
         "sql": "SELECT a.room_id AS roomId, COALESCE(NULLIF(TRIM(cr.name), ''), CONCAT('Room #', a.room_id)) AS roomName FROM APPOINTMENT a LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id INNER JOIN REGIMEN r ON r.patient_id = a.patient_id AND r.id = :regimenId AND r.`end` IS NULL WHERE (a.patient_id IN (SELECT p2.patient_id FROM PATIENT p2 WHERE p2.patient_id = :emrStrip OR p2.user_id = :emrStrip)) AND a.status = 'scheduled' AND a.patient_id IS NOT NULL AND a.time BETWEEN DATE_SUB(r.`start`, INTERVAL 3 DAY) AND DATE_ADD(r.`start`, INTERVAL 2 DAY) ORDER BY ABS(TIMESTAMPDIFF(SECOND, a.time, r.`start`)) ASC, a.id DESC LIMIT 1",
         "replacements": {
-          "pid": 7,
           "emrStrip": 70,
           "regimenId": 99
         },
@@ -493,7 +472,6 @@
       {
         "sql": "SELECT a.room_id AS roomId, COALESCE(NULLIF(TRIM(cr.name), ''), CONCAT('Room #', a.room_id)) AS roomName FROM APPOINTMENT a LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id WHERE (a.patient_id IN (SELECT p2.patient_id FROM PATIENT p2 WHERE p2.patient_id = :emrStrip OR p2.user_id = :emrStrip)) AND a.status = 'scheduled' AND DATE(a.time) = DATE(:regimenStart) ORDER BY a.time DESC, a.id DESC LIMIT 1",
         "replacements": {
-          "pid": 7,
           "emrStrip": 70,
           "regimenStart": "2026-10-01T08:00:00.000Z"
         },
@@ -503,7 +481,6 @@
       {
         "sql": "SELECT a.room_id AS roomId, COALESCE(NULLIF(TRIM(cr.name), ''), CONCAT('Room #', a.room_id)) AS roomName FROM APPOINTMENT a LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id WHERE (a.patient_id IN (SELECT p2.patient_id FROM PATIENT p2 WHERE p2.patient_id = :emrStrip OR p2.user_id = :emrStrip)) AND a.status = 'scheduled' AND DATE(a.time) = CURDATE() ORDER BY a.time DESC, a.id DESC LIMIT 1",
         "replacements": {
-          "pid": 7,
           "emrStrip": 70
         },
         "type": "SELECT",
@@ -512,7 +489,6 @@
       {
         "sql": "SELECT a.room_id AS roomId, COALESCE(NULLIF(TRIM(cr.name), ''), CONCAT('Room #', a.room_id)) AS roomName FROM APPOINTMENT a LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id WHERE (a.patient_id IN (SELECT p2.patient_id FROM PATIENT p2 WHERE p2.patient_id = :emrStrip OR p2.user_id = :emrStrip)) AND a.status = 'scheduled' AND a.time BETWEEN DATE_SUB(:regimenStart, INTERVAL 5 DAY) AND DATE_ADD(:regimenStart, INTERVAL 2 DAY) ORDER BY ABS(TIMESTAMPDIFF(SECOND, a.time, :regimenStart)) ASC, a.id DESC LIMIT 1",
         "replacements": {
-          "pid": 7,
           "emrStrip": 70,
           "regimenStart": "2026-10-01T08:00:00.000Z"
         },
@@ -522,7 +498,6 @@
       {
         "sql": "SELECT a.room_id AS roomId, COALESCE(NULLIF(TRIM(cr.name), ''), CONCAT('Room #', a.room_id)) AS roomName FROM APPOINTMENT a LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id WHERE (a.patient_id IN (SELECT p2.patient_id FROM PATIENT p2 WHERE p2.patient_id = :emrStrip OR p2.user_id = :emrStrip)) AND a.status = 'scheduled' AND a.time >= DATE_SUB(:regimenStart, INTERVAL 36 HOUR) AND a.time <= DATE_ADD(:regimenStart, INTERVAL 36 HOUR) ORDER BY a.time DESC, a.id DESC LIMIT 1",
         "replacements": {
-          "pid": 7,
           "emrStrip": 70,
           "regimenStart": "2026-10-01T08:00:00.000Z"
         },
@@ -572,7 +547,6 @@
       {
         "sql": "SELECT a.room_id AS roomId, COALESCE(NULLIF(TRIM(cr.name), ''), CONCAT('Room #', a.room_id)) AS roomName FROM APPOINTMENT a LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id WHERE (a.patient_id IN (SELECT p2.patient_id FROM PATIENT p2 WHERE p2.patient_id = :emrStrip OR p2.user_id = :emrStrip)) AND a.status = 'scheduled' AND a.regimen_id = :regimenId LIMIT 1",
         "replacements": {
-          "pid": 7,
           "emrStrip": 7,
           "regimenId": 99
         },
@@ -582,7 +556,6 @@
       {
         "sql": "SELECT a.room_id AS roomId, COALESCE(NULLIF(TRIM(cr.name), ''), CONCAT('Room #', a.room_id)) AS roomName FROM APPOINTMENT a LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id INNER JOIN REGIMEN r ON r.patient_id = a.patient_id AND r.id = :regimenId AND r.`end` IS NULL WHERE (a.patient_id IN (SELECT p2.patient_id FROM PATIENT p2 WHERE p2.patient_id = :emrStrip OR p2.user_id = :emrStrip)) AND a.status = 'scheduled' AND a.patient_id IS NOT NULL AND a.time BETWEEN DATE_SUB(r.`start`, INTERVAL 3 DAY) AND DATE_ADD(r.`start`, INTERVAL 2 DAY) ORDER BY ABS(TIMESTAMPDIFF(SECOND, a.time, r.`start`)) ASC, a.id DESC LIMIT 1",
         "replacements": {
-          "pid": 7,
           "emrStrip": 7,
           "regimenId": 99
         },
@@ -592,7 +565,6 @@
       {
         "sql": "SELECT a.room_id AS roomId, COALESCE(NULLIF(TRIM(cr.name), ''), CONCAT('Room #', a.room_id)) AS roomName FROM APPOINTMENT a LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id WHERE (a.patient_id IN (SELECT p2.patient_id FROM PATIENT p2 WHERE p2.patient_id = :emrStrip OR p2.user_id = :emrStrip)) AND a.status = 'scheduled' AND DATE(a.time) = CURDATE() ORDER BY a.time DESC, a.id DESC LIMIT 1",
         "replacements": {
-          "pid": 7,
           "emrStrip": 7
         },
         "type": "SELECT",
@@ -690,7 +662,7 @@
         "tx": null
       },
       {
-        "sql": "SELECT id FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC",
+        "sql": "SELECT id AS regimenId, `start` AS regimenStart FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC",
         "replacements": {
           "pid": 7
         },
@@ -739,7 +711,7 @@
         "tx": null
       },
       {
-        "sql": "SELECT id FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC",
+        "sql": "SELECT id AS regimenId, `start` AS regimenStart FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC",
         "replacements": {
           "pid": 7
         },
@@ -788,7 +760,7 @@
         "tx": null
       },
       {
-        "sql": "SELECT id FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC",
+        "sql": "SELECT id AS regimenId, `start` AS regimenStart FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC",
         "replacements": {
           "pid": 7
         },
@@ -811,16 +783,7 @@
       "status": 403,
       "message": "Only a doctor can add this document"
     },
-    "db": [
-      {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
-        "event": "rollback",
-        "tx": "tx1"
-      }
-    ]
+    "db": []
   },
   "tracking slip, unknown patient": {
     "request": "POST /api/doctor/patients/OP0070/health-tracking-slips",
@@ -830,20 +793,12 @@
     },
     "db": [
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :v OR patient_id = :v LIMIT 1",
         "replacements": {
           "v": 70
         },
         "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "event": "rollback",
-        "tx": "tx1"
+        "tx": null
       }
     ]
   },
@@ -855,28 +810,20 @@
     },
     "db": [
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :v OR patient_id = :v LIMIT 1",
         "replacements": {
           "v": 70
         },
         "type": "SELECT",
-        "tx": "tx1"
+        "tx": null
       },
       {
-        "sql": "SELECT id AS regimenId FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC LIMIT 1",
+        "sql": "SELECT id AS regimenId, `start` AS startAt FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC LIMIT 1",
         "replacements": {
           "pid": 7
         },
         "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "event": "rollback",
-        "tx": "tx1"
+        "tx": null
       }
     ]
   },
@@ -888,28 +835,20 @@
     },
     "db": [
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :v OR patient_id = :v LIMIT 1",
         "replacements": {
           "v": 70
         },
         "type": "SELECT",
-        "tx": "tx1"
+        "tx": null
       },
       {
-        "sql": "SELECT id AS regimenId FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC LIMIT 1",
+        "sql": "SELECT id AS regimenId, `start` AS startAt FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC LIMIT 1",
         "replacements": {
           "pid": 7
         },
         "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "event": "rollback",
-        "tx": "tx1"
+        "tx": null
       }
     ]
   },
@@ -921,24 +860,20 @@
     },
     "db": [
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :v OR patient_id = :v LIMIT 1",
         "replacements": {
           "v": 70
         },
         "type": "SELECT",
-        "tx": "tx1"
+        "tx": null
       },
       {
-        "sql": "SELECT id AS regimenId FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC LIMIT 1",
+        "sql": "SELECT id AS regimenId, `start` AS startAt FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC LIMIT 1",
         "replacements": {
           "pid": 7
         },
         "type": "SELECT",
-        "tx": "tx1"
+        "tx": null
       },
       {
         "sql": "SELECT id, time, `condition`, blood_pressure, heart_rate, temperature, weight, respiratory_rate, spo2 FROM MEDICAL_RECORD WHERE patient_id = :patientId AND id IN (:recordIds) ORDER BY time ASC",
@@ -949,11 +884,7 @@
           ]
         },
         "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "event": "rollback",
-        "tx": "tx1"
+        "tx": null
       }
     ]
   },
@@ -965,24 +896,20 @@
     },
     "db": [
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :v OR patient_id = :v LIMIT 1",
         "replacements": {
           "v": 70
         },
         "type": "SELECT",
-        "tx": "tx1"
+        "tx": null
       },
       {
-        "sql": "SELECT id AS regimenId FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC LIMIT 1",
+        "sql": "SELECT id AS regimenId, `start` AS startAt FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC LIMIT 1",
         "replacements": {
           "pid": 7
         },
         "type": "SELECT",
-        "tx": "tx1"
+        "tx": null
       },
       {
         "sql": "SELECT id, time, `condition`, blood_pressure, heart_rate, temperature, weight, respiratory_rate, spo2 FROM MEDICAL_RECORD WHERE patient_id = :patientId AND id IN (:recordIds) ORDER BY time ASC",
@@ -993,6 +920,10 @@
           ]
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -1064,24 +995,20 @@
         "tx": null
       },
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :v OR patient_id = :v LIMIT 1",
         "replacements": {
           "v": 70
         },
         "type": "SELECT",
-        "tx": "tx1"
+        "tx": null
       },
       {
-        "sql": "SELECT id AS regimenId FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC LIMIT 1",
+        "sql": "SELECT id AS regimenId, `start` AS startAt FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC LIMIT 1",
         "replacements": {
           "pid": 7
         },
         "type": "SELECT",
-        "tx": "tx1"
+        "tx": null
       },
       {
         "sql": "SELECT id, time, `condition`, blood_pressure, heart_rate, temperature, weight, respiratory_rate, spo2 FROM MEDICAL_RECORD WHERE patient_id = :patientId AND id IN (:recordIds) ORDER BY time ASC",
@@ -1093,6 +1020,10 @@
           ]
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -1166,10 +1097,11 @@
         "tx": "tx1"
       },
       {
-        "sql": "INSERT INTO PROCEDURE_ (order_id, note, technician_id, doctor_id, room_id, type) VALUES (:orderId, :note, NULL, :doctorId, NULL, :type)",
+        "sql": "INSERT INTO PROCEDURE_ (order_id, note, technician_id, doctor_id, room_id, type) VALUES (:orderId, :note, :technicianId, :doctorId, NULL, :type)",
         "replacements": {
           "orderId": 601,
           "note": "{\"version\":1,\"createdAt\":\"<now>\",\"ms\":\"MS-1\",\"admissionNo\":\"12\",\"note\":\"\",\"recordIds\":[3,4],\"rows\":[{\"id\":3,\"updatedAt\":\"2026-10-01T07:00:00.000Z\",\"bloodPressure\":\"120/80\",\"pulse\":72,\"temperature\":37.2,\"weight\":0,\"respiratoryRate\":18,\"spo2\":0,\"symptoms\":\"cough\"},{\"id\":4,\"updatedAt\":\"2026-10-01T09:00:00.000Z\",\"bloodPressure\":\"\",\"pulse\":0,\"temperature\":0,\"weight\":0,\"respiratoryRate\":0,\"spo2\":0,\"symptoms\":\"\"}]}",
+          "technicianId": null,
           "doctorId": 5,
           "type": "HEALTH_TRACKING_SLIP"
         },
@@ -1190,24 +1122,20 @@
     },
     "db": [
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :v OR patient_id = :v LIMIT 1",
         "replacements": {
           "v": 70
         },
         "type": "SELECT",
-        "tx": "tx1"
+        "tx": null
       },
       {
-        "sql": "SELECT id AS regimenId FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC LIMIT 1",
+        "sql": "SELECT id AS regimenId, `start` AS startAt FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC LIMIT 1",
         "replacements": {
           "pid": 7
         },
         "type": "SELECT",
-        "tx": "tx1"
+        "tx": null
       },
       {
         "sql": "SELECT id, time, `condition`, blood_pressure, heart_rate, temperature, weight, respiratory_rate, spo2 FROM MEDICAL_RECORD WHERE patient_id = :patientId AND id IN (:recordIds) ORDER BY time ASC",
@@ -1218,6 +1146,10 @@
           ]
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -1304,28 +1236,20 @@
     },
     "db": [
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :v OR patient_id = :v LIMIT 1",
         "replacements": {
           "v": 70
         },
         "type": "SELECT",
-        "tx": "tx1"
+        "tx": null
       },
       {
-        "sql": "SELECT id AS regimenId FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC LIMIT 1",
+        "sql": "SELECT id AS regimenId, `start` AS startAt FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC LIMIT 1",
         "replacements": {
           "pid": 7
         },
         "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "event": "rollback",
-        "tx": "tx1"
+        "tx": null
       }
     ]
   },
@@ -1335,16 +1259,7 @@
       "status": 403,
       "message": "Only a doctor can add this document"
     },
-    "db": [
-      {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
-        "event": "rollback",
-        "tx": "tx1"
-      }
-    ]
+    "db": []
   },
   "reexam slip, unknown patient": {
     "request": "POST /api/doctor/patients/OP0070/follow-up-reexam-slip",
@@ -1354,20 +1269,12 @@
     },
     "db": [
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :v OR patient_id = :v LIMIT 1",
         "replacements": {
           "v": 70
         },
         "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "event": "rollback",
-        "tx": "tx1"
+        "tx": null
       }
     ]
   },
@@ -1379,28 +1286,20 @@
     },
     "db": [
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :v OR patient_id = :v LIMIT 1",
         "replacements": {
           "v": 70
         },
         "type": "SELECT",
-        "tx": "tx1"
+        "tx": null
       },
       {
-        "sql": "SELECT id AS regimenId FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC LIMIT 1",
+        "sql": "SELECT id AS regimenId, `start` AS startAt FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC LIMIT 1",
         "replacements": {
           "pid": 7
         },
         "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "event": "rollback",
-        "tx": "tx1"
+        "tx": null
       }
     ]
   },
@@ -1412,28 +1311,20 @@
     },
     "db": [
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :v OR patient_id = :v LIMIT 1",
         "replacements": {
           "v": 70
         },
         "type": "SELECT",
-        "tx": "tx1"
+        "tx": null
       },
       {
-        "sql": "SELECT id AS regimenId FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC LIMIT 1",
+        "sql": "SELECT id AS regimenId, `start` AS startAt FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC LIMIT 1",
         "replacements": {
           "pid": 7
         },
         "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "event": "rollback",
-        "tx": "tx1"
+        "tx": null
       }
     ]
   },
@@ -1445,28 +1336,20 @@
     },
     "db": [
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :v OR patient_id = :v LIMIT 1",
         "replacements": {
           "v": 70
         },
         "type": "SELECT",
-        "tx": "tx1"
+        "tx": null
       },
       {
-        "sql": "SELECT id AS regimenId FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC LIMIT 1",
+        "sql": "SELECT id AS regimenId, `start` AS startAt FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC LIMIT 1",
         "replacements": {
           "pid": 7
         },
         "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "event": "rollback",
-        "tx": "tx1"
+        "tx": null
       }
     ]
   },
@@ -1478,23 +1361,23 @@
     },
     "db": [
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :v OR patient_id = :v LIMIT 1",
         "replacements": {
           "v": 70
         },
         "type": "SELECT",
-        "tx": "tx1"
+        "tx": null
       },
       {
-        "sql": "SELECT id AS regimenId FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC LIMIT 1",
+        "sql": "SELECT id AS regimenId, `start` AS startAt FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC LIMIT 1",
         "replacements": {
           "pid": 7
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -1565,23 +1448,23 @@
         "tx": null
       },
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :v OR patient_id = :v LIMIT 1",
         "replacements": {
           "v": 70
         },
         "type": "SELECT",
-        "tx": "tx1"
+        "tx": null
       },
       {
-        "sql": "SELECT id AS regimenId FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC LIMIT 1",
+        "sql": "SELECT id AS regimenId, `start` AS startAt FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC LIMIT 1",
         "replacements": {
           "pid": 7
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -1655,10 +1538,11 @@
         "tx": "tx1"
       },
       {
-        "sql": "INSERT INTO PROCEDURE_ (order_id, note, technician_id, doctor_id, room_id, type) VALUES (:orderId, :note, NULL, :doctorId, NULL, :type)",
+        "sql": "INSERT INTO PROCEDURE_ (order_id, note, technician_id, doctor_id, room_id, type) VALUES (:orderId, :note, :technicianId, :doctorId, NULL, :type)",
         "replacements": {
           "orderId": 601,
           "note": "{\"patientName\":\"Bao Do\",\"reexamDate\":\"2026-10-15\",\"note\":\"fasting\"}",
+          "technicianId": null,
           "doctorId": 5,
           "type": "FOLLOW_UP_REEXAM_SLIP"
         },
@@ -1679,23 +1563,23 @@
     },
     "db": [
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :v OR patient_id = :v LIMIT 1",
         "replacements": {
           "v": 70
         },
         "type": "SELECT",
-        "tx": "tx1"
+        "tx": null
       },
       {
-        "sql": "SELECT id AS regimenId FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC LIMIT 1",
+        "sql": "SELECT id AS regimenId, `start` AS startAt FROM REGIMEN WHERE patient_id = :pid AND `end` IS NULL ORDER BY `start` DESC, id DESC LIMIT 1",
         "replacements": {
           "pid": 7
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -2147,60 +2031,95 @@
         "tx": null
       },
       {
-        "sql": "SELECT t.id AS treatmentId, t.time AS visitAt, t.type AS department, t.`condition` AS complaint, dis.icd_code AS icd10, dis.description AS interpretation, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), acc.username, CONCAT('doctor#', d.user_id)) AS doctorName, cr.name AS roomName FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DISEASE dis ON dis.id = r.disease_id LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id LEFT JOIN `USER` u ON u.id = d.user_id LEFT JOIN ACCOUNT acc ON acc.user_id = d.user_id LEFT JOIN CLINIC_ROOM cr ON cr.id = t.room_id WHERE r.patient_id = :patientId AND r.id IN (99,98) ORDER BY t.time ASC",
+        "sql": "SELECT t.id AS treatmentId, t.regimen_id AS regimenId, t.time AS visitAt, t.type AS department, t.`condition` AS complaint, dis.icd_code AS icd10, dis.description AS interpretation, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), acc.username, CONCAT('doctor#', d.user_id)) AS doctorName, cr.name AS roomName FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DISEASE dis ON dis.id = r.disease_id LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id LEFT JOIN `USER` u ON u.id = d.user_id LEFT JOIN ACCOUNT acc ON acc.user_id = d.user_id LEFT JOIN CLINIC_ROOM cr ON cr.id = t.room_id WHERE r.patient_id = :patientId AND r.id IN (:regimenIds) ORDER BY t.time ASC",
         "replacements": {
-          "patientId": 7
+          "patientId": 7,
+          "regimenIds": [
+            99,
+            98
+          ]
         },
         "type": "SELECT",
         "tx": null
       },
       {
-        "sql": "SELECT t.id AS id, t.time AS diagnosedAt, t.`condition` AS complaint, dis.icd_code AS icd10, dis.description AS interpretation, COALESCE(NULLIF(TRIM(dep_dx.name), ''), '') AS department FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DEPARTMENT dep_dx ON dep_dx.id = t.dept_id LEFT JOIN DISEASE dis ON dis.id = r.disease_id WHERE r.patient_id = :patientId AND r.id IN (99,98) AND NOT EXISTS ( SELECT 1 FROM `ORDER` o WHERE o.treatment_id = t.id AND ( EXISTS (SELECT 1 FROM SURGERY s WHERE s.id = o.id) OR EXISTS (SELECT 1 FROM TEST tst WHERE tst.id = o.id) OR EXISTS (SELECT 1 FROM MEDICAL_PRESCRIPTION rx WHERE rx.order_id = o.id) OR EXISTS (SELECT 1 FROM TRANSFERENCE tf WHERE tf.order_id = o.id) ) ) ORDER BY t.time DESC",
+        "sql": "SELECT t.id AS id, t.time AS diagnosedAt, t.`condition` AS complaint, dis.icd_code AS icd10, dis.description AS interpretation, COALESCE(NULLIF(TRIM(dep_dx.name), ''), '') AS department FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DEPARTMENT dep_dx ON dep_dx.id = t.dept_id LEFT JOIN DISEASE dis ON dis.id = r.disease_id WHERE r.patient_id = :patientId AND r.id IN (:regimenIds) AND NOT EXISTS ( SELECT 1 FROM `ORDER` o WHERE o.treatment_id = t.id AND ( EXISTS (SELECT 1 FROM SURGERY s WHERE s.id = o.id) OR EXISTS (SELECT 1 FROM TEST tst WHERE tst.id = o.id) OR EXISTS (SELECT 1 FROM MEDICAL_PRESCRIPTION rx WHERE rx.order_id = o.id) OR EXISTS (SELECT 1 FROM TRANSFERENCE tf WHERE tf.order_id = o.id) ) ) ORDER BY t.time DESC",
         "replacements": {
-          "patientId": 7
+          "patientId": 7,
+          "regimenIds": [
+            99,
+            98
+          ]
         },
         "type": "SELECT",
         "tx": null
       },
       {
-        "sql": "SELECT o.treatment_id AS treatmentId, rx.order_id AS orderId, rx.time AS prescribedAt, rx.note AS prescriptionNote, COALESCE(rx.duration, 7) AS prescriptionDuration, pd.no AS medNo, m.name, pd.quantity, pd.`usage` AS usageText, pd.unit, pd.note AS medNote, COALESCE(pd.duration, 7) AS lineDuration FROM MEDICAL_PRESCRIPTION rx JOIN `ORDER` o ON o.id = rx.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id LEFT JOIN MEDICINE m ON m.id = pd.medicine_id WHERE r.patient_id = :patientId AND r.id IN (99,98) ORDER BY rx.time DESC, pd.no ASC",
+        "sql": "SELECT o.treatment_id AS treatmentId, rx.order_id AS orderId, rx.time AS prescribedAt, rx.note AS prescriptionNote, COALESCE(rx.duration, 7) AS prescriptionDuration, pd.no AS medNo, m.name, pd.quantity, pd.`usage` AS usageText, pd.unit, pd.note AS medNote, COALESCE(pd.duration, 7) AS lineDuration FROM MEDICAL_PRESCRIPTION rx JOIN `ORDER` o ON o.id = rx.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id LEFT JOIN MEDICINE m ON m.id = pd.medicine_id WHERE r.patient_id = :patientId AND r.id IN (:regimenIds) ORDER BY rx.time DESC, pd.no ASC",
         "replacements": {
-          "patientId": 7
+          "patientId": 7,
+          "regimenIds": [
+            99,
+            98
+          ]
         },
         "type": "SELECT",
         "tx": null
       },
       {
-        "sql": "SELECT o.treatment_id AS treatmentId, tst.id AS id, tst.time AS testAt, tst.type AS testType, tst.result AS resultSummary, tst.note, tst.attachment_url AS fileUrl, COALESCE( NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), a.username ) AS technicianName FROM TEST tst JOIN `ORDER` o ON o.id = tst.id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN PROCEDURE_ p ON p.order_id = tst.id LEFT JOIN TECHNICIAN te ON te.technician_id = COALESCE(tst.technician_id, p.technician_id) LEFT JOIN `USER` u ON u.id = te.user_id LEFT JOIN ACCOUNT a ON a.user_id = te.user_id WHERE r.patient_id = :patientId AND r.id IN (99,98) ORDER BY tst.time DESC",
+        "sql": "SELECT o.treatment_id AS treatmentId, tst.id AS id, tst.time AS testAt, tst.type AS testType, tst.result AS resultSummary, tst.note, tst.attachment_url AS fileUrl, COALESCE( NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), a.username ) AS technicianName FROM TEST tst JOIN `ORDER` o ON o.id = tst.id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN PROCEDURE_ p ON p.order_id = tst.id LEFT JOIN TECHNICIAN te ON te.technician_id = COALESCE(tst.technician_id, p.technician_id) LEFT JOIN `USER` u ON u.id = te.user_id LEFT JOIN ACCOUNT a ON a.user_id = te.user_id WHERE r.patient_id = :patientId AND r.id IN (:regimenIds) ORDER BY tst.time DESC",
         "replacements": {
-          "patientId": 7
+          "patientId": 7,
+          "regimenIds": [
+            99,
+            98
+          ]
         },
         "type": "SELECT",
         "tx": null
       },
       {
-        "sql": "SELECT o.treatment_id AS treatmentId, s.id AS id, s.type AS surgeryType, s.start, s.end, s.result, s.surgeon, s.note, s.urgency FROM SURGERY s JOIN PROCEDURE_ pr ON pr.order_id = s.id JOIN `ORDER` o ON o.id = pr.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id WHERE r.patient_id = :patientId AND r.id IN (99,98) ORDER BY s.start DESC",
+        "sql": "SELECT o.treatment_id AS treatmentId, s.id AS id, s.type AS surgeryType, s.start, s.end, s.result, s.surgeon, s.note, s.urgency FROM SURGERY s JOIN PROCEDURE_ pr ON pr.order_id = s.id JOIN `ORDER` o ON o.id = pr.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id WHERE r.patient_id = :patientId AND r.id IN (:regimenIds) ORDER BY s.start DESC",
         "replacements": {
-          "patientId": 7
+          "patientId": 7,
+          "regimenIds": [
+            99,
+            98
+          ]
         },
         "type": "SELECT",
         "tx": null
       },
       {
-        "sql": "SELECT o.treatment_id AS treatmentId, tr.order_id AS orderId, tr.reason, tr.time AS transferAt, tr.note, ht.to_id AS toHospitalId, ht.to_name AS toHospitalName, ht.transport, ht.form_payload AS formPayload FROM TREATMENT t JOIN `ORDER` o ON o.treatment_id = t.id JOIN TRANSFERENCE tr ON tr.order_id = o.id INNER JOIN HOSPITAL_TRANSFERENCE ht ON ht.transference_id = tr.order_id WHERE t.regimen_id IN (99,98) ORDER BY tr.time ASC",
-        "replacements": null,
+        "sql": "SELECT t.regimen_id AS regimenId, tr.order_id AS orderId, tr.reason, tr.time AS transferAt, tr.note, ht.to_id AS toHospitalId, ht.to_name AS toHospitalName, ht.transport, ht.form_payload AS formPayload FROM TREATMENT t JOIN `ORDER` o ON o.treatment_id = t.id JOIN TRANSFERENCE tr ON tr.order_id = o.id INNER JOIN HOSPITAL_TRANSFERENCE ht ON ht.transference_id = tr.order_id WHERE t.regimen_id IN (:regimenIds) ORDER BY tr.time ASC",
+        "replacements": {
+          "regimenIds": [
+            99,
+            98
+          ]
+        },
         "type": "SELECT",
         "tx": null
       },
       {
-        "sql": "SELECT o.id AS orderId, t.time AS createdAt, COALESCE( NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), acc.username, NULL ) AS createdByDoctor, p.note AS payload FROM TREATMENT t JOIN `ORDER` o ON o.treatment_id = t.id JOIN PROCEDURE_ p ON p.order_id = o.id LEFT JOIN DOCTOR d ON d.doctor_id = p.doctor_id LEFT JOIN `USER` u ON u.id = d.user_id LEFT JOIN ACCOUNT acc ON acc.user_id = d.user_id WHERE t.regimen_id IN (99,98) AND p.type = 'HEALTH_TRACKING_SLIP' ORDER BY t.time ASC, o.id ASC",
-        "replacements": null,
+        "sql": "SELECT o.id AS orderId, t.time AS createdAt, COALESCE( NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), acc.username, NULL ) AS createdByDoctor, p.note AS payload FROM TREATMENT t JOIN `ORDER` o ON o.treatment_id = t.id JOIN PROCEDURE_ p ON p.order_id = o.id LEFT JOIN DOCTOR d ON d.doctor_id = p.doctor_id LEFT JOIN `USER` u ON u.id = d.user_id LEFT JOIN ACCOUNT acc ON acc.user_id = d.user_id WHERE t.regimen_id IN (:regimenIds) AND p.type = 'HEALTH_TRACKING_SLIP' ORDER BY t.time ASC, o.id ASC",
+        "replacements": {
+          "regimenIds": [
+            99,
+            98
+          ]
+        },
         "type": "SELECT",
         "tx": null
       },
       {
-        "sql": "SELECT o.id AS orderId, t.time AS createdAt, p.note AS payload FROM TREATMENT t JOIN `ORDER` o ON o.treatment_id = t.id JOIN PROCEDURE_ p ON p.order_id = o.id WHERE t.regimen_id IN (99,98) AND p.type = 'FOLLOW_UP_REEXAM_SLIP' ORDER BY t.time ASC, o.id ASC",
-        "replacements": null,
+        "sql": "SELECT o.id AS orderId, t.time AS createdAt, p.note AS payload FROM TREATMENT t JOIN `ORDER` o ON o.treatment_id = t.id JOIN PROCEDURE_ p ON p.order_id = o.id WHERE t.regimen_id IN (:regimenIds) AND p.type = 'FOLLOW_UP_REEXAM_SLIP' ORDER BY t.time ASC, o.id ASC",
+        "replacements": {
+          "regimenIds": [
+            99,
+            98
+          ]
+        },
         "type": "SELECT",
         "tx": null
       }
@@ -2292,67 +2211,106 @@
         "tx": null
       },
       {
-        "sql": "SELECT t.id AS treatmentId, t.time AS visitAt, t.type AS department, t.`condition` AS complaint, dis.icd_code AS icd10, dis.description AS interpretation, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), acc.username, CONCAT('doctor#', d.user_id)) AS doctorName, cr.name AS roomName FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DISEASE dis ON dis.id = r.disease_id LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id LEFT JOIN `USER` u ON u.id = d.user_id LEFT JOIN ACCOUNT acc ON acc.user_id = d.user_id LEFT JOIN CLINIC_ROOM cr ON cr.id = t.room_id WHERE r.patient_id = :patientId AND r.id IN (99,98) ORDER BY t.time ASC",
+        "sql": "SELECT t.id AS treatmentId, t.regimen_id AS regimenId, t.time AS visitAt, t.type AS department, t.`condition` AS complaint, dis.icd_code AS icd10, dis.description AS interpretation, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), acc.username, CONCAT('doctor#', d.user_id)) AS doctorName, cr.name AS roomName FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DISEASE dis ON dis.id = r.disease_id LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id LEFT JOIN `USER` u ON u.id = d.user_id LEFT JOIN ACCOUNT acc ON acc.user_id = d.user_id LEFT JOIN CLINIC_ROOM cr ON cr.id = t.room_id WHERE r.patient_id = :patientId AND r.id IN (:regimenIds) ORDER BY t.time ASC",
         "replacements": {
-          "patientId": 7
+          "patientId": 7,
+          "regimenIds": [
+            99,
+            98
+          ]
         },
         "type": "SELECT",
         "tx": null
       },
       {
-        "sql": "SELECT t.id AS id, t.time AS diagnosedAt, t.`condition` AS complaint, dis.icd_code AS icd10, dis.description AS interpretation, COALESCE(NULLIF(TRIM(dep_dx.name), ''), '') AS department FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DEPARTMENT dep_dx ON dep_dx.id = t.dept_id LEFT JOIN DISEASE dis ON dis.id = r.disease_id WHERE r.patient_id = :patientId AND r.id IN (99,98) AND NOT EXISTS ( SELECT 1 FROM `ORDER` o WHERE o.treatment_id = t.id AND ( EXISTS (SELECT 1 FROM SURGERY s WHERE s.id = o.id) OR EXISTS (SELECT 1 FROM TEST tst WHERE tst.id = o.id) OR EXISTS (SELECT 1 FROM MEDICAL_PRESCRIPTION rx WHERE rx.order_id = o.id) OR EXISTS (SELECT 1 FROM TRANSFERENCE tf WHERE tf.order_id = o.id) ) ) ORDER BY t.time DESC",
+        "sql": "SELECT t.id AS id, t.time AS diagnosedAt, t.`condition` AS complaint, dis.icd_code AS icd10, dis.description AS interpretation, COALESCE(NULLIF(TRIM(dep_dx.name), ''), '') AS department FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DEPARTMENT dep_dx ON dep_dx.id = t.dept_id LEFT JOIN DISEASE dis ON dis.id = r.disease_id WHERE r.patient_id = :patientId AND r.id IN (:regimenIds) AND NOT EXISTS ( SELECT 1 FROM `ORDER` o WHERE o.treatment_id = t.id AND ( EXISTS (SELECT 1 FROM SURGERY s WHERE s.id = o.id) OR EXISTS (SELECT 1 FROM TEST tst WHERE tst.id = o.id) OR EXISTS (SELECT 1 FROM MEDICAL_PRESCRIPTION rx WHERE rx.order_id = o.id) OR EXISTS (SELECT 1 FROM TRANSFERENCE tf WHERE tf.order_id = o.id) ) ) ORDER BY t.time DESC",
         "replacements": {
-          "patientId": 7
+          "patientId": 7,
+          "regimenIds": [
+            99,
+            98
+          ]
         },
         "type": "SELECT",
         "tx": null
       },
       {
-        "sql": "SELECT o.treatment_id AS treatmentId, rx.order_id AS orderId, rx.time AS prescribedAt, rx.note AS prescriptionNote, COALESCE(rx.duration, 7) AS prescriptionDuration, pd.no AS medNo, m.name, pd.quantity, pd.`usage` AS usageText, pd.unit, pd.note AS medNote, COALESCE(pd.duration, 7) AS lineDuration FROM MEDICAL_PRESCRIPTION rx JOIN `ORDER` o ON o.id = rx.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id LEFT JOIN MEDICINE m ON m.id = pd.medicine_id WHERE r.patient_id = :patientId AND r.id IN (99,98) ORDER BY rx.time DESC, pd.no ASC",
+        "sql": "SELECT o.treatment_id AS treatmentId, rx.order_id AS orderId, rx.time AS prescribedAt, rx.note AS prescriptionNote, COALESCE(rx.duration, 7) AS prescriptionDuration, pd.no AS medNo, m.name, pd.quantity, pd.`usage` AS usageText, pd.unit, pd.note AS medNote, COALESCE(pd.duration, 7) AS lineDuration FROM MEDICAL_PRESCRIPTION rx JOIN `ORDER` o ON o.id = rx.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id LEFT JOIN MEDICINE m ON m.id = pd.medicine_id WHERE r.patient_id = :patientId AND r.id IN (:regimenIds) ORDER BY rx.time DESC, pd.no ASC",
         "replacements": {
-          "patientId": 7
+          "patientId": 7,
+          "regimenIds": [
+            99,
+            98
+          ]
         },
         "type": "SELECT",
         "tx": null
       },
       {
-        "sql": "SELECT o.treatment_id AS treatmentId, tst.id AS id, tst.time AS testAt, tst.type AS testType, tst.result AS resultSummary, tst.note, tst.attachment_url AS fileUrl, COALESCE( NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), a.username ) AS technicianName FROM TEST tst JOIN `ORDER` o ON o.id = tst.id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN PROCEDURE_ p ON p.order_id = tst.id LEFT JOIN TECHNICIAN te ON te.technician_id = COALESCE(tst.technician_id, p.technician_id) LEFT JOIN `USER` u ON u.id = te.user_id LEFT JOIN ACCOUNT a ON a.user_id = te.user_id WHERE r.patient_id = :patientId AND r.id IN (99,98) ORDER BY tst.time DESC",
+        "sql": "SELECT o.treatment_id AS treatmentId, tst.id AS id, tst.time AS testAt, tst.type AS testType, tst.result AS resultSummary, tst.note, tst.attachment_url AS fileUrl, COALESCE( NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), a.username ) AS technicianName FROM TEST tst JOIN `ORDER` o ON o.id = tst.id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN PROCEDURE_ p ON p.order_id = tst.id LEFT JOIN TECHNICIAN te ON te.technician_id = COALESCE(tst.technician_id, p.technician_id) LEFT JOIN `USER` u ON u.id = te.user_id LEFT JOIN ACCOUNT a ON a.user_id = te.user_id WHERE r.patient_id = :patientId AND r.id IN (:regimenIds) ORDER BY tst.time DESC",
         "replacements": {
-          "patientId": 7
+          "patientId": 7,
+          "regimenIds": [
+            99,
+            98
+          ]
         },
         "type": "SELECT",
         "tx": null
       },
       {
-        "sql": "SELECT o.treatment_id AS treatmentId, s.id AS id, s.type AS surgeryType, s.start, s.end, s.result, s.surgeon, s.note, s.urgency FROM SURGERY s JOIN PROCEDURE_ pr ON pr.order_id = s.id JOIN `ORDER` o ON o.id = pr.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id WHERE r.patient_id = :patientId AND r.id IN (99,98) ORDER BY s.start DESC",
+        "sql": "SELECT o.treatment_id AS treatmentId, s.id AS id, s.type AS surgeryType, s.start, s.end, s.result, s.surgeon, s.note, s.urgency FROM SURGERY s JOIN PROCEDURE_ pr ON pr.order_id = s.id JOIN `ORDER` o ON o.id = pr.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id WHERE r.patient_id = :patientId AND r.id IN (:regimenIds) ORDER BY s.start DESC",
         "replacements": {
-          "patientId": 7
+          "patientId": 7,
+          "regimenIds": [
+            99,
+            98
+          ]
         },
         "type": "SELECT",
         "tx": null
       },
       {
-        "sql": "SELECT o.treatment_id AS treatmentId, tr.order_id AS orderId, tr.reason, tr.time AS transferAt, tr.note, ht.to_id AS toHospitalId, ht.to_name AS toHospitalName, ht.transport, ht.form_payload AS formPayload FROM TREATMENT t JOIN `ORDER` o ON o.treatment_id = t.id JOIN TRANSFERENCE tr ON tr.order_id = o.id INNER JOIN HOSPITAL_TRANSFERENCE ht ON ht.transference_id = tr.order_id WHERE t.regimen_id IN (99,98) ORDER BY tr.time ASC",
-        "replacements": null,
-        "type": "SELECT",
-        "tx": null
-      },
-      {
-        "sql": "SELECT o.id AS orderId, t.time AS createdAt, COALESCE( NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), acc.username, NULL ) AS createdByDoctor, p.note AS payload FROM TREATMENT t JOIN `ORDER` o ON o.treatment_id = t.id JOIN PROCEDURE_ p ON p.order_id = o.id LEFT JOIN DOCTOR d ON d.doctor_id = p.doctor_id LEFT JOIN `USER` u ON u.id = d.user_id LEFT JOIN ACCOUNT acc ON acc.user_id = d.user_id WHERE t.regimen_id IN (99,98) AND p.type = 'HEALTH_TRACKING_SLIP' ORDER BY t.time ASC, o.id ASC",
-        "replacements": null,
-        "type": "SELECT",
-        "tx": null
-      },
-      {
-        "sql": "SELECT o.id AS orderId, t.time AS createdAt, p.note AS payload FROM TREATMENT t JOIN `ORDER` o ON o.treatment_id = t.id JOIN PROCEDURE_ p ON p.order_id = o.id WHERE t.regimen_id IN (99,98) AND p.type = 'FOLLOW_UP_REEXAM_SLIP' ORDER BY t.time ASC, o.id ASC",
-        "replacements": null,
-        "type": "SELECT",
-        "tx": null
-      },
-      {
-        "sql": "SELECT o.treatment_id AS treatmentId, rx.order_id AS orderId, rx.time AS prescribedAt, rx.note AS prescriptionNote, pd.no AS medNo, m.name, pd.quantity, pd.`usage` AS usageText, pd.unit, pd.note AS medNote FROM MEDICAL_PRESCRIPTION rx JOIN `ORDER` o ON o.id = rx.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id LEFT JOIN MEDICINE m ON m.id = pd.medicine_id WHERE r.patient_id = :patientId AND r.id IN (99,98) ORDER BY rx.time DESC, pd.no ASC",
+        "sql": "SELECT t.regimen_id AS regimenId, tr.order_id AS orderId, tr.reason, tr.time AS transferAt, tr.note, ht.to_id AS toHospitalId, ht.to_name AS toHospitalName, ht.transport, ht.form_payload AS formPayload FROM TREATMENT t JOIN `ORDER` o ON o.treatment_id = t.id JOIN TRANSFERENCE tr ON tr.order_id = o.id INNER JOIN HOSPITAL_TRANSFERENCE ht ON ht.transference_id = tr.order_id WHERE t.regimen_id IN (:regimenIds) ORDER BY tr.time ASC",
         "replacements": {
-          "patientId": 7
+          "regimenIds": [
+            99,
+            98
+          ]
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT o.id AS orderId, t.time AS createdAt, COALESCE( NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), acc.username, NULL ) AS createdByDoctor, p.note AS payload FROM TREATMENT t JOIN `ORDER` o ON o.treatment_id = t.id JOIN PROCEDURE_ p ON p.order_id = o.id LEFT JOIN DOCTOR d ON d.doctor_id = p.doctor_id LEFT JOIN `USER` u ON u.id = d.user_id LEFT JOIN ACCOUNT acc ON acc.user_id = d.user_id WHERE t.regimen_id IN (:regimenIds) AND p.type = 'HEALTH_TRACKING_SLIP' ORDER BY t.time ASC, o.id ASC",
+        "replacements": {
+          "regimenIds": [
+            99,
+            98
+          ]
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT o.id AS orderId, t.time AS createdAt, p.note AS payload FROM TREATMENT t JOIN `ORDER` o ON o.treatment_id = t.id JOIN PROCEDURE_ p ON p.order_id = o.id WHERE t.regimen_id IN (:regimenIds) AND p.type = 'FOLLOW_UP_REEXAM_SLIP' ORDER BY t.time ASC, o.id ASC",
+        "replacements": {
+          "regimenIds": [
+            99,
+            98
+          ]
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT o.treatment_id AS treatmentId, rx.order_id AS orderId, rx.time AS prescribedAt, rx.note AS prescriptionNote, pd.no AS medNo, m.name, pd.quantity, pd.`usage` AS usageText, pd.unit, pd.note AS medNote FROM MEDICAL_PRESCRIPTION rx JOIN `ORDER` o ON o.id = rx.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id LEFT JOIN MEDICINE m ON m.id = pd.medicine_id WHERE r.patient_id = :patientId AND r.id IN (:regimenIds) ORDER BY rx.time DESC, pd.no ASC",
+        "replacements": {
+          "patientId": 7,
+          "regimenIds": [
+            99,
+            98
+          ]
         },
         "type": "SELECT",
         "tx": null
@@ -2383,60 +2341,95 @@
         "tx": null
       },
       {
-        "sql": "SELECT t.id AS treatmentId, t.time AS visitAt, t.type AS department, t.`condition` AS complaint, dis.icd_code AS icd10, dis.description AS interpretation, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), acc.username, CONCAT('doctor#', d.user_id)) AS doctorName, cr.name AS roomName FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DISEASE dis ON dis.id = r.disease_id LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id LEFT JOIN `USER` u ON u.id = d.user_id LEFT JOIN ACCOUNT acc ON acc.user_id = d.user_id LEFT JOIN CLINIC_ROOM cr ON cr.id = t.room_id WHERE r.patient_id = :patientId AND r.id IN (99,98) ORDER BY t.time ASC",
+        "sql": "SELECT t.id AS treatmentId, t.regimen_id AS regimenId, t.time AS visitAt, t.type AS department, t.`condition` AS complaint, dis.icd_code AS icd10, dis.description AS interpretation, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), acc.username, CONCAT('doctor#', d.user_id)) AS doctorName, cr.name AS roomName FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DISEASE dis ON dis.id = r.disease_id LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id LEFT JOIN `USER` u ON u.id = d.user_id LEFT JOIN ACCOUNT acc ON acc.user_id = d.user_id LEFT JOIN CLINIC_ROOM cr ON cr.id = t.room_id WHERE r.patient_id = :patientId AND r.id IN (:regimenIds) ORDER BY t.time ASC",
         "replacements": {
-          "patientId": 7
+          "patientId": 7,
+          "regimenIds": [
+            99,
+            98
+          ]
         },
         "type": "SELECT",
         "tx": null
       },
       {
-        "sql": "SELECT t.id AS id, t.time AS diagnosedAt, t.`condition` AS complaint, dis.icd_code AS icd10, dis.description AS interpretation, COALESCE(NULLIF(TRIM(dep_dx.name), ''), '') AS department FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DEPARTMENT dep_dx ON dep_dx.id = t.dept_id LEFT JOIN DISEASE dis ON dis.id = r.disease_id WHERE r.patient_id = :patientId AND r.id IN (99,98) AND NOT EXISTS ( SELECT 1 FROM `ORDER` o WHERE o.treatment_id = t.id AND ( EXISTS (SELECT 1 FROM SURGERY s WHERE s.id = o.id) OR EXISTS (SELECT 1 FROM TEST tst WHERE tst.id = o.id) OR EXISTS (SELECT 1 FROM MEDICAL_PRESCRIPTION rx WHERE rx.order_id = o.id) OR EXISTS (SELECT 1 FROM TRANSFERENCE tf WHERE tf.order_id = o.id) ) ) ORDER BY t.time DESC",
+        "sql": "SELECT t.id AS id, t.time AS diagnosedAt, t.`condition` AS complaint, dis.icd_code AS icd10, dis.description AS interpretation, COALESCE(NULLIF(TRIM(dep_dx.name), ''), '') AS department FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DEPARTMENT dep_dx ON dep_dx.id = t.dept_id LEFT JOIN DISEASE dis ON dis.id = r.disease_id WHERE r.patient_id = :patientId AND r.id IN (:regimenIds) AND NOT EXISTS ( SELECT 1 FROM `ORDER` o WHERE o.treatment_id = t.id AND ( EXISTS (SELECT 1 FROM SURGERY s WHERE s.id = o.id) OR EXISTS (SELECT 1 FROM TEST tst WHERE tst.id = o.id) OR EXISTS (SELECT 1 FROM MEDICAL_PRESCRIPTION rx WHERE rx.order_id = o.id) OR EXISTS (SELECT 1 FROM TRANSFERENCE tf WHERE tf.order_id = o.id) ) ) ORDER BY t.time DESC",
         "replacements": {
-          "patientId": 7
+          "patientId": 7,
+          "regimenIds": [
+            99,
+            98
+          ]
         },
         "type": "SELECT",
         "tx": null
       },
       {
-        "sql": "SELECT o.treatment_id AS treatmentId, rx.order_id AS orderId, rx.time AS prescribedAt, rx.note AS prescriptionNote, COALESCE(rx.duration, 7) AS prescriptionDuration, pd.no AS medNo, m.name, pd.quantity, pd.`usage` AS usageText, pd.unit, pd.note AS medNote, COALESCE(pd.duration, 7) AS lineDuration FROM MEDICAL_PRESCRIPTION rx JOIN `ORDER` o ON o.id = rx.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id LEFT JOIN MEDICINE m ON m.id = pd.medicine_id WHERE r.patient_id = :patientId AND r.id IN (99,98) ORDER BY rx.time DESC, pd.no ASC",
+        "sql": "SELECT o.treatment_id AS treatmentId, rx.order_id AS orderId, rx.time AS prescribedAt, rx.note AS prescriptionNote, COALESCE(rx.duration, 7) AS prescriptionDuration, pd.no AS medNo, m.name, pd.quantity, pd.`usage` AS usageText, pd.unit, pd.note AS medNote, COALESCE(pd.duration, 7) AS lineDuration FROM MEDICAL_PRESCRIPTION rx JOIN `ORDER` o ON o.id = rx.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id LEFT JOIN MEDICINE m ON m.id = pd.medicine_id WHERE r.patient_id = :patientId AND r.id IN (:regimenIds) ORDER BY rx.time DESC, pd.no ASC",
         "replacements": {
-          "patientId": 7
+          "patientId": 7,
+          "regimenIds": [
+            99,
+            98
+          ]
         },
         "type": "SELECT",
         "tx": null
       },
       {
-        "sql": "SELECT o.treatment_id AS treatmentId, tst.id AS id, tst.time AS testAt, tst.type AS testType, tst.result AS resultSummary, tst.note, tst.attachment_url AS fileUrl, COALESCE( NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), a.username ) AS technicianName FROM TEST tst JOIN `ORDER` o ON o.id = tst.id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN PROCEDURE_ p ON p.order_id = tst.id LEFT JOIN TECHNICIAN te ON te.technician_id = COALESCE(tst.technician_id, p.technician_id) LEFT JOIN `USER` u ON u.id = te.user_id LEFT JOIN ACCOUNT a ON a.user_id = te.user_id WHERE r.patient_id = :patientId AND r.id IN (99,98) ORDER BY tst.time DESC",
+        "sql": "SELECT o.treatment_id AS treatmentId, tst.id AS id, tst.time AS testAt, tst.type AS testType, tst.result AS resultSummary, tst.note, tst.attachment_url AS fileUrl, COALESCE( NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), a.username ) AS technicianName FROM TEST tst JOIN `ORDER` o ON o.id = tst.id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN PROCEDURE_ p ON p.order_id = tst.id LEFT JOIN TECHNICIAN te ON te.technician_id = COALESCE(tst.technician_id, p.technician_id) LEFT JOIN `USER` u ON u.id = te.user_id LEFT JOIN ACCOUNT a ON a.user_id = te.user_id WHERE r.patient_id = :patientId AND r.id IN (:regimenIds) ORDER BY tst.time DESC",
         "replacements": {
-          "patientId": 7
+          "patientId": 7,
+          "regimenIds": [
+            99,
+            98
+          ]
         },
         "type": "SELECT",
         "tx": null
       },
       {
-        "sql": "SELECT o.treatment_id AS treatmentId, s.id AS id, s.type AS surgeryType, s.start, s.end, s.result, s.surgeon, s.note, s.urgency FROM SURGERY s JOIN PROCEDURE_ pr ON pr.order_id = s.id JOIN `ORDER` o ON o.id = pr.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id WHERE r.patient_id = :patientId AND r.id IN (99,98) ORDER BY s.start DESC",
+        "sql": "SELECT o.treatment_id AS treatmentId, s.id AS id, s.type AS surgeryType, s.start, s.end, s.result, s.surgeon, s.note, s.urgency FROM SURGERY s JOIN PROCEDURE_ pr ON pr.order_id = s.id JOIN `ORDER` o ON o.id = pr.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id WHERE r.patient_id = :patientId AND r.id IN (:regimenIds) ORDER BY s.start DESC",
         "replacements": {
-          "patientId": 7
+          "patientId": 7,
+          "regimenIds": [
+            99,
+            98
+          ]
         },
         "type": "SELECT",
         "tx": null
       },
       {
-        "sql": "SELECT o.treatment_id AS treatmentId, tr.order_id AS orderId, tr.reason, tr.time AS transferAt, tr.note, ht.to_id AS toHospitalId, ht.to_name AS toHospitalName, ht.transport, ht.form_payload AS formPayload FROM TREATMENT t JOIN `ORDER` o ON o.treatment_id = t.id JOIN TRANSFERENCE tr ON tr.order_id = o.id INNER JOIN HOSPITAL_TRANSFERENCE ht ON ht.transference_id = tr.order_id WHERE t.regimen_id IN (99,98) ORDER BY tr.time ASC",
-        "replacements": null,
+        "sql": "SELECT t.regimen_id AS regimenId, tr.order_id AS orderId, tr.reason, tr.time AS transferAt, tr.note, ht.to_id AS toHospitalId, ht.to_name AS toHospitalName, ht.transport, ht.form_payload AS formPayload FROM TREATMENT t JOIN `ORDER` o ON o.treatment_id = t.id JOIN TRANSFERENCE tr ON tr.order_id = o.id INNER JOIN HOSPITAL_TRANSFERENCE ht ON ht.transference_id = tr.order_id WHERE t.regimen_id IN (:regimenIds) ORDER BY tr.time ASC",
+        "replacements": {
+          "regimenIds": [
+            99,
+            98
+          ]
+        },
         "type": "SELECT",
         "tx": null
       },
       {
-        "sql": "SELECT o.id AS orderId, t.time AS createdAt, COALESCE( NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), acc.username, NULL ) AS createdByDoctor, p.note AS payload FROM TREATMENT t JOIN `ORDER` o ON o.treatment_id = t.id JOIN PROCEDURE_ p ON p.order_id = o.id LEFT JOIN DOCTOR d ON d.doctor_id = p.doctor_id LEFT JOIN `USER` u ON u.id = d.user_id LEFT JOIN ACCOUNT acc ON acc.user_id = d.user_id WHERE t.regimen_id IN (99,98) AND p.type = 'HEALTH_TRACKING_SLIP' ORDER BY t.time ASC, o.id ASC",
-        "replacements": null,
+        "sql": "SELECT o.id AS orderId, t.time AS createdAt, COALESCE( NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), acc.username, NULL ) AS createdByDoctor, p.note AS payload FROM TREATMENT t JOIN `ORDER` o ON o.treatment_id = t.id JOIN PROCEDURE_ p ON p.order_id = o.id LEFT JOIN DOCTOR d ON d.doctor_id = p.doctor_id LEFT JOIN `USER` u ON u.id = d.user_id LEFT JOIN ACCOUNT acc ON acc.user_id = d.user_id WHERE t.regimen_id IN (:regimenIds) AND p.type = 'HEALTH_TRACKING_SLIP' ORDER BY t.time ASC, o.id ASC",
+        "replacements": {
+          "regimenIds": [
+            99,
+            98
+          ]
+        },
         "type": "SELECT",
         "tx": null
       },
       {
-        "sql": "SELECT o.id AS orderId, t.time AS createdAt, p.note AS payload FROM TREATMENT t JOIN `ORDER` o ON o.treatment_id = t.id JOIN PROCEDURE_ p ON p.order_id = o.id WHERE t.regimen_id IN (99,98) AND p.type = 'FOLLOW_UP_REEXAM_SLIP' ORDER BY t.time ASC, o.id ASC",
-        "replacements": null,
+        "sql": "SELECT o.id AS orderId, t.time AS createdAt, p.note AS payload FROM TREATMENT t JOIN `ORDER` o ON o.treatment_id = t.id JOIN PROCEDURE_ p ON p.order_id = o.id WHERE t.regimen_id IN (:regimenIds) AND p.type = 'FOLLOW_UP_REEXAM_SLIP' ORDER BY t.time ASC, o.id ASC",
+        "replacements": {
+          "regimenIds": [
+            99,
+            98
+          ]
+        },
         "type": "SELECT",
         "tx": null
       }
@@ -2643,39 +2636,65 @@
         "tx": null
       },
       {
-        "sql": "SELECT t.regimen_id AS regimenId, tr.order_id AS orderId, tr.reason, tr.time AS transferAt, tr.note, ht.to_id AS toHospitalId, ht.to_name AS toHospitalName, ht.transport, ht.form_payload AS formPayload FROM TREATMENT t JOIN `ORDER` o ON o.treatment_id = t.id JOIN TRANSFERENCE tr ON tr.order_id = o.id INNER JOIN HOSPITAL_TRANSFERENCE ht ON ht.transference_id = tr.order_id WHERE t.regimen_id IN (99,98,97) ORDER BY tr.time ASC",
-        "replacements": null,
-        "type": "SELECT",
-        "tx": null
-      },
-      {
-        "sql": "SELECT t.id AS treatmentId, t.regimen_id AS regimenId, t.time AS visitAt, t.type AS department, t.`condition` AS complaint, dis.icd_code AS icd10, dis.description AS interpretation, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), acc.username, CONCAT('doctor#', d.user_id)) AS doctorName, cr.name AS roomName FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DISEASE dis ON dis.id = r.disease_id LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id LEFT JOIN `USER` u ON u.id = d.user_id LEFT JOIN ACCOUNT acc ON acc.user_id = d.user_id LEFT JOIN CLINIC_ROOM cr ON cr.id = t.room_id WHERE r.patient_id = :patientId AND r.id IN (99,98,97) ORDER BY t.time ASC",
+        "sql": "SELECT t.regimen_id AS regimenId, tr.order_id AS orderId, tr.reason, tr.time AS transferAt, tr.note, ht.to_id AS toHospitalId, ht.to_name AS toHospitalName, ht.transport, ht.form_payload AS formPayload FROM TREATMENT t JOIN `ORDER` o ON o.treatment_id = t.id JOIN TRANSFERENCE tr ON tr.order_id = o.id INNER JOIN HOSPITAL_TRANSFERENCE ht ON ht.transference_id = tr.order_id WHERE t.regimen_id IN (:regimenIds) ORDER BY tr.time ASC",
         "replacements": {
-          "patientId": 7
+          "regimenIds": [
+            99,
+            98,
+            97
+          ]
         },
         "type": "SELECT",
         "tx": null
       },
       {
-        "sql": "SELECT o.treatment_id AS treatmentId, rx.order_id AS orderId, rx.time AS prescribedAt, pd.no AS medNo, m.name, pd.quantity, pd.`usage` AS frequency, pd.unit, COALESCE(pd.duration, 7) AS lineDuration FROM MEDICAL_PRESCRIPTION rx JOIN `ORDER` o ON o.id = rx.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id LEFT JOIN MEDICINE m ON m.id = pd.medicine_id WHERE r.patient_id = :patientId AND r.id IN (99,98,97) ORDER BY rx.time DESC, pd.no ASC",
+        "sql": "SELECT t.id AS treatmentId, t.regimen_id AS regimenId, t.time AS visitAt, t.type AS department, t.`condition` AS complaint, dis.icd_code AS icd10, dis.description AS interpretation, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), acc.username, CONCAT('doctor#', d.user_id)) AS doctorName, cr.name AS roomName FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DISEASE dis ON dis.id = r.disease_id LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id LEFT JOIN `USER` u ON u.id = d.user_id LEFT JOIN ACCOUNT acc ON acc.user_id = d.user_id LEFT JOIN CLINIC_ROOM cr ON cr.id = t.room_id WHERE r.patient_id = :patientId AND r.id IN (:regimenIds) ORDER BY t.time ASC",
         "replacements": {
-          "patientId": 7
+          "patientId": 7,
+          "regimenIds": [
+            99,
+            98,
+            97
+          ]
         },
         "type": "SELECT",
         "tx": null
       },
       {
-        "sql": "SELECT o.treatment_id AS treatmentId, tst.id AS testId, tst.time AS testAt, tst.type AS testType, tst.result AS resultSummary, tst.note, tst.attachment_url AS fileUrl, COALESCE( NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), a.username ) AS technicianName FROM TEST tst JOIN `ORDER` o ON o.id = tst.id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN PROCEDURE_ p ON p.order_id = tst.id LEFT JOIN TECHNICIAN te ON te.technician_id = COALESCE(tst.technician_id, p.technician_id) LEFT JOIN `USER` u ON u.id = te.user_id LEFT JOIN ACCOUNT a ON a.user_id = te.user_id WHERE r.patient_id = :patientId AND r.id IN (99,98,97) ORDER BY tst.time DESC",
+        "sql": "SELECT o.treatment_id AS treatmentId, rx.order_id AS orderId, rx.time AS prescribedAt, rx.note AS prescriptionNote, COALESCE(rx.duration, 7) AS prescriptionDuration, pd.no AS medNo, m.name, pd.quantity, pd.`usage` AS usageText, pd.unit, pd.note AS medNote, COALESCE(pd.duration, 7) AS lineDuration FROM MEDICAL_PRESCRIPTION rx JOIN `ORDER` o ON o.id = rx.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id LEFT JOIN MEDICINE m ON m.id = pd.medicine_id WHERE r.patient_id = :patientId AND r.id IN (:regimenIds) ORDER BY rx.time DESC, pd.no ASC",
         "replacements": {
-          "patientId": 7
+          "patientId": 7,
+          "regimenIds": [
+            99,
+            98,
+            97
+          ]
         },
         "type": "SELECT",
         "tx": null
       },
       {
-        "sql": "SELECT o.treatment_id AS treatmentId, s.id AS orderId, s.type AS surgeryType, s.start, s.end, s.result, s.surgeon, s.note, s.urgency FROM SURGERY s JOIN PROCEDURE_ pr ON pr.order_id = s.id JOIN `ORDER` o ON o.id = pr.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id WHERE r.patient_id = :patientId AND r.id IN (99,98,97) ORDER BY s.start DESC",
+        "sql": "SELECT o.treatment_id AS treatmentId, tst.id AS id, tst.time AS testAt, tst.type AS testType, tst.result AS resultSummary, tst.note, tst.attachment_url AS fileUrl, COALESCE( NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), a.username ) AS technicianName FROM TEST tst JOIN `ORDER` o ON o.id = tst.id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN PROCEDURE_ p ON p.order_id = tst.id LEFT JOIN TECHNICIAN te ON te.technician_id = COALESCE(tst.technician_id, p.technician_id) LEFT JOIN `USER` u ON u.id = te.user_id LEFT JOIN ACCOUNT a ON a.user_id = te.user_id WHERE r.patient_id = :patientId AND r.id IN (:regimenIds) ORDER BY tst.time DESC",
         "replacements": {
-          "patientId": 7
+          "patientId": 7,
+          "regimenIds": [
+            99,
+            98,
+            97
+          ]
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT o.treatment_id AS treatmentId, s.id AS id, s.type AS surgeryType, s.start, s.end, s.result, s.surgeon, s.note, s.urgency FROM SURGERY s JOIN PROCEDURE_ pr ON pr.order_id = s.id JOIN `ORDER` o ON o.id = pr.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id WHERE r.patient_id = :patientId AND r.id IN (:regimenIds) ORDER BY s.start DESC",
+        "replacements": {
+          "patientId": 7,
+          "regimenIds": [
+            99,
+            98,
+            97
+          ]
         },
         "type": "SELECT",
         "tx": null
@@ -2777,47 +2796,78 @@
         "tx": null
       },
       {
-        "sql": "SELECT t.regimen_id AS regimenId, tr.order_id AS orderId, tr.reason, tr.time AS transferAt, tr.note, ht.to_id AS toHospitalId, ht.to_name AS toHospitalName, ht.transport, ht.form_payload AS formPayload FROM TREATMENT t JOIN `ORDER` o ON o.treatment_id = t.id JOIN TRANSFERENCE tr ON tr.order_id = o.id INNER JOIN HOSPITAL_TRANSFERENCE ht ON ht.transference_id = tr.order_id WHERE t.regimen_id IN (99,98,97) ORDER BY tr.time ASC",
-        "replacements": null,
-        "type": "SELECT",
-        "tx": null
-      },
-      {
-        "sql": "SELECT t.id AS treatmentId, t.regimen_id AS regimenId, t.time AS visitAt, t.type AS department, t.`condition` AS complaint, dis.icd_code AS icd10, dis.description AS interpretation, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), acc.username, CONCAT('doctor#', d.user_id)) AS doctorName, cr.name AS roomName FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DISEASE dis ON dis.id = r.disease_id LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id LEFT JOIN `USER` u ON u.id = d.user_id LEFT JOIN ACCOUNT acc ON acc.user_id = d.user_id LEFT JOIN CLINIC_ROOM cr ON cr.id = t.room_id WHERE r.patient_id = :patientId AND r.id IN (99,98,97) ORDER BY t.time ASC",
+        "sql": "SELECT t.regimen_id AS regimenId, tr.order_id AS orderId, tr.reason, tr.time AS transferAt, tr.note, ht.to_id AS toHospitalId, ht.to_name AS toHospitalName, ht.transport, ht.form_payload AS formPayload FROM TREATMENT t JOIN `ORDER` o ON o.treatment_id = t.id JOIN TRANSFERENCE tr ON tr.order_id = o.id INNER JOIN HOSPITAL_TRANSFERENCE ht ON ht.transference_id = tr.order_id WHERE t.regimen_id IN (:regimenIds) ORDER BY tr.time ASC",
         "replacements": {
-          "patientId": 7
+          "regimenIds": [
+            99,
+            98,
+            97
+          ]
         },
         "type": "SELECT",
         "tx": null
       },
       {
-        "sql": "SELECT o.treatment_id AS treatmentId, rx.order_id AS orderId, rx.time AS prescribedAt, pd.no AS medNo, m.name, pd.quantity, pd.`usage` AS frequency, pd.unit, COALESCE(pd.duration, 7) AS lineDuration FROM MEDICAL_PRESCRIPTION rx JOIN `ORDER` o ON o.id = rx.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id LEFT JOIN MEDICINE m ON m.id = pd.medicine_id WHERE r.patient_id = :patientId AND r.id IN (99,98,97) ORDER BY rx.time DESC, pd.no ASC",
+        "sql": "SELECT t.id AS treatmentId, t.regimen_id AS regimenId, t.time AS visitAt, t.type AS department, t.`condition` AS complaint, dis.icd_code AS icd10, dis.description AS interpretation, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), acc.username, CONCAT('doctor#', d.user_id)) AS doctorName, cr.name AS roomName FROM TREATMENT t JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DISEASE dis ON dis.id = r.disease_id LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id LEFT JOIN `USER` u ON u.id = d.user_id LEFT JOIN ACCOUNT acc ON acc.user_id = d.user_id LEFT JOIN CLINIC_ROOM cr ON cr.id = t.room_id WHERE r.patient_id = :patientId AND r.id IN (:regimenIds) ORDER BY t.time ASC",
         "replacements": {
-          "patientId": 7
+          "patientId": 7,
+          "regimenIds": [
+            99,
+            98,
+            97
+          ]
         },
         "type": "SELECT",
         "tx": null
       },
       {
-        "sql": "SELECT o.treatment_id AS treatmentId, tst.id AS testId, tst.time AS testAt, tst.type AS testType, tst.result AS resultSummary, tst.note, tst.attachment_url AS fileUrl, COALESCE( NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), a.username ) AS technicianName FROM TEST tst JOIN `ORDER` o ON o.id = tst.id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN PROCEDURE_ p ON p.order_id = tst.id LEFT JOIN TECHNICIAN te ON te.technician_id = COALESCE(tst.technician_id, p.technician_id) LEFT JOIN `USER` u ON u.id = te.user_id LEFT JOIN ACCOUNT a ON a.user_id = te.user_id WHERE r.patient_id = :patientId AND r.id IN (99,98,97) ORDER BY tst.time DESC",
+        "sql": "SELECT o.treatment_id AS treatmentId, rx.order_id AS orderId, rx.time AS prescribedAt, rx.note AS prescriptionNote, COALESCE(rx.duration, 7) AS prescriptionDuration, pd.no AS medNo, m.name, pd.quantity, pd.`usage` AS usageText, pd.unit, pd.note AS medNote, COALESCE(pd.duration, 7) AS lineDuration FROM MEDICAL_PRESCRIPTION rx JOIN `ORDER` o ON o.id = rx.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id LEFT JOIN MEDICINE m ON m.id = pd.medicine_id WHERE r.patient_id = :patientId AND r.id IN (:regimenIds) ORDER BY rx.time DESC, pd.no ASC",
         "replacements": {
-          "patientId": 7
+          "patientId": 7,
+          "regimenIds": [
+            99,
+            98,
+            97
+          ]
         },
         "type": "SELECT",
         "tx": null
       },
       {
-        "sql": "SELECT o.treatment_id AS treatmentId, s.id AS orderId, s.type AS surgeryType, s.start, s.end, s.result, s.surgeon, s.note, s.urgency FROM SURGERY s JOIN PROCEDURE_ pr ON pr.order_id = s.id JOIN `ORDER` o ON o.id = pr.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id WHERE r.patient_id = :patientId AND r.id IN (99,98,97) ORDER BY s.start DESC",
+        "sql": "SELECT o.treatment_id AS treatmentId, tst.id AS id, tst.time AS testAt, tst.type AS testType, tst.result AS resultSummary, tst.note, tst.attachment_url AS fileUrl, COALESCE( NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''), ' ', COALESCE(u.last_name,''))), ''), a.username ) AS technicianName FROM TEST tst JOIN `ORDER` o ON o.id = tst.id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN PROCEDURE_ p ON p.order_id = tst.id LEFT JOIN TECHNICIAN te ON te.technician_id = COALESCE(tst.technician_id, p.technician_id) LEFT JOIN `USER` u ON u.id = te.user_id LEFT JOIN ACCOUNT a ON a.user_id = te.user_id WHERE r.patient_id = :patientId AND r.id IN (:regimenIds) ORDER BY tst.time DESC",
         "replacements": {
-          "patientId": 7
+          "patientId": 7,
+          "regimenIds": [
+            99,
+            98,
+            97
+          ]
         },
         "type": "SELECT",
         "tx": null
       },
       {
-        "sql": "SELECT o.treatment_id AS treatmentId, rx.order_id AS orderId, rx.time AS prescribedAt, pd.no AS medNo, m.name, pd.quantity, pd.`usage` AS frequency, pd.unit FROM MEDICAL_PRESCRIPTION rx JOIN `ORDER` o ON o.id = rx.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id LEFT JOIN MEDICINE m ON m.id = pd.medicine_id WHERE r.patient_id = :patientId AND r.id IN (99,98,97) ORDER BY rx.time DESC, pd.no ASC",
+        "sql": "SELECT o.treatment_id AS treatmentId, s.id AS id, s.type AS surgeryType, s.start, s.end, s.result, s.surgeon, s.note, s.urgency FROM SURGERY s JOIN PROCEDURE_ pr ON pr.order_id = s.id JOIN `ORDER` o ON o.id = pr.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id WHERE r.patient_id = :patientId AND r.id IN (:regimenIds) ORDER BY s.start DESC",
         "replacements": {
-          "patientId": 7
+          "patientId": 7,
+          "regimenIds": [
+            99,
+            98,
+            97
+          ]
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT o.treatment_id AS treatmentId, rx.order_id AS orderId, rx.time AS prescribedAt, rx.note AS prescriptionNote, pd.no AS medNo, m.name, pd.quantity, pd.`usage` AS usageText, pd.unit, pd.note AS medNote FROM MEDICAL_PRESCRIPTION rx JOIN `ORDER` o ON o.id = rx.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id LEFT JOIN MEDICINE m ON m.id = pd.medicine_id WHERE r.patient_id = :patientId AND r.id IN (:regimenIds) ORDER BY rx.time DESC, pd.no ASC",
+        "replacements": {
+          "patientId": 7,
+          "regimenIds": [
+            99,
+            98,
+            97
+          ]
         },
         "type": "SELECT",
         "tx": null
@@ -2848,8 +2898,14 @@
         "tx": null
       },
       {
-        "sql": "SELECT t.regimen_id AS regimenId, tr.order_id AS orderId, tr.reason, tr.time AS transferAt, tr.note, ht.to_id AS toHospitalId, ht.to_name AS toHospitalName, ht.transport, ht.form_payload AS formPayload FROM TREATMENT t JOIN `ORDER` o ON o.treatment_id = t.id JOIN TRANSFERENCE tr ON tr.order_id = o.id INNER JOIN HOSPITAL_TRANSFERENCE ht ON ht.transference_id = tr.order_id WHERE t.regimen_id IN (99,98,97) ORDER BY tr.time ASC",
-        "replacements": null,
+        "sql": "SELECT t.regimen_id AS regimenId, tr.order_id AS orderId, tr.reason, tr.time AS transferAt, tr.note, ht.to_id AS toHospitalId, ht.to_name AS toHospitalName, ht.transport, ht.form_payload AS formPayload FROM TREATMENT t JOIN `ORDER` o ON o.treatment_id = t.id JOIN TRANSFERENCE tr ON tr.order_id = o.id INNER JOIN HOSPITAL_TRANSFERENCE ht ON ht.transference_id = tr.order_id WHERE t.regimen_id IN (:regimenIds) ORDER BY tr.time ASC",
+        "replacements": {
+          "regimenIds": [
+            99,
+            98,
+            97
+          ]
+        },
         "type": "SELECT",
         "tx": null
       }
@@ -2863,20 +2919,12 @@
     },
     "db": [
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :v OR patient_id = :v LIMIT 1",
         "replacements": {
           "v": 70
         },
         "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "event": "rollback",
-        "tx": "tx1"
+        "tx": null
       }
     ]
   },
@@ -2888,15 +2936,15 @@
     },
     "db": [
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :v OR patient_id = :v LIMIT 1",
         "replacements": {
           "v": 70
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -2945,28 +2993,12 @@
     },
     "db": [
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :v OR patient_id = :v LIMIT 1",
         "replacements": {
           "v": 70
         },
         "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "sql": "SELECT doctor_id FROM DOCTOR WHERE user_id = :userId LIMIT 1",
-        "replacements": {
-          "userId": 41
-        },
-        "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "event": "rollback",
-        "tx": "tx1"
+        "tx": null
       }
     ]
   },
@@ -2978,28 +3010,12 @@
     },
     "db": [
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :v OR patient_id = :v LIMIT 1",
         "replacements": {
           "v": 70
         },
         "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "sql": "SELECT doctor_id FROM DOCTOR WHERE user_id = :userId LIMIT 1",
-        "replacements": {
-          "userId": 41
-        },
-        "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "event": "rollback",
-        "tx": "tx1"
+        "tx": null
       }
     ]
   },
@@ -3011,28 +3027,12 @@
     },
     "db": [
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :v OR patient_id = :v LIMIT 1",
         "replacements": {
           "v": 70
         },
         "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "sql": "SELECT doctor_id FROM DOCTOR WHERE user_id = :userId LIMIT 1",
-        "replacements": {
-          "userId": 41
-        },
-        "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "event": "rollback",
-        "tx": "tx1"
+        "tx": null
       }
     ]
   },
@@ -3044,28 +3044,12 @@
     },
     "db": [
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :v OR patient_id = :v LIMIT 1",
         "replacements": {
           "v": 70
         },
         "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "sql": "SELECT doctor_id FROM DOCTOR WHERE user_id = :userId LIMIT 1",
-        "replacements": {
-          "userId": 41
-        },
-        "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "event": "rollback",
-        "tx": "tx1"
+        "tx": null
       }
     ]
   },
@@ -3100,15 +3084,15 @@
         "tx": null
       },
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :v OR patient_id = :v LIMIT 1",
         "replacements": {
           "v": 70
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -3250,15 +3234,15 @@
     },
     "db": [
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :v OR patient_id = :v LIMIT 1",
         "replacements": {
           "v": 70
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -3381,100 +3365,12 @@
     },
     "db": [
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :v OR patient_id = :v LIMIT 1",
         "replacements": {
           "v": 70
         },
         "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "sql": "SELECT doctor_id FROM DOCTOR WHERE user_id = :userId LIMIT 1",
-        "replacements": {
-          "userId": 41
-        },
-        "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "sql": "SELECT id FROM DISEASE WHERE icd_code = :icd LIMIT 1",
-        "replacements": {
-          "icd": "Z75.1"
-        },
-        "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "sql": "SELECT id FROM REGIMEN WHERE patient_id = :patientId AND `end` IS NULL ORDER BY id DESC LIMIT 1",
-        "replacements": {
-          "patientId": 7
-        },
-        "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "sql": "SELECT cr.department_id AS deptId FROM APPOINTMENT a JOIN CLINIC_ROOM cr ON cr.id = a.room_id WHERE a.patient_id = :patientId AND cr.department_id IS NOT NULL ORDER BY a.time DESC, a.id DESC LIMIT 1",
-        "replacements": {
-          "patientId": 7
-        },
-        "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "sql": "SELECT cr.department_id AS deptId FROM DOCTOR d LEFT JOIN CLINIC_ROOM cr ON cr.id = d.room_id WHERE d.doctor_id = :doctorId LIMIT 1",
-        "replacements": {
-          "doctorId": 5
-        },
-        "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "sql": "SELECT dd.department_id AS deptId FROM DOCTOR_DEPARTMENT dd WHERE dd.doctor_id = :doctorId ORDER BY dd.department_id ASC LIMIT 1",
-        "replacements": {
-          "doctorId": 5
-        },
-        "type": "SELECT",
-        "tx": "tx1"
-      },
-      {
-        "sql": "INSERT INTO TREATMENT (time, `condition`, type, regimen_id, doctor_id, room_id, dept_id) VALUES (NOW(), :complaint, :type, :regimenId, :doctorId, :roomId, :deptId)",
-        "replacements": {
-          "complaint": "ICU",
-          "type": "Hospital transfer",
-          "regimenId": 99,
-          "doctorId": 5,
-          "deptId": null,
-          "roomId": null
-        },
-        "type": "INSERT",
-        "tx": "tx1"
-      },
-      {
-        "sql": "INSERT INTO `ORDER` (status, treatment_id) VALUES (:status, :treatmentId)",
-        "replacements": {
-          "status": "active",
-          "treatmentId": 501
-        },
-        "type": "INSERT",
-        "tx": "tx1"
-      },
-      {
-        "sql": "INSERT INTO TRANSFERENCE (order_id, reason, time, note) VALUES (:orderId, :reason, NOW(), :note)",
-        "replacements": {
-          "orderId": 601,
-          "reason": "ICU",
-          "note": null
-        },
-        "type": "INSERT",
-        "tx": "tx1"
-      },
-      {
-        "event": "rollback",
-        "tx": "tx1"
+        "tx": null
       }
     ]
   },
@@ -3493,15 +3389,15 @@
     },
     "db": [
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :v OR patient_id = :v LIMIT 1",
         "replacements": {
           "v": 70
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -3617,15 +3513,15 @@
     },
     "db": [
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :v OR patient_id = :v LIMIT 1",
         "replacements": {
           "v": 70
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -3734,15 +3630,15 @@
     },
     "db": [
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :v OR patient_id = :v LIMIT 1",
         "replacements": {
           "v": 70
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {
@@ -3837,15 +3733,15 @@
     },
     "db": [
       {
-        "event": "begin",
-        "tx": "tx1"
-      },
-      {
         "sql": "SELECT patient_id FROM PATIENT WHERE user_id = :v OR patient_id = :v LIMIT 1",
         "replacements": {
           "v": 70
         },
         "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "begin",
         "tx": "tx1"
       },
       {

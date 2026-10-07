@@ -1,3 +1,5 @@
+const { QueryTypes } = require('sequelize');
+const sequelize = require('../common/database');
 const MedicalRecord = require('../models/MedicalRecord');
 
 /** The patient's most recent MEDICAL_RECORD (vital signs snapshot), or null. */
@@ -37,4 +39,15 @@ async function destroy(record) {
   await record.destroy();
 }
 
-module.exports = { findLatestForPatient, listForPatient, findForPatient, create, update, destroy };
+/** Vital-sign rows (raw columns) of the patient among `ids`, oldest first. */
+async function listVitalsByIds(patientId, ids) {
+  return sequelize.query(
+    `SELECT id, time, \`condition\`, blood_pressure, heart_rate, temperature, weight, respiratory_rate, spo2
+     FROM MEDICAL_RECORD
+     WHERE patient_id = :patientId AND id IN (:recordIds)
+     ORDER BY time ASC`,
+    { replacements: { patientId, recordIds: ids }, type: QueryTypes.SELECT }
+  );
+}
+
+module.exports = { findLatestForPatient, listForPatient, findForPatient, create, update, destroy, listVitalsByIds };

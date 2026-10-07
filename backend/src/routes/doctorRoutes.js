@@ -37,6 +37,7 @@ router.get('/departments', catalogController.getDepartments);
 router.get('/dashboard/summary', dashboardController.getDashboardSummary);
 
 // ─── Patients ───
+const addDocumentGuard = authorizeCapability('doctor.emr.write', { message: 'Only a doctor can add this document' });
 router.get('/patients', patientController.getPatients);
 router.get('/patients/:patientId', patientController.getPatient);
 router.get(
@@ -48,9 +49,13 @@ router.get(
 router.get('/patients/:patientId/regimen/active', regimenController.getActiveRegimenForPatient);
 router.get('/patients/:patientId/regimen/active/documents', regimenController.getActiveRegimenDocumentsForPatient);
 router.get('/patients/:patientId/medical-regimens', regimenController.getPatientMedicalRegimensForDoctor);
-router.post('/patients/:patientId/regimen/close', regimenController.closeOpenRegimenForPatient);
-router.post('/patients/:patientId/health-tracking-slips', regimenController.createHealthTrackingSlipForPatient);
-router.post('/patients/:patientId/follow-up-reexam-slip', regimenController.createFollowUpReexamSlipForPatient);
+router.post(
+  '/patients/:patientId/regimen/close',
+  authorizeCapability('doctor.emr.write', { message: 'Only a doctor can finish the examination' }),
+  regimenController.closeOpenRegimenForPatient
+);
+router.post('/patients/:patientId/health-tracking-slips', addDocumentGuard, regimenController.createHealthTrackingSlipForPatient);
+router.post('/patients/:patientId/follow-up-reexam-slip', addDocumentGuard, regimenController.createFollowUpReexamSlipForPatient);
 
 // ─── Health Info ───
 router.get('/patients/:patientId/health-info', healthInfoController.getHealthInfo);

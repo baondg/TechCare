@@ -123,21 +123,6 @@
           }
         ],
         "tx": null
-      },
-      {
-        "event": "User.findOne",
-        "where": {
-          "id": 70
-        },
-        "include": [
-          {
-            "model": "Patient",
-            "attributes": [
-              "patient_id"
-            ]
-          }
-        ],
-        "tx": null
       }
     ]
   },
@@ -202,21 +187,6 @@
           }
         ],
         "tx": null
-      },
-      {
-        "event": "User.findOne",
-        "where": {
-          "id": 70
-        },
-        "include": [
-          {
-            "model": "Patient",
-            "attributes": [
-              "patient_id"
-            ]
-          }
-        ],
-        "tx": null
       }
     ]
   },
@@ -262,21 +232,6 @@
               "sex",
               "tel",
               "email"
-            ]
-          }
-        ],
-        "tx": null
-      },
-      {
-        "event": "User.findOne",
-        "where": {
-          "id": 70
-        },
-        "include": [
-          {
-            "model": "Patient",
-            "attributes": [
-              "patient_id"
             ]
           }
         ],

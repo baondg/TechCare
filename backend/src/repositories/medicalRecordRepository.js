@@ -39,6 +39,11 @@ async function destroy(record) {
   await record.destroy();
 }
 
+/** Deletes the patient's records among `ids`; returns how many were deleted. */
+async function destroyForPatient(patientId, ids) {
+  return MedicalRecord.destroy({ where: { patient_id: patientId, id: ids } });
+}
+
 /** Vital-sign rows (raw columns) of the patient among `ids`, oldest first. */
 async function listVitalsByIds(patientId, ids) {
   return sequelize.query(
@@ -50,4 +55,4 @@ async function listVitalsByIds(patientId, ids) {
   );
 }
 
-module.exports = { findLatestForPatient, listForPatient, findForPatient, create, update, destroy, listVitalsByIds };
+module.exports = { findLatestForPatient, listForPatient, findForPatient, create, update, destroy, destroyForPatient, listVitalsByIds };

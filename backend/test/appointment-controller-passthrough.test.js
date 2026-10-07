@@ -1,7 +1,7 @@
 /**
  * controllers/appointmentController.js only maps HTTP to the appointment services. For every handler:
- * the service is stubbed, the request fields it should receive are checked, its `{ status, json }`
- * (or plain result) is sent unchanged, and a thrown error ends as a 500 without leaking its text.
+ * the service is stubbed, the request fields it should receive are checked, its result becomes the
+ * expected response, and a thrown error ends as a 500 without leaking its text.
  */
 require('./helpers/app'); // silences logs
 const test = require('node:test');
@@ -14,7 +14,6 @@ const { errorHandler } = require(path.join(DIST, 'middleware', 'errorHandler'));
 const service = (name) => require(path.join(DIST, 'services', name));
 
 const USER = { userId: 70, role: 'nurse', username: 'nur70' };
-const RESULT = { ok: true, status: 207, json: { success: true, marker: 'from-service' } };
 const PLAIN = { success: true, marker: 'plain-result' };
 const VALUE = { marker: 'service-value' };
 /** Service returns a value the controller wraps as `{ success: true, [key]: value }`. */
@@ -24,19 +23,19 @@ const spread = { status: 200, body: { success: true, ...VALUE } };
 
 /**
  * [handler, service module, method, request, expected service args (from the stub's arguments),
- *  kind: 'result' (service answers {status,json}) | 'plain' (body sent as 200 JSON)
- *        | { status, body } (service answers VALUE, the controller builds the response)]
+ *  expected: 'plain' (the service's body is sent as 200 JSON)
+ *            | { status, body } (the service answers VALUE, the controller builds the response)]
  */
 const CASES = [
   ['getFeedbacks', 'appointmentFeedbackService', 'listForUser', {}, [70], 'plain'],
   ['getVisibleFeedbacks', 'appointmentFeedbackService', 'listVisible', {}, [], 'plain'],
   ['createFeedback', 'appointmentFeedbackService', 'create', { body: { rating: 5 } }, [{ userId: 70, body: { rating: 5 } }], wrapped(201, 'feedback')],
   ['getPortalPatients', 'appointmentPatientPortalService', 'getPortalPatients', {}, [], 'plain'],
-  ['getAiRecommendations', 'appointmentAiService', 'getAiRecommendations', {}, [70], 'plain'],
-  ['updateAiRecommendationFeedback', 'appointmentAiService', 'patchAiRecommendationFeedback', { params: { id: '9' }, body: { useful: true } }, [70, '9', { useful: true }], 'result'],
-  ['chatWithAiAndSave', 'appointmentAiService', 'chatWithAiAndSave', { body: { message: 'hi' } }, ['<req>', 70, { message: 'hi' }], 'result'],
-  ['getAiChatModels', 'appointmentAiService', 'listAiChatModels', {}, [], 'result'],
-  ['analyzeSymptomsAndSave', 'appointmentAiService', 'analyzeSymptomsAndSave', { body: { symptoms: [] } }, ['<req>', 70, { symptoms: [] }], 'result'],
+  ['getAiRecommendations', 'appointmentAiService', 'getAiRecommendations', {}, [70], wrapped(200, 'recommendations')],
+  ['updateAiRecommendationFeedback', 'appointmentAiService', 'patchAiRecommendationFeedback', { params: { id: '9' }, body: { useful: true } }, [70, '9', { useful: true }], spread],
+  ['chatWithAiAndSave', 'appointmentAiService', 'chatWithAiAndSave', { body: { message: 'hi' } }, ['<req>', 70, { message: 'hi' }], spread],
+  ['getAiChatModels', 'appointmentAiService', 'listAiChatModels', {}, [], wrapped(200, 'models')],
+  ['analyzeSymptomsAndSave', 'appointmentAiService', 'analyzeSymptomsAndSave', { body: { symptoms: [] } }, ['<req>', 70, { symptoms: [] }], spread],
   ['getDoctors', 'appointmentCatalogService', 'getDoctors', {}, [], wrapped(200, 'doctors')],
   ['getClinicRooms', 'appointmentCatalogService', 'getClinicRooms', {}, [], wrapped(200, 'rooms')],
   ['getDepartments', 'appointmentCatalogService', 'getDepartments', {}, [], wrapped(200, 'departments')],
@@ -90,14 +89,12 @@ async function run(handler, reqFields) {
 for (const [name, mod, method, reqFields, expectedArgs, kind] of CASES) {
   test(`${name}: passes the service result through`, async (t) => {
     const svc = service(mod);
-    const answer = kind === 'plain' ? PLAIN : kind === 'result' ? RESULT : VALUE;
+    const answer = kind === 'plain' ? PLAIN : VALUE;
     const stub = t.mock.method(svc, method, async () => answer);
     const out = await run(controller[name], reqFields);
     const args = stub.mock.calls[0].arguments.map((a) => (a && a.user === USER ? '<req>' : a));
     assert.deepEqual(args, expectedArgs);
-    const expected =
-      kind === 'plain' ? { status: 200, body: PLAIN } : kind === 'result' ? { status: RESULT.status, body: RESULT.json } : kind;
-    assert.deepEqual(out, expected);
+    assert.deepEqual(out, kind === 'plain' ? { status: 200, body: PLAIN } : kind);
   });
 
   test(`${name}: a thrown error is a generic 500`, async (t) => {
@@ -119,11 +116,11 @@ test('getRecoveryPrediction: own patient, refresh flag, 404 without a PATIENT ro
   const patients = service('appointmentPatientService');
   const ai = service('appointmentAiService');
   t.mock.method(patients, 'getPatientPkForUserId', async (uid) => (uid === 70 ? 7 : null));
-  const predict = t.mock.method(ai, 'recoveryPredictionForPatient', async () => RESULT);
+  const predict = t.mock.method(ai, 'recoveryPredictionForPatient', async () => PLAIN);
 
   for (const [refresh, expected] of [['1', true], ['TRUE', true], ['0', false], [undefined, false]]) {
     const out = await run(controller.getRecoveryPrediction, { query: { refresh } });
-    assert.deepEqual(out, { status: RESULT.status, body: RESULT.json });
+    assert.deepEqual(out, { status: 200, body: PLAIN });
     assert.deepEqual(predict.mock.calls.at(-1).arguments.slice(1), [7, expected]);
   }
   const missing = await run(controller.getRecoveryPrediction, { user: { ...USER, userId: 80 } });
@@ -135,10 +132,10 @@ test('getStaffPatientRecoveryPrediction: OP / numeric route id, 400 / 404', asyn
   const patients = service('appointmentPatientService');
   const ai = service('appointmentAiService');
   const byRoute = t.mock.method(patients, 'getPatientPkFromRouteId', async (id) => (id === 70 ? 7 : null));
-  const predict = t.mock.method(ai, 'recoveryPredictionForPatient', async () => RESULT);
+  const predict = t.mock.method(ai, 'recoveryPredictionForPatient', async () => PLAIN);
 
   const ok = await run(controller.getStaffPatientRecoveryPrediction, { params: { patientId: 'OP0070' }, query: { refresh: 'true' } });
-  assert.deepEqual(ok, { status: RESULT.status, body: RESULT.json });
+  assert.deepEqual(ok, { status: 200, body: PLAIN });
   assert.deepEqual(byRoute.mock.calls[0].arguments, [70]);
   assert.deepEqual(predict.mock.calls[0].arguments.slice(1), [7, true]);
 

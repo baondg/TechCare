@@ -4,6 +4,7 @@ const { INTERNAL_API_SECRET_HEADER } = require('../middleware/requireInternalApi
 const { normalizeSymptomsForAi } = require('../lib/symptomNormalize');
 const logger = require('../common/logger');
 const { config } = require('../config/env');
+const { AppError, BadRequestError, NotFoundError } = require('../errors/AppError');
 
 const MEDAI_CHAT_ENDPOINT = config.ai.endpoints.chat;
 const MEDAI_SYMPTOM_ENDPOINT = config.ai.endpoints.symptom;
@@ -241,15 +242,33 @@ async function getAiModelById(id) {
   return appointmentAiRepository.selectAiModelById(modelId);
 }
 
+const NO_MODEL_MESSAGE = 'No AI model configured in AI_MODEL table';
+
+/** Upstream (MedAI) failure shown to the patient with a fixed text; details go to the log only. */
+const upstreamError = (status, message) => new AppError(message, status, { expose: true });
+
+async function requirePatientId(userId) {
+  const patientId = await appointmentRepository.findPatientIdByUserId(userId);
+  if (!patientId) throw new NotFoundError('Patient profile not found');
+  return patientId;
+}
+
+async function requireActiveModel() {
+  const model = await getActiveAiModel();
+  if (!model?.id) throw new BadRequestError(NO_MODEL_MESSAGE);
+  return model;
+}
+
+const modelSummary = (model) => ({ id: Number(model.id), name: model.name || '', provider: model.provider || '' });
+
 async function getLatestTreatmentIdByPatientId(patientId) {
   return appointmentAiRepository.selectLatestTreatmentIdForPatient(patientId);
 }
 
+/** The signed-in patient's AI recommendations (none without a PATIENT row). */
 async function getAiRecommendations(userId) {
   const patientId = await appointmentRepository.findPatientIdByUserId(userId);
-  if (!patientId) {
-    return { success: true, recommendations: [] };
-  }
+  if (!patientId) return [];
 
   const rows = await appointmentAiRepository.listAiRecommendationsForPatient(patientId);
 
@@ -263,44 +282,32 @@ async function getAiRecommendations(userId) {
     treatmentId: r.treatmentId ?? null,
     feedback: r.feedback || null,
   }));
-
-  return { success: true, recommendations };
+  return recommendations;
 }
 
-/**
- * @returns {{ status: number, json: object }}
- */
+/** Stores the patient's feedback on one of their recommendations (id / feedback checked by the route validator). */
 async function patchAiRecommendationFeedback(userId, id, body) {
-  const patientId = await appointmentRepository.findPatientIdByUserId(userId);
+  const patientId = await requirePatientId(userId);
   const recId = Number(id);
-  const feedback = String(body?.feedback || '').trim();
-
-  if (!patientId) return { status: 404, json: { success: false, message: 'Patient profile not found' } };
-  if (!Number.isFinite(recId)) return { status: 400, json: { success: false, message: 'Invalid recommendation id' } };
-  if (!feedback) return { status: 400, json: { success: false, message: 'Feedback is required' } };
-
-  const exists = await appointmentAiRepository.selectAiRecommendationIdForPatient(recId, patientId);
-  if (!exists) return { status: 404, json: { success: false, message: 'Recommendation not found' } };
-
+  const feedback = String(body.feedback).trim();
+  if (!(await appointmentAiRepository.selectAiRecommendationIdForPatient(recId, patientId))) {
+    throw new NotFoundError('Recommendation not found');
+  }
   await appointmentAiRepository.updateAiRecommendationFeedback(recId, feedback);
-
-  return { status: 200, json: { success: true, id: recId, feedback } };
+  return { id: recId, feedback };
 }
 
 /**
- * @returns {{ status: number, json: object }}
+ * Patient chat turn through the internal MedAI chat endpoint with the chosen (else active) model;
+ * the turn and the reply (as a 'chatbot' recommendation) are saved. `userMessage` / `messages`
+ * are checked by the route validator.
  */
 async function chatWithAiAndSave(req, userId, body) {
-  const patientId = await appointmentRepository.findPatientIdByUserId(userId);
-  if (!patientId) return { status: 404, json: { success: false, message: 'Patient profile not found' } };
+  const patientId = await requirePatientId(userId);
+  const userMessage = String(body.userMessage).trim();
+  const messages = Array.isArray(body.messages) ? body.messages : [];
 
-  const userMessage = String(body?.userMessage || '').trim();
-  const messages = Array.isArray(body?.messages) ? body.messages : [];
-  if (!userMessage) {
-    return { status: 400, json: { success: false, message: 'userMessage is required' } };
-  }
-
-  const selectedModelIdRaw = body?.modelId;
+  const selectedModelIdRaw = body.modelId;
   let model = null;
   let modelFallbackReason = '';
   if (selectedModelIdRaw !== undefined && selectedModelIdRaw !== null && String(selectedModelIdRaw).trim() !== '') {
@@ -312,9 +319,7 @@ async function chatWithAiAndSave(req, userId, body) {
   } else {
     model = await getActiveAiModel();
   }
-  if (!model?.id) {
-    return { status: 400, json: { success: false, message: 'No AI model configured in AI_MODEL table' } };
-  }
+  if (!model?.id) throw new BadRequestError(NO_MODEL_MESSAGE);
 
   const payload = {
     messages: [...messages.filter((m) => m && m.role && m.content), { role: 'user', content: userMessage }],
@@ -340,37 +345,23 @@ async function chatWithAiAndSave(req, userId, body) {
       headers: internalAiFetchHeaders(),
       body: JSON.stringify(payload),
     });
-  } catch (upstreamError) {
-    return {
-      status: 502,
-      json: {
-        success: false,
-        message: `Cannot connect to AI service at ${MEDAI_CHAT_ENDPOINT}`,
-        error: 'Unknown upstream error',
-      },
-    };
+  } catch (upstreamFailure) {
+    logger.error({ err: upstreamFailure }, `[chatWithAiAndSave] Cannot reach ${MEDAI_CHAT_ENDPOINT}`);
+    throw upstreamError(502, `Cannot connect to AI service at ${MEDAI_CHAT_ENDPOINT}`);
   }
 
   const aiData = await aiResp.json().catch(() => ({}));
   if (!aiResp.ok) {
-    return {
-      status: 502,
-      json: {
-        success: false,
-        message: aiData?.message || aiData?.error || 'AI service returned an error',
-      },
-    };
+    logger.error({ upstreamStatus: aiResp.status, endpoint: MEDAI_CHAT_ENDPOINT }, '[chatWithAiAndSave] Upstream error from medAI');
+    throw upstreamError(502, aiData?.message || aiData?.error || 'AI service returned an error');
   }
   const reply = String(aiData.reply || aiData.message || '').trim();
-  if (!reply) {
-    return { status: 502, json: { success: false, message: 'AI chatbot returned empty response' } };
-  }
+  if (!reply) throw upstreamError(502, 'AI chatbot returned empty response');
   const aiFallback = Boolean(aiData.fallback);
   const aiHint = aiFallback ? String(aiData.hint || '').trim() : '';
 
   const now = new Date();
   const treatmentId = await getLatestTreatmentIdByPatientId(patientId);
-
   await appointmentAiRepository.insertChatTurn({
     question: userMessage,
     askTime: now,
@@ -379,7 +370,6 @@ async function chatWithAiAndSave(req, userId, body) {
     patientId,
     modelId: model.id,
   });
-
   const [recommendationId] = await appointmentAiRepository.insertAiRecommendation({
     time: now,
     modelId: model.id,
@@ -390,55 +380,34 @@ async function chatWithAiAndSave(req, userId, body) {
   });
 
   return {
-    status: 200,
-    json: {
-      success: true,
-      message: reply,
-      recommendationId: Number(recommendationId),
-      model: { id: Number(model.id), name: model.name || '', provider: model.provider || '' },
-      aiFallback,
-      aiHint: aiHint || undefined,
-      ...(modelFallbackReason ? { modelFallbackReason } : {}),
-    },
+    message: reply,
+    recommendationId: Number(recommendationId),
+    model: modelSummary(model),
+    aiFallback,
+    aiHint: aiHint || undefined,
+    ...(modelFallbackReason ? { modelFallbackReason } : {}),
   };
 }
 
+/** AI_MODEL rows the chat UI can offer. */
 async function listAiChatModels() {
   const models = await appointmentAiRepository.listAiModelsOrdered();
-  return {
-    status: 200,
-    json: {
-      success: true,
-      models: (models || []).map((m) => ({
-        id: Number(m.id),
-        name: m.name || `Model #${m.id}`,
-        provider: m.provider || '',
-        status: m.status || '',
-      })),
-    },
-  };
+  return (models || []).map((m) => ({
+    id: Number(m.id),
+    name: m.name || `Model #${m.id}`,
+    provider: m.provider || '',
+    status: m.status || '',
+  }));
 }
 
 /**
- * @returns {{ status: number, json: object }}
+ * Symptom checker: sends the normalized symptoms (validated by the route) with the patient's context
+ * to MedAI and saves the result as a 'symptomchecker' recommendation.
  */
 async function analyzeSymptomsAndSave(req, userId, body) {
-  const patientId = await appointmentRepository.findPatientIdByUserId(userId);
-  if (!patientId) return { status: 404, json: { success: false, message: 'Patient profile not found' } };
-
-  const rawSymptoms = Array.isArray(body?.symptoms) ? body.symptoms : [];
-  const symptoms = normalizeSymptomsForAi(rawSymptoms);
-  if (!symptoms.length) {
-    return {
-      status: 400,
-      json: { success: false, message: 'No valid symptoms after normalization' },
-    };
-  }
-
-  const model = await getActiveAiModel();
-  if (!model?.id) {
-    return { status: 400, json: { success: false, message: 'No AI model configured in AI_MODEL table' } };
-  }
+  const patientId = await requirePatientId(userId);
+  const symptoms = normalizeSymptomsForAi(body.symptoms);
+  const model = await requireActiveModel();
 
   const patientContext = await buildPatientContextForSymptomAnalysis(patientId);
 
@@ -458,19 +427,9 @@ async function analyzeSymptomsAndSave(req, userId, body) {
       headers: internalAiFetchHeaders(),
       body: JSON.stringify({ symptoms, patientContext }),
     });
-  } catch (upstreamError) {
-    logger.error(
-      { err: upstreamError },
-      `[analyzeSymptomsAndSave] Cannot reach ${MEDAI_SYMPTOM_ENDPOINT}`
-    );
-    return {
-      status: 503,
-      json: {
-        success: false,
-        message: SYMPTOM_AI_UNAVAILABLE_MSG,
-        error: 'Network error',
-      },
-    };
+  } catch (upstreamFailure) {
+    logger.error({ err: upstreamFailure }, `[analyzeSymptomsAndSave] Cannot reach ${MEDAI_SYMPTOM_ENDPOINT}`);
+    throw upstreamError(503, SYMPTOM_AI_UNAVAILABLE_MSG);
   }
   const aiData = await aiResp.json().catch(() => ({}));
   if (!aiResp.ok) {
@@ -483,18 +442,7 @@ async function analyzeSymptomsAndSave(req, userId, body) {
       },
       '[analyzeSymptomsAndSave] Upstream error from medAI'
     );
-    return {
-      status: 503,
-      json: {
-        success: false,
-        message: SYMPTOM_AI_UNAVAILABLE_MSG,
-        error:
-          aiData?.error ||
-          aiData?.message ||
-          `Symptom analysis service error (${aiResp.status})`,
-        hint: aiData?.hint,
-      },
-    };
+    throw upstreamError(503, SYMPTOM_AI_UNAVAILABLE_MSG);
   }
   const conditions = Array.isArray(aiData.possible_conditions) ? aiData.possible_conditions : [];
   const recommendedAction = String(aiData.recommended_action || 'Please consult a healthcare professional.');
@@ -534,32 +482,21 @@ async function analyzeSymptomsAndSave(req, userId, body) {
     patientId,
   });
 
-  return {
-    status: 200,
-    json: {
-      success: true,
-      analysis: { results, disclaimer },
-      recommendationId: Number(recommendationId),
-      model: { id: Number(model.id), name: model.name || '', provider: model.provider || '' },
-    },
-  };
+  return { analysis: { results, disclaimer }, recommendationId: Number(recommendationId), model: modelSummary(model) };
 }
 
 /**
- * Shared by patient portal and staff EMR.
- * @returns {{ status: number, json: object }}
+ * Recovery estimate for a patient (patient portal and staff EMR): the cached one (unless `refresh`)
+ * while fresh, else a new MedAI prediction saved as a 'recoveryprediction' recommendation. Returns the
+ * response body; a patient without a real diagnosis + prescription gets `{ success: false, eligible: false }`.
  */
 async function recoveryPredictionForPatient(req, patientId, refresh) {
-  const eligible = await patientMeetsRecoveryPredictionCriteria(patientId);
-  if (!eligible) {
+  if (!(await patientMeetsRecoveryPredictionCriteria(patientId))) {
     return {
-      status: 200,
-      json: {
-        success: false,
-        eligible: false,
-        message:
-          'Recovery estimates are available only with a recorded diagnosis (other than general check-up) and prescribed treatment.',
-      },
+      success: false,
+      eligible: false,
+      message:
+        'Recovery estimates are available only with a recorded diagnosis (other than general check-up) and prescribed treatment.',
     };
   }
 
@@ -581,29 +518,22 @@ async function recoveryPredictionForPatient(req, patientId, refresh) {
         if (prediction) {
           const meta = payload.aiMeta && typeof payload.aiMeta === 'object' ? payload.aiMeta : {};
           return {
-            status: 200,
-            json: {
-              success: true,
-              eligible: true,
-              cached: true,
-              recommendationId: Number(cached.id),
-              prediction,
-              model:
-                meta.model || meta.provider
-                  ? { id: null, name: String(meta.model || ''), provider: String(meta.provider || '') }
-                  : undefined,
-            },
+            success: true,
+            eligible: true,
+            cached: true,
+            recommendationId: Number(cached.id),
+            prediction,
+            model:
+              meta.model || meta.provider
+                ? { id: null, name: String(meta.model || ''), provider: String(meta.provider || '') }
+                : undefined,
           };
         }
       }
     }
   }
 
-  const model = await getActiveAiModel();
-  if (!model?.id) {
-    return { status: 400, json: { success: false, message: 'No AI model configured in AI_MODEL table' } };
-  }
-
+  const model = await requireActiveModel();
   const clinicalSummary = await buildClinicalSummaryForRecovery(patientId);
   const patientContext = await buildPatientContextForSymptomAnalysis(patientId);
 
@@ -623,19 +553,9 @@ async function recoveryPredictionForPatient(req, patientId, refresh) {
       headers: internalAiFetchHeaders(),
       body: JSON.stringify({ clinicalSummary, patientContext }),
     });
-  } catch (upstreamError) {
-    logger.error(
-      { err: upstreamError },
-      `[getRecoveryPrediction] Cannot reach ${MEDAI_RECOVERY_ENDPOINT}`
-    );
-    return {
-      status: 503,
-      json: {
-        success: false,
-        message: RECOVERY_AI_UNAVAILABLE_MSG,
-        error: 'Network error',
-      },
-    };
+  } catch (upstreamFailure) {
+    logger.error({ err: upstreamFailure }, `[getRecoveryPrediction] Cannot reach ${MEDAI_RECOVERY_ENDPOINT}`);
+    throw upstreamError(503, RECOVERY_AI_UNAVAILABLE_MSG);
   }
 
   const aiData = await aiResp.json().catch(() => ({}));
@@ -649,30 +569,13 @@ async function recoveryPredictionForPatient(req, patientId, refresh) {
       },
       '[getRecoveryPrediction] Upstream error from medAI'
     );
-    return {
-      status: 503,
-      json: {
-        success: false,
-        message: RECOVERY_AI_UNAVAILABLE_MSG,
-        error:
-          aiData?.error ||
-          aiData?.message ||
-          `Recovery prediction service error (${aiResp.status})`,
-        hint: aiData?.hint,
-      },
-    };
+    throw upstreamError(503, RECOVERY_AI_UNAVAILABLE_MSG);
   }
 
   const prediction = normalizeRecoveryPredictionPayload(aiData);
   if (!prediction) {
-    return {
-      status: 502,
-      json: {
-        success: false,
-        message: 'Invalid recovery prediction from AI service',
-        raw: JSON.stringify(aiData).slice(0, 400),
-      },
-    };
+    logger.error({ raw: JSON.stringify(aiData).slice(0, 400) }, '[getRecoveryPrediction] Unusable prediction from medAI');
+    throw upstreamError(502, 'Invalid recovery prediction from AI service');
   }
 
   const treatmentId = await getLatestTreatmentIdByPatientId(patientId);
@@ -697,15 +600,12 @@ async function recoveryPredictionForPatient(req, patientId, refresh) {
   });
 
   return {
-    status: 200,
-    json: {
-      success: true,
-      eligible: true,
-      cached: false,
-      recommendationId: Number(recommendationId),
-      prediction,
-      model: { id: Number(model.id), name: model.name || '', provider: model.provider || '' },
-    },
+    success: true,
+    eligible: true,
+    cached: false,
+    recommendationId: Number(recommendationId),
+    prediction,
+    model: modelSummary(model),
   };
 }
 

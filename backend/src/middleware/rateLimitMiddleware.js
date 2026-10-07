@@ -1,15 +1,11 @@
 const sequelize = require('../common/database');
-const { Op } = require('sequelize');
-const defineSystemConfig = require('../models/SystemConfig');
 const jwt = require('jsonwebtoken');
 const { createClient } = require('redis');
 const { getJwtSecret } = require('../security/jwtConfig');
-const SystemConfig = defineSystemConfig(sequelize);
 const {
-  CONFIG_DEFAULTS,
+  RATE_LIMIT_SCOPE_TO_KEYS,
   getRateLimitQueryKeysForScope,
   buildRateLimitPolicyFromKvMap,
-  isLegacySystemConfigSchemaError,
   parsePositiveInt,
 } = require('../config/systemConfigurationContract');
 const logger = require('../common/logger');
@@ -144,38 +140,6 @@ async function incrementDistributedRateLimit(key, ttlSeconds) {
   };
 }
 
-const SCOPE_CONFIG_KEYS = {
-  global: {
-    max: 'globalRateLimitRequests',
-    window: 'globalRateLimitWindowSeconds',
-  },
-  login: {
-    max: 'loginRateLimitRequests',
-    window: 'loginRateLimitWindowSeconds',
-  },
-  registration: {
-    max: 'registrationRateLimitRequests',
-    window: 'registrationRateLimitWindowSeconds',
-  },
-  chatbot: {
-    max: 'chatbotRateLimitRequests',
-    window: 'chatbotRateLimitWindowSeconds',
-  },
-  aiSymptom: {
-    max: 'aiSymptomRateLimitRequests',
-    window: 'aiSymptomRateLimitWindowSeconds',
-  },
-  aiRecovery: {
-    max: 'aiSymptomRateLimitRequests',
-    window: 'aiSymptomRateLimitWindowSeconds',
-  },
-  appointment: {
-    max: 'appointmentRateLimitRequests',
-    window: 'appointmentRateLimitWindowSeconds',
-  },
-};
-
-const GLOBAL_TOGGLE_KEYS = ['rateLimitEnabled', 'rateLimitIpBased'];
 
 /** `<SCOPE>_RATE_LIMIT_MAX` / `<SCOPE>_RATE_LIMIT_WINDOW_SECONDS` env overrides. */
 const envScopeOverride = (scope, field, fallback) => {
@@ -183,37 +147,28 @@ const envScopeOverride = (scope, field, fallback) => {
   return parsePositiveInt(overrides[String(scope).toLowerCase()], fallback);
 };
 
+/**
+ * Policy from the key/value SYSTEM_CONFIGURATION rows of the scope (keys: RATE_LIMIT_SCOPE_TO_KEYS),
+ * then env overrides; null when none of the keys is stored.
+ */
 const loadKeyValueRateLimitPolicy = async (scope, defaults) => {
-  const scopeKeys = SCOPE_CONFIG_KEYS[scope];
-  if (!scopeKeys) return null;
-
-  const queryKeys = [...GLOBAL_TOGGLE_KEYS, scopeKeys.max, scopeKeys.window];
+  if (!RATE_LIMIT_SCOPE_TO_KEYS[scope]) return null;
   const rows = await sequelize.query(
     `SELECT \`key\` AS configKey, value
      FROM SYSTEM_CONFIGURATION
      WHERE \`key\` IN (:keys)`,
-    { replacements: { keys: queryKeys }, type: sequelize.QueryTypes.SELECT }
+    { replacements: { keys: getRateLimitQueryKeysForScope(scope) }, type: sequelize.QueryTypes.SELECT }
   );
   if (!rows?.length) return null;
 
-  const configMap = {};
-  for (const row of rows) {
-    configMap[row.configKey] = row.value;
-  }
-
-  const enabled = parseBoolean(configMap.rateLimitEnabled, true);
-  const ipBasedLimit = parseBoolean(configMap.rateLimitIpBased, true);
-  let maxRequests = parsePositiveInt(configMap[scopeKeys.max], defaults.maxRequests);
-  let windowSeconds = parsePositiveInt(configMap[scopeKeys.window], defaults.windowSeconds);
-
-  maxRequests = envScopeOverride(scope, 'max', maxRequests);
-  windowSeconds = envScopeOverride(scope, 'window', windowSeconds);
-
+  const stored = Object.fromEntries(rows.map((row) => [row.configKey, row.value]));
+  const policy = buildRateLimitPolicyFromKvMap(stored, scope, defaults);
+  policy.maxRequests = envScopeOverride(scope, 'max', policy.maxRequests);
+  policy.windowSeconds = envScopeOverride(scope, 'window', policy.windowSeconds);
   if (config.isDevelopment && config.rateLimit.relaxed) {
-    maxRequests = Math.max(maxRequests, defaults.maxRequests * 10);
+    policy.maxRequests = Math.max(policy.maxRequests, defaults.maxRequests * 10);
   }
-
-  return { enabled, ipBasedLimit, maxRequests, windowSeconds };
+  return policy;
 };
 
 const getIdentifier = (req, ipBasedLimit) => {

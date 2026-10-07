@@ -51,6 +51,7 @@ import {
   buildHospitalTransferTooltipSummary,
 } from "@/lib/history-regimen-tooltip-text"
 import { useSearchParams } from "react-router-dom"
+import { toBackendUrl } from "@/lib/api-base"
 import {
   appointmentService,
   type PatientDashboardSummary,
@@ -59,7 +60,6 @@ import {
   type PatientSymptomLog,
 } from "@/services/appointment-service"
 
-const API_ORIGIN = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000"
 
 function formatDateTime(value: string | null | undefined, locale = "en-US") {
   if (!value) return "—"
@@ -75,8 +75,7 @@ function resolveAttachmentUrl(url: string | null) {
   if (!url) return null
   const u = String(url).trim()
   if (!u) return null
-  if (u.startsWith("http://") || u.startsWith("https://")) return u
-  return `${API_ORIGIN}${u.startsWith("/") ? "" : "/"}${u}`
+  return toBackendUrl(u)
 }
 
 function visitTitle(v: PatientMedicalVisit & { regimenId?: number }) {

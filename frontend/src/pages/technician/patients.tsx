@@ -18,6 +18,7 @@ import { useTranslation } from "react-i18next"
 import { PATIENT_IN_DEPARTMENT_OPTIONS, translatePatientInDepartment } from "@/lib/patient-departments"
 
 
+import { API_BASE_URL } from "@/lib/api-base"
 type Patient = {
   id: string
   name: string
@@ -75,7 +76,7 @@ export default function TechnicianPatients() {
       const fetchPatients = async () => {
         try {
           const token = localStorage.getItem("authToken")
-          const res = await fetch("http://localhost:3000/api/appointments/patients", {
+          const res = await fetch(`${API_BASE_URL}/api/appointments/patients`, {
             method: "GET",
             headers: {
               "Content-Type": "application/json",

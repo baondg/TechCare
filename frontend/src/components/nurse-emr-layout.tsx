@@ -13,7 +13,7 @@ import { doctorService } from "@/services/doctor-service"
 import { NursePatientProfilePanel } from "@/pages/nurse/medical_records/patient-profile"
 import { translatePatientInDepartment } from "@/lib/patient-departments"
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000"
+import { API_BASE_URL } from "@/lib/api-base"
 const VISIT_STORAGE_PREFIX = "nurseExamVisit:"
 
 type StoredVisit = { startedAt: string; appointmentId?: number; regimenId?: number }

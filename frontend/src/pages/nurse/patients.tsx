@@ -18,7 +18,7 @@ import { PATIENT_IN_DEPARTMENT_OPTIONS, translatePatientInDepartment } from "@/l
 import { NurseCheckInDialog } from "@/components/nurse-check-in-dialog"
 import { cn } from "@/lib/utils"
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000"
+import { API_BASE_URL } from "@/lib/api-base"
 const VISIT_STORAGE_PREFIX = "nurseExamVisit:"
 
 type StoredVisit = { startedAt: string; appointmentId?: number; regimenId?: number }

@@ -25,6 +25,7 @@ import { evaluateLabMetric } from "@/lib/lab-metric-eval"
 import { orderLabDetailsForDisplay } from "@/lib/lab-blood-test-form"
 import { useEmrSession } from "@/contexts/emr-session-context"
 
+import { toBackendUrl } from "@/lib/api-base"
 type Row = {
   id: number
   testType: string
@@ -74,12 +75,7 @@ function apiToRow(t: ApiLabTest): Row {
   }
 }
 
-function toAbsoluteUrl(url: string) {
-  if (!url) return ""
-  if (/^https?:\/\//i.test(url)) return url
-  const base = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000"
-  return `${base}${url.startsWith("/") ? "" : "/"}${url}`
-}
+const toAbsoluteUrl = (url: string) => toBackendUrl(url)
 
 export default function PatientLab() {
   const { patientId } = useParams<{ patientId: string }>()

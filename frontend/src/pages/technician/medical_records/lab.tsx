@@ -30,6 +30,7 @@ import { orderLabDetailsForDisplay } from "@/lib/lab-blood-test-form"
 import { useEmrSession } from "@/contexts/emr-session-context"
 import { format, isValid, parse } from "date-fns"
 
+import { toBackendUrl } from "@/lib/api-base"
 type Row = {
   id: number | "new"
   testType: string
@@ -262,12 +263,7 @@ export default function PatientLab() {
     setEditMode(false)
   }
 
-  const toAbsoluteUrl = (url: string) => {
-    if (!url) return ""
-    if (/^https?:\/\//i.test(url)) return url
-    const base = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000"
-    return `${base}${url.startsWith("/") ? "" : "/"}${url}`
-  }
+  const toAbsoluteUrl = (url: string) => toBackendUrl(url)
 
   const handlePickFile = () => {
     if (!mutationsAllowed) return

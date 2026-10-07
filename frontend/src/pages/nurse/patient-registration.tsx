@@ -8,7 +8,7 @@ import { NurseLayout } from "@/components/nurse-layout"
 import { usePauseableToast } from "@/hooks/usePauseableToast"
 import { Link } from "react-router-dom"
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000"
+import { API_BASE_URL as API_BASE } from "@/lib/api-base"
 
 async function registerPatientAsNurse(data: RegisterData): Promise<{ success: boolean; error?: string }> {
   const token = localStorage.getItem("authToken")

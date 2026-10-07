@@ -152,7 +152,9 @@ Bước B — chuyển SQL từ controllers/doctor/* và services/emr/* xuống 
   - [x] Upload file xét nghiệm (`POST /lab-attachments`, base64 trong JSON) từng bị `express.json()` chặn ở 100 kB (file > ~75 kB → 413). Đã sửa: `middleware/jsonBody.js` — route này tự parse body 21 MB **sau** xác thực, các route khác giữ 100 kB; nginx frontend `client_max_body_size 21m` cho `/api/`. Test: `test/lab-attachment-upload.test.js`.
   - ⚠️ Sửa đơn thuốc đặt lại `MEDICAL_PRESCRIPTION.time = NOW()` → mất ngày kê gốc (response trả `createdAt = updatedAt`).
   - ⚠️ `MSG_NO_DOCTOR_OR_PRIOR_TREATMENT` nói "lab order" cả khi kê đơn / phẫu thuật. Cập nhật xét nghiệm / phẫu thuật chạy nhiều UPDATE không trong transaction.
-- [ ] **Đợt 4** — `controllers/doctor/appointmentController.js`.
+- [x] **Đợt 4** — lịch hẹn phía bác sĩ: `repositories/doctorAppointmentRepository.js`, `services/doctorAppointmentService.js`; dùng lại `appointmentRepository` (phòng khám, cùng khoa, tên bác sĩ, bệnh nhân theo user), `staffRepository.findDoctorIdByUserId`, `coverRepository.reassignAppointmentDoctor`. Controller chỉ còn HTTP. Test: `test/doctor-appointments-characterization.test.js` (47 kịch bản).
+  - ⚠️ `POST /api/doctor/appointments`: `department` chỉ được trả lại, không lưu; không kiểm tra định dạng ngày / giờ; chỉ chặn trùng lịch `scheduled` — nếu đã có bản ghi huỷ cùng giờ + phòng thì có thể vướng UNIQUE(time, doctor_id, room_id) → 500 (chưa kiểm chứng trên MySQL).
+  - Nhờ khám thay (cover) kiểm tra rồi cập nhật không trong transaction (hai yêu cầu đồng thời có thể cùng lọt qua kiểm tra trùng giờ).
 - [ ] **Đợt 5** — `regimenController` (tách tiếp 2 handler ~300 dòng).
 - `AppError(..., 500, { expose: true })` cho câu báo 5xx cố định mà người dùng cần thấy (vd. "Could not read signature").
 - **`prescriptionQueryCompat.js`** giữ SQL dùng chung cho đơn thuốc (đã là lớp compat).

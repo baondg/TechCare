@@ -215,7 +215,7 @@
     "request": "POST /api/appointments/ai/chat",
     "response": {
       "status": 502,
-      "message": "cannot connect to ai service at http://medai.test/api/ai/chat"
+      "message": "cannot connect to ai service"
     },
     "db": [
       {

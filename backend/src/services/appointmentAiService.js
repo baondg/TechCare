@@ -347,7 +347,7 @@ async function chatWithAiAndSave(req, userId, body) {
     });
   } catch (upstreamFailure) {
     logger.error({ err: upstreamFailure }, `[chatWithAiAndSave] Cannot reach ${MEDAI_CHAT_ENDPOINT}`);
-    throw upstreamError(502, `Cannot connect to AI service at ${MEDAI_CHAT_ENDPOINT}`);
+    throw upstreamError(502, 'Cannot connect to AI service');
   }
 
   const aiData = await aiResp.json().catch(() => ({}));

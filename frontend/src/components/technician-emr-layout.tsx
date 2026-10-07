@@ -10,7 +10,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle } from "lucide-react"
 import { translatePatientInDepartment } from "@/lib/patient-departments"
 
-export function TechnicianLayout2() {
+export function TechnicianEmrLayout() {
   const { patientId } = useParams()
   const { t } = useTranslation()
   const [patientData, setPatientData] = useState<any>(null)

@@ -1323,7 +1323,12 @@
         "event": "Session.findOne",
         "where": {
           "id": 3
-        }
+        },
+        "attributes": [
+          "id",
+          "userId"
+        ],
+        "tx": null
       }
     ]
   },
@@ -1338,7 +1343,12 @@
         "event": "Session.findOne",
         "where": {
           "id": 3
-        }
+        },
+        "attributes": [
+          "id",
+          "userId"
+        ],
+        "tx": null
       }
     ]
   },
@@ -1353,7 +1363,12 @@
         "event": "Session.findOne",
         "where": {
           "id": 3
-        }
+        },
+        "attributes": [
+          "id",
+          "userId"
+        ],
+        "tx": null
       },
       {
         "sql": "SELECT type FROM ACCOUNT WHERE user_id = :userId LIMIT 1",
@@ -1379,7 +1394,12 @@
         "event": "Session.findOne",
         "where": {
           "id": 3
-        }
+        },
+        "attributes": [
+          "id",
+          "userId"
+        ],
+        "tx": null
       },
       {
         "sql": "SELECT type FROM ACCOUNT WHERE user_id = :userId LIMIT 1",
@@ -1393,7 +1413,8 @@
         "event": "Session.destroy",
         "where": {
           "id": 3
-        }
+        },
+        "tx": null
       }
     ]
   },
@@ -1408,7 +1429,12 @@
         "event": "Session.findOne",
         "where": {
           "id": 3
-        }
+        },
+        "attributes": [
+          "id",
+          "userId"
+        ],
+        "tx": null
       },
       {
         "sql": "SELECT type FROM ACCOUNT WHERE user_id = :userId LIMIT 1",
@@ -1422,7 +1448,8 @@
         "event": "Session.destroy",
         "where": {
           "id": 3
-        }
+        },
+        "tx": null
       }
     ]
   },
@@ -1482,7 +1509,8 @@
         "event": "Session.destroy",
         "where": {
           "userId": 42
-        }
+        },
+        "tx": null
       }
     ]
   },
@@ -1513,7 +1541,8 @@
               2
             ]
           }
-        }
+        },
+        "tx": null
       }
     ]
   },
@@ -1536,7 +1565,8 @@
       },
       {
         "event": "Session.destroy",
-        "where": {}
+        "where": {},
+        "tx": null
       }
     ]
   },

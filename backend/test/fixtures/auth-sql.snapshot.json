@@ -1,0 +1,1451 @@
+{
+  "login, missing password": {
+    "request": "POST /api/auth/login",
+    "response": {
+      "status": 400,
+      "message": "Username and password are required"
+    },
+    "db": [
+      {
+        "event": "Session.destroy",
+        "where": {
+          "expiresAt": {
+            "[lt]": "<date>"
+          }
+        },
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'maxConcurrentUsers';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "Session.count",
+        "where": {
+          "expiresAt": {
+            "[gt]": "<date>"
+          }
+        },
+        "tx": null
+      }
+    ]
+  },
+  "login, unknown user": {
+    "request": "POST /api/auth/login",
+    "response": {
+      "status": 401,
+      "message": "Invalid email or password"
+    },
+    "db": [
+      {
+        "event": "Session.destroy",
+        "where": {
+          "expiresAt": {
+            "[lt]": "<date>"
+          }
+        },
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'maxConcurrentUsers';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "Session.count",
+        "where": {
+          "expiresAt": {
+            "[gt]": "<date>"
+          }
+        },
+        "tx": null
+      },
+      {
+        "event": "Account.findOne",
+        "where": {
+          "username": "ghost"
+        },
+        "attributes": [
+          "user_id",
+          "username",
+          "password",
+          "type",
+          "created_by",
+          "created_time",
+          "status"
+        ],
+        "include": [
+          {
+            "model": "User",
+            "attributes": [
+              "first_name",
+              "last_name"
+            ]
+          }
+        ],
+        "tx": null
+      }
+    ]
+  },
+  "login, wrong password": {
+    "request": "POST /api/auth/login",
+    "response": {
+      "status": 401,
+      "message": "Invalid username or password."
+    },
+    "db": [
+      {
+        "event": "Session.destroy",
+        "where": {
+          "expiresAt": {
+            "[lt]": "<date>"
+          }
+        },
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'maxConcurrentUsers';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "Session.count",
+        "where": {
+          "expiresAt": {
+            "[gt]": "<date>"
+          }
+        },
+        "tx": null
+      },
+      {
+        "event": "Account.findOne",
+        "where": {
+          "username": "jdoe"
+        },
+        "attributes": [
+          "user_id",
+          "username",
+          "password",
+          "type",
+          "created_by",
+          "created_time",
+          "status"
+        ],
+        "include": [
+          {
+            "model": "User",
+            "attributes": [
+              "first_name",
+              "last_name"
+            ]
+          }
+        ],
+        "tx": null
+      }
+    ]
+  },
+  "login, deactivated account": {
+    "request": "POST /api/auth/login",
+    "response": {
+      "status": 403,
+      "message": "This account has been deactivated. Please contact your administrator if you need access.",
+      "code": "ACCOUNT_DEACTIVATED"
+    },
+    "db": [
+      {
+        "event": "Session.destroy",
+        "where": {
+          "expiresAt": {
+            "[lt]": "<date>"
+          }
+        },
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'maxConcurrentUsers';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "Session.count",
+        "where": {
+          "expiresAt": {
+            "[gt]": "<date>"
+          }
+        },
+        "tx": null
+      },
+      {
+        "event": "Account.findOne",
+        "where": {
+          "username": "jdoe"
+        },
+        "attributes": [
+          "user_id",
+          "username",
+          "password",
+          "type",
+          "created_by",
+          "created_time",
+          "status"
+        ],
+        "include": [
+          {
+            "model": "User",
+            "attributes": [
+              "first_name",
+              "last_name"
+            ]
+          }
+        ],
+        "tx": null
+      }
+    ]
+  },
+  "login, configured session timeout": {
+    "request": "POST /api/auth/login",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "user": {
+          "id": 42,
+          "username": "jdoe",
+          "firstName": "An",
+          "lastName": "Nguyen",
+          "fullName": "Nguyen An",
+          "type": "DOC",
+          "role": "doctor"
+        },
+        "token": "<jwt>",
+        "expiresAt": "<now+45m>"
+      },
+      "cookie": "refreshToken=<jwt>; Path=/api/auth; Expires=<date>; HttpOnly; SameSite=Lax"
+    },
+    "db": [
+      {
+        "event": "Session.destroy",
+        "where": {
+          "expiresAt": {
+            "[lt]": "<date>"
+          }
+        },
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'maxConcurrentUsers';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "Session.count",
+        "where": {
+          "expiresAt": {
+            "[gt]": "<date>"
+          }
+        },
+        "tx": null
+      },
+      {
+        "event": "Account.findOne",
+        "where": {
+          "username": "jdoe"
+        },
+        "attributes": [
+          "user_id",
+          "username",
+          "password",
+          "type",
+          "created_by",
+          "created_time",
+          "status"
+        ],
+        "include": [
+          {
+            "model": "User",
+            "attributes": [
+              "first_name",
+              "last_name"
+            ]
+          }
+        ],
+        "tx": null
+      },
+      {
+        "event": "Session.destroy",
+        "where": {
+          "expiresAt": {
+            "[lt]": "<date>"
+          }
+        },
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'sessionTimeoutMinutes';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "Session.destroy",
+        "where": {
+          "userId": 42
+        },
+        "tx": null
+      },
+      {
+        "event": "Session.create",
+        "values": {
+          "userId": 42,
+          "token": "<jwt>",
+          "refreshToken": "<jwt>",
+          "expiresAt": "<now+45m>",
+          "lastActivity": "<now>",
+          "ipAddress": "127.0.0.1",
+          "userAgent": "node"
+        },
+        "tx": null
+      },
+      {
+        "event": "Account#update",
+        "id": 42,
+        "values": {
+          "lastLogin": "<now>"
+        }
+      }
+    ]
+  },
+  "login, remember me (7 days), no profile": {
+    "request": "POST /api/auth/login",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "user": {
+          "id": 42,
+          "username": "nurse1",
+          "fullName": null,
+          "type": "NUR",
+          "role": "nurse"
+        },
+        "token": "<jwt>",
+        "expiresAt": "<now+10080m>"
+      },
+      "cookie": "refreshToken=<jwt>; Path=/api/auth; Expires=<date>; HttpOnly; SameSite=Lax"
+    },
+    "db": [
+      {
+        "event": "Session.destroy",
+        "where": {
+          "expiresAt": {
+            "[lt]": "<date>"
+          }
+        },
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'maxConcurrentUsers';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "Session.count",
+        "where": {
+          "expiresAt": {
+            "[gt]": "<date>"
+          }
+        },
+        "tx": null
+      },
+      {
+        "event": "Account.findOne",
+        "where": {
+          "username": "nurse1"
+        },
+        "attributes": [
+          "user_id",
+          "username",
+          "password",
+          "type",
+          "created_by",
+          "created_time",
+          "status"
+        ],
+        "include": [
+          {
+            "model": "User",
+            "attributes": [
+              "first_name",
+              "last_name"
+            ]
+          }
+        ],
+        "tx": null
+      },
+      {
+        "event": "Session.destroy",
+        "where": {
+          "expiresAt": {
+            "[lt]": "<date>"
+          }
+        },
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'sessionTimeoutMinutes';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "Session.destroy",
+        "where": {
+          "userId": 42
+        },
+        "tx": null
+      },
+      {
+        "event": "Session.create",
+        "values": {
+          "userId": 42,
+          "token": "<jwt>",
+          "refreshToken": "<jwt>",
+          "expiresAt": "<now+10080m>",
+          "lastActivity": "<now>",
+          "ipAddress": "127.0.0.1",
+          "userAgent": "node"
+        },
+        "tx": null
+      },
+      {
+        "event": "Account#update",
+        "id": 42,
+        "values": {
+          "lastLogin": "<now>"
+        }
+      }
+    ]
+  },
+  "login, config unreadable and last_login column missing": {
+    "request": "POST /api/auth/login",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "user": {
+          "id": 42,
+          "username": "jdoe",
+          "firstName": "An",
+          "lastName": "Nguyen",
+          "fullName": "Nguyen An",
+          "type": "XYZ",
+          "role": "xyz"
+        },
+        "token": "<jwt>",
+        "expiresAt": "<now+30m>"
+      },
+      "cookie": "refreshToken=<jwt>; Path=/api/auth; Expires=<date>; HttpOnly; SameSite=Lax"
+    },
+    "db": [
+      {
+        "event": "Session.destroy",
+        "where": {
+          "expiresAt": {
+            "[lt]": "<date>"
+          }
+        },
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'maxConcurrentUsers';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "Session.count",
+        "where": {
+          "expiresAt": {
+            "[gt]": "<date>"
+          }
+        },
+        "tx": null
+      },
+      {
+        "event": "Account.findOne",
+        "where": {
+          "username": "jdoe"
+        },
+        "attributes": [
+          "user_id",
+          "username",
+          "password",
+          "type",
+          "created_by",
+          "created_time",
+          "status"
+        ],
+        "include": [
+          {
+            "model": "User",
+            "attributes": [
+              "first_name",
+              "last_name"
+            ]
+          }
+        ],
+        "tx": null
+      },
+      {
+        "event": "Session.destroy",
+        "where": {
+          "expiresAt": {
+            "[lt]": "<date>"
+          }
+        },
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'sessionTimeoutMinutes';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "Session.destroy",
+        "where": {
+          "userId": 42
+        },
+        "tx": null
+      },
+      {
+        "event": "Session.create",
+        "values": {
+          "userId": 42,
+          "token": "<jwt>",
+          "refreshToken": "<jwt>",
+          "expiresAt": "<now+30m>",
+          "lastActivity": "<now>",
+          "ipAddress": "127.0.0.1",
+          "userAgent": "node"
+        },
+        "tx": null
+      },
+      {
+        "event": "Account#update",
+        "id": 42,
+        "values": {
+          "lastLogin": "<now>"
+        }
+      }
+    ]
+  },
+  "login, too many concurrent users": {
+    "request": "POST /api/auth/login",
+    "response": {
+      "status": 429,
+      "message": "Maximum concurrent users (5) reached. Please try again later."
+    },
+    "db": [
+      {
+        "event": "Session.destroy",
+        "where": {
+          "expiresAt": {
+            "[lt]": "<date>"
+          }
+        },
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'maxConcurrentUsers';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "Session.count",
+        "where": {
+          "expiresAt": {
+            "[gt]": "<date>"
+          }
+        },
+        "tx": null
+      }
+    ]
+  },
+  "login, db down": {
+    "request": "POST /api/auth/login",
+    "response": {
+      "status": 500,
+      "message": "login failed. please try again."
+    },
+    "db": [
+      {
+        "event": "Session.destroy",
+        "where": {
+          "expiresAt": {
+            "[lt]": "<date>"
+          }
+        },
+        "tx": null
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'maxConcurrentUsers';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "Session.count",
+        "where": {
+          "expiresAt": {
+            "[gt]": "<date>"
+          }
+        },
+        "tx": null
+      },
+      {
+        "event": "Account.findOne",
+        "where": {
+          "username": "jdoe"
+        },
+        "attributes": [
+          "user_id",
+          "username",
+          "password",
+          "type",
+          "created_by",
+          "created_time",
+          "status"
+        ],
+        "include": [
+          {
+            "model": "User",
+            "attributes": [
+              "first_name",
+              "last_name"
+            ]
+          }
+        ],
+        "tx": null
+      }
+    ]
+  },
+  "refresh, no token": {
+    "request": "POST /api/auth/refresh",
+    "response": {
+      "status": 400,
+      "message": "Refresh token is required"
+    },
+    "db": []
+  },
+  "refresh, garbage token": {
+    "request": "POST /api/auth/refresh",
+    "response": {
+      "status": 403,
+      "message": "Invalid or expired refresh token",
+      "cookie": "refreshToken=; Path=/api/auth; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Lax"
+    },
+    "db": []
+  },
+  "refresh, access token instead of refresh token": {
+    "request": "POST /api/auth/refresh",
+    "response": {
+      "status": 403,
+      "message": "Invalid or expired refresh token",
+      "cookie": "refreshToken=; Path=/api/auth; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Lax"
+    },
+    "db": []
+  },
+  "refresh, unknown session": {
+    "request": "POST /api/auth/refresh",
+    "response": {
+      "status": 403,
+      "message": "Session not found or expired",
+      "cookie": "refreshToken=; Path=/api/auth; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Lax"
+    },
+    "db": [
+      {
+        "event": "Session.findOne",
+        "where": {
+          "refreshToken": "<jwt>",
+          "userId": 42
+        },
+        "tx": null
+      }
+    ]
+  },
+  "refresh, expired session": {
+    "request": "POST /api/auth/refresh",
+    "response": {
+      "status": 403,
+      "message": "Session expired. Please login again.",
+      "cookie": "refreshToken=; Path=/api/auth; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Lax"
+    },
+    "db": [
+      {
+        "event": "Session.findOne",
+        "where": {
+          "refreshToken": "<jwt>",
+          "userId": 42
+        },
+        "tx": null
+      },
+      {
+        "event": "Session.destroy",
+        "where": {
+          "id": 77
+        },
+        "tx": null
+      }
+    ]
+  },
+  "refresh, account gone": {
+    "request": "POST /api/auth/refresh",
+    "response": {
+      "status": 404,
+      "message": "User not found",
+      "cookie": "refreshToken=; Path=/api/auth; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Lax"
+    },
+    "db": [
+      {
+        "event": "Session.findOne",
+        "where": {
+          "refreshToken": "<jwt>",
+          "userId": 42
+        },
+        "tx": null
+      },
+      {
+        "event": "Account.findOne",
+        "where": {
+          "user_id": 42
+        },
+        "tx": null
+      }
+    ]
+  },
+  "refresh, rotates tokens (body)": {
+    "request": "POST /api/auth/refresh",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "token": "<jwt>",
+        "user": {
+          "id": 42,
+          "username": "jdoe",
+          "type": "DOC"
+        }
+      },
+      "cookie": "refreshToken=<jwt>; Path=/api/auth; Expires=<date>; HttpOnly; SameSite=Lax"
+    },
+    "db": [
+      {
+        "event": "Session.findOne",
+        "where": {
+          "refreshToken": "<jwt>",
+          "userId": 42
+        },
+        "tx": null
+      },
+      {
+        "event": "Account.findOne",
+        "where": {
+          "user_id": 42
+        },
+        "tx": null
+      },
+      {
+        "event": "Session#update",
+        "id": 77,
+        "values": {
+          "token": "<jwt>",
+          "refreshToken": "<jwt>",
+          "lastActivity": "<now>"
+        }
+      }
+    ]
+  },
+  "refresh, rotates tokens (cookie)": {
+    "request": "POST /api/auth/refresh",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "token": "<jwt>",
+        "user": {
+          "id": 42,
+          "username": "jdoe",
+          "type": "DOC"
+        }
+      },
+      "cookie": "refreshToken=<jwt>; Path=/api/auth; Expires=<date>; HttpOnly; SameSite=Lax"
+    },
+    "db": [
+      {
+        "event": "Session.findOne",
+        "where": {
+          "refreshToken": "<jwt>",
+          "userId": 42
+        },
+        "tx": null
+      },
+      {
+        "event": "Account.findOne",
+        "where": {
+          "user_id": 42
+        },
+        "tx": null
+      },
+      {
+        "event": "Session#update",
+        "id": 77,
+        "values": {
+          "token": "<jwt>",
+          "refreshToken": "<jwt>",
+          "lastActivity": "<now>"
+        }
+      }
+    ]
+  },
+  "refresh, db down": {
+    "request": "POST /api/auth/refresh",
+    "response": {
+      "status": 500,
+      "message": "token refresh failed"
+    },
+    "db": [
+      {
+        "event": "Session.findOne",
+        "where": {
+          "refreshToken": "<jwt>",
+          "userId": 42
+        },
+        "tx": null
+      }
+    ]
+  },
+  "logout this device": {
+    "request": "POST /api/auth/logout",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "message": "Logged out successfully"
+      },
+      "cookie": "refreshToken=; Path=/api/auth; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Lax"
+    },
+    "db": [
+      {
+        "event": "Session.destroy",
+        "where": {
+          "token": "<jwt>"
+        },
+        "tx": null
+      }
+    ]
+  },
+  "logout all devices": {
+    "request": "POST /api/auth/logout",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "message": "Logged out from all devices"
+      },
+      "cookie": "refreshToken=; Path=/api/auth; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Lax"
+    },
+    "db": [
+      {
+        "event": "Session.destroy",
+        "where": {
+          "userId": 1
+        },
+        "tx": null
+      }
+    ]
+  },
+  "logout, db down": {
+    "request": "POST /api/auth/logout",
+    "response": {
+      "status": 500,
+      "message": "logout failed"
+    },
+    "db": [
+      {
+        "event": "Session.destroy",
+        "where": {
+          "token": "<jwt>"
+        },
+        "tx": null
+      }
+    ]
+  },
+  "get session": {
+    "request": "GET /api/auth/session",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "user": {
+          "id": 1,
+          "username": "admin",
+          "type": "ADM"
+        },
+        "sessions": [
+          {
+            "id": 3,
+            "lastActivity": null,
+            "ipAddress": "::1",
+            "userAgent": "ua",
+            "expiresAt": null
+          }
+        ]
+      }
+    },
+    "db": [
+      {
+        "event": "Account.findOne",
+        "where": {
+          "user_id": 1
+        },
+        "tx": null
+      },
+      {
+        "event": "Account.findOne",
+        "where": {
+          "user_id": 1
+        },
+        "tx": null
+      },
+      {
+        "event": "Session.findAll",
+        "where": {
+          "userId": 1,
+          "expiresAt": {
+            "[gt]": "<date>"
+          }
+        },
+        "attributes": [
+          "id",
+          "lastActivity",
+          "ipAddress",
+          "userAgent",
+          "expiresAt"
+        ],
+        "order": [
+          [
+            "lastActivity",
+            "DESC"
+          ]
+        ],
+        "tx": null
+      }
+    ]
+  },
+  "get session, account gone": {
+    "request": "GET /api/auth/session",
+    "response": {
+      "status": 404,
+      "message": "User not found"
+    },
+    "db": [
+      {
+        "event": "Account.findOne",
+        "where": {
+          "user_id": 1
+        },
+        "tx": null
+      },
+      {
+        "event": "Account.findOne",
+        "where": {
+          "user_id": 1
+        },
+        "tx": null
+      }
+    ]
+  },
+  "get session, db down": {
+    "request": "GET /api/auth/session",
+    "response": {
+      "status": 500,
+      "message": "failed to get session info"
+    },
+    "db": [
+      {
+        "event": "Session.findAll",
+        "where": {
+          "userId": null,
+          "expiresAt": {
+            "[gt]": "<date>"
+          }
+        },
+        "attributes": [
+          "id",
+          "lastActivity",
+          "ipAddress",
+          "userAgent",
+          "expiresAt"
+        ],
+        "order": [
+          [
+            "lastActivity",
+            "DESC"
+          ]
+        ],
+        "tx": null
+      }
+    ]
+  },
+  "signup, missing national id": {
+    "request": "POST /api/auth/signup",
+    "response": {
+      "status": 400,
+      "message": "National ID / passport is required"
+    },
+    "db": [
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "event": "rollback",
+        "tx": "tx1"
+      }
+    ]
+  },
+  "signup, missing name": {
+    "request": "POST /api/auth/signup",
+    "response": {
+      "status": 400,
+      "message": "Password and name fields are required"
+    },
+    "db": [
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "event": "rollback",
+        "tx": "tx1"
+      }
+    ]
+  },
+  "signup, missing phone": {
+    "request": "POST /api/auth/signup",
+    "response": {
+      "status": 400,
+      "message": "Phone number is required"
+    },
+    "db": [
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "event": "rollback",
+        "tx": "tx1"
+      }
+    ]
+  },
+  "signup, missing dob": {
+    "request": "POST /api/auth/signup",
+    "response": {
+      "status": 400,
+      "message": "Date of birth is required"
+    },
+    "db": [
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "event": "rollback",
+        "tx": "tx1"
+      }
+    ]
+  },
+  "signup, bad email": {
+    "request": "POST /api/auth/signup",
+    "response": {
+      "status": 400,
+      "message": "Invalid email format"
+    },
+    "db": [
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "event": "rollback",
+        "tx": "tx1"
+      }
+    ]
+  },
+  "signup, weak password": {
+    "request": "POST /api/auth/signup",
+    "response": {
+      "status": 400,
+      "message": "Password must contain at least one uppercase letter"
+    },
+    "db": [
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "event": "rollback",
+        "tx": "tx1"
+      }
+    ]
+  },
+  "signup, national id taken": {
+    "request": "POST /api/auth/signup",
+    "response": {
+      "status": 409,
+      "message": "Username already taken"
+    },
+    "db": [
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "event": "Account.findOne",
+        "where": {
+          "username": "079123456789"
+        },
+        "tx": "tx1"
+      },
+      {
+        "event": "rollback",
+        "tx": "tx1"
+      }
+    ]
+  },
+  "signup": {
+    "request": "POST /api/auth/signup",
+    "response": {
+      "status": 201,
+      "body": {
+        "success": true,
+        "user": {
+          "id": 501,
+          "username": "079123456789",
+          "type": "PAT"
+        },
+        "token": "<jwt>",
+        "expiresAt": "<now+10080m>"
+      },
+      "cookie": "refreshToken=<jwt>; Path=/api/auth; Expires=<date>; HttpOnly; SameSite=Lax"
+    },
+    "db": [
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "event": "Account.findOne",
+        "where": {
+          "username": "079123456789"
+        },
+        "tx": "tx1"
+      },
+      {
+        "event": "User.create",
+        "values": {
+          "first_name": "An",
+          "last_name": "Nguyen",
+          "email": null,
+          "sex": "M",
+          "dob": "1990-01-01",
+          "tel": "0901234567",
+          "idcard": "<idcard>"
+        },
+        "tx": "tx1"
+      },
+      {
+        "event": "Account.create",
+        "values": {
+          "username": "079123456789",
+          "password": "<bcrypt>",
+          "type": "PAT",
+          "user_id": 501,
+          "created_time": "<now>",
+          "status": 1
+        },
+        "tx": "tx1"
+      },
+      {
+        "event": "Patient.findOrCreate",
+        "where": {
+          "user_id": 501
+        },
+        "defaults": {
+          "allergic_info": {
+            "drugAllergies": [],
+            "foodAllergies": [],
+            "otherAllergies": []
+          },
+          "medical_history": {
+            "vaccinations": [],
+            "familyHistory": [],
+            "pastIllnesses": [],
+            "pastSurgeries": [],
+            "substanceAbuse": [],
+            "chronicConditions": []
+          }
+        },
+        "tx": "tx1"
+      },
+      {
+        "event": "commit",
+        "tx": "tx1"
+      },
+      {
+        "event": "Session.create",
+        "values": {
+          "userId": 501,
+          "token": "<jwt>",
+          "refreshToken": "<jwt>",
+          "expiresAt": "<now+10080m>",
+          "lastActivity": "<now>"
+        },
+        "tx": null
+      }
+    ]
+  },
+  "signup, db down": {
+    "request": "POST /api/auth/signup",
+    "response": {
+      "status": 500,
+      "message": "registration failed. please try again."
+    },
+    "db": [
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "event": "Account.findOne",
+        "where": {
+          "username": "079123456789"
+        },
+        "tx": "tx1"
+      },
+      {
+        "event": "User.create",
+        "values": {
+          "first_name": "An",
+          "last_name": "Nguyen",
+          "email": "an@example.com",
+          "sex": "M",
+          "dob": "1990-01-01",
+          "tel": "0901234567",
+          "idcard": "<idcard>"
+        },
+        "tx": "tx1"
+      },
+      {
+        "event": "rollback",
+        "tx": "tx1"
+      }
+    ]
+  },
+  "register patient, not a nurse": {
+    "request": "POST /api/auth/register-patient",
+    "response": {
+      "status": 403,
+      "message": "Nurse access only"
+    },
+    "db": []
+  },
+  "register patient, invalid body": {
+    "request": "POST /api/auth/register-patient",
+    "response": {
+      "status": 400,
+      "message": "Password must be at least 8 characters long"
+    },
+    "db": [
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "event": "rollback",
+        "tx": "tx1"
+      }
+    ]
+  },
+  "register patient": {
+    "request": "POST /api/auth/register-patient",
+    "response": {
+      "status": 201,
+      "body": {
+        "success": true,
+        "userId": 502,
+        "username": "079123456789"
+      }
+    },
+    "db": [
+      {
+        "event": "Account.findOne",
+        "where": {
+          "user_id": 7
+        },
+        "tx": null
+      },
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "event": "Account.findOne",
+        "where": {
+          "username": "079123456789"
+        },
+        "tx": "tx1"
+      },
+      {
+        "event": "User.create",
+        "values": {
+          "first_name": "An",
+          "last_name": "Nguyen",
+          "email": "an@example.com",
+          "sex": "M",
+          "dob": "1990-01-01",
+          "tel": "0901234567",
+          "idcard": "<idcard>"
+        },
+        "tx": "tx1"
+      },
+      {
+        "event": "Account.create",
+        "values": {
+          "username": "079123456789",
+          "password": "<bcrypt>",
+          "type": "PAT",
+          "user_id": 502,
+          "created_time": "<now>",
+          "status": 1,
+          "created_by": 7
+        },
+        "tx": "tx1"
+      },
+      {
+        "event": "Patient.findOrCreate",
+        "where": {
+          "user_id": 502
+        },
+        "defaults": {
+          "allergic_info": {
+            "drugAllergies": [],
+            "foodAllergies": [],
+            "otherAllergies": []
+          },
+          "medical_history": {
+            "vaccinations": [],
+            "familyHistory": [],
+            "pastIllnesses": [],
+            "pastSurgeries": [],
+            "substanceAbuse": [],
+            "chronicConditions": []
+          }
+        },
+        "tx": "tx1"
+      },
+      {
+        "event": "commit",
+        "tx": "tx1"
+      }
+    ]
+  },
+  "register patient, db down": {
+    "request": "POST /api/auth/register-patient",
+    "response": {
+      "status": 500,
+      "message": "registration failed. please try again."
+    },
+    "db": [
+      {
+        "event": "Account.findOne",
+        "where": {
+          "user_id": 7
+        },
+        "tx": null
+      },
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "event": "Account.findOne",
+        "where": {
+          "username": "079123456789"
+        },
+        "tx": "tx1"
+      },
+      {
+        "event": "User.create",
+        "values": {
+          "first_name": "An",
+          "last_name": "Nguyen",
+          "email": "an@example.com",
+          "sex": "M",
+          "dob": "1990-01-01",
+          "tel": "0901234567",
+          "idcard": "<idcard>"
+        },
+        "tx": "tx1"
+      },
+      {
+        "event": "Account.create",
+        "values": {
+          "username": "079123456789",
+          "password": "<bcrypt>",
+          "type": "PAT",
+          "user_id": 500,
+          "created_time": "<now>",
+          "status": 1,
+          "created_by": 7
+        },
+        "tx": "tx1"
+      },
+      {
+        "event": "Patient.findOrCreate",
+        "where": {
+          "user_id": 500
+        },
+        "defaults": {
+          "allergic_info": {
+            "drugAllergies": [],
+            "foodAllergies": [],
+            "otherAllergies": []
+          },
+          "medical_history": {
+            "vaccinations": [],
+            "familyHistory": [],
+            "pastIllnesses": [],
+            "pastSurgeries": [],
+            "substanceAbuse": [],
+            "chronicConditions": []
+          }
+        },
+        "tx": "tx1"
+      },
+      {
+        "event": "rollback",
+        "tx": "tx1"
+      }
+    ]
+  }
+}

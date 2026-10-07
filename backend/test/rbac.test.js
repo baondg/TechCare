@@ -145,3 +145,18 @@ test('cover requests are doctor-only (admins have no doctor profile to cover wit
     assert.equal(isRoleAllowed('doctor.cover.manage', role), false, role);
   }
 });
+
+test('system config contract: defaults and validation rules describe the same keys', () => {
+  for (const key of Object.keys(contract.NUMERIC_CONFIG_RULES)) {
+    assert.ok(key in contract.CONFIG_DEFAULTS, `${key} has a rule but no default`);
+    const { min, max } = contract.NUMERIC_CONFIG_RULES[key];
+    const value = Number(contract.CONFIG_DEFAULTS[key]);
+    assert.ok(value >= min && value <= max, `${key} default ${value} outside ${min}..${max}`);
+  }
+  for (const key of contract.BOOLEAN_CONFIG_KEYS) assert.ok(key in contract.CONFIG_DEFAULTS, key);
+});
+
+test('system config contract: appointment rate-limit default matches the middleware fallback (60 / 60s)', () => {
+  assert.equal(contract.CONFIG_DEFAULTS.appointmentRateLimitRequests, '60');
+  assert.equal(contract.CONFIG_DEFAULTS.appointmentRateLimitWindowSeconds, '60');
+});

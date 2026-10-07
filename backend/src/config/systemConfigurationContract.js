@@ -1,9 +1,14 @@
 /**
  * Single source of truth for SYSTEM_CONFIGURATION key/value contract.
- * Used by controllers/systemConfig/*, rateLimitMiddleware, and migration scripts.
+ * Used by services/systemConfig/configService, rateLimitMiddleware, and migration scripts.
  */
 
-/** @type {Record<string, string>} */
+/**
+ * Keys an admin can read / set through GET|PUT /api/system-config, with their defaults.
+ * Rate-limit defaults match the fallbacks in middleware/rateLimitMiddleware.js.
+ * aiModelCatalog is edited through its own endpoint, so it is not listed here.
+ * @type {Record<string, string>}
+ */
 const CONFIG_DEFAULTS = {
   maxConcurrentUsers: '500',
   sessionTimeoutMinutes: '30',
@@ -19,11 +24,8 @@ const CONFIG_DEFAULTS = {
   chatbotRateLimitWindowSeconds: '60',
   aiSymptomRateLimitRequests: '10',
   aiSymptomRateLimitWindowSeconds: '60',
-  aiRecoveryRateLimitRequests: '8',
-  aiRecoveryRateLimitWindowSeconds: '60',
-  appointmentRateLimitRequests: '10',
-  appointmentRateLimitWindowSeconds: '300',
-  aiModelCatalog: '[]',
+  appointmentRateLimitRequests: '60',
+  appointmentRateLimitWindowSeconds: '60',
   aiModels: '[]',
   aiDefaultModelByFeature: '{}',
 };
@@ -42,8 +44,6 @@ const NUMERIC_CONFIG_RULES = {
   chatbotRateLimitWindowSeconds: { min: 1, max: 86400 },
   aiSymptomRateLimitRequests: { min: 1, max: 10000 },
   aiSymptomRateLimitWindowSeconds: { min: 1, max: 86400 },
-  aiRecoveryRateLimitRequests: { min: 1, max: 10000 },
-  aiRecoveryRateLimitWindowSeconds: { min: 1, max: 86400 },
   appointmentRateLimitRequests: { min: 1, max: 10000 },
   appointmentRateLimitWindowSeconds: { min: 1, max: 86400 },
 };

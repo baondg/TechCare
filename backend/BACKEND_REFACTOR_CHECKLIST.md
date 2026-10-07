@@ -102,7 +102,8 @@ SQL đã chuyển khỏi controller; controller chỉ còn HTTP (`asyncHandler`)
 
 - `authorization/*` không có raw SQL (dùng model) nhưng vẫn `try/catch` thủ công — chuyển sang `asyncHandler` + `validate`.
 - `routes/ai.ts` (route + middleware) · `services/ai/llmClient.ts` (Groq / local LLM, chọn model) · `services/ai/prompts.ts`.
-- ⚠️ `services/systemConfig/configService.js` có `CONFIG_DEFAULTS` / `NUMERIC_CONFIG_RULES` **lệch** với `config/systemConfigurationContract.js` (appointment rate limit 60/60 vs 10/300; thiếu `aiRecovery*`). Chưa gộp — cần chốt giá trị đúng trước.
+- [x] `CONFIG_DEFAULTS` / `NUMERIC_CONFIG_RULES` chỉ còn ở `config/systemConfigurationContract.js` (lấy theo giá trị của trang admin: appointment 60/60, không có `aiRecovery*` / `aiModelCatalog`).
+- ⚠️ `rateLimitMiddleware.js` `SCOPE_CONFIG_KEYS.aiRecovery` đọc key `aiSymptom*` — scope aiRecovery không có cấu hình riêng (mặc định cứng 8/60s).
 - `routes/ai.ts` vẫn tự kiểm tra role (`requireAdmin`, `requireClinicalStaff`) thay vì `authorizeCapability`; `adminRoutes.js` / `systemConfig.js` cũng vậy.
 - ⚠️ `accountService.createAccount` vẫn rơi về mật khẩu mặc định cứng `Test@1234` khi thiếu `DEFAULT_ACCOUNT_PASSWORD`.
 

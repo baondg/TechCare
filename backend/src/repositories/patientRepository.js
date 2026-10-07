@@ -1,6 +1,7 @@
 const { QueryTypes } = require('sequelize');
 const sequelize = require('../common/database');
 const Patient = require('../models/Patient');
+const MedicalRecord = require('../models/MedicalRecord');
 
 /** Adds `transaction` to query options only when there is one. */
 const withTx = (transaction, options) => (transaction ? { ...options, transaction } : options);
@@ -56,6 +57,25 @@ async function findPatientById(patientPk) {
   return Patient.findByPk(patientPk);
 }
 
+/** PATIENT model instance of a user, or null. */
+async function findPatientByUserId(userId) {
+  return Patient.findOne({ where: { user_id: userId } });
+}
+
+/** PATIENT of a user with blood type, allergy / history columns and all MEDICAL_RECORD rows, or null. */
+async function findPatientWithMedicalRecordsByUserId(userId) {
+  return Patient.findOne({
+    where: { user_id: userId },
+    attributes: ['patient_id', 'user_id', 'blood_type', 'allergic_info', 'medical_history'],
+    include: [{ model: MedicalRecord, as: 'medicalRecords', order: [['time', 'DESC']] }],
+  });
+}
+
+/** @param patient an instance from this repository */
+async function updatePatient(patient, changes) {
+  await patient.update(changes);
+}
+
 /** Whether the patient has a REGIMEN without an end (an active visit). */
 async function hasOpenRegimen(patientId) {
   const [row] = await sequelize.query(
@@ -75,5 +95,8 @@ module.exports = {
   findUserIdByPatientPk,
   findPatientPkByUserIdOrPk,
   findPatientById,
+  findPatientByUserId,
+  findPatientWithMedicalRecordsByUserId,
+  updatePatient,
   hasOpenRegimen,
 };

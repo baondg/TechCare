@@ -1,6 +1,6 @@
 /**
  * Central Sequelize associations for TechCare — keep in sync with `database_description.sql`
- * and raw SQL in controllers (doctorController / appointmentController).
+ * and raw SQL in controllers (controllers/doctor/*, appointmentController) and services/emr/*.
  *
  * - REGIMEN carries `disease_id`; TREATMENT does not.
  * - TEST_DETAIL has no numeric_value; use textual `result`.

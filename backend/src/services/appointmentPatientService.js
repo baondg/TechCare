@@ -6,8 +6,9 @@ const {
   notifyDoctorPatientCancelledAppointment,
 } = require('./appointmentNotifications');
 const cacheService = require('./cacheService');
+const { config } = require('../config/env');
 
-const APPOINTMENTS_LIST_CACHE_TTL_SECONDS = Number(process.env.APPOINTMENTS_LIST_CACHE_TTL_SECONDS || 5);
+const APPOINTMENTS_LIST_CACHE_TTL_SECONDS = config.cache.appointmentsListTtlSeconds;
 
 function getAppointmentsListCacheKey(patientPk) {
   return `patient:appointments_list:v1:${patientPk}`;

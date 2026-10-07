@@ -1,6 +1,7 @@
 const { QueryTypes } = require('sequelize');
 const sequelize = require('../common/database');
 const { resolvePatientPkFromRoute } = require('../common/resolvePatientRouteId');
+const logger = require('../common/logger');
 
 async function patientHasOpenRegimen(patientId) {
   const [row] = await sequelize.query(
@@ -45,7 +46,7 @@ async function requireActiveEmrVisitForDoctorTech(req, res, next) {
     }
     return next();
   } catch (e) {
-    console.error('requireActiveEmrVisitForDoctorTech:', e);
+    logger.error({ err: e }, 'requireActiveEmrVisitForDoctorTech');
     return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 }

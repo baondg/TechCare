@@ -1,4 +1,6 @@
 const express = require('express');
+const logger = require('../common/logger');
+const { config } = require('../config/env');
 const router = express.Router();
 
 // POST /api/chatbot — OpenRouter proxy using server-side OPENROUTER_API_KEY only
@@ -8,7 +10,7 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ error: 'No message provided' });
   }
 
-  const apiKey = String(process.env.OPENROUTER_API_KEY || '').trim();
+  const apiKey = config.ai.openRouterApiKey;
   if (!apiKey) {
     return res.status(503).json({
       error: 'OpenRouter is not configured',
@@ -35,15 +37,16 @@ router.post('/', async (req, res) => {
     });
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text();
-      return res.status(500).json({ error: 'OpenRouter API error', detail: errorText });
+      logger.error({ upstreamStatus: aiResponse.status, upstreamBody: errorText.slice(0, 2000) }, 'OpenRouter API error');
+      return res.status(500).json({ error: 'OpenRouter API error' });
     }
     const data = await aiResponse.json();
     return res.json({
       reply: data.choices?.[0]?.message?.content || data.reply || data.message || 'No response from AI',
     });
   } catch (err) {
-    console.error('OpenRouter call failed:', err);
-    return res.status(500).json({ error: 'Failed to call OpenRouter', detail: err.message });
+    logger.error({ err }, 'OpenRouter call failed');
+    return res.status(500).json({ error: 'Failed to call OpenRouter' });
   }
 });
 

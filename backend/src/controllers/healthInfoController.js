@@ -1,5 +1,6 @@
 const Patient = require('../models/Patient');
 const MedicalRecord = require('../models/MedicalRecord');
+const logger = require('../common/logger');
 
 const PATIENT_BLOOD_TYPES = new Set(['A+', 'B+', 'AB+', 'O+', 'A-', 'B-', 'AB-', 'O-']);
 
@@ -44,7 +45,7 @@ const parseJSON = (value) => {
     try {
       return JSON.parse(value);
     } catch (err) {
-      console.error("JSON parse error:", err);
+      logger.error({ err }, "JSON parse error");
       return {};
     }
   }
@@ -140,8 +141,8 @@ exports.getHealthInfo = async (req, res) => {
     });
 
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: err.message });
+    logger.error({ err }, 'getHealthInfo failed');
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
@@ -223,8 +224,8 @@ exports.createHealthInfo = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: err.message });
+    logger.error({ err }, 'createHealthInfo failed');
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
@@ -314,8 +315,8 @@ exports.updateHealthInfo = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: err.message });
+    logger.error({ err }, 'updateHealthInfo failed');
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
@@ -339,8 +340,8 @@ exports.confirmHealthInfo = async (req, res) => {
     await record.update({ status: 'confirmed', time: new Date() });
     return res.json({ success: true, id: record.id, status: 'confirmed' });
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: err.message });
+    logger.error({ err }, 'confirmHealthInfo failed');
+    return res.status(500).json({ message: 'Internal server error' });
   }
 };
 
@@ -373,7 +374,7 @@ exports.deleteHealthInfos = async (req, res) => {
       message: `${deletedCount} record(s) deleted successfully`,
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: err.message });
+    logger.error({ err }, 'deleteHealthInfos failed');
+    res.status(500).json({ message: 'Internal server error' });
   }
 };

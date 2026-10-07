@@ -1,4 +1,5 @@
 const { QueryTypes } = require('sequelize');
+const logger = require('./logger');
 
 function isUnknownColumnError(err) {
   const orig = err?.original || err?.parent;
@@ -21,9 +22,9 @@ async function selectPrescriptionRowsWithDurationFallback(sequelize, sqlWithDura
     return await sequelize.query(sqlWithDuration, { replacements, type: QueryTypes.SELECT });
   } catch (e) {
     if (!isUnknownColumnError(e)) throw e;
-    console.warn(
-      '[prescription] Duration column(s) missing — using legacy SQL. Add duration columns to match database_description.sql.',
-      e.message
+    logger.warn(
+      { err: e },
+      '[prescription] Duration column(s) missing — using legacy SQL. Add duration columns to match database_description.sql.'
     );
     return await sequelize.query(sqlLegacy, { replacements, type: QueryTypes.SELECT });
   }
@@ -44,9 +45,9 @@ async function insertMedicalPrescriptionCompat(sequelize, { orderId, duration, n
     );
   } catch (e) {
     if (!isUnknownColumnError(e)) throw e;
-    console.warn(
-      '[prescription] MEDICAL_PRESCRIPTION.duration missing — legacy INSERT. Migrate DB to match database_description.sql.',
-      e.message
+    logger.warn(
+      { err: e },
+      '[prescription] MEDICAL_PRESCRIPTION.duration missing — legacy INSERT. Migrate DB to match database_description.sql.'
     );
     await sequelize.query(
       `INSERT INTO MEDICAL_PRESCRIPTION (order_id, time, note)
@@ -84,9 +85,9 @@ async function insertPrescriptionDetailCompat(
     );
   } catch (e) {
     if (!isUnknownColumnError(e)) throw e;
-    console.warn(
-      '[prescription] PRESCRIPTION_DETAIL.duration missing — legacy INSERT. Migrate DB to match database_description.sql.',
-      e.message
+    logger.warn(
+      { err: e },
+      '[prescription] PRESCRIPTION_DETAIL.duration missing — legacy INSERT. Migrate DB to match database_description.sql.'
     );
     await sequelize.query(
       `INSERT INTO PRESCRIPTION_DETAIL (prescription_id, no, medicine_id, quantity, \`usage\`, unit, note)
@@ -141,7 +142,7 @@ async function updateMedicalPrescriptionCompat(sequelize, { orderId, setNote, se
     await run(true);
   } catch (e) {
     if (!isUnknownColumnError(e) || !hasDuration) throw e;
-    console.warn('[prescription] duration column missing on UPDATE — omitting duration', e.message);
+    logger.warn({ err: e }, '[prescription] duration column missing on UPDATE — omitting duration');
     await run(false);
   }
 }

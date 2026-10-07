@@ -28,6 +28,8 @@ test('GET /health returns ok', async () => {
 test('unknown /api route returns 404', async () => {
   const res = await fetch(`${server.baseUrl}/api/does-not-exist`);
   assert.equal(res.status, 404);
+  const body = await res.json();
+  assert.equal(body.code, 'ROUTE_NOT_FOUND');
 });
 
 /** One representative endpoint per protected router. */

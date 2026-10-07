@@ -1,6 +1,6 @@
 /**
  * Single source of truth for SYSTEM_CONFIGURATION key/value contract.
- * Used by systemConfigController, rateLimitMiddleware, and migration scripts.
+ * Used by controllers/systemConfig/*, rateLimitMiddleware, and migration scripts.
  */
 
 /** @type {Record<string, string>} */

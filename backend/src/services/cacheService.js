@@ -1,3 +1,5 @@
+const logger = require('../common/logger');
+const { config } = require('../config/env');
 const memoryCache = new Map();
 
 let redisClient = null;
@@ -9,7 +11,7 @@ function nowMs() {
 }
 
 function useRedis() {
-  return process.env.ENABLE_PATIENT_RECORD_CACHE === '1';
+  return config.cache.patientRecordRedisEnabled;
 }
 
 async function getRedisClient() {
@@ -19,23 +21,23 @@ async function getRedisClient() {
   if (!redisConnectPromise) {
     redisConnectPromise = (async () => {
       const { createClient } = require('redis');
-      const url = process.env.REDIS_URL || 'redis://127.0.0.1:6379';
+      const url = config.redis.url || 'redis://127.0.0.1:6379';
       const client = createClient({
         url,
         socket: {
-          connectTimeout: Number(process.env.REDIS_CONNECT_TIMEOUT_MS || 1500),
+          connectTimeout: config.redis.connectTimeoutMs,
           // Fail fast in local/dev when Redis is unavailable.
           reconnectStrategy: () => false,
         },
       });
       client.on('error', (err) => {
-        console.warn('[cache] redis error:', err?.message || err);
+        logger.warn({ err }, '[cache] redis error');
       });
       await client.connect();
       redisClient = client;
       return client;
     })().catch((err) => {
-      console.warn('[cache] redis unavailable, fallback to memory:', err?.message || err);
+      logger.warn({ err }, '[cache] redis unavailable, fallback to memory');
       redisDisabled = true;
       redisConnectPromise = null;
       return null;

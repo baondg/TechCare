@@ -5,6 +5,7 @@ const defineSystemConfig = require('../models/SystemConfig');
 const SystemConfig = defineSystemConfig(sequelize);
 const { Op } = require('sequelize');
 const { getJwtSecret } = require('../security/jwtConfig');
+const logger = require('../common/logger');
 
 
 
@@ -19,7 +20,7 @@ const cleanupExpiredSessions = async () => {
       }
     });
   } catch (error) {
-    console.error('Error cleaning up expired sessions:', error);
+    logger.error({ err: error }, 'Error cleaning up expired sessions');
   }
 };
 
@@ -113,7 +114,7 @@ exports.checkConcurrentUsers = async (req, res, next) => {
     req.currentActiveUsers = activeSessions;
     next();
   } catch (error) {
-    console.error('Error checking concurrent users:', error);
+    logger.error({ err: error }, 'Error checking concurrent users');
     next();
   }
 };

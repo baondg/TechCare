@@ -1,10 +1,11 @@
 const appointmentNotificationRepository = require('../repositories/appointmentNotificationRepository');
+const logger = require('../common/logger');
 
 async function safeRun(label, fn) {
   try {
     await fn();
   } catch (e) {
-    console.warn(`[appointment-notify] ${label}:`, e?.message || e);
+    logger.warn({ err: e }, `[appointment-notify] ${label}`);
   }
 }
 
@@ -157,7 +158,7 @@ exports.notifyDepartmentDoctorsInboundClinicTransfer = ({ toRoomId, patientPk, r
   safeRun('notifyDepartmentDoctorsInboundClinicTransfer', async () => {
     const room = await appointmentNotificationRepository.selectRoomDepartmentForTransfer(toRoomId);
     if (!room?.departmentId) {
-      console.warn('[transfer-notify] Destination room has no department_id; skipping doctor notifications');
+      logger.warn('[transfer-notify] Destination room has no department_id; skipping doctor notifications');
       return;
     }
 

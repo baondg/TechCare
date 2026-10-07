@@ -1,6 +1,16 @@
 const express = require('express');
 const router = express.Router();
-const doctorController = require('../controllers/doctorController');
+const catalogController = require('../controllers/doctor/catalogController');
+const dashboardController = require('../controllers/doctor/dashboardController');
+const patientController = require('../controllers/doctor/patientController');
+const regimenController = require('../controllers/doctor/regimenController');
+const healthInfoController = require('../controllers/doctor/healthInfoController');
+const diagnosisController = require('../controllers/doctor/diagnosisController');
+const prescriptionController = require('../controllers/doctor/prescriptionController');
+const labTestController = require('../controllers/doctor/labTestController');
+const surgeryController = require('../controllers/doctor/surgeryController');
+const doctorAppointmentController = require('../controllers/doctor/appointmentController');
+const signatureController = require('../controllers/doctor/signatureController');
 const authenticateToken = require('../middleware/authMiddleware');
 const { requireActiveEmrVisitForDoctorTech } = require('../middleware/emrActiveVisitMiddleware');
 const { authorizeCapability } = require('../middleware/authorizeCapability');
@@ -17,71 +27,71 @@ router.use(authorizeCapability('doctor.emr.read'));
 router.use(requireActiveEmrVisitForDoctorTech);
 
 // ─── Dictionary / master data ───
-router.get('/diseases', doctorController.getDiseaseCodes);
-router.get('/medicines', doctorController.getMedicines);
-router.get('/technicians', doctorController.getTechnicians);
-router.get('/departments', doctorController.getDepartments);
+router.get('/diseases', catalogController.getDiseaseCodes);
+router.get('/medicines', catalogController.getMedicines);
+router.get('/technicians', catalogController.getTechnicians);
+router.get('/departments', catalogController.getDepartments);
 
 // ─── Dashboard ───
-router.get('/dashboard/summary', doctorController.getDashboardSummary);
+router.get('/dashboard/summary', dashboardController.getDashboardSummary);
 
 // ─── Patients ───
-router.get('/patients', doctorController.getPatients);
-router.get('/patients/:patientId', doctorController.getPatient);
+router.get('/patients', patientController.getPatients);
+router.get('/patients/:patientId', patientController.getPatient);
 router.get(
   '/patients/:patientId/recovery-prediction',
   validateRequest(appointmentSchemas.recoveryPredictionQuery),
   aiRecoveryRateLimit,
   appointmentController.getStaffPatientRecoveryPrediction
 );
-router.get('/patients/:patientId/regimen/active', doctorController.getActiveRegimenForPatient);
-router.get('/patients/:patientId/regimen/active/documents', doctorController.getActiveRegimenDocumentsForPatient);
-router.get('/patients/:patientId/medical-regimens', doctorController.getPatientMedicalRegimensForDoctor);
-router.post('/patients/:patientId/regimen/close', doctorController.closeOpenRegimenForPatient);
-router.post('/patients/:patientId/health-tracking-slips', doctorController.createHealthTrackingSlipForPatient);
-router.post('/patients/:patientId/follow-up-reexam-slip', doctorController.createFollowUpReexamSlipForPatient);
+router.get('/patients/:patientId/regimen/active', regimenController.getActiveRegimenForPatient);
+router.get('/patients/:patientId/regimen/active/documents', regimenController.getActiveRegimenDocumentsForPatient);
+router.get('/patients/:patientId/medical-regimens', regimenController.getPatientMedicalRegimensForDoctor);
+router.post('/patients/:patientId/regimen/close', regimenController.closeOpenRegimenForPatient);
+router.post('/patients/:patientId/health-tracking-slips', regimenController.createHealthTrackingSlipForPatient);
+router.post('/patients/:patientId/follow-up-reexam-slip', regimenController.createFollowUpReexamSlipForPatient);
 
 // ─── Health Info ───
-router.get('/patients/:patientId/health-info', doctorController.getHealthInfo);
-router.get('/patients/:patientId/health-info/history', doctorController.getHealthInfoHistory);
-router.post('/patients/:patientId/health-info', doctorController.createHealthInfo);
-router.put('/patients/:patientId/health-info/:id', doctorController.updateHealthInfo);
-router.patch('/patients/:patientId/health-info/:id/confirm', doctorController.confirmHealthInfo);
-router.delete('/patients/:patientId/health-info/:id', doctorController.deleteHealthInfo);
+router.get('/patients/:patientId/health-info', healthInfoController.getHealthInfo);
+router.get('/patients/:patientId/health-info/history', healthInfoController.getHealthInfoHistory);
+router.post('/patients/:patientId/health-info', healthInfoController.createHealthInfo);
+router.put('/patients/:patientId/health-info/:id', healthInfoController.updateHealthInfo);
+router.patch('/patients/:patientId/health-info/:id/confirm', healthInfoController.confirmHealthInfo);
+router.delete('/patients/:patientId/health-info/:id', healthInfoController.deleteHealthInfo);
 
 // ─── Diagnoses ───
-router.get('/patients/:patientId/diagnoses', doctorController.getDiagnoses);
-router.post('/patients/:patientId/diagnoses', doctorController.createDiagnosis);
-router.put('/patients/:patientId/diagnoses/:id', doctorController.updateDiagnosis);
+router.get('/patients/:patientId/diagnoses', diagnosisController.getDiagnoses);
+router.post('/patients/:patientId/diagnoses', diagnosisController.createDiagnosis);
+router.put('/patients/:patientId/diagnoses/:id', diagnosisController.updateDiagnosis);
 
 // ─── Prescriptions ───
-router.get('/patients/:patientId/prescriptions', doctorController.getPrescriptions);
-router.post('/patients/:patientId/prescriptions', doctorController.createPrescription);
-router.put('/patients/:patientId/prescriptions/:id', doctorController.updatePrescription);
-router.post('/patients/:patientId/transfers', doctorController.createPatientTransfer);
+router.get('/patients/:patientId/prescriptions', prescriptionController.getPrescriptions);
+router.post('/patients/:patientId/prescriptions', prescriptionController.createPrescription);
+router.put('/patients/:patientId/prescriptions/:id', prescriptionController.updatePrescription);
+router.post('/patients/:patientId/transfers', regimenController.createPatientTransfer);
 
 // ─── Lab tests ───
-router.get('/patients/:patientId/lab-tests', doctorController.getLabTests);
-router.post('/patients/:patientId/lab-tests', doctorController.createLabTest);
-router.put('/patients/:patientId/lab-tests/:id', doctorController.updateLabTest);
-router.get('/patients/:patientId/lab-tests/:id/details', doctorController.getLabTestDetails);
-router.post('/lab-attachments', doctorController.uploadLabAttachment);
+router.get('/patients/:patientId/lab-tests', labTestController.getLabTests);
+router.post('/patients/:patientId/lab-tests', labTestController.createLabTest);
+router.put('/patients/:patientId/lab-tests/:id', labTestController.updateLabTest);
+router.get('/patients/:patientId/lab-tests/:id/details', labTestController.getLabTestDetails);
+router.post('/lab-attachments', labTestController.uploadLabAttachment);
 
 // ─── Surgeries ───
-router.get('/patients/:patientId/surgeries', doctorController.getSurgeries);
-router.post('/patients/:patientId/surgeries', doctorController.createSurgery);
-router.put('/patients/:patientId/surgeries/:id', doctorController.updateSurgery);
+router.get('/patients/:patientId/surgeries', surgeryController.getSurgeries);
+router.post('/patients/:patientId/surgeries', surgeryController.createSurgery);
+router.put('/patients/:patientId/surgeries/:id', surgeryController.updateSurgery);
 
 // ─── Appointments ───
-router.get('/appointments', doctorController.getAppointments);
-router.post('/appointments', doctorController.createAppointment);
-router.put('/appointments/:id/cancel', doctorController.cancelAppointment);
-router.put('/appointments/:id/cover', doctorController.coverAppointment);
-router.put('/appointments/:id/confirm', doctorController.confirmAppointment);
-router.put('/appointments/:id/decline', doctorController.declineAppointment);
+router.get('/appointments', doctorAppointmentController.getAppointments);
+router.post('/appointments', doctorAppointmentController.createAppointment);
+router.put('/appointments/:id/cancel', doctorAppointmentController.cancelAppointment);
+router.put('/appointments/:id/cover', doctorAppointmentController.coverAppointment);
+router.put('/appointments/:id/confirm', doctorAppointmentController.confirmAppointment);
+router.put('/appointments/:id/decline', doctorAppointmentController.declineAppointment);
 
 // ─── Signature ───
-router.get('/signature', doctorController.getSignature);
-router.put('/signature', doctorController.saveSignature);
+router.get('/signature', signatureController.getSignature);
+router.put('/signature', signatureController.saveSignature);
 
 module.exports = router;

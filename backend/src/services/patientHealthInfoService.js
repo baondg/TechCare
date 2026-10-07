@@ -153,7 +153,7 @@ async function createHealthInfo(user, userIdParam, body) {
 
 /**
  * Edits a draft record (`body.id`; time reset to now; height / weight / status kept when omitted)
- * and replaces blood type / allergies.
+ * and replaces blood type / allergies / medical history, like create.
  */
 async function updateHealthInfo(user, userIdParam, body) {
   const patient = await requireOwnPatient(user, userIdParam);
@@ -168,12 +168,14 @@ async function updateHealthInfo(user, userIdParam, body) {
   });
 
   const bloodType = toPatientBloodType(body.bloodType);
-  const allergyInfo = listsFrom(body, [...ALLERGY_FIELDS, ...HISTORY_FIELDS]);
+  const allergies = listsFrom(body, ALLERGY_FIELDS);
+  const medicalHistory = listsFrom(body, HISTORY_FIELDS);
   await patientRepository.updatePatient(patient, {
     ...(bloodType ? { blood_type: bloodType } : {}),
-    allergic_info: JSON.stringify(allergyInfo),
+    allergic_info: JSON.stringify(allergies),
+    medical_history: JSON.stringify(medicalHistory),
   });
-  return { ...toHealthRecord(record), bloodType: bloodType || patient.blood_type, ...allergyInfo };
+  return { ...toHealthRecord(record), bloodType: bloodType || patient.blood_type, ...allergies, ...medicalHistory };
 }
 
 async function confirmHealthInfo(user, userIdParam, recordIdParam) {

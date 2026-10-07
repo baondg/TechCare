@@ -133,9 +133,9 @@ SQL đã chuyển khỏi controller; controller chỉ còn HTTP (`asyncHandler`)
 ## Follow-up (broader backend — khối lớn, làm dần)
 
 - [x] `CONFIG_DEFAULTS` / `NUMERIC_CONFIG_RULES` chỉ còn ở `config/systemConfigurationContract.js` (lấy theo giá trị của trang admin: appointment 60/60, không có `aiRecovery*` / `aiModelCatalog`).
-- ⚠️ `rateLimitMiddleware.js` `SCOPE_CONFIG_KEYS.aiRecovery` đọc key `aiSymptom*` — scope aiRecovery không có cấu hình riêng (mặc định cứng 8/60s).
-- `adminRoutes.js` / `systemConfig.js` vẫn tự kiểm tra role (`requireAdmin`) thay vì `authorizeCapability`.
-- ⚠️ `accountService.createAccount` vẫn rơi về mật khẩu mặc định cứng `Test@1234` khi thiếu `DEFAULT_ACCOUNT_PASSWORD`.
+- [x] Rate limit: một bảng scope → key duy nhất (`RATE_LIMIT_SCOPE_TO_KEYS`), middleware dùng nó; `aiRecovery` dùng chung cấu hình "AI symptom" của trang admin (đúng như đang chạy). Test: `test/rate-limit-scope-keys.test.js`.
+- [x] `adminRoutes.js` / `systemConfig.js` dùng `authorizeCapability('admin.console')`. Test: `test/admin-guard.test.js`.
+- ⚠️ `accountService.createAccount` vẫn rơi về mật khẩu mặc định cứng `Test@1234` (ghi trong docs) khi thiếu `DEFAULT_ACCOUNT_PASSWORD`; không deploy nào đặt biến này. **Backend không có API đổi mật khẩu** → mọi tài khoản admin tạo dùng chung một mật khẩu mãi mãi. Cần quyết định: mật khẩu ngẫu nhiên từng tài khoản (hiện một lần cho admin) + API đổi mật khẩu + bắt đổi ở lần đăng nhập đầu.
 
 ## Doctor / EMR (G3 — bước A: tách controller theo miền)
 

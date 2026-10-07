@@ -1,22 +1,10 @@
-const sequelize = require('../../common/database');
 const treatmentRepository = require('../../repositories/treatmentRepository');
 const { BadRequestError, NotFoundError } = require('../../errors/AppError');
 const { resolvePatientPkFromOpRoute } = require('./patientRouteResolver');
 const { createTreatmentForPatient, ensureDisease, ensureOpenRegimenForDisease, resolveStructuralType } = require('./treatmentService');
 const { MSG_NO_DOCTOR_OR_PRIOR_TREATMENT, getDoctorIdForUserOrLatestForPatient, resolveDoctorDisplayName } = require('./staffIdentity');
 const { invalidatePatientRecordCache } = require('./patientRecordCache');
-
-async function inTransaction(work) {
-  const transaction = await sequelize.transaction();
-  try {
-    const result = await work(transaction);
-    await transaction.commit();
-    return result;
-  } catch (error) {
-    await transaction.rollback();
-    throw error;
-  }
-}
+const { inTransaction } = require('../../common/transaction');
 
 function requireComplaintAndIcd({ complaint, icd10 }) {
   if (!complaint || !icd10) throw new BadRequestError('Complaint and ICD-10 code are required');

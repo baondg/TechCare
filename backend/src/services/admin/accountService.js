@@ -1,5 +1,5 @@
 const bcrypt = require('bcrypt');
-const sequelize = require('../../common/database');
+const { inTransaction } = require('../../common/transaction');
 const accountRepository = require('../../repositories/accountRepository');
 const catalogRepository = require('../../repositories/catalogRepository');
 const { config } = require('../../config/env');
@@ -152,19 +152,6 @@ async function syncDoctorProfile(userId, { specifications, qualifications, depar
     doctorId = await accountRepository.insertDoctorProfile(userId, profile, transaction);
   }
   await accountRepository.replaceDoctorDepartments(doctorId, cleanDeptIds, transaction);
-}
-
-/** Runs `work(tx)` in a transaction: commit on success, rollback and rethrow on any error. */
-async function inTransaction(work) {
-  const tx = await sequelize.transaction();
-  try {
-    const result = await work(tx);
-    await tx.commit();
-    return result;
-  } catch (error) {
-    await tx.rollback();
-    throw error;
-  }
 }
 
 async function listDepartments() {

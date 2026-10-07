@@ -16,6 +16,7 @@ const { requireActiveEmrVisitForDoctorTech } = require('../middleware/emrActiveV
 const { authorizeCapability } = require('../middleware/authorizeCapability');
 const appointmentController = require('../controllers/appointmentController');
 const validateRequest = require('../middleware/validateRequest');
+const { labAttachmentJsonBody } = require('../middleware/jsonBody');
 const appointmentSchemas = require('../validators/appointmentSchemas');
 const { aiRecoveryRateLimit } = require('../middleware/rateLimitMiddleware');
 
@@ -75,7 +76,7 @@ router.get('/patients/:patientId/lab-tests', labTestController.getLabTests);
 router.post('/patients/:patientId/lab-tests', labTestController.createLabTest);
 router.put('/patients/:patientId/lab-tests/:id', labTestController.updateLabTest);
 router.get('/patients/:patientId/lab-tests/:id/details', labTestController.getLabTestDetails);
-router.post('/lab-attachments', labTestController.uploadLabAttachment);
+router.post('/lab-attachments', labAttachmentJsonBody, labTestController.uploadLabAttachment);
 
 // ─── Surgeries ───
 router.get('/patients/:patientId/surgeries', surgeryController.getSurgeries);

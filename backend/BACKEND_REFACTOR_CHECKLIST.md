@@ -124,6 +124,12 @@ SQL đã chuyển khỏi controller; controller chỉ còn HTTP (`asyncHandler`)
 - `PUT /api/profile` bắt buộc tên người thân hợp lệ với mọi tài khoản (nhân viên / admin không cập nhật được profile của mình nếu không có người thân); nhánh tách `fullName` vì thế không bao giờ chạy.
 - `GET /api/health-info/:userId` bỏ qua `:userId`, luôn trả dữ liệu của người đang đăng nhập (portal chỉ gọi cho chính mình).
 
+## Lịch hẹn phía bệnh nhân / y tá (`appointmentController`)
+
+- [x] 33 handler chuyển sang `asyncHandler` (`sendResult` / `sendJson`), 465 → 121 dòng. Test: `test/appointment-controller-passthrough.test.js` (tham số gửi service, kết quả trả nguyên, lỗi → 500 chung).
+- [x] Bỏ `/api/chatbot` (proxy OpenRouter **không xác thực**, không ai dùng, gửi key sai header) + `OPENROUTER_API_KEY`.
+- [ ] Các service `appointment*` vẫn trả `{ status, json }` cho lỗi 4xx (77 chỗ) thay vì throw `AppError`, và tự kiểm tra role (`role` truyền vào) — làm từng service, kèm characterization.
+
 ## Follow-up (broader backend — khối lớn, làm dần)
 
 - [x] `CONFIG_DEFAULTS` / `NUMERIC_CONFIG_RULES` chỉ còn ở `config/systemConfigurationContract.js` (lấy theo giá trị của trang admin: appointment 60/60, không có `aiRecovery*` / `aiModelCatalog`).

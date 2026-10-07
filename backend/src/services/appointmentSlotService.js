@@ -1,28 +1,23 @@
 const appointmentRepository = require('../repositories/appointmentRepository');
+const { BadRequestError, ConflictError, NotFoundError } = require('../errors/AppError');
 const {
   notifyPatientAppointmentDoctorReassigned,
   notifyDoctorReceivedCoverAppointment,
 } = require('./appointmentNotifications');
 
-function isNurseOrAdmin(role) {
-  return ['nurse', 'admin'].includes(String(role || '').toLowerCase());
-}
+/**
+ * Slots = APPOINTMENT rows managed by nurses / admins (open = no patient). Roles and request shape
+ * are checked by the routes (capabilities + validators).
+ */
 
+/** Booked (time, doctor) pairs of a day. */
 async function getBookedSlots({ date }) {
-  if (!date) {
-    return { ok: false, status: 400, json: { message: 'date query param required' } };
-  }
-  const booked = await appointmentRepository.listBookedSlotsForDate(date);
-  return { ok: true, status: 200, json: { success: true, slots: booked } };
+  return appointmentRepository.listBookedSlotsForDate(date);
 }
 
+/** Slots in an optional date range; patients only see what they may book. */
 async function getOpenSlots({ role, query }) {
-  const roleNorm = String(role || '').toLowerCase();
-  const canViewForManagement = ['nurse', 'admin'].includes(roleNorm);
-  const isPatientView = roleNorm === 'patient';
-  if (!canViewForManagement && !isPatientView) {
-    return { ok: false, status: 403, json: { success: false, message: 'Forbidden' } };
-  }
+  const isPatientView = String(role || '').toLowerCase() === 'patient';
 
   const startDate = String(query?.startDate || '').trim();
   const endDate = String(query?.endDate || '').trim();
@@ -52,23 +47,19 @@ async function getOpenSlots({ role, query }) {
     status: r.dbStatus === 'cancelled' ? 'cancelled' : r.patientId ? 'booked' : 'open',
   }));
 
-  return { ok: true, status: 200, json: { success: true, slots } };
+  return slots;
 }
 
-async function createOpenSlot({ role, body }) {
-  if (!isNurseOrAdmin(role)) {
-    return { ok: false, status: 403, json: { success: false, message: 'Forbidden' } };
-  }
-
+/**
+ * New open slot. Room: `roomId` (must be in the department when one is given), else a room of the
+ * department (the doctor's own first), else the doctor's room, else any clinic room.
+ */
+async function createOpenSlot({ body }) {
   const doctorId = Number(body?.doctorId);
   const roomId = Number(body?.roomId);
   const date = String(body?.date || '').trim();
   const time = String(body?.time || '').trim().slice(0, 5);
   const condition = String(body?.condition || 'Open slot').trim();
-
-  if (!Number.isFinite(doctorId) || !date || !time) {
-    return { ok: false, status: 400, json: { success: false, message: 'doctorId, date and time are required' } };
-  }
 
   const dateTime = `${date} ${time}:00`;
   const departmentName = String(body?.department || '').trim();
@@ -77,22 +68,10 @@ async function createOpenSlot({ role, body }) {
   let targetDepartmentId = null;
   if (Number.isFinite(departmentIdRaw) && departmentIdRaw > 0) {
     targetDepartmentId = await appointmentRepository.findDepartmentIdByPk(departmentIdRaw);
-    if (!targetDepartmentId) {
-      return {
-        ok: false,
-        status: 400,
-        json: { success: false, message: `Unknown department id: ${departmentIdRaw}` },
-      };
-    }
+    if (!targetDepartmentId) throw new BadRequestError(`Unknown department id: ${departmentIdRaw}`);
   } else if (departmentName) {
     targetDepartmentId = await appointmentRepository.findDepartmentIdByName(departmentName);
-    if (!targetDepartmentId) {
-      return {
-        ok: false,
-        status: 400,
-        json: { success: false, message: `Unknown department: ${departmentName}` },
-      };
-    }
+    if (!targetDepartmentId) throw new BadRequestError(`Unknown department: ${departmentName}`);
   }
 
   let resolvedRoomId = Number.isFinite(roomId) ? roomId : null;
@@ -100,24 +79,13 @@ async function createOpenSlot({ role, body }) {
   if (resolvedRoomId && targetDepartmentId) {
     const roomDeptId = await appointmentRepository.findClinicRoomDepartmentId(resolvedRoomId);
     if (roomDeptId !== targetDepartmentId) {
-      return {
-        ok: false,
-        status: 400,
-        json: { success: false, message: 'Selected room does not belong to the chosen department' },
-      };
+      throw new BadRequestError('Selected room does not belong to the chosen department');
     }
   }
 
   if (!resolvedRoomId && targetDepartmentId) {
     resolvedRoomId = await appointmentRepository.findClinicRoomIdInDepartment(targetDepartmentId, doctorId);
-    if (!resolvedRoomId) {
-      const label = departmentName || `department #${targetDepartmentId}`;
-      return {
-        ok: false,
-        status: 400,
-        json: { success: false, message: `No clinic room in ${label}` },
-      };
-    }
+    if (!resolvedRoomId) throw new BadRequestError(`No clinic room in ${departmentName || `department #${targetDepartmentId}`}`);
   }
 
   if (!resolvedRoomId) {
@@ -126,14 +94,10 @@ async function createOpenSlot({ role, body }) {
   if (!resolvedRoomId) {
     resolvedRoomId = await appointmentRepository.findAnyClinicRoomId(null);
   }
-  if (!resolvedRoomId) {
-    return { ok: false, status: 400, json: { success: false, message: 'No clinic room available' } };
-  }
+  if (!resolvedRoomId) throw new BadRequestError('No clinic room available');
 
   const existing = await appointmentRepository.findAppointmentAtDoctorRoomTime(doctorId, resolvedRoomId, dateTime);
-  if (existing?.id) {
-    return { ok: false, status: 409, json: { success: false, message: 'This slot already exists' } };
-  }
+  if (existing?.id) throw new ConflictError('This slot already exists');
 
   const id = await appointmentRepository.insertOpenSlotRow({
     time: dateTime,
@@ -142,18 +106,14 @@ async function createOpenSlot({ role, body }) {
     roomId: resolvedRoomId,
   });
 
-  return {
-    ok: true,
-    status: 201,
-    json: { success: true, slot: { id, doctorId, roomId: resolvedRoomId, date, time, status: 'open' } },
-  };
+  return { id, doctorId, roomId: resolvedRoomId, date, time, status: 'open' };
 }
 
-async function updateOpenSlot({ role, id: idRaw, body }) {
-  if (!isNurseOrAdmin(role)) {
-    return { ok: false, status: 403, json: { success: false, message: 'Forbidden' } };
-  }
-
+/**
+ * Moves a slot (date / time / room) and may hand it to another doctor; a booked slot only to a doctor
+ * sharing a department, and then the patient and the new doctor are notified. Returns `{ id, date, time }`.
+ */
+async function updateOpenSlot({ id: idRaw, body }) {
   const id = Number(idRaw);
   const dateIn = String(body?.date || '').trim();
   const timeIn = String(body?.time || '').trim().slice(0, 5);
@@ -163,15 +123,9 @@ async function updateOpenSlot({ role, id: idRaw, body }) {
   const roomId = hasRoomId && Number.isFinite(parsedRoomId) ? parsedRoomId : null;
   const doctorIdIn = body?.doctorId != null ? Number(body.doctorId) : null;
 
-  if (!Number.isFinite(id)) {
-    return { ok: false, status: 400, json: { success: false, message: 'Invalid id' } };
-  }
-
   const slot = await appointmentRepository.getSlotByIdForNurseUpdate(id);
-  if (!slot) return { ok: false, status: 404, json: { success: false, message: 'Slot not found' } };
-  if (String(slot.status || '').toLowerCase() === 'cancelled') {
-    return { ok: false, status: 400, json: { success: false, message: 'Slot is cancelled' } };
-  }
+  if (!slot) throw new NotFoundError('Slot not found');
+  if (String(slot.status || '').toLowerCase() === 'cancelled') throw new BadRequestError('Slot is cancelled');
 
   const wall = String(slot.slotTime || '');
   const m = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})/.exec(wall.replace('T', ' '));
@@ -179,13 +133,7 @@ async function updateOpenSlot({ role, id: idRaw, body }) {
   const existingTime = m ? `${m[2]}:${m[3]}` : '';
   const date = dateIn || existingDate;
   const time = timeIn || existingTime;
-  if (!date || !time) {
-    return {
-      ok: false,
-      status: 400,
-      json: { success: false, message: 'date and time are required (or slot has invalid time)' },
-    };
-  }
+  if (!date || !time) throw new BadRequestError('date and time are required (or slot has invalid time)');
 
   let nextDoctorId = Number(slot.doctorId);
   if (Number.isFinite(doctorIdIn) && doctorIdIn > 0) {
@@ -205,19 +153,11 @@ async function updateOpenSlot({ role, id: idRaw, body }) {
 
   if (hadPatient && nextDoctorId !== oldDoctorId) {
     const okDept = await appointmentRepository.doctorsShareDepartment(oldDoctorId, nextDoctorId, null);
-    if (!okDept) {
-      return {
-        ok: false,
-        status: 400,
-        json: { success: false, message: 'Covering doctor must share a department with the current doctor' },
-      };
-    }
+    if (!okDept) throw new BadRequestError('Covering doctor must share a department with the current doctor');
   }
 
   const conflict = await appointmentRepository.findDoctorScheduledConflictExcluding(nextDoctorId, dateTime, id);
-  if (conflict?.id) {
-    return { ok: false, status: 409, json: { success: false, message: 'That doctor already has a slot at this time' } };
-  }
+  if (conflict?.id) throw new ConflictError('That doctor already has a slot at this time');
 
   let oldDoctorLabel = '';
   if (nextDoctorId !== oldDoctorId) {
@@ -250,24 +190,17 @@ async function updateOpenSlot({ role, id: idRaw, body }) {
     });
   }
 
-  return { ok: true, status: 200, json: { success: true, id, date, time } };
+  return { id, date, time };
 }
 
-async function deleteOpenSlot({ role, id: idRaw }) {
-  if (!isNurseOrAdmin(role)) {
-    return { ok: false, status: 403, json: { success: false, message: 'Forbidden' } };
-  }
+/** Cancels an open (unbooked) slot; returns its id. */
+async function deleteOpenSlot({ id: idRaw }) {
   const id = Number(idRaw);
-  if (!Number.isFinite(id)) {
-    return { ok: false, status: 400, json: { success: false, message: 'Invalid id' } };
-  }
   const slot = await appointmentRepository.getSlotIdAndPatientForDelete(id);
-  if (!slot) return { ok: false, status: 404, json: { success: false, message: 'Slot not found' } };
-  if (slot.patientId) {
-    return { ok: false, status: 400, json: { success: false, message: 'Booked slot cannot be deleted' } };
-  }
+  if (!slot) throw new NotFoundError('Slot not found');
+  if (slot.patientId) throw new BadRequestError('Booked slot cannot be deleted');
   await appointmentRepository.cancelOpenSlotById(id);
-  return { ok: true, status: 200, json: { success: true, id } };
+  return id;
 }
 
 module.exports = {

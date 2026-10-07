@@ -1,9 +1,19 @@
 const bcrypt = require('bcrypt');
-const Account = require('../models/Account');
-const User = require('../models/Users');
-const Patient = require('../models/Patient');
+const sequelize = require('../common/database');
+const authAccountRepository = require('../repositories/authAccountRepository');
+const { BadRequestError, ConflictError } = require('../errors/AppError');
 
 const SALT_ROUNDS = 12;
+
+const EMPTY_ALLERGIES = { drugAllergies: [], foodAllergies: [], otherAllergies: [] };
+const EMPTY_HISTORY = {
+  vaccinations: [],
+  familyHistory: [],
+  pastIllnesses: [],
+  pastSurgeries: [],
+  substanceAbuse: [],
+  chronicConditions: [],
+};
 
 function validatePasswordStrength(password) {
   if (password.length < 8) {
@@ -26,116 +36,104 @@ async function hashPassword(password) {
 }
 
 /**
- * Creates USER + ACCOUNT (PAT) + PATIENT in one transaction.
- * @param {object} body - Same shape as public /signup body
- * @param {object} options
- * @param {import('sequelize').Transaction} options.transaction - Required
- * @param {number|null} [options.createdByUserId] - Nurse/staff USER.id for ACCOUNT.created_by
- * @returns {Promise<{ ok: true, account: import('sequelize').Model, user: import('sequelize').Model } | { ok: false, status: number, error: string }>}
+ * Validates a sign-up body (same shape for public /signup and nurse registration).
+ * Throws BadRequestError with the first problem. The national id is the login username.
  */
-async function createPatientAccountRecords(body, { transaction, createdByUserId = null }) {
-  const { sex, email, password, dob, tel, idcard, firstName, lastName } = body;
+function parsePatientRegistration(body) {
+  const { sex, email, password, dob, tel, idcard, firstName, lastName } = body || {};
 
   const idNormalized = String(idcard || '').trim();
-  if (!idNormalized) {
-    return { ok: false, status: 400, error: 'National ID / passport is required' };
-  }
-
-  const loginUsername = idNormalized;
-
-  if (!password || !firstName || !lastName) {
-    return { ok: false, status: 400, error: 'Password and name fields are required' };
-  }
+  if (!idNormalized) throw new BadRequestError('National ID / passport is required');
+  if (!password || !firstName || !lastName) throw new BadRequestError('Password and name fields are required');
 
   const telNormalized = String(tel || '').trim();
-  if (!telNormalized) {
-    return { ok: false, status: 400, error: 'Phone number is required' };
-  }
+  if (!telNormalized) throw new BadRequestError('Phone number is required');
 
   const dobNormalized = String(dob || '').trim();
-  if (!dobNormalized) {
-    return { ok: false, status: 400, error: 'Date of birth is required' };
-  }
+  if (!dobNormalized) throw new BadRequestError('Date of birth is required');
 
   const emailTrimmed = String(email || '').trim();
-  const emailForDb = emailTrimmed || null;
-  if (emailTrimmed) {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(emailTrimmed)) {
-      return { ok: false, status: 400, error: 'Invalid email format' };
-    }
+  if (emailTrimmed && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrimmed)) {
+    throw new BadRequestError('Invalid email format');
   }
 
   const passwordValidation = validatePasswordStrength(password);
-  if (!passwordValidation.valid) {
-    return { ok: false, status: 400, error: passwordValidation.error };
-  }
+  if (!passwordValidation.valid) throw new BadRequestError(passwordValidation.error);
 
-  const existingUser = await Account.findOne({
-    where: { username: loginUsername },
-    transaction,
-  });
-
-  if (existingUser) {
-    return { ok: false, status: 409, error: 'Username already taken' };
-  }
-
-  const hashedPassword = await hashPassword(password);
-
-  const newUser = await User.create(
-    {
+  return {
+    username: idNormalized,
+    password,
+    user: {
       first_name: firstName,
       last_name: lastName,
-      email: emailForDb,
+      email: emailTrimmed || null,
       sex,
       dob: dobNormalized,
       tel: telNormalized,
       idcard: idNormalized,
     },
-    { transaction }
-  );
+  };
+}
 
-  const account = await Account.create(
+/**
+ * Creates USER + ACCOUNT (PAT) + PATIENT inside the caller's transaction.
+ * Throws BadRequestError (invalid body) or ConflictError (national id already registered).
+ * @param {object} body - Same shape as public /signup body
+ * @param {object} options
+ * @param {import('sequelize').Transaction} options.transaction - Required
+ * @param {number|null} [options.createdByUserId] - Nurse/staff USER.id for ACCOUNT.created_by
+ * @returns {Promise<{ account: import('sequelize').Model, user: import('sequelize').Model }>}
+ */
+async function createPatientAccountRecords(body, { transaction, createdByUserId = null }) {
+  const registration = parsePatientRegistration(body);
+  return insertPatientAccount(registration, { transaction, createdByUserId });
+}
+
+async function insertPatientAccount({ username, password, user }, { transaction, createdByUserId }) {
+  if (await authAccountRepository.findAccountByUsername(username, transaction)) {
+    throw new ConflictError('Username already taken');
+  }
+  return authAccountRepository.createPatientAccount(
     {
-      username: loginUsername,
-      password: hashedPassword,
-      type: 'PAT',
-      user_id: newUser.id,
-      created_time: new Date(),
-      status: 1,
-      ...(createdByUserId != null ? { created_by: createdByUserId } : {}),
+      user,
+      account: {
+        username,
+        password: await hashPassword(password),
+        type: 'PAT',
+        created_time: new Date(),
+        status: 1,
+        ...(createdByUserId != null ? { created_by: createdByUserId } : {}),
+      },
+      patientDefaults: {
+        allergic_info: structuredClone(EMPTY_ALLERGIES),
+        medical_history: structuredClone(EMPTY_HISTORY),
+      },
     },
-    { transaction }
+    transaction
   );
+}
 
-  const defaultAllergic = {
-    drugAllergies: [],
-    foodAllergies: [],
-    otherAllergies: [],
-  };
-  const defaultHistory = {
-    vaccinations: [],
-    familyHistory: [],
-    pastIllnesses: [],
-    pastSurgeries: [],
-    substanceAbuse: [],
-    chronicConditions: [],
-  };
-
-  await Patient.findOrCreate({
-    where: { user_id: newUser.id },
-    defaults: {
-      allergic_info: defaultAllergic,
-      medical_history: defaultHistory,
-    },
-    transaction,
-  });
-
-  return { ok: true, account, user: newUser };
+/**
+ * Validates, then creates the patient account in its own transaction.
+ * @param {number|null} createdByUserId staff user id (nurse registration) or null (self sign-up)
+ * @returns {Promise<{ account, user }>}
+ */
+async function registerPatient(body, createdByUserId = null) {
+  const registration = parsePatientRegistration(body);
+  const transaction = await sequelize.transaction();
+  try {
+    const created = await insertPatientAccount(registration, { transaction, createdByUserId });
+    await transaction.commit();
+    return created;
+  } catch (error) {
+    await transaction.rollback();
+    throw error;
+  }
 }
 
 module.exports = {
   createPatientAccountRecords,
+  registerPatient,
   validatePasswordStrength,
   hashPassword,
 };

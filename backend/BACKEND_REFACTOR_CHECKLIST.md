@@ -98,9 +98,16 @@ SQL đã chuyển khỏi controller; controller chỉ còn HTTP (`asyncHandler`)
 - [x] **`repositories/systemConfigRepository.js`** (model `SYSTEM_CONFIGURATION`) · **`services/systemConfig/{configService,aiModelService}.js`** — `configController` / `aiModelController` chỉ còn HTTP; `configStore.js` đã bỏ, `toBooleanString` chuyển sang `validators/systemConfigSchemas.js`.
 - [x] **`test/admin-characterization.test.js`** · **`test/system-config-characterization.test.js`** (runner chung `test/helpers/characterize.js`) — DB giả (`test/helpers/fakeDb.js`) ghi lại SQL + tham số + transaction + response của 54 kịch bản, snapshot chụp **trước** khi refactor. Dùng cùng cách này cho các miền tiếp theo khi chưa có MySQL test.
 
+## Auth (`/api/auth/*`, G3 bước B — xong)
+
+- [x] **`repositories/authAccountRepository.js`** (model Account / User / Patient) · **`sessionRepository.js`** thêm tạo / xoay / xoá phiên.
+- [x] **`services/auth/authService.js`** (login, logout, refresh, session info, phiên đầu sau đăng ký) · **`services/auth/tokens.js`** (ký / xác thực JWT) · **`services/patientRegistrationService.js`** báo lỗi bằng `AppError`, tự quản transaction qua `registerPatient`.
+- [x] `authorization/*` chỉ còn HTTP: cookie refresh (`sessionTokens.js`), `asyncHandler`, `validate({ body: loginBody })`.
+- [x] `internalErrorMessage(msg)` (`middleware/errorHandler.ts`) giữ câu báo 500 thân thiện cho các màn hình hiển thị nguyên `error` của server (login, đăng ký…) — vẫn không lộ lỗi thật.
+- [x] **`test/auth-characterization.test.js`** — 37 kịch bản.
+
 ## Follow-up (broader backend — khối lớn, làm dần)
 
-- `authorization/*` không có raw SQL (dùng model) nhưng vẫn `try/catch` thủ công — chuyển sang `asyncHandler` + `validate`.
 - `routes/ai.ts` (route + middleware) · `services/ai/llmClient.ts` (Groq / local LLM, chọn model) · `services/ai/prompts.ts`.
 - [x] `CONFIG_DEFAULTS` / `NUMERIC_CONFIG_RULES` chỉ còn ở `config/systemConfigurationContract.js` (lấy theo giá trị của trang admin: appointment 60/60, không có `aiRecovery*` / `aiModelCatalog`).
 - ⚠️ `rateLimitMiddleware.js` `SCOPE_CONFIG_KEYS.aiRecovery` đọc key `aiSymptom*` — scope aiRecovery không có cấu hình riêng (mặc định cứng 8/60s).

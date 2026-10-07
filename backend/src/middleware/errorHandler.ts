@@ -63,8 +63,23 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
   // Unexpected: never leak internals (SQL, stack, PHI in messages) to the client.
   logger.error({ err, requestId: req.requestId, method: req.method, path: req.path }, 'Unhandled error');
   const status = op?.status ?? 500;
-  res.status(status).json(body(status === 500 ? INTERNAL_MESSAGE : op!.message, req.requestId, op?.code ? { code: op.code } : {}));
+  const internalMessage =
+    typeof res.locals?.internalErrorMessage === 'string' ? res.locals.internalErrorMessage : INTERNAL_MESSAGE;
+  res.status(status).json(body(status === 500 ? internalMessage : op!.message, req.requestId, op?.code ? { code: op.code } : {}));
 };
+
+/**
+ * Route-level replacement for the generic 500 text, for screens that show the server's message
+ * as-is (login, sign-up). Fixed text only: the real error is still logged, never sent.
+ *
+ *   router.post('/login', internalErrorMessage('Login failed. Please try again.'), handler);
+ */
+export function internalErrorMessage(message: string): RequestHandler {
+  return (_req, res, next) => {
+    res.locals.internalErrorMessage = message;
+    next();
+  };
+}
 
 /** JSON 404 for unmatched routes (instead of Express's default HTML page). */
 export const notFoundHandler: RequestHandler = (req, res) => {

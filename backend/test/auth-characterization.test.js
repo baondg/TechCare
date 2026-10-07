@@ -8,7 +8,7 @@
 const path = require('node:path');
 const bcrypt = require('bcrypt');
 
-const { characterize, dbError, legacySchemaError } = require('./helpers/characterize');
+const { characterize, dbError } = require('./helpers/characterize');
 const { fakeInstance, accessToken, refreshToken } = require('./helpers/fakeDb');
 
 const SNAPSHOT = path.join(__dirname, 'fixtures', 'auth-sql.snapshot.json');

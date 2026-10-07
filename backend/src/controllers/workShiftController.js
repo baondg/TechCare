@@ -7,7 +7,7 @@ exports.getStaffDirectory = async (req, res) => {
     return res.status(out.status).json(out.json);
   } catch (error) {
     logger.error({ err: error }, 'getStaffDirectory error');
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -17,6 +17,6 @@ exports.getMyWorkShifts = async (req, res) => {
     return res.status(out.status).json(out.json);
   } catch (error) {
     logger.error({ err: error }, 'getMyWorkShifts error');
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };

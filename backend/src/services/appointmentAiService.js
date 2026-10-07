@@ -346,7 +346,7 @@ async function chatWithAiAndSave(req, userId, body) {
       json: {
         success: false,
         message: `Cannot connect to AI service at ${MEDAI_CHAT_ENDPOINT}`,
-        error: upstreamError?.message || 'Unknown upstream error',
+        error: 'Unknown upstream error',
       },
     };
   }
@@ -468,7 +468,7 @@ async function analyzeSymptomsAndSave(req, userId, body) {
       json: {
         success: false,
         message: SYMPTOM_AI_UNAVAILABLE_MSG,
-        error: upstreamError?.message || 'Network error',
+        error: 'Network error',
       },
     };
   }
@@ -633,7 +633,7 @@ async function recoveryPredictionForPatient(req, patientId, refresh) {
       json: {
         success: false,
         message: RECOVERY_AI_UNAVAILABLE_MSG,
-        error: upstreamError?.message || 'Network error',
+        error: 'Network error',
       },
     };
   }

@@ -158,7 +158,7 @@ exports.getProfile = async (req, res) => {
     res.json({ profile, relative, insurance });
   } catch (err) {
     logger.error({ err }, 'getProfile failed');
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
@@ -257,7 +257,7 @@ exports.updateProfile = async (req, res) => {
     return res.json({ message: 'Profile updated successfully' });
   } catch (err) {
     logger.error({ err }, 'updateProfile failed');
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
@@ -272,6 +272,6 @@ exports.deleteProfile = async (req, res) => {
       message: 'Deleting the full patient profile is not supported; user data lives on the USER record.',
     });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ message: 'Internal server error' });
   }
 };

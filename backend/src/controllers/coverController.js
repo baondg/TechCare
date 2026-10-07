@@ -7,7 +7,7 @@ exports.createCoverRequest = async (req, res) => {
     return res.status(out.status).json(out.json);
   } catch (error) {
     logger.error({ err: error }, 'Create cover request error');
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -17,7 +17,7 @@ exports.getCoverRequests = async (req, res) => {
     return res.status(out.status).json(out.json);
   } catch (error) {
     logger.error({ err: error }, 'Get cover requests error');
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -27,7 +27,7 @@ exports.getMyCoverRequests = async (req, res) => {
     return res.status(out.status).json(out.json);
   } catch (error) {
     logger.error({ err: error }, 'Get my cover requests error');
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -37,7 +37,7 @@ exports.acceptCoverRequest = async (req, res) => {
     return res.status(out.status).json(out.json);
   } catch (error) {
     logger.error({ err: error }, 'Accept cover request error');
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -47,6 +47,6 @@ exports.rejectCoverRequest = async (req, res) => {
     return res.status(out.status).json(out.json);
   } catch (error) {
     logger.error({ err: error }, 'Reject cover request error');
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };

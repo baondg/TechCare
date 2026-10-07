@@ -1143,7 +1143,7 @@ exports.getPatients = async (req, res) => {
     });
   } catch (error) {
     logger.error({ err: error }, 'Get patients error');
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -1251,7 +1251,7 @@ exports.getPatient = async (req, res) => {
     res.json(responsePayload);
   } catch (error) {
     logger.error({ err: error }, 'Get patient error');
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -1421,7 +1421,7 @@ exports.getActiveRegimenForPatient = async (req, res) => {
     });
   } catch (error) {
     logger.error({ err: error }, 'Get active regimen error');
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -1466,7 +1466,7 @@ exports.closeOpenRegimenForPatient = async (req, res) => {
     return res.json({ success: true, regimenId, closedRegimenIds, closedCount: closedRegimenIds.length });
   } catch (error) {
     logger.error({ err: error }, 'Close open regimen error');
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -1591,7 +1591,7 @@ exports.createHealthTrackingSlipForPatient = async (req, res) => {
   } catch (error) {
     await transaction.rollback();
     logger.error({ err: error }, 'createHealthTrackingSlipForPatient error');
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -1700,7 +1700,7 @@ exports.createFollowUpReexamSlipForPatient = async (req, res) => {
   } catch (error) {
     await transaction.rollback();
     logger.error({ err: error }, 'createFollowUpReexamSlipForPatient error');
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -2041,7 +2041,7 @@ exports.getActiveRegimenDocumentsForPatient = async (req, res) => {
     });
   } catch (error) {
     logger.error({ err: error }, 'getActiveRegimenDocumentsForPatient error');
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -2350,7 +2350,7 @@ exports.getPatientMedicalRegimensForDoctor = async (req, res) => {
     return res.json({ success: true, regimens });
   } catch (error) {
     logger.error({ err: error }, 'getPatientMedicalRegimensForDoctor error');
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -2403,7 +2403,7 @@ exports.getHealthInfo = async (req, res) => {
     });
   } catch (error) {
     logger.error({ err: error }, 'Get health info error');
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -2440,7 +2440,7 @@ exports.getHealthInfoHistory = async (req, res) => {
     });
   } catch (error) {
     logger.error({ err: error }, 'Get health info history error');
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -2476,7 +2476,7 @@ exports.createHealthInfo = async (req, res) => {
     res.status(201).json({ success: true, healthInfo });
   } catch (error) {
     logger.error({ err: error }, 'Create health info error');
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -2512,7 +2512,7 @@ exports.updateHealthInfo = async (req, res) => {
     res.json({ success: true, healthInfo });
   } catch (error) {
     logger.error({ err: error }, 'Update health info error');
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -2541,7 +2541,7 @@ exports.deleteHealthInfo = async (req, res) => {
     res.json({ success: true, message: 'Health info record deleted' });
   } catch (error) {
     logger.error({ err: error }, 'Delete health info error');
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -2565,7 +2565,7 @@ exports.confirmHealthInfo = async (req, res) => {
     return res.json({ success: true, id: healthInfo.id, status: 'confirmed' });
   } catch (error) {
     logger.error({ err: error }, 'Confirm health info error');
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -2592,7 +2592,7 @@ exports.getDiseaseCodes = async (req, res) => {
     res.json({ success: true, diseases: rows });
   } catch (error) {
     logger.error({ err: error }, 'Get disease codes error');
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -2617,7 +2617,7 @@ exports.getMedicines = async (req, res) => {
     res.json({ success: true, medicines: rows });
   } catch (error) {
     logger.error({ err: error }, 'Get medicines error');
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -2645,7 +2645,7 @@ exports.getTechnicians = async (req, res) => {
     res.json({ success: true, technicians: rows });
   } catch (error) {
     logger.error({ err: error }, 'Get technicians error');
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -2668,7 +2668,7 @@ exports.getDepartments = async (req, res) => {
     res.json({ success: true, departments });
   } catch (error) {
     logger.error({ err: error }, 'Get departments error');
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -2711,7 +2711,7 @@ exports.getDiagnoses = async (req, res) => {
     res.json({ success: true, diagnoses });
   } catch (error) {
     logger.error({ err: error }, 'Get diagnoses error');
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -2777,7 +2777,7 @@ exports.createDiagnosis = async (req, res) => {
   } catch (error) {
     await transaction.rollback();
     logger.error({ err: error }, 'Create diagnosis error');
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -2894,7 +2894,7 @@ exports.updateDiagnosis = async (req, res) => {
   } catch (error) {
     await transaction.rollback();
     logger.error({ err: error }, 'Update diagnosis error');
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -3028,7 +3028,7 @@ exports.getPrescriptions = async (req, res) => {
     res.json({ success: true, prescriptions });
   } catch (error) {
     logger.error({ err: error }, 'Get prescriptions error');
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -3222,7 +3222,7 @@ exports.createPrescription = async (req, res) => {
   } catch (error) {
     await transaction.rollback();
     logger.error({ err: error }, 'Create prescription error');
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -3395,7 +3395,7 @@ exports.updatePrescription = async (req, res) => {
   } catch (error) {
     await transaction.rollback();
     logger.error({ err: error }, 'Update prescription error');
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -3439,7 +3439,7 @@ exports.getLabTests = async (req, res) => {
     res.json({ success: true, labTests: rows });
   } catch (error) {
     logger.error({ err: error }, 'Get lab tests error');
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -3547,7 +3547,7 @@ exports.createLabTest = async (req, res) => {
   } catch (error) {
     await transaction.rollback();
     logger.error({ err: error }, 'Create lab test error');
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -3643,7 +3643,7 @@ exports.updateLabTest = async (req, res) => {
     res.json({ success: true, labTest: { id: Number(id), testType, testDate, technicianName, resultSummary, fileUrl, note } });
   } catch (error) {
     logger.error({ err: error }, 'Update lab test error');
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -3689,7 +3689,7 @@ exports.getLabTestDetails = async (req, res) => {
     res.json({ success: true, details });
   } catch (error) {
     logger.error({ err: error }, 'Get lab test details error');
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -3728,7 +3728,7 @@ exports.uploadLabAttachment = async (req, res) => {
     return res.json({ success: true, fileUrl, fileName: outName });
   } catch (error) {
     logger.error({ err: error }, 'Upload lab attachment error');
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -3781,7 +3781,7 @@ exports.getSurgeries = async (req, res) => {
     res.json({ success: true, surgeries });
   } catch (error) {
     logger.error({ err: error }, 'Get surgeries error');
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -3907,7 +3907,7 @@ exports.createSurgery = async (req, res) => {
   } catch (error) {
     await transaction.rollback();
     logger.error({ err: error }, 'Create surgery error');
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -4054,7 +4054,7 @@ exports.updateSurgery = async (req, res) => {
     });
   } catch (error) {
     logger.error({ err: error }, 'Update surgery error');
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -4167,7 +4167,7 @@ exports.getAppointments = async (req, res) => {
     res.json({ success: true, appointments });
   } catch (error) {
     logger.error({ err: error }, 'Get doctor appointments error');
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -4252,7 +4252,7 @@ exports.createAppointment = async (req, res) => {
     res.status(201).json({ success: true, appointment });
   } catch (error) {
     logger.error({ err: error }, 'Create appointment error');
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -4463,7 +4463,7 @@ exports.createPatientTransfer = async (req, res) => {
   } catch (error) {
     await transaction.rollback();
     logger.error({ err: error }, 'Create patient transfer error');
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -4653,7 +4653,7 @@ exports.coverAppointment = async (req, res) => {
     });
   } catch (error) {
     logger.error({ err: error }, 'Cover appointment error');
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -4701,7 +4701,7 @@ exports.cancelAppointment = async (req, res) => {
     res.json({ success: true, appointment: { id: Number(id), status: 'Cancelled' } });
   } catch (error) {
     logger.error({ err: error }, 'Cancel appointment error');
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -4768,7 +4768,7 @@ exports.declineAppointment = async (req, res) => {
     res.json({ success: true, appointment: { id: Number(id), status: 'Open' } });
   } catch (error) {
     logger.error({ err: error }, 'Decline appointment error');
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -4806,7 +4806,7 @@ exports.confirmAppointment = async (req, res) => {
     res.json({ success: true, appointment: { id: Number(id), status: 'Pending', doctorConfirmed: true } });
   } catch (error) {
     logger.error({ err: error }, 'Confirm appointment error');
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -5068,7 +5068,7 @@ exports.getDashboardSummary = async (req, res) => {
     });
   } catch (error) {
     logger.error({ err: error }, 'Get dashboard summary error');
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -5109,7 +5109,7 @@ exports.getSignature = async (req, res) => {
     });
   } catch (error) {
     logger.error({ err: error }, 'Get signature error');
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -5148,6 +5148,6 @@ exports.saveSignature = async (req, res) => {
     return res.json({ success: true });
   } catch (error) {
     logger.error({ err: error }, 'Save signature error');
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };

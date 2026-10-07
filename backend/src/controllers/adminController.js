@@ -267,7 +267,7 @@ exports.listDepartments = async (req, res) => {
     res.json({ success: true, departments });
   } catch (error) {
     logger.error({ err: error }, 'List departments error');
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -385,7 +385,7 @@ exports.getAccounts = async (req, res) => {
     });
   } catch (error) {
     logger.error({ err: error }, 'Get accounts error');
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -483,7 +483,7 @@ exports.getDashboardSummary = async (req, res) => {
     });
   } catch (error) {
     logger.error({ err: error }, 'Get admin dashboard summary error');
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -572,7 +572,7 @@ exports.createAccount = async (req, res) => {
   } catch (error) {
     await tx.rollback();
     logger.error({ err: error }, 'Create account error');
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -657,7 +657,7 @@ exports.updateAccount = async (req, res) => {
   } catch (error) {
     await tx.rollback();
     logger.error({ err: error }, 'Update account error');
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -693,7 +693,7 @@ exports.updateAccountStatus = async (req, res) => {
     res.json({ success: true, id: userId, status: !!next });
   } catch (error) {
     logger.error({ err: error }, 'Update account status error');
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -743,7 +743,7 @@ exports.getFeedbacks = async (req, res) => {
     });
   } catch (error) {
     logger.error({ err: error }, 'Get admin feedbacks error');
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -810,7 +810,7 @@ exports.updateFeedback = async (req, res) => {
     return res.json({ success: true, feedback: mapFeedbackRow(updated) });
   } catch (error) {
     logger.error({ err: error }, 'Update admin feedback error');
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 

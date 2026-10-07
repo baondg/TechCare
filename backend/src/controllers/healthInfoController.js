@@ -142,7 +142,7 @@ exports.getHealthInfo = async (req, res) => {
 
   } catch (err) {
     logger.error({ err }, 'getHealthInfo failed');
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
@@ -225,7 +225,7 @@ exports.createHealthInfo = async (req, res) => {
     });
   } catch (err) {
     logger.error({ err }, 'createHealthInfo failed');
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
@@ -316,7 +316,7 @@ exports.updateHealthInfo = async (req, res) => {
     });
   } catch (err) {
     logger.error({ err }, 'updateHealthInfo failed');
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
@@ -341,7 +341,7 @@ exports.confirmHealthInfo = async (req, res) => {
     return res.json({ success: true, id: record.id, status: 'confirmed' });
   } catch (err) {
     logger.error({ err }, 'confirmHealthInfo failed');
-    return res.status(500).json({ message: err.message });
+    return res.status(500).json({ message: 'Internal server error' });
   }
 };
 
@@ -375,6 +375,6 @@ exports.deleteHealthInfos = async (req, res) => {
     });
   } catch (err) {
     logger.error({ err }, 'deleteHealthInfos failed');
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ message: 'Internal server error' });
   }
 };

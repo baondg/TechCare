@@ -480,7 +480,7 @@ router.post('/chat', requireInternalApiSecret, aiChatRateLimit, async (req: Requ
       message: getFallbackResponse(userMessage),
       fallback: true,
       hint: provider === 'groq'
-        ? `Groq API error: ${error?.message}`
+        ? 'Groq API unavailable (details in server logs)'
         : `Local LLM unavailable. Start Ollama or set GROQ_API_KEY in backend/.env`,
     });
   }
@@ -559,7 +559,7 @@ router.post('/symptom-analysis', requireInternalApiSecret, aiSymptomRateLimit, a
   } catch (error: any) {
     logger.error({ err: error }, '[AI] symptom-analysis error');
     return res.status(503).json({
-      error: error?.message || 'Symptom analysis failed',
+      error: 'Symptom analysis failed',
       hint: 'Check GROQ_API_KEY is valid in backend/.env, then try again.',
     });
   }
@@ -658,7 +658,7 @@ router.post('/recovery-prediction', requireInternalApiSecret, aiRecoveryRateLimi
   } catch (error: any) {
     logger.error({ err: error }, '[AI] recovery-prediction error');
     return res.status(503).json({
-      error: error?.message || 'Recovery prediction failed',
+      error: 'Recovery prediction failed',
       hint:
         resolvedProvider === 'groq'
           ? 'Check GROQ_API_KEY and quota.'
@@ -729,7 +729,7 @@ Based on the above, suggest appropriate medications.`;
     logger.error({ err: error }, '[AI] suggest-medicine error');
     return res.status(500).json({
       success: false,
-      error: error?.message || 'Failed to get medicine suggestions',
+      error: 'Failed to get medicine suggestions',
       suggestions: [],
     });
   }
@@ -805,7 +805,7 @@ Respond with a JSON object:
     logger.error({ err: error }, '[AI] recommend-doctor error');
     return res.status(500).json({
       success: false,
-      error: error?.message || 'Failed to get doctor recommendations',
+      error: 'Failed to get doctor recommendations',
     });
   }
 });

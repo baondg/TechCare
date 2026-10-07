@@ -21,7 +21,7 @@ exports.getUnreadCount = async (req, res) => {
     res.json({ count });
   } catch (error) {
     logger.error({ err: error }, 'Unread count error');
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -39,7 +39,7 @@ exports.listNotifications = async (req, res) => {
     res.json(payload);
   } catch (error) {
     logger.error({ err: error }, 'List notifications error');
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -56,7 +56,7 @@ exports.markAllNotificationsRead = async (req, res) => {
     res.json(payload);
   } catch (error) {
     logger.error({ err: error }, 'Mark all notifications read error');
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -77,6 +77,6 @@ exports.markNotificationRead = async (req, res) => {
     res.json(out.json);
   } catch (error) {
     logger.error({ err: error }, 'Mark notification read error');
-    res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };

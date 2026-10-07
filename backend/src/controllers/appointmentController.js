@@ -13,7 +13,7 @@ exports.getFeedbacks = async (req, res) => {
     return res.json(result);
   } catch (error) {
     logger.error({ err: error }, 'Get feedbacks error');
-    res.status(500).json({ message: 'Internal server error', error: error.message });
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
@@ -23,7 +23,7 @@ exports.getVisibleFeedbacks = async (req, res) => {
     return res.json(result);
   } catch (error) {
     logger.error({ err: error }, 'Get visible feedbacks error');
-    return res.status(500).json({ message: 'Internal server error', error: error.message });
+    return res.status(500).json({ message: 'Internal server error' });
   }
 };
 
@@ -33,7 +33,7 @@ exports.createFeedback = async (req, res) => {
     return res.status(out.status).json(out.json);
   } catch (error) {
     logger.error({ err: error }, 'Create feedback error');
-    res.status(500).json({ message: 'Internal server error', error: error.message });
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
@@ -43,7 +43,7 @@ exports.getPortalPatients = async (req, res) => {
     return res.json(result);
   } catch (error) {
     logger.error({ err: error }, 'Get portal patients error');
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -53,7 +53,7 @@ exports.getAiRecommendations = async (req, res) => {
     return res.json(result);
   } catch (error) {
     logger.error({ err: error }, 'Get AI recommendations error');
-    return res.status(500).json({ message: 'Internal server error', error: error.message });
+    return res.status(500).json({ message: 'Internal server error' });
   }
 };
 
@@ -67,7 +67,7 @@ exports.updateAiRecommendationFeedback = async (req, res) => {
     return res.status(out.status).json(out.json);
   } catch (error) {
     logger.error({ err: error }, 'Update AI recommendation feedback error');
-    return res.status(500).json({ message: 'Internal server error', error: error.message });
+    return res.status(500).json({ message: 'Internal server error' });
   }
 };
 
@@ -77,7 +77,7 @@ exports.chatWithAiAndSave = async (req, res) => {
     return res.status(out.status).json(out.json);
   } catch (error) {
     logger.error({ err: error }, 'chatWithAiAndSave error');
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -87,7 +87,7 @@ exports.getAiChatModels = async (req, res) => {
     return res.status(out.status).json(out.json);
   } catch (error) {
     logger.error({ err: error }, 'getAiChatModels error');
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -97,7 +97,7 @@ exports.analyzeSymptomsAndSave = async (req, res) => {
     return res.status(out.status).json(out.json);
   } catch (error) {
     logger.error({ err: error }, 'analyzeSymptomsAndSave error');
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -113,7 +113,7 @@ exports.getRecoveryPrediction = async (req, res) => {
     return res.status(out.status).json(out.json);
   } catch (error) {
     logger.error({ err: error }, 'getRecoveryPrediction error');
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -138,7 +138,7 @@ exports.getStaffPatientRecoveryPrediction = async (req, res) => {
     return res.status(out.status).json(out.json);
   } catch (error) {
     logger.error({ err: error }, 'getStaffPatientRecoveryPrediction error');
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -166,7 +166,7 @@ exports.getClinicRooms = async (_req, res) => {
     return res.status(result.status).json(result.json);
   } catch (error) {
     logger.error({ err: error }, 'Get clinic rooms error');
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -179,7 +179,7 @@ exports.getDepartments = async (_req, res) => {
     return res.status(result.status).json(result.json);
   } catch (error) {
     logger.error({ err: error }, 'Get departments error');
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -212,7 +212,7 @@ exports.getOpenSlots = async (req, res) => {
     return res.status(result.status).json(result.json);
   } catch (error) {
     logger.error({ err: error }, 'Get open slots error');
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -230,7 +230,7 @@ exports.createOpenSlot = async (req, res) => {
     return res.status(result.status).json(result.json);
   } catch (error) {
     logger.error({ err: error }, 'Create open slot error');
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -249,7 +249,7 @@ exports.updateOpenSlot = async (req, res) => {
     return res.status(result.status).json(result.json);
   } catch (error) {
     logger.error({ err: error }, 'Update open slot error');
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -267,7 +267,7 @@ exports.deleteOpenSlot = async (req, res) => {
     return res.status(result.status).json(result.json);
   } catch (error) {
     logger.error({ err: error }, 'Delete open slot error');
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -281,7 +281,7 @@ exports.createAppointment = async (req, res) => {
     return res.status(result.status).json(result.json);
   } catch (error) {
     logger.error({ err: error }, 'Create appointment error');
-    res.status(500).json({ message: 'Internal server error', error: error.message });
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
@@ -291,7 +291,7 @@ exports.getAppointments = async (req, res) => {
     return res.status(result.status).json(result.json);
   } catch (error) {
     logger.error({ err: error }, 'Get appointments error');
-    res.status(500).json({ message: 'Internal server error', error: error.message });
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
@@ -301,7 +301,7 @@ exports.getPatientDashboardSummary = async (req, res) => {
     return res.json(result);
   } catch (error) {
     logger.error({ err: error }, 'Get patient dashboard summary error');
-    res.status(500).json({ message: 'Internal server error', error: error.message });
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
@@ -311,7 +311,7 @@ exports.getPatientMedicalVisits = async (req, res) => {
     return res.json(result);
   } catch (error) {
     logger.error({ err: error }, 'Get patient medical visits error');
-    res.status(500).json({ message: 'Internal server error', error: error.message });
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
@@ -321,7 +321,7 @@ exports.getPatientMedicalRegimens = async (req, res) => {
     return res.json(result);
   } catch (error) {
     logger.error({ err: error }, 'Get patient medical regimens error');
-    res.status(500).json({ message: 'Internal server error', error: error.message });
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
@@ -331,7 +331,7 @@ exports.getPatientSymptomLogs = async (req, res) => {
     return res.json(result);
   } catch (error) {
     logger.error({ err: error }, 'Get patient symptom logs error');
-    res.status(500).json({ message: 'Internal server error', error: error.message });
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
@@ -344,7 +344,7 @@ exports.getPatientLabTestDetails = async (req, res) => {
     return res.status(status).json(json);
   } catch (error) {
     logger.error({ err: error }, 'Get patient lab test details error');
-    res.status(500).json({ message: 'Internal server error', error: error.message });
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
@@ -359,7 +359,7 @@ exports.updateAppointment = async (req, res) => {
     return res.status(result.status).json(result.json);
   } catch (error) {
     logger.error({ err: error }, 'Update appointment error');
-    res.status(500).json({ message: 'Internal server error', error: error.message });
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
@@ -374,7 +374,7 @@ exports.deleteAppointment = async (req, res) => {
     return res.status(result.status).json(result.json);
   } catch (error) {
     logger.error({ err: error }, 'Delete appointment error');
-    res.status(500).json({ message: 'Internal server error', error: error.message });
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 
@@ -391,7 +391,7 @@ exports.getNurseCheckInOptions = async (req, res) => {
     return res.status(result.status).json(result.json);
   } catch (error) {
     logger.error({ err: error }, 'Nurse check-in options error');
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -408,7 +408,7 @@ exports.postNurseCheckInAccept = async (req, res) => {
     return res.status(result.status).json(result.json);
   } catch (error) {
     logger.error({ err: error }, 'Nurse check-in accept error');
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -425,7 +425,7 @@ exports.postNurseCheckInAssign = async (req, res) => {
     return res.status(result.status).json(result.json);
   } catch (error) {
     logger.error({ err: error }, 'Nurse check-in assign error');
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -442,7 +442,7 @@ exports.postNurseCheckInReschedule = async (req, res) => {
     return res.status(result.status).json(result.json);
   } catch (error) {
     logger.error({ err: error }, 'Nurse check-in reschedule error');
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 
@@ -460,6 +460,6 @@ exports.postNurseRegimenCheckout = async (req, res) => {
     return res.status(result.status).json(result.json);
   } catch (error) {
     logger.error({ err: error }, 'Nurse regimen checkout error');
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };

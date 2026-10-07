@@ -165,7 +165,7 @@ exports.getConfig = async (req, res) => {
         warning: 'Legacy SYSTEM_CONFIGURATION schema detected. Using default config values.',
       });
     }
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
 
@@ -222,7 +222,7 @@ exports.updateConfig = async (req, res) => {
           'Cannot update system configuration: legacy SYSTEM_CONFIGURATION schema does not support key/value storage.',
       });
     }
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
 
@@ -251,7 +251,7 @@ exports.getSessions = async (req, res) => {
       total: sessions.length,
     });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
 
@@ -285,7 +285,7 @@ exports.revokeSession = async (req, res) => {
 
     return res.json({ success: true, message: 'Session revoked successfully' });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
 
@@ -327,7 +327,7 @@ exports.revokeAllSessions = async (req, res) => {
       revokedCount: deleted,
     });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
 
@@ -416,7 +416,7 @@ exports.getAiModels = async (_req, res) => {
     const defaults = await loadAiDefaultByFeature();
     return res.json({ success: true, models, catalog, defaults });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
 
@@ -425,7 +425,7 @@ exports.getAiModelCatalog = async (_req, res) => {
     const catalog = await loadAiModelCatalog();
     return res.json({ success: true, catalog });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
 
@@ -457,7 +457,7 @@ exports.upsertAiModelCatalogEntry = async (req, res) => {
     await saveAiModelCatalog(catalog);
     return res.json({ success: true, entry: next, catalog });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
 
@@ -513,7 +513,7 @@ exports.deleteAiModelCatalogEntry = async (req, res) => {
 
     return res.json({ success: true, catalog: nextCatalog, models: await loadAiModels(), defaults: await loadAiDefaultByFeature() });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
 
@@ -550,7 +550,7 @@ exports.upsertAiModel = async (req, res) => {
     await saveAiModels(models);
     return res.json({ success: true, model: next });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
 
@@ -581,7 +581,7 @@ exports.setAiDefaultModel = async (req, res) => {
     await saveAiDefaultByFeature(defaults);
     return res.json({ success: true, defaults });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
 
@@ -635,7 +635,7 @@ exports.deleteAiModel = async (req, res) => {
       defaults: defaultsOut,
     });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
 
@@ -664,7 +664,7 @@ exports.getFeatures = async (req, res) => {
       features: normalized,
     });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
 
@@ -712,7 +712,7 @@ exports.updateFeatureStatus = async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
 

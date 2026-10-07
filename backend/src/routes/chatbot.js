@@ -37,7 +37,8 @@ router.post('/', async (req, res) => {
     });
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text();
-      return res.status(500).json({ error: 'OpenRouter API error', detail: errorText });
+      logger.error({ upstreamStatus: aiResponse.status, upstreamBody: errorText.slice(0, 2000) }, 'OpenRouter API error');
+      return res.status(500).json({ error: 'OpenRouter API error' });
     }
     const data = await aiResponse.json();
     return res.json({
@@ -45,7 +46,7 @@ router.post('/', async (req, res) => {
     });
   } catch (err) {
     logger.error({ err }, 'OpenRouter call failed');
-    return res.status(500).json({ error: 'Failed to call OpenRouter', detail: err.message });
+    return res.status(500).json({ error: 'Failed to call OpenRouter' });
   }
 });
 

@@ -10,6 +10,7 @@
   "POST /api/auth/refresh",
   "POST /api/auth/logout",
   "GET /api/auth/session",
+  "POST /api/auth/change-password",
   "POST /api/auth/register-patient",
   "GET /api/system-config/",
   "PUT /api/system-config/",

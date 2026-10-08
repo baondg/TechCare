@@ -56,3 +56,10 @@ exports.refreshToken = asyncHandler(async (req, res) => {
 exports.getSession = asyncHandler(async (req, res) => {
   res.json({ success: true, ...(await authService.getSessionInfo(req.user.userId)) });
 });
+
+/** POST /api/auth/change-password — body validated by `changePasswordBody`. */
+exports.changePassword = asyncHandler(async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  await authService.changePassword({ userId: req.user.userId, sessionId: req.session.id }, { currentPassword, newPassword });
+  res.json({ success: true, message: 'Password changed' });
+});

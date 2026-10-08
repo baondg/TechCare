@@ -30,8 +30,8 @@ async function startServer() {
     await sequelize.authenticate();
     logger.info('Database connection ready');
 
-    const { ensureDoctorSignatureColumn } = require('./common/ensureDoctorSignatureColumn');
-    await ensureDoctorSignatureColumn(sequelize);
+    const { ensureSchemaColumns } = require('./common/ensureSchemaColumns');
+    await ensureSchemaColumns(sequelize);
 
     if (config.server.autoSyncDb) {
       // Dev convenience: bootstrap only auth/session tables required for login.

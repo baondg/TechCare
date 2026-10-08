@@ -75,7 +75,8 @@
           "type",
           "created_by",
           "created_time",
-          "status"
+          "status",
+          "must_change_password"
         ],
         "include": [
           {
@@ -133,7 +134,8 @@
           "type",
           "created_by",
           "created_time",
-          "status"
+          "status",
+          "must_change_password"
         ],
         "include": [
           {
@@ -192,7 +194,8 @@
           "type",
           "created_by",
           "created_time",
-          "status"
+          "status",
+          "must_change_password"
         ],
         "include": [
           {
@@ -220,7 +223,8 @@
           "lastName": "Nguyen",
           "fullName": "Nguyen An",
           "type": "DOC",
-          "role": "doctor"
+          "role": "doctor",
+          "mustChangePassword": false
         },
         "token": "<jwt>",
         "expiresAt": "<now+45m>"
@@ -264,7 +268,8 @@
           "type",
           "created_by",
           "created_time",
-          "status"
+          "status",
+          "must_change_password"
         ],
         "include": [
           {
@@ -332,7 +337,8 @@
           "username": "nurse1",
           "fullName": null,
           "type": "NUR",
-          "role": "nurse"
+          "role": "nurse",
+          "mustChangePassword": false
         },
         "token": "<jwt>",
         "expiresAt": "<now+10080m>"
@@ -376,7 +382,8 @@
           "type",
           "created_by",
           "created_time",
-          "status"
+          "status",
+          "must_change_password"
         ],
         "include": [
           {
@@ -446,7 +453,8 @@
           "lastName": "Nguyen",
           "fullName": "Nguyen An",
           "type": "XYZ",
-          "role": "xyz"
+          "role": "xyz",
+          "mustChangePassword": false
         },
         "token": "<jwt>",
         "expiresAt": "<now+30m>"
@@ -490,7 +498,8 @@
           "type",
           "created_by",
           "created_time",
-          "status"
+          "status",
+          "must_change_password"
         ],
         "include": [
           {
@@ -623,7 +632,8 @@
           "type",
           "created_by",
           "created_time",
-          "status"
+          "status",
+          "must_change_password"
         ],
         "include": [
           {
@@ -742,7 +752,8 @@
         "user": {
           "id": 42,
           "username": "jdoe",
-          "type": "DOC"
+          "type": "DOC",
+          "mustChangePassword": false
         }
       },
       "cookie": "refreshToken=<jwt>; Path=/api/auth; Expires=<date>; HttpOnly; SameSite=Lax"
@@ -784,7 +795,8 @@
         "user": {
           "id": 42,
           "username": "jdoe",
-          "type": "DOC"
+          "type": "DOC",
+          "mustChangePassword": false
         }
       },
       "cookie": "refreshToken=<jwt>; Path=/api/auth; Expires=<date>; HttpOnly; SameSite=Lax"
@@ -898,7 +910,8 @@
         "user": {
           "id": 1,
           "username": "admin",
-          "type": "ADM"
+          "type": "ADM",
+          "mustChangePassword": false
         },
         "sessions": [
           {
@@ -1087,7 +1100,8 @@
         "user": {
           "id": 501,
           "username": "079123456789",
-          "type": "PAT"
+          "type": "PAT",
+          "mustChangePassword": false
         },
         "token": "<jwt>",
         "expiresAt": "<now+10080m>"

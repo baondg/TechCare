@@ -150,7 +150,10 @@ SQL đã chuyển khỏi controller; controller chỉ còn HTTP (`asyncHandler`)
 - [x] Rate limit: một bảng scope → key duy nhất (`RATE_LIMIT_SCOPE_TO_KEYS`), middleware dùng nó; `aiRecovery` dùng chung cấu hình "AI symptom" của trang admin (đúng như đang chạy). Test: `test/rate-limit-scope-keys.test.js`.
 - [x] `adminRoutes.js` / `systemConfig.js` dùng `authorizeCapability('admin.console')`. Test: `test/admin-guard.test.js`.
 - [x] `accountService.createAccount` không còn rơi về mật khẩu cứng `Test@1234`: thiếu `DEFAULT_ACCOUNT_PASSWORD` (hoặc đặt đúng `Test@1234`) → từ chối tạo tài khoản (500, câu báo nêu tên biến), không ghi gì. App vẫn khởi động được; `configWarnings` báo ở production. Test: `test/default-account-password.test.js`.
-  - ⚠️ Vẫn là **một** mật khẩu chung cho mọi tài khoản admin tạo, và **chưa có API đổi mật khẩu**. Bước tiếp (hướng A): mật khẩu tạm ngẫu nhiên hiện một lần + `must_change_password` + `POST /api/auth/change-password` + admin reset; tài khoản cũ khớp `Test@1234` bị gắn cờ buộc đổi.
+  - ⚠️ Vẫn là **một** mật khẩu chung cho mọi tài khoản admin tạo. Hướng A, làm theo 3 bước:
+  - [x] **A1** — `POST /api/auth/change-password` (mật khẩu cũ + mới, luật độ mạnh như đăng ký — `services/auth/passwordPolicy.js`; sai → 400, không 401 vì client đăng xuất với 401; xong thì kết thúc các phiên khác). Cột `ACCOUNT.must_change_password` (thêm lúc khởi động — `common/ensureSchemaColumns.js`, `npm run db:ensure-columns`, cần quyền `ALTER`). Khi cờ bật, `authMiddleware` trả 403 `PASSWORD_CHANGE_REQUIRED` cho mọi route trừ change-password / logout / session; login + session trả `user.mustChangePassword`. Test: `test/change-password.test.js`. Chưa tài khoản nào bật cờ.
+  - [ ] **A2** — tạo tài khoản: mật khẩu tạm ngẫu nhiên trả một lần + bật cờ; admin "đặt lại mật khẩu"; script gắn cờ cho tài khoản đang dùng `Test@1234` / `DEFAULT_ACCOUNT_PASSWORD`.
+  - [ ] **A3** — frontend: modal mật khẩu tạm, trang đổi mật khẩu, xử lý `PASSWORD_CHANGE_REQUIRED` / `mustChangePassword`. **Phải xong trước khi deploy A2.**
 
 ## Doctor / EMR (G3 — bước A: tách controller theo miền)
 

@@ -5,7 +5,7 @@ const authenticateToken = require('../middleware/authMiddleware');
 const sessionMiddleware = require('../middleware/sessionMiddleware');
 const { internalErrorMessage } = require('../middleware/errorHandler');
 const { validate } = require('../middleware/validate');
-const { loginBody } = require('../validators/authSchemas');
+const { loginBody, changePasswordBody } = require('../validators/authSchemas');
 const {
   authLoginRateLimit,
   authRegistrationRateLimit,
@@ -26,9 +26,19 @@ router.post(
 );
 router.post('/refresh', internalErrorMessage('Token refresh failed'), authSessionController.refreshToken);
 
-// Protected routes (require authentication)
-router.post('/logout', internalErrorMessage('Logout failed'), authenticateToken, authSessionController.logout);
-router.get('/session', internalErrorMessage('Failed to get session info'), authenticateToken, authSessionController.getSession);
+// Protected routes (require authentication). These three stay open while an admin-issued
+// password is pending change (PASSWORD_CHANGE_REQUIRED everywhere else).
+const authenticatePendingPasswordChange = authenticateToken.allowingPendingPasswordChange;
+router.post('/logout', internalErrorMessage('Logout failed'), authenticatePendingPasswordChange, authSessionController.logout);
+router.get('/session', internalErrorMessage('Failed to get session info'), authenticatePendingPasswordChange, authSessionController.getSession);
+router.post(
+  '/change-password',
+  internalErrorMessage('Password change failed'),
+  authLoginRateLimit,
+  authenticatePendingPasswordChange,
+  validate({ body: changePasswordBody }),
+  authSessionController.changePassword
+);
 router.post(
   '/register-patient',
   internalErrorMessage(REGISTRATION_FAILED),

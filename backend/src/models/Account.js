@@ -40,6 +40,13 @@ const Account = sequelize.define(
         type: DataTypes.STRING
       },
 
+      /** Set for admin-issued passwords; only change-password / logout / session work until cleared. */
+      must_change_password: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false
+      },
+
       // session_id: {
       //   type: DataTypes.INTEGER,
       //   allowNull: true

@@ -1,9 +1,7 @@
-const bcrypt = require('bcrypt');
 const sequelize = require('../common/database');
 const authAccountRepository = require('../repositories/authAccountRepository');
 const { BadRequestError, ConflictError } = require('../errors/AppError');
-
-const SALT_ROUNDS = 12;
+const { validatePasswordStrength, hashPassword } = require('./auth/passwordPolicy');
 
 const EMPTY_ALLERGIES = { drugAllergies: [], foodAllergies: [], otherAllergies: [] };
 const EMPTY_HISTORY = {
@@ -14,26 +12,6 @@ const EMPTY_HISTORY = {
   substanceAbuse: [],
   chronicConditions: [],
 };
-
-function validatePasswordStrength(password) {
-  if (password.length < 8) {
-    return { valid: false, error: 'Password must be at least 8 characters long' };
-  }
-  if (!/[A-Z]/.test(password)) {
-    return { valid: false, error: 'Password must contain at least one uppercase letter' };
-  }
-  if (!/[a-z]/.test(password)) {
-    return { valid: false, error: 'Password must contain at least one lowercase letter' };
-  }
-  if (!/[0-9]/.test(password)) {
-    return { valid: false, error: 'Password must contain at least one number' };
-  }
-  return { valid: true };
-}
-
-async function hashPassword(password) {
-  return bcrypt.hash(password, SALT_ROUNDS);
-}
 
 /**
  * Validates a sign-up body (same shape for public /signup and nurse registration).
@@ -134,6 +112,4 @@ async function registerPatient(body, createdByUserId = null) {
 module.exports = {
   createPatientAccountRecords,
   registerPatient,
-  validatePasswordStrength,
-  hashPassword,
 };

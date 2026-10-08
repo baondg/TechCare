@@ -4,7 +4,8 @@ const sessionRepository = require('../../repositories/sessionRepository');
 const systemConfigRepository = require('../../repositories/systemConfigRepository');
 const { normalizeRoleFromCode } = require('../../security/roleMapping');
 const { isAccountStatusActive } = require('../../common/accountStatus');
-const { ForbiddenError, NotFoundError, UnauthorizedError } = require('../../errors/AppError');
+const { BadRequestError, ForbiddenError, NotFoundError, UnauthorizedError } = require('../../errors/AppError');
+const { hashPassword, validatePasswordStrength } = require('./passwordPolicy');
 const { generateAccessToken, generateRefreshToken, verifyRefreshToken } = require('./tokens');
 
 const DEFAULT_SESSION_TIMEOUT_MINUTES = 30;
@@ -35,7 +36,12 @@ function minutesFromNow(minutes) {
 
 /** Public part of an account, as the client stores it. */
 function accountSummary(account) {
-  return { id: account.user_id, username: account.username, type: account.type };
+  return {
+    id: account.user_id,
+    username: account.username,
+    type: account.type,
+    mustChangePassword: Boolean(account.must_change_password),
+  };
 }
 
 /**
@@ -95,6 +101,8 @@ async function login({ username, password, rememberMe = false }, client) {
       type: account.type,
       // Normalized role name for RBAC capability checks on the client.
       role: normalizeRoleFromCode(account.type) || 'patient',
+      // Admin-issued password: the client sends the user to the change-password screen.
+      mustChangePassword: Boolean(account.must_change_password),
     },
     token,
     refreshToken,
@@ -164,4 +172,24 @@ async function getSessionInfo(userId) {
   return { user: accountSummary(account), sessions: sessions.map((s) => s.toJSON()) };
 }
 
-module.exports = { login, startSessionForNewAccount, logout, refresh, getSessionInfo };
+/**
+ * Replaces the signed-in user's password and clears the forced-change flag. Every other session
+ * of the user ends; the current one stays. Errors are 400 (a 401 would log the client out).
+ */
+async function changePassword({ userId, sessionId }, { currentPassword, newPassword }) {
+  const account = await authAccountRepository.findAccountByUserId(userId);
+  if (!account) throw new NotFoundError('User not found');
+  if (!(await bcrypt.compare(currentPassword, account.password))) {
+    throw new BadRequestError('Current password is incorrect', { code: 'WRONG_PASSWORD' });
+  }
+  const strength = validatePasswordStrength(newPassword);
+  if (!strength.valid) throw new BadRequestError(strength.error);
+  if (newPassword === currentPassword) {
+    throw new BadRequestError('New password must be different from the current password');
+  }
+
+  await authAccountRepository.updatePassword(account, await hashPassword(newPassword), { mustChange: false });
+  await sessionRepository.deleteOtherSessionsOfUser(userId, sessionId);
+}
+
+module.exports = { login, startSessionForNewAccount, logout, refresh, getSessionInfo, changePassword };

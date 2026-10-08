@@ -7,12 +7,6 @@ exports.getAppointments = asyncHandler(async (req, res) => {
   res.json({ success: true, appointments });
 });
 
-/** POST /api/doctor/appointments — `{ patientId, department, date, time, room?, symptoms?, notes? }` */
-exports.createAppointment = asyncHandler(async (req, res) => {
-  const appointment = await doctorAppointmentService.createAppointment(req.user, req.body);
-  res.status(201).json({ success: true, appointment });
-});
-
 /** PUT /api/doctor/appointments/:id/cover — `{ reason, coverDoctorId }`: hand the slot to a colleague. */
 exports.coverAppointment = asyncHandler(async (req, res) => {
   const appointment = await doctorAppointmentService.coverAppointment(req.user, req.params.id, req.body);

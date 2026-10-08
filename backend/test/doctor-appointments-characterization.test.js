@@ -50,47 +50,8 @@ const SCENARIOS = [
   ['appointments, unknown status', 'GET', '/api/doctor/appointments?status=whatever', null, [MY_DOCTOR], () => DOCTOR],
   ['appointments, db down', 'GET', '/api/doctor/appointments', null, [MY_DOCTOR, [/AS effectiveStatus/, dbError]], () => DOCTOR],
 
-  // ---- create
-  ['create, missing fields', 'POST', '/api/doctor/appointments', { patientId: 'OP0070', date: '2026-10-01' }, [], () => DOCTOR],
-  ['create, no doctor profile', 'POST', '/api/doctor/appointments', { patientId: 'OP0070', department: 'Cardiology', date: '2026-10-01', time: '09:30' }, [], () => DOCTOR],
-  ['create, unknown patient', 'POST', '/api/doctor/appointments', { patientId: 'OP0070', department: 'Cardiology', date: '2026-10-01', time: '09:30' }, [
-    [/^SELECT doctor_id, room_id FROM DOCTOR/, [{ doctor_id: 5, room_id: 2 }]],
-  ], () => DOCTOR],
-  ['create, slot taken', 'POST', '/api/doctor/appointments', { patientId: 'OP0070', department: 'Cardiology', date: '2026-10-01', time: '09:30:00.000' }, [
-    [/^SELECT doctor_id, room_id FROM DOCTOR/, [{ doctor_id: 5, room_id: 2 }]],
-    [/^SELECT patient_id FROM PATIENT WHERE user_id/, [{ patient_id: 7 }]],
-    [/AND time = :dateTime AND status = 'scheduled'/, [{ id: 10 }]],
-  ], () => DOCTOR],
-  ['create, in the doctor\'s room', 'POST', '/api/doctor/appointments', {
-    patientId: 'OP0070', department: 'Cardiology', date: '2026-10-01', time: '09:30', room: 'R9', notes: 'n',
-  }, [
-    [/^SELECT doctor_id, room_id FROM DOCTOR/, [{ doctor_id: 5, room_id: 2 }]],
-    [/^SELECT patient_id FROM PATIENT WHERE user_id/, [{ patient_id: 7 }]],
-    [/^INSERT INTO APPOINTMENT/, [301, 1]],
-  ], () => DOCTOR],
-  ['create, room by name', 'POST', '/api/doctor/appointments', {
-    patientId: '70', department: 'Cardiology', date: '2026-10-01', time: '09:30', room: 'R9', symptoms: 'fever',
-  }, [
-    [/^SELECT doctor_id, room_id FROM DOCTOR/, [{ doctor_id: 5, room_id: null }]],
-    [/^SELECT patient_id FROM PATIENT WHERE user_id/, [{ patient_id: 7 }]],
-    [/^SELECT id FROM CLINIC_ROOM WHERE name/, [{ id: 9 }]],
-    [/^INSERT INTO APPOINTMENT/, [302, 1]],
-  ], () => DOCTOR],
-  ['create, fallback room', 'POST', '/api/doctor/appointments', {
-    patientId: 'op70', department: 'Cardiology', date: '2026-10-01', time: '09:30', room: 'gone',
-  }, [
-    [/^SELECT doctor_id, room_id FROM DOCTOR/, [{ doctor_id: 5 }]],
-    [/^SELECT patient_id FROM PATIENT WHERE user_id/, [{ patient_id: 7 }]],
-    [/^SELECT id FROM CLINIC_ROOM LIMIT 1/, [{ id: 1 }]],
-    [/^INSERT INTO APPOINTMENT/, [303, 1]],
-  ], () => DOCTOR],
-  ['create, no clinic room', 'POST', '/api/doctor/appointments', { patientId: 'OP0070', department: 'Cardiology', date: '2026-10-01', time: '09:30' }, [
-    [/^SELECT doctor_id, room_id FROM DOCTOR/, [{ doctor_id: 5 }]],
-    [/^SELECT patient_id FROM PATIENT WHERE user_id/, [{ patient_id: 7 }]],
-  ], () => DOCTOR],
-  ['create, db down', 'POST', '/api/doctor/appointments', { patientId: 'OP0070', department: 'Cardiology', date: '2026-10-01', time: '09:30' }, [
-    [/^SELECT doctor_id, room_id FROM DOCTOR/, dbError],
-  ], () => DOCTOR],
+  // ---- create: removed (no screen used it; it took unchecked dates and could 500 on a cancelled slot)
+  ['create, endpoint removed', 'POST', '/api/doctor/appointments', { patientId: 'OP0070', department: 'Cardiology', date: '2026-10-01', time: '09:30' }, [], () => DOCTOR],
 
   // ---- cover
   ['cover, no reason', 'PUT', '/api/doctor/appointments/11/cover', { reason: ' ', coverDoctorId: 6 }, [], () => DOCTOR],

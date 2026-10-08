@@ -103,7 +103,6 @@
   "POST /api/doctor/patients/:patientId/surgeries",
   "PUT /api/doctor/patients/:patientId/surgeries/:id",
   "GET /api/doctor/appointments",
-  "POST /api/doctor/appointments",
   "PUT /api/doctor/appointments/:id/cancel",
   "PUT /api/doctor/appointments/:id/cover",
   "PUT /api/doctor/appointments/:id/confirm",

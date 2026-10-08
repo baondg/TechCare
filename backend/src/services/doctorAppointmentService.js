@@ -61,53 +61,6 @@ async function listAppointments(user, { status, startDate, endDate }) {
   return rows.map((row) => toScheduleItem(row, user, doctorId));
 }
 
-/**
- * Books a patient (`patientId` = USER id, "OP…" prefix allowed) with the signed-in doctor, already
- * accepted. Room: the doctor's default room, else `room` by name, else any clinic room.
- * Body: `{ patientId, department, date, time, room?, symptoms?, notes? }`.
- */
-async function createAppointment(user, body) {
-  const { patientId, department, date, time, room, symptoms, notes } = body;
-  if (!patientId || !department || !date || !time) {
-    throw new BadRequestError('Patient, department, date and time are required');
-  }
-  const doctor = await doctorAppointmentRepository.findDoctorWithRoomByUserId(user.userId);
-  const doctorId = doctor?.doctor_id;
-  if (!doctorId) throw new BadRequestError('Doctor profile not found');
-  const patientUserId = Number(String(patientId).replace(/^OP0*/i, ''));
-  const patientPk = await appointmentRepository.findPatientIdByUserId(patientUserId);
-  if (!patientPk) throw new BadRequestError('Patient profile not found');
-
-  const dateTime = `${date} ${String(time).slice(0, 8)}`;
-  if (await doctorAppointmentRepository.hasScheduledAt(doctorId, dateTime)) {
-    throw new ConflictError('This time slot is already booked');
-  }
-  const roomId =
-    doctor.room_id ||
-    (room ? await appointmentRepository.findClinicRoomIdByName(room) : null) ||
-    (await appointmentRepository.findAnyClinicRoomId());
-  if (!roomId) throw new BadRequestError('No clinic room available');
-
-  const id = await doctorAppointmentRepository.insertAcceptedAppointment({
-    dateTime,
-    condition: symptoms || notes || 'General consultation',
-    patientPk,
-    doctorId,
-    roomId,
-  });
-  return {
-    id,
-    patientId: patientUserId,
-    department,
-    date,
-    time,
-    room: room || '',
-    symptoms: symptoms || '',
-    notes: notes || '',
-    status: 'Pending',
-  };
-}
-
 const doctorLabel = async (doctorId) => {
   const row = await appointmentRepository.getDoctorDisplayNameRow(doctorId);
   return row?.name ? `Dr. ${String(row.name).trim()}` : `Doctor #${doctorId}`;
@@ -232,7 +185,6 @@ async function confirmAppointment(user, id) {
 
 module.exports = {
   listAppointments,
-  createAppointment,
   coverAppointment,
   cancelAppointment,
   declineAppointment,

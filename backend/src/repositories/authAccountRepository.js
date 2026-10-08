@@ -5,7 +5,7 @@ const Patient = require('../models/Patient');
 /** ACCOUNT by username with what login needs (password hash, status, USER name). */
 async function findAccountForLogin(username) {
   return Account.findOne({
-    attributes: ['user_id', 'username', 'password', 'type', 'created_by', 'created_time', 'status'],
+    attributes: ['user_id', 'username', 'password', 'type', 'created_by', 'created_time', 'status', 'must_change_password'],
     where: { username },
     include: [
       {
@@ -30,6 +30,11 @@ async function recordLastLogin(account) {
   await account.update({ lastLogin: new Date() });
 }
 
+/** New password hash; `mustChange` keeps (true) or clears (false) the forced-change flag. */
+async function updatePassword(account, passwordHash, { mustChange }) {
+  await account.update({ password: passwordHash, must_change_password: mustChange });
+}
+
 /**
  * USER + ACCOUNT (PAT) + PATIENT for a self-registered or nurse-registered patient.
  * @returns {Promise<{ user, account }>} the created model instances
@@ -50,5 +55,6 @@ module.exports = {
   findAccountByUserId,
   findAccountByUsername,
   recordLastLogin,
+  updatePassword,
   createPatientAccount,
 };

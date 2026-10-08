@@ -24,7 +24,7 @@
     "db:indexes": "node scripts/ensure-performance-indexes.js",
     "migrate:system-config-kv": "node scripts/migrate-system-configuration-to-kv.js",
     "db:migrate:system-config": "node scripts/migrate-system-configuration-to-kv.js",
-    "migrate:doctor-signature": "node scripts/ensure-doctor-signature-column.js",
+    "db:ensure-columns": "node scripts/ensure-schema-columns.js",
     "normalize-js-utf8": "node scripts/normalize-js-utf8.js"
   },
   "dependencies": {

@@ -6,7 +6,11 @@ const { getJwtSecret } = require('../security/jwtConfig');
 const { isAccountStatusActive } = require('../common/accountStatus');
 const logger = require('../common/logger');
 
-const authenticateToken = async (req, res, next) => {
+/**
+ * @param {{ allowPendingPasswordChange?: boolean }} options — true only for the routes a user
+ *   with `must_change_password` may call (change password, logout, session info)
+ */
+const buildAuthenticateToken = ({ allowPendingPasswordChange = false } = {}) => async (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
@@ -63,6 +67,15 @@ const authenticateToken = async (req, res, next) => {
       });
     }
     
+    // Admin-issued password: nothing but the password change until the user picks their own.
+    if (user.must_change_password && !allowPendingPasswordChange) {
+      return res.status(403).json({
+        success: false,
+        error: 'You must change your password before continuing.',
+        code: 'PASSWORD_CHANGE_REQUIRED'
+      });
+    }
+
     // Update last activity
     await sessionRepository.updateSession(session, { lastActivity: new Date() });
     
@@ -99,5 +112,8 @@ const authenticateToken = async (req, res, next) => {
     });
   }
 };
+
+const authenticateToken = buildAuthenticateToken();
+authenticateToken.allowingPendingPasswordChange = buildAuthenticateToken({ allowPendingPasswordChange: true });
 
 module.exports = authenticateToken;

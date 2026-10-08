@@ -9,4 +9,13 @@ const loginBody = z.object({
   rememberMe: z.unknown().optional(),
 });
 
-module.exports = { loginBody };
+const requiredPassword = (label) =>
+  z.string({ error: `${label} is required` }).min(1, { error: `${label} is required` });
+
+/** POST /change-password — strength is checked by the service (same rule as sign-up). */
+const changePasswordBody = z.object({
+  currentPassword: requiredPassword('Current password'),
+  newPassword: requiredPassword('New password'),
+});
+
+module.exports = { loginBody, changePasswordBody };

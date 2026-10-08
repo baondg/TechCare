@@ -86,6 +86,11 @@ async function deleteSessionsOfUser(userId) {
   return Session.destroy({ where: { userId } });
 }
 
+/** @returns {Promise<number>} rows deleted — every session of the user but `keepSessionId` */
+async function deleteOtherSessionsOfUser(userId, keepSessionId) {
+  return Session.destroy({ where: { userId, id: { [Op.ne]: keepSessionId } } });
+}
+
 /** Deletes every session whose owner is not in `userIds` (every session when it is empty). */
 async function deleteSessionsExceptUsers(userIds) {
   return Session.destroy({ where: userIds.length > 0 ? { userId: { [Op.notIn]: userIds } } : {} });
@@ -105,5 +110,6 @@ module.exports = {
   findSessionOwner,
   deleteSession,
   deleteSessionsOfUser,
+  deleteOtherSessionsOfUser,
   deleteSessionsExceptUsers,
 };

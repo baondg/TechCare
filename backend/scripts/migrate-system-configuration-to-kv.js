@@ -5,10 +5,11 @@
  * Run from backend/: node scripts/migrate-system-configuration-to-kv.js
  */
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
+const { fromDist } = require('./lib/fromDist');
 const { QueryTypes } = require('sequelize');
-const sequelize = require('../src/common/database');
-const defineSystemConfig = require('../src/models/SystemConfig');
-const { CONFIG_DEFAULTS } = require('../src/config/systemConfigurationContract');
+const sequelize = fromDist('common/database');
+const defineSystemConfig = fromDist('models/SystemConfig');
+const { CONFIG_DEFAULTS } = fromDist('config/systemConfigurationContract');
 
 const SystemConfig = defineSystemConfig(sequelize);
 

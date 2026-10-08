@@ -1,12 +1,13 @@
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
+const { fromDist } = require('./lib/fromDist');
 
 const fs = require('fs');
 const path = require('path');
 const bcrypt = require('bcrypt');
 const { QueryTypes } = require('sequelize');
 
-const sequelize = require('../src/common/database');
-const { createPatientAccountRecords } = require('../src/services/patientRegistrationService');
+const sequelize = fromDist('common/database');
+const { createPatientAccountRecords } = fromDist('services/patientRegistrationService');
 
 const DEFAULT_PASSWORD = process.env.DEMO_ACCOUNT_PASSWORD || 'Test@1234';
 const SALT_ROUNDS = 12;

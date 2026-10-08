@@ -11,6 +11,7 @@
  * Intentional change? Regenerate and review the diff:
  *   UPDATE_SNAPSHOTS=1 npm test
  */
+const assert = require('node:assert/strict');
 const path = require('node:path');
 
 const { characterize, dbError } = require('./helpers/characterize');
@@ -18,8 +19,6 @@ const { ADMIN_USER_ID } = require('./helpers/fakeDb');
 
 const SNAPSHOT = path.join(__dirname, 'fixtures', 'admin-sql.snapshot.json');
 
-// Admin-created accounts need a configured initial password (see default-account-password.test.js).
-require(path.join(__dirname, '..', 'dist', 'config', 'env')).config.auth.defaultAccountPassword = 'Clinic#Start2026';
 
 const ACCOUNT_ROW = {
   userId: 42,
@@ -158,6 +157,18 @@ const SCENARIOS = [
   ['create account, bad role', 'POST', '/api/admin/accounts', { ...VALID_ACCOUNT_BODY, roleCode: 'ROOT' }, []],
   ['create account, future dob', 'POST', '/api/admin/accounts', { ...VALID_ACCOUNT_BODY, dob: '2999-01-01' }, []],
   ['create account, db down', 'POST', '/api/admin/accounts', VALID_ACCOUNT_BODY, [[/^INSERT INTO USER/, dbError]]],
+
+  // ---- reset password (temporary password, sessions ended)
+  [
+    'reset password',
+    'POST',
+    '/api/admin/accounts/42/reset-password',
+    null,
+    [[/^SELECT user_id AS userId, type FROM ACCOUNT WHERE user_id = :userId LIMIT 1$/, [{ userId: 42, type: 'NUR' }]]],
+  ],
+  ['reset password, unknown account', 'POST', '/api/admin/accounts/43/reset-password', null, []],
+  ['reset password, own account', 'POST', `/api/admin/accounts/${ADMIN_USER_ID}/reset-password`, null, []],
+  ['reset password, bad id', 'POST', '/api/admin/accounts/abc/reset-password', null, []],
 
   // ---- update account
   ['update account, bad id', 'PATCH', '/api/admin/accounts/abc', VALID_ACCOUNT_BODY, []],
@@ -358,9 +369,16 @@ function resolveToday(rules) {
   ]);
 }
 
+/** Temporary passwords are random: check the shape, then pin a placeholder. */
+function scrubTemporaryPassword(key, value) {
+  if (key !== 'temporaryPassword') return undefined;
+  assert.match(value, /^[A-HJ-NP-Za-km-z2-9]{14}$/);
+  return '<temporary>';
+}
+
 characterize(
   'admin + system-config endpoints send the same SQL and answer the same',
   SNAPSHOT,
   SCENARIOS,
-  { prepareRules: resolveToday }
+  { prepareRules: resolveToday, scrubValue: scrubTemporaryPassword }
 );

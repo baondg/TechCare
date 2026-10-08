@@ -190,16 +190,44 @@ async function insertUser({ idcard, sex, dob, tel, email, firstName, lastName },
   return Number(insertId);
 }
 
-async function insertAccount({ userId, username, password, type, createdBy, status }, transaction) {
+async function insertAccount({ userId, username, password, type, createdBy, status, mustChangePassword }, transaction) {
   await sequelize.query(
-    `INSERT INTO ACCOUNT (user_id, username, password, type, created_by, status)
-       VALUES (:userId, :username, :password, :type, :createdBy, :status)`,
+    `INSERT INTO ACCOUNT (user_id, username, password, type, created_by, status, must_change_password)
+       VALUES (:userId, :username, :password, :type, :createdBy, :status, :mustChangePassword)`,
     {
-      replacements: { userId, username, password, type, createdBy, status },
+      replacements: { userId, username, password, type, createdBy, status, mustChangePassword: mustChangePassword ? 1 : 0 },
       type: QueryTypes.INSERT,
       transaction,
     }
   );
+}
+
+/** Admin-issued password: new hash, user must change it at next sign-in. */
+async function setTemporaryPassword(userId, password) {
+  await sequelize.query('UPDATE ACCOUNT SET password = :password, must_change_password = 1 WHERE user_id = :userId', {
+    replacements: { userId, password },
+    type: QueryTypes.UPDATE,
+  });
+}
+
+/** Accounts not already flagged, with their password hash (shared-password audit). */
+async function listAccountsWithoutPendingPasswordChange() {
+  return sequelize.query(
+    `SELECT user_id AS userId, username, type, password
+       FROM ACCOUNT
+      WHERE must_change_password = 0
+      ORDER BY user_id`,
+    { type: QueryTypes.SELECT }
+  );
+}
+
+/** @returns {Promise<void>} flags `userIds` for a forced change at next sign-in */
+async function flagPasswordChange(userIds) {
+  if (userIds.length === 0) return;
+  await sequelize.query('UPDATE ACCOUNT SET must_change_password = 1 WHERE user_id IN (:userIds)', {
+    replacements: { userIds },
+    type: QueryTypes.UPDATE,
+  });
 }
 
 async function updateUserProfile(userId, { sex, dob, tel, email, firstName, lastName }, transaction) {
@@ -286,6 +314,9 @@ module.exports = {
   listAdminUserIds,
   insertUser,
   insertAccount,
+  setTemporaryPassword,
+  listAccountsWithoutPendingPasswordChange,
+  flagPasswordChange,
   updateUserProfile,
   updateAccountStatus,
   filterExistingDepartmentIds,

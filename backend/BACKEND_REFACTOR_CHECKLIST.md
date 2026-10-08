@@ -130,7 +130,7 @@ SQL đã chuyển khỏi controller; controller chỉ còn HTTP (`asyncHandler`)
 - [x] Bỏ `/api/chatbot` (proxy OpenRouter **không xác thực**, không ai dùng, gửi key sai header) + `OPENROUTER_API_KEY`.
 - [x] Nhóm 1 — `appointmentPatientService`, `appointmentFeedbackService`, `appointmentCatalogService`, chi tiết xét nghiệm portal: trả dữ liệu + throw `AppError`. Test: `test/appointment-patient-characterization.test.js` (44 kịch bản).
 - [x] Nhóm 2 — `appointmentSlotService`, `appointmentNurseService`: throw `AppError`, kiểm tra role chuyển hết ra route (`appointments.read.open_slots` mới cho `GET /open-slots`). Test: `test/appointment-slots-nurse-characterization.test.js` (53 kịch bản); fake DB chạy được managed transaction.
-  - Y tá đổi giờ / phòng của slot **đã có bệnh nhân** (cùng bác sĩ): không ai được thông báo — chỉ đổi bác sĩ mới báo bệnh nhân.
+  - [x] Y tá đổi giờ / phòng của slot **đã có bệnh nhân** (cùng bác sĩ): bệnh nhân nhận thông báo `appointment_rescheduled` (trước đây chỉ đổi bác sĩ mới báo).
   - [x] `POST /nurse/regimen/checkout` (legacy) giờ hoàn tất lịch hẹn của đợt khám như "kết thúc khám" của bác sĩ.
 - [x] Nhóm 3 — `appointmentAiService`: throw `AppError`; lỗi MedAI giữ status + câu báo, các trường chẩn đoán (`error`/`hint`/`raw`) chỉ còn trong log. Test: `test/appointment-ai-characterization.test.js` (26 kịch bản). Sửa: lỗi kết nối chat không còn lộ URL nội bộ của MedAI.
 - **Tất cả service `appointment*` đã trả dữ liệu + throw `AppError`**; `appointmentController` không còn `{ status, json }`.

@@ -302,7 +302,7 @@
           "idCard": "0791",
           "phone": "090",
           "gender": "M",
-          "dateOfBirth": "2026-10-02",
+          "dateOfBirth": "<5 days ago>",
           "age": "5 days",
           "latestDiagnosis": {
             "icd10": "J06",

@@ -117,7 +117,8 @@ async function updateMedicalPrescriptionCompat(sequelize, { orderId, setNote, se
   const hasDuration = setDuration !== undefined && setDuration !== null;
 
   const makePartsAndRepl = (withDurationInSet) => {
-    const parts = ['time = NOW()'];
+    // `time` is the prescribing date (medication reminders, dashboards count from it): keep it.
+    const parts = ['updated_at = NOW()'];
     const repl = { orderId };
     if (setNote !== undefined) {
       parts.push('note = :note');
@@ -150,13 +151,13 @@ async function updateMedicalPrescriptionCompat(sequelize, { orderId, setNote, se
 async function selectMedicalPrescriptionMetaCompat(sequelize, { orderId, transaction }) {
   try {
     return await sequelize.query(
-      'SELECT time, duration FROM MEDICAL_PRESCRIPTION WHERE order_id = :orderId LIMIT 1',
+      'SELECT time, updated_at AS updatedAt, duration FROM MEDICAL_PRESCRIPTION WHERE order_id = :orderId LIMIT 1',
       { replacements: { orderId }, type: QueryTypes.SELECT, ...(transaction ? { transaction } : {}) }
     );
   } catch (e) {
     if (!isUnknownColumnError(e)) throw e;
     return await sequelize.query(
-      'SELECT time FROM MEDICAL_PRESCRIPTION WHERE order_id = :orderId LIMIT 1',
+      'SELECT time, updated_at AS updatedAt FROM MEDICAL_PRESCRIPTION WHERE order_id = :orderId LIMIT 1',
       { replacements: { orderId }, type: QueryTypes.SELECT, ...(transaction ? { transaction } : {}) }
     );
   }

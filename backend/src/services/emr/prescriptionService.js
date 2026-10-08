@@ -99,7 +99,7 @@ async function listPrescriptions(patientIdParam, user) {
         byt: bytFieldsForDisplay(meta.byt),
         medications: [],
         createdAt: row.time,
-        updatedAt: row.time,
+        updatedAt: row.updatedAt || row.time,
       });
     }
     if (row.name) {
@@ -277,7 +277,8 @@ async function bytMetaForUpdate(bodyByt, storedByt, transaction) {
 
 /**
  * Replaces the lines of an existing prescription (same ORDER / header) and merges the BYT fields.
- * The header time is reset to now. `department` / `duration` are kept when omitted.
+ * The prescribing date (`time`) is kept; `updated_at` is set to now. `department` / `duration` are
+ * kept when omitted.
  */
 async function updatePrescription(patientIdParam, idParam, user, body) {
   const patientPk = await resolvePatientPkFromOpRoute(patientIdParam, null);
@@ -310,7 +311,9 @@ async function updatePrescription(patientIdParam, idParam, user, body) {
     return { bytMeta, department: nextDepartment, lines, header };
   });
 
-  const updatedAt = updated.header?.time ? new Date(updated.header.time).toISOString() : new Date().toISOString();
+  const toIso = (value) => (value ? new Date(value).toISOString() : new Date().toISOString());
+  const createdAt = toIso(updated.header?.time);
+  const updatedAt = toIso(updated.header?.updatedAt);
   return {
     id: orderId,
     patientId: patientPk,
@@ -321,7 +324,7 @@ async function updatePrescription(patientIdParam, idParam, user, body) {
     signatureStatus: 'signed',
     byt: updated.bytMeta,
     medications: updated.lines,
-    createdAt: updatedAt,
+    createdAt,
     updatedAt,
   };
 }

@@ -130,8 +130,20 @@ export const adminAccountService = {
     )
   },
 
+  /** `temporaryPassword` is returned only here: show it to the admin once. */
   async createAccount(data: SaveAdminAccountPayload) {
-    return apiClient.post<{ success: boolean; account: AdminAccountRow }>("/api/admin/accounts", data)
+    return apiClient.post<{ success: boolean; account: AdminAccountRow; temporaryPassword: string }>(
+      "/api/admin/accounts",
+      data
+    )
+  },
+
+  /** New temporary password (returned only here); the user's sessions end. */
+  async resetPassword(userId: number) {
+    return apiClient.post<{ success: boolean; id: number; temporaryPassword: string }>(
+      `/api/admin/accounts/${userId}/reset-password`,
+      {}
+    )
   },
 
   async updateAccount(id: number, data: SaveAdminAccountPayload) {

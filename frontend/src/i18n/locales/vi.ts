@@ -10,6 +10,7 @@ const vi = {
     noData: "Không có dữ liệu.",
     notAvailable: "—",
     logout: "Đăng xuất",
+    cancel: "Huỷ",
     notifications: "Thông báo",
     patientInDepartment: {
       outpatient: "Ngoại trú",
@@ -68,6 +69,17 @@ const vi = {
     accountDeactivatedMessage:
       "Tài khoản này đã bị vô hiệu hóa và không thể đăng nhập. Vui lòng liên hệ quản trị viên nếu bạn cần hỗ trợ.",
     accountDeactivatedOk: "Đã hiểu",
+    changePassword: {
+      title: "Đổi mật khẩu",
+      forcedNotice: "Mật khẩu của bạn do quản trị viên cấp. Hãy đặt mật khẩu của riêng bạn để tiếp tục.",
+      current: "Mật khẩu hiện tại",
+      new: "Mật khẩu mới",
+      confirm: "Nhập lại mật khẩu mới",
+      rules: "Ít nhất 8 ký tự, gồm chữ hoa, chữ thường và chữ số.",
+      mismatch: "Mật khẩu mới nhập lại không khớp.",
+      submit: "Đổi mật khẩu",
+      success: "Đã đổi mật khẩu.",
+    },
   },
   layout: {
     adminPortal: "Cổng quản trị",
@@ -273,6 +285,14 @@ const vi = {
       statusUpdated: "Đã cập nhật trạng thái tài khoản.",
       profileUpdated: "Đã cập nhật thông tin tài khoản.",
       noChanges: "Không có thay đổi để lưu.",
+      passwordGeneratedOnCreate: "Mật khẩu tạm được tạo khi tạo tài khoản.",
+      resetPassword: "Đặt lại mật khẩu",
+      resetPasswordConfirm: "Đặt lại mật khẩu của {{username}}? Các phiên đăng nhập của họ sẽ kết thúc và họ phải đặt mật khẩu mới ở lần đăng nhập sau.",
+      temporaryPasswordTitle: "Mật khẩu tạm",
+      temporaryPasswordNotice: "Đưa mật khẩu này cho {{username}}. Mật khẩu chỉ hiện một lần; họ phải đổi ở lần đăng nhập đầu.",
+      copy: "Sao chép",
+      copied: "Đã sao chép",
+      done: "Xong",
     },
     config: {
       failedLoadFeatures: "Tải tính năng thất bại",

@@ -13,7 +13,8 @@
 import type React from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Activity, LogOut, UserRound, Menu, Bell } from 'lucide-react'
+import { Activity, LogOut, UserRound, Menu, Bell, KeyRound } from 'lucide-react'
+import { CHANGE_PASSWORD_PATH } from '@/lib/auth-paths'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -133,6 +134,11 @@ export function AppShell({ children, navItems, portalLabel, headerEnd }: AppShel
             <div className="flex items-center gap-1">
               <LanguageToggle compact />
               {headerEnd ?? <NotificationBell />}
+              <Button asChild variant="ghost" size="icon" className="h-9 w-9" title={t("auth.changePassword.title")}>
+                <Link to={CHANGE_PASSWORD_PATH} aria-label={t("auth.changePassword.title")}>
+                  <KeyRound className="h-4 w-4" />
+                </Link>
+              </Button>
               <Button variant="ghost" size="icon" onClick={logout} className="h-9 w-9 text-destructive">
                 <LogOut className="h-4 w-4" />
               </Button>
@@ -227,6 +233,12 @@ export function AppShell({ children, navItems, portalLabel, headerEnd }: AppShel
                 <Bell className="h-5 w-5" />
               </Button>
             )}
+
+            <Button asChild variant="ghost" size="icon" title={t("auth.changePassword.title")}>
+              <Link to={CHANGE_PASSWORD_PATH} aria-label={t("auth.changePassword.title")}>
+                <KeyRound className="h-5 w-5" />
+              </Link>
+            </Button>
 
             {/* Logout */}
             <Button

@@ -403,13 +403,71 @@
     },
     "db": []
   },
-  "update profile, missing relative name": {
+  "update profile, patient without relative name": {
     "request": "PUT /api/profile/70",
     "response": {
       "status": 400,
       "message": "Invalid relative name"
     },
-    "db": []
+    "db": [
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "event": "Patient.findOne",
+        "where": {
+          "user_id": 70
+        },
+        "tx": "tx1"
+      },
+      {
+        "event": "rollback",
+        "tx": "tx1"
+      }
+    ]
+  },
+  "update profile, own non-patient account, no relative, full name": {
+    "request": "PUT /api/profile/1",
+    "response": {
+      "status": 200,
+      "body": {
+        "message": "Profile updated successfully"
+      }
+    },
+    "db": [
+      {
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "event": "Patient.findOne",
+        "where": {
+          "user_id": 1
+        },
+        "tx": "tx1"
+      },
+      {
+        "event": "User.findByPk",
+        "pk": 1,
+        "tx": "tx1"
+      },
+      {
+        "event": "User#update",
+        "id": 1,
+        "values": {
+          "first_name": "Lan",
+          "last_name": "Tran Thi",
+          "sex": "O",
+          "tel": "091",
+          "idcard": "<idcard>"
+        }
+      },
+      {
+        "event": "commit",
+        "tx": "tx1"
+      }
+    ]
   },
   "update profile, user + relative replaced": {
     "request": "PUT /api/profile/70",
@@ -422,6 +480,13 @@
     "db": [
       {
         "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "event": "Patient.findOne",
+        "where": {
+          "user_id": 70
+        },
         "tx": "tx1"
       },
       {
@@ -441,13 +506,6 @@
           "email": "b@x.vn",
           "idcard": "<idcard>"
         }
-      },
-      {
-        "event": "Patient.findOne",
-        "where": {
-          "user_id": 70
-        },
-        "tx": "tx1"
       },
       {
         "event": "Relative.destroy",
@@ -498,6 +556,13 @@
         "tx": "tx1"
       },
       {
+        "event": "Patient.findOne",
+        "where": {
+          "user_id": 70
+        },
+        "tx": "tx1"
+      },
+      {
         "event": "User.findByPk",
         "pk": 70,
         "tx": "tx1"
@@ -511,13 +576,6 @@
           "sex": "O",
           "idcard": "<idcard>"
         }
-      },
-      {
-        "event": "Patient.findOne",
-        "where": {
-          "user_id": 70
-        },
-        "tx": "tx1"
       },
       {
         "event": "commit",
@@ -554,6 +612,13 @@
         "tx": "tx1"
       },
       {
+        "event": "Patient.findOne",
+        "where": {
+          "user_id": 70
+        },
+        "tx": "tx1"
+      },
+      {
         "event": "User.findByPk",
         "pk": 70,
         "tx": "tx1"
@@ -570,13 +635,6 @@
           "email": "b@x.vn",
           "idcard": "<idcard>"
         }
-      },
-      {
-        "event": "Patient.findOne",
-        "where": {
-          "user_id": 70
-        },
-        "tx": "tx1"
       },
       {
         "event": "Relative.destroy",
@@ -619,15 +677,15 @@
         "tx": "tx1"
       },
       {
-        "event": "User.findByPk",
-        "pk": 70,
-        "tx": "tx1"
-      },
-      {
         "event": "Patient.findOne",
         "where": {
           "user_id": 70
         },
+        "tx": "tx1"
+      },
+      {
+        "event": "User.findByPk",
+        "pk": 70,
         "tx": "tx1"
       },
       {
@@ -645,6 +703,13 @@
     "db": [
       {
         "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "event": "Patient.findOne",
+        "where": {
+          "user_id": 70
+        },
         "tx": "tx1"
       },
       {
@@ -711,7 +776,7 @@
     ]
   },
   "health info, records + JSON columns": {
-    "request": "GET /api/health-info/999",
+    "request": "GET /api/health-info/70",
     "response": {
       "status": 200,
       "body": {
@@ -817,6 +882,57 @@
         "success": true,
         "healthInfo": {
           "bloodType": null,
+          "drugAllergies": [],
+          "foodAllergies": [],
+          "otherAllergies": [],
+          "chronicConditions": [],
+          "pastSurgeries": [],
+          "familyHistory": [],
+          "pastIllnesses": [],
+          "vaccinations": [],
+          "substanceAbuse": []
+        },
+        "history": []
+      }
+    },
+    "db": [
+      {
+        "event": "Patient.findOne",
+        "where": {
+          "user_id": 70
+        },
+        "attributes": [
+          "patient_id",
+          "user_id",
+          "blood_type",
+          "allergic_info",
+          "medical_history"
+        ],
+        "include": [
+          {
+            "model": "MedicalRecord"
+          }
+        ],
+        "tx": null
+      }
+    ]
+  },
+  "health info, another user": {
+    "request": "GET /api/health-info/80",
+    "response": {
+      "status": 403,
+      "message": "Forbidden"
+    },
+    "db": []
+  },
+  "health info, admin reads a patient": {
+    "request": "GET /api/health-info/70",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "healthInfo": {
+          "bloodType": "O+",
           "drugAllergies": [],
           "foodAllergies": [],
           "otherAllergies": [],

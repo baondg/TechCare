@@ -93,8 +93,11 @@ async function insertAcceptedAppointment({ dateTime, condition, patientPk, docto
 
 // ─── Cover (hand the slot to another doctor) ───
 
-/** `{ id, patientId, doctorId, roomId, slotTime, status }` of a scheduled appointment of the doctor, or null. */
-async function findScheduledOwnedBy(id, doctorId) {
+/**
+ * `{ id, patientId, doctorId, roomId, slotTime, status }` of a scheduled appointment of the doctor, or
+ * null. Inside a transaction the row is locked (FOR UPDATE) until it ends.
+ */
+async function findScheduledOwnedBy(id, doctorId, transaction) {
   const [row] = await sequelize.query(
     `SELECT
        a.id,
@@ -105,8 +108,8 @@ async function findScheduledOwnedBy(id, doctorId) {
        a.status
      FROM APPOINTMENT a
      WHERE a.id = :id AND a.doctor_id = :myDoctorId AND a.status = 'scheduled'
-     LIMIT 1`,
-    { replacements: { id, myDoctorId: doctorId }, type: QueryTypes.SELECT }
+     LIMIT 1${transaction ? ' FOR UPDATE' : ''}`,
+    { replacements: { id, myDoctorId: doctorId }, type: QueryTypes.SELECT, transaction }
   );
   return row || null;
 }
@@ -135,8 +138,20 @@ async function doctorInDepartment(doctorId, deptId) {
   return Boolean(row);
 }
 
+/**
+ * Locks the DOCTOR row until the transaction ends: hand-overs to the same doctor run one at a time,
+ * so two of them cannot both pass the "free at that time" check.
+ */
+async function lockDoctorSchedule(doctorId, transaction) {
+  await sequelize.query('SELECT doctor_id FROM DOCTOR WHERE doctor_id = :doctorId FOR UPDATE', {
+    replacements: { doctorId },
+    type: QueryTypes.SELECT,
+    transaction,
+  });
+}
+
 /** Whether `doctorId` has another scheduled appointment at the same time as appointment `id`. */
-async function hasOtherScheduledAtSameTime(doctorId, id) {
+async function hasOtherScheduledAtSameTime(doctorId, id, transaction) {
   const [row] = await sequelize.query(
     `SELECT x.id FROM APPOINTMENT x
      WHERE x.doctor_id = :doctorId
@@ -144,7 +159,7 @@ async function hasOtherScheduledAtSameTime(doctorId, id) {
        AND x.status = 'scheduled'
        AND x.id <> :id
      LIMIT 1`,
-    { replacements: { doctorId, id }, type: QueryTypes.SELECT }
+    { replacements: { doctorId, id }, type: QueryTypes.SELECT, transaction }
   );
   return Boolean(row?.id);
 }
@@ -153,7 +168,7 @@ async function hasOtherScheduledAtSameTime(doctorId, id) {
  * Whether `doctorId` has any other row (any status) at the same time and room as appointment `id`
  * — reassigning would break UNIQUE(time, doctor_id, room_id).
  */
-async function hasOtherRowAtSameTimeAndRoom(doctorId, id) {
+async function hasOtherRowAtSameTimeAndRoom(doctorId, id, transaction) {
   const [row] = await sequelize.query(
     `SELECT x.id FROM APPOINTMENT x
      WHERE x.doctor_id = :doctorId
@@ -161,7 +176,7 @@ async function hasOtherRowAtSameTimeAndRoom(doctorId, id) {
        AND x.room_id = (SELECT a3.room_id FROM APPOINTMENT a3 WHERE a3.id = :id LIMIT 1)
        AND x.id <> :id
      LIMIT 1`,
-    { replacements: { doctorId, id }, type: QueryTypes.SELECT }
+    { replacements: { doctorId, id }, type: QueryTypes.SELECT, transaction }
   );
   return Boolean(row?.id);
 }
@@ -251,6 +266,7 @@ module.exports = {
   hasScheduledAt,
   insertAcceptedAppointment,
   findScheduledOwnedBy,
+  lockDoctorSchedule,
   findRoomDepartmentId,
   doctorInDepartment,
   hasOtherScheduledAtSameTime,

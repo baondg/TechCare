@@ -1,5 +1,6 @@
 const doctorAppointmentRepository = require('../repositories/doctorAppointmentRepository');
 const appointmentRepository = require('../repositories/appointmentRepository');
+const { inTransaction } = require('../common/transaction');
 const coverRepository = require('../repositories/coverRepository');
 const staffRepository = require('../repositories/staffRepository');
 const { BadRequestError, ConflictError, ForbiddenError, NotFoundError } = require('../errors/AppError');
@@ -127,32 +128,38 @@ async function coverAppointment(user, id, body) {
   const myDoctorId = await staffRepository.findDoctorIdByUserId(user.userId);
   if (!myDoctorId) throw new ForbiddenError('Doctor profile not found');
 
-  const appt = await doctorAppointmentRepository.findScheduledOwnedBy(id, myDoctorId);
-  if (!appt) throw new NotFoundError('Appointment not found');
-  if (Number(appt.doctorId) === coverDoctorId) throw new BadRequestError('Choose a different doctor');
+  // Checks and hand-over in one transaction, with the appointment and the covering doctor locked:
+  // two concurrent requests can neither both hand over this slot nor both book that doctor.
+  const appt = await inTransaction(async (transaction) => {
+    const owned = await doctorAppointmentRepository.findScheduledOwnedBy(id, myDoctorId, transaction);
+    if (!owned) throw new NotFoundError('Appointment not found');
+    if (Number(owned.doctorId) === coverDoctorId) throw new BadRequestError('Choose a different doctor');
 
-  const slotDeptId = await doctorAppointmentRepository.findRoomDepartmentId(id);
-  if (slotDeptId) {
-    if (!(await doctorAppointmentRepository.doctorInDepartment(coverDoctorId, slotDeptId))) {
-      throw new BadRequestError('Covering doctor must work in the same department as this appointment room');
+    const slotDeptId = await doctorAppointmentRepository.findRoomDepartmentId(id);
+    if (slotDeptId) {
+      if (!(await doctorAppointmentRepository.doctorInDepartment(coverDoctorId, slotDeptId))) {
+        throw new BadRequestError('Covering doctor must work in the same department as this appointment room');
+      }
+    } else if (!(await appointmentRepository.doctorsShareDepartment(myDoctorId, coverDoctorId))) {
+      throw new BadRequestError('Covering doctor must work in the same department as you');
     }
-  } else if (!(await appointmentRepository.doctorsShareDepartment(myDoctorId, coverDoctorId))) {
-    throw new BadRequestError('Covering doctor must work in the same department as you');
-  }
 
-  // Keep the booked slot's room: the cover doctor's default room could violate
-  // UNIQUE(time, doctor_id, room_id) if they already have (even cancelled) history at that time + room.
-  if (await doctorAppointmentRepository.hasOtherScheduledAtSameTime(coverDoctorId, id)) {
-    throw new ConflictError('That doctor already has another appointment at this time');
-  }
-  if (await doctorAppointmentRepository.hasOtherRowAtSameTimeAndRoom(coverDoctorId, id)) {
-    throw new ConflictError(
-      'Cannot assign cover: this time and room are already tied to another record for that doctor'
-    );
-  }
+    await doctorAppointmentRepository.lockDoctorSchedule(coverDoctorId, transaction);
+    // Keep the booked slot's room: the cover doctor's default room could violate
+    // UNIQUE(time, doctor_id, room_id) if they already have (even cancelled) history at that time + room.
+    if (await doctorAppointmentRepository.hasOtherScheduledAtSameTime(coverDoctorId, id, transaction)) {
+      throw new ConflictError('That doctor already has another appointment at this time');
+    }
+    if (await doctorAppointmentRepository.hasOtherRowAtSameTimeAndRoom(coverDoctorId, id, transaction)) {
+      throw new ConflictError(
+        'Cannot assign cover: this time and room are already tied to another record for that doctor'
+      );
+    }
+    await coverRepository.reassignAppointmentDoctor(id, coverDoctorId, transaction);
+    return owned;
+  });
 
   const oldDoctorLabel = await doctorLabel(myDoctorId);
-  await coverRepository.reassignAppointmentDoctor(id, coverDoctorId);
   const newDoctorLabel = await doctorLabel(coverDoctorId);
 
   if (appt.patientId) {

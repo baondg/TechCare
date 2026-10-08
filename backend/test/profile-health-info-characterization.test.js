@@ -138,7 +138,14 @@ const SCENARIOS = [
   ['update profile, another patient', 'PUT', '/api/profile/70', PROFILE_BODY, [], () => OTHER_PATIENT],
   ['update profile, digits in first name', 'PUT', '/api/profile/70', { ...PROFILE_BODY, firstName: 'B4o' }, [], () => PATIENT],
   ['update profile, missing last name', 'PUT', '/api/profile/70', { ...PROFILE_BODY, lastName: undefined, last_name: ' ' }, [], () => PATIENT],
-  ['update profile, missing relative name', 'PUT', '/api/profile/70', { ...PROFILE_BODY, relativeName: '' }, [], () => PATIENT],
+  ['update profile, patient without relative name', 'PUT', '/api/profile/70', { ...PROFILE_BODY, relativeName: '' }, [], (s) => {
+    s.models['Patient.findOne'] = () => ({ patient_id: 7 });
+    return PATIENT;
+  }],
+  ['update profile, own non-patient account, no relative, full name', 'PUT', '/api/profile/1', { fullName: 'Lan Tran Thi', phone: '091' }, [], (s) => {
+    s.models['User.findByPk'] = () => fakeInstance('User', { id: 1 }, s);
+    return ADMIN;
+  }],
   ['update profile, user + relative replaced', 'PUT', '/api/profile/70', PROFILE_BODY, [], (s) => {
     s.models['User.findByPk'] = () => fakeInstance('User', { id: 70 }, s);
     s.models['Patient.findOne'] = () => ({ patient_id: 7 });
@@ -172,7 +179,7 @@ const SCENARIOS = [
 
   // ---- health info: read (always the signed-in user's)
   ['health info, no patient row', 'GET', '/api/health-info/70', null, [], () => PATIENT],
-  ['health info, records + JSON columns', 'GET', '/api/health-info/999', null, [], (s) => {
+  ['health info, records + JSON columns', 'GET', '/api/health-info/70', null, [], (s) => {
     patient70(s, {
       allergic_info: '{"drugAllergies":["penicillin"],"foodAllergies":[]}',
       medical_history: { chronicConditions: ['asthma'], vaccinations: ['BCG'] },
@@ -183,6 +190,11 @@ const SCENARIOS = [
   ['health info, no records, broken JSON', 'GET', '/api/health-info/70', null, [], (s) => {
     patient70(s, { blood_type: null, allergic_info: '{broken', medical_history: 42, medicalRecords: [] });
     return PATIENT;
+  }],
+  ['health info, another user', 'GET', '/api/health-info/80', null, [], () => PATIENT],
+  ['health info, admin reads a patient', 'GET', '/api/health-info/70', null, [], (s) => {
+    patient70(s, { medicalRecords: [] });
+    return ADMIN;
   }],
   ['health info, db down', 'GET', '/api/health-info/70', null, [], (s) => {
     s.models['Patient.findOne'] = dbError;

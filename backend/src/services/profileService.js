@@ -94,8 +94,9 @@ async function getProfile(user, userIdParam) {
 }
 
 /**
- * Updates USER fields and, for patients, replaces their RELATIVE, in one transaction. First, last and
- * relative names are required and must look like human names; values the models reject give 400.
+ * Updates USER fields and, for patients, replaces their RELATIVE, in one transaction. First and last
+ * names (or `fullName`) are required and must look like human names; so is the relative's name when the
+ * account is a patient's (other accounts have no relative). Values the models reject give 400.
  */
 async function updateProfile(user, userIdParam, body) {
   const userId = parseUserId(userIdParam);
@@ -104,19 +105,21 @@ async function updateProfile(user, userIdParam, body) {
   const fnRaw = (body.firstName ?? body.first_name ?? '').toString().trim();
   const lnRaw = (body.lastName ?? body.last_name ?? '').toString().trim();
   const relNameRaw = (body.relativeName ?? '').toString().trim();
-  if (!isValidHumanName(fnRaw)) throw new BadRequestError('Invalid first name');
-  if (!isValidHumanName(lnRaw)) throw new BadRequestError('Invalid last name');
-  if (!isValidHumanName(relNameRaw)) throw new BadRequestError('Invalid relative name');
-
   let first = fnRaw;
   let last = lnRaw;
   if (!first && !last && body.fullName != null && String(body.fullName).trim()) {
     ({ first, last } = splitFullName(body.fullName));
   }
+  if (!isValidHumanName(first)) throw new BadRequestError('Invalid first name');
+  if (!isValidHumanName(last)) throw new BadRequestError('Invalid last name');
 
   const relativeName = nullIfEmpty(relNameRaw);
   // One transaction: a relative that fails validation must not leave the patient without one.
   await inTransaction(async (transaction) => {
+    // Only a patient has a relative on file, and must keep one; staff / admin accounts have none.
+    const patient = await patientRepository.findPatientByUserId(userId, transaction);
+    if (patient && !isValidHumanName(relNameRaw)) throw new BadRequestError('Invalid relative name');
+
     const userRow = await profileRepository.findUserById(userId, transaction);
     if (userRow) {
       await rejectInvalid('', () =>
@@ -136,8 +139,7 @@ async function updateProfile(user, userIdParam, body) {
       );
     }
 
-    const patient = await patientRepository.findPatientByUserId(userId, transaction);
-    if (patient && relativeName) {
+    if (patient) {
       await rejectInvalid('relative ', () =>
         profileRepository.replaceRelative(
           patient.patient_id,

@@ -3,7 +3,7 @@ const { asyncHandler } = require('../common/asyncHandler');
 
 /** GET /api/health-info/:userId — the signed-in patient's health info and record history. */
 exports.getHealthInfo = asyncHandler(async (req, res) => {
-  const { healthInfo, history } = await patientHealthInfoService.getOwnHealthInfo(req.user);
+  const { healthInfo, history } = await patientHealthInfoService.getHealthInfo(req.user, req.params.userId);
   res.json({ success: true, healthInfo, history });
 });
 

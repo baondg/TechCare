@@ -109,8 +109,11 @@ async function requireDraftRecord(patient, recordId, action) {
  * The signed-in patient's health info: latest record merged with blood type, allergies and history,
  * plus every record (newest first). The route's :userId is not used.
  */
-async function getOwnHealthInfo(user) {
-  const patient = await patientRepository.findPatientWithMedicalRecordsByUserId(user.userId);
+/** Health info of the patient `userIdParam` (USER id): the patient themself or an admin. */
+async function getHealthInfo(user, userIdParam) {
+  const userId = Number(userIdParam);
+  if (user.userId !== userId && user.role !== 'admin') throw new ForbiddenError('Forbidden');
+  const patient = await patientRepository.findPatientWithMedicalRecordsByUserId(userId);
   if (!patient) throw new NotFoundError('Patient not found');
   const history = patient.medicalRecords
     .map(toHealthRecord)
@@ -192,4 +195,4 @@ async function deleteHealthInfos(user, userIdParam, ids) {
   return medicalRecordRepository.destroyForPatient(patient.patient_id, ids);
 }
 
-module.exports = { getOwnHealthInfo, createHealthInfo, updateHealthInfo, confirmHealthInfo, deleteHealthInfos };
+module.exports = { getHealthInfo, createHealthInfo, updateHealthInfo, confirmHealthInfo, deleteHealthInfos };

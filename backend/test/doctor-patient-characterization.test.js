@@ -257,8 +257,11 @@ const SCENARIOS = [
   ], () => DOCTOR],
 ];
 
-/** Timestamps the handlers stamp with "now". */
+const RELATIVE_DOBS = { [DOB_30_YEARS]: '<30 years ago>', [DOB_10_MONTHS]: '<10 months ago>', [DOB_5_DAYS]: '<5 days ago>' };
+
+/** Timestamps the handlers stamp with "now"; birth dates built relative to today. */
 function scrubValue(key, value) {
+  if (key === 'dateOfBirth' && RELATIVE_DOBS[value]) return RELATIVE_DOBS[value];
   if ((key === 'createdAt' || key === 'time') && typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value)) {
     return Math.abs(Date.parse(value) - Date.now()) < 5 * 60_000 ? '<now>' : undefined;
   }

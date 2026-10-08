@@ -326,13 +326,21 @@
         "tx": null
       },
       {
-        "sql": "SELECT a.id, a.patient_id AS patientId, a.doctor_id AS doctorId, a.room_id AS roomId, a.time AS slotTime, a.status FROM APPOINTMENT a WHERE a.id = :id AND a.doctor_id = :myDoctorId AND a.status = 'scheduled' LIMIT 1",
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT a.id, a.patient_id AS patientId, a.doctor_id AS doctorId, a.room_id AS roomId, a.time AS slotTime, a.status FROM APPOINTMENT a WHERE a.id = :id AND a.doctor_id = :myDoctorId AND a.status = 'scheduled' LIMIT 1 FOR UPDATE",
         "replacements": {
           "id": "11",
           "myDoctorId": 5
         },
         "type": "SELECT",
-        "tx": null
+        "tx": "tx1"
+      },
+      {
+        "event": "rollback",
+        "tx": "tx1"
       }
     ]
   },
@@ -352,13 +360,21 @@
         "tx": null
       },
       {
-        "sql": "SELECT a.id, a.patient_id AS patientId, a.doctor_id AS doctorId, a.room_id AS roomId, a.time AS slotTime, a.status FROM APPOINTMENT a WHERE a.id = :id AND a.doctor_id = :myDoctorId AND a.status = 'scheduled' LIMIT 1",
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT a.id, a.patient_id AS patientId, a.doctor_id AS doctorId, a.room_id AS roomId, a.time AS slotTime, a.status FROM APPOINTMENT a WHERE a.id = :id AND a.doctor_id = :myDoctorId AND a.status = 'scheduled' LIMIT 1 FOR UPDATE",
         "replacements": {
           "id": "11",
           "myDoctorId": 5
         },
         "type": "SELECT",
-        "tx": null
+        "tx": "tx1"
+      },
+      {
+        "event": "rollback",
+        "tx": "tx1"
       }
     ]
   },
@@ -378,13 +394,17 @@
         "tx": null
       },
       {
-        "sql": "SELECT a.id, a.patient_id AS patientId, a.doctor_id AS doctorId, a.room_id AS roomId, a.time AS slotTime, a.status FROM APPOINTMENT a WHERE a.id = :id AND a.doctor_id = :myDoctorId AND a.status = 'scheduled' LIMIT 1",
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT a.id, a.patient_id AS patientId, a.doctor_id AS doctorId, a.room_id AS roomId, a.time AS slotTime, a.status FROM APPOINTMENT a WHERE a.id = :id AND a.doctor_id = :myDoctorId AND a.status = 'scheduled' LIMIT 1 FOR UPDATE",
         "replacements": {
           "id": "11",
           "myDoctorId": 5
         },
         "type": "SELECT",
-        "tx": null
+        "tx": "tx1"
       },
       {
         "sql": "SELECT cr.department_id AS deptId FROM APPOINTMENT a LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id WHERE a.id = :id LIMIT 1",
@@ -402,6 +422,10 @@
         },
         "type": "SELECT",
         "tx": null
+      },
+      {
+        "event": "rollback",
+        "tx": "tx1"
       }
     ]
   },
@@ -421,13 +445,17 @@
         "tx": null
       },
       {
-        "sql": "SELECT a.id, a.patient_id AS patientId, a.doctor_id AS doctorId, a.room_id AS roomId, a.time AS slotTime, a.status FROM APPOINTMENT a WHERE a.id = :id AND a.doctor_id = :myDoctorId AND a.status = 'scheduled' LIMIT 1",
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT a.id, a.patient_id AS patientId, a.doctor_id AS doctorId, a.room_id AS roomId, a.time AS slotTime, a.status FROM APPOINTMENT a WHERE a.id = :id AND a.doctor_id = :myDoctorId AND a.status = 'scheduled' LIMIT 1 FOR UPDATE",
         "replacements": {
           "id": "11",
           "myDoctorId": 5
         },
         "type": "SELECT",
-        "tx": null
+        "tx": "tx1"
       },
       {
         "sql": "SELECT cr.department_id AS deptId FROM APPOINTMENT a LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id WHERE a.id = :id LIMIT 1",
@@ -445,6 +473,10 @@
         },
         "type": "SELECT",
         "tx": null
+      },
+      {
+        "event": "rollback",
+        "tx": "tx1"
       }
     ]
   },
@@ -464,13 +496,17 @@
         "tx": null
       },
       {
-        "sql": "SELECT a.id, a.patient_id AS patientId, a.doctor_id AS doctorId, a.room_id AS roomId, a.time AS slotTime, a.status FROM APPOINTMENT a WHERE a.id = :id AND a.doctor_id = :myDoctorId AND a.status = 'scheduled' LIMIT 1",
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT a.id, a.patient_id AS patientId, a.doctor_id AS doctorId, a.room_id AS roomId, a.time AS slotTime, a.status FROM APPOINTMENT a WHERE a.id = :id AND a.doctor_id = :myDoctorId AND a.status = 'scheduled' LIMIT 1 FOR UPDATE",
         "replacements": {
           "id": "11",
           "myDoctorId": 5
         },
         "type": "SELECT",
-        "tx": null
+        "tx": "tx1"
       },
       {
         "sql": "SELECT cr.department_id AS deptId FROM APPOINTMENT a LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id WHERE a.id = :id LIMIT 1",
@@ -490,13 +526,25 @@
         "tx": null
       },
       {
+        "sql": "SELECT doctor_id FROM DOCTOR WHERE doctor_id = :doctorId FOR UPDATE",
+        "replacements": {
+          "doctorId": 6
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
         "sql": "SELECT x.id FROM APPOINTMENT x WHERE x.doctor_id = :doctorId AND x.time = (SELECT a2.time FROM APPOINTMENT a2 WHERE a2.id = :id LIMIT 1) AND x.status = 'scheduled' AND x.id <> :id LIMIT 1",
         "replacements": {
           "doctorId": 6,
           "id": "11"
         },
         "type": "SELECT",
-        "tx": null
+        "tx": "tx1"
+      },
+      {
+        "event": "rollback",
+        "tx": "tx1"
       }
     ]
   },
@@ -516,13 +564,17 @@
         "tx": null
       },
       {
-        "sql": "SELECT a.id, a.patient_id AS patientId, a.doctor_id AS doctorId, a.room_id AS roomId, a.time AS slotTime, a.status FROM APPOINTMENT a WHERE a.id = :id AND a.doctor_id = :myDoctorId AND a.status = 'scheduled' LIMIT 1",
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT a.id, a.patient_id AS patientId, a.doctor_id AS doctorId, a.room_id AS roomId, a.time AS slotTime, a.status FROM APPOINTMENT a WHERE a.id = :id AND a.doctor_id = :myDoctorId AND a.status = 'scheduled' LIMIT 1 FOR UPDATE",
         "replacements": {
           "id": "11",
           "myDoctorId": 5
         },
         "type": "SELECT",
-        "tx": null
+        "tx": "tx1"
       },
       {
         "sql": "SELECT cr.department_id AS deptId FROM APPOINTMENT a LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id WHERE a.id = :id LIMIT 1",
@@ -542,13 +594,21 @@
         "tx": null
       },
       {
+        "sql": "SELECT doctor_id FROM DOCTOR WHERE doctor_id = :doctorId FOR UPDATE",
+        "replacements": {
+          "doctorId": 6
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
         "sql": "SELECT x.id FROM APPOINTMENT x WHERE x.doctor_id = :doctorId AND x.time = (SELECT a2.time FROM APPOINTMENT a2 WHERE a2.id = :id LIMIT 1) AND x.status = 'scheduled' AND x.id <> :id LIMIT 1",
         "replacements": {
           "doctorId": 6,
           "id": "11"
         },
         "type": "SELECT",
-        "tx": null
+        "tx": "tx1"
       },
       {
         "sql": "SELECT x.id FROM APPOINTMENT x WHERE x.doctor_id = :doctorId AND x.time = (SELECT a2.time FROM APPOINTMENT a2 WHERE a2.id = :id LIMIT 1) AND x.room_id = (SELECT a3.room_id FROM APPOINTMENT a3 WHERE a3.id = :id LIMIT 1) AND x.id <> :id LIMIT 1",
@@ -557,7 +617,11 @@
           "id": "11"
         },
         "type": "SELECT",
-        "tx": null
+        "tx": "tx1"
+      },
+      {
+        "event": "rollback",
+        "tx": "tx1"
       }
     ]
   },
@@ -584,13 +648,17 @@
         "tx": null
       },
       {
-        "sql": "SELECT a.id, a.patient_id AS patientId, a.doctor_id AS doctorId, a.room_id AS roomId, a.time AS slotTime, a.status FROM APPOINTMENT a WHERE a.id = :id AND a.doctor_id = :myDoctorId AND a.status = 'scheduled' LIMIT 1",
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT a.id, a.patient_id AS patientId, a.doctor_id AS doctorId, a.room_id AS roomId, a.time AS slotTime, a.status FROM APPOINTMENT a WHERE a.id = :id AND a.doctor_id = :myDoctorId AND a.status = 'scheduled' LIMIT 1 FOR UPDATE",
         "replacements": {
           "id": "11",
           "myDoctorId": 5
         },
         "type": "SELECT",
-        "tx": null
+        "tx": "tx1"
       },
       {
         "sql": "SELECT cr.department_id AS deptId FROM APPOINTMENT a LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id WHERE a.id = :id LIMIT 1",
@@ -610,13 +678,21 @@
         "tx": null
       },
       {
+        "sql": "SELECT doctor_id FROM DOCTOR WHERE doctor_id = :doctorId FOR UPDATE",
+        "replacements": {
+          "doctorId": 6
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
         "sql": "SELECT x.id FROM APPOINTMENT x WHERE x.doctor_id = :doctorId AND x.time = (SELECT a2.time FROM APPOINTMENT a2 WHERE a2.id = :id LIMIT 1) AND x.status = 'scheduled' AND x.id <> :id LIMIT 1",
         "replacements": {
           "doctorId": 6,
           "id": "11"
         },
         "type": "SELECT",
-        "tx": null
+        "tx": "tx1"
       },
       {
         "sql": "SELECT x.id FROM APPOINTMENT x WHERE x.doctor_id = :doctorId AND x.time = (SELECT a2.time FROM APPOINTMENT a2 WHERE a2.id = :id LIMIT 1) AND x.room_id = (SELECT a3.room_id FROM APPOINTMENT a3 WHERE a3.id = :id LIMIT 1) AND x.id <> :id LIMIT 1",
@@ -625,15 +701,7 @@
           "id": "11"
         },
         "type": "SELECT",
-        "tx": null
-      },
-      {
-        "sql": "SELECT COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''),' ',COALESCE(u.last_name,''))), ''), a.username) AS name FROM DOCTOR d JOIN USER u ON u.id = d.user_id JOIN ACCOUNT a ON a.user_id = d.user_id WHERE d.doctor_id = :did LIMIT 1",
-        "replacements": {
-          "did": 5
-        },
-        "type": "SELECT",
-        "tx": null
+        "tx": "tx1"
       },
       {
         "sql": "UPDATE APPOINTMENT SET doctor_id = :newDoctorId WHERE id = :appointmentId",
@@ -642,6 +710,18 @@
           "appointmentId": "11"
         },
         "type": "UPDATE",
+        "tx": "tx1"
+      },
+      {
+        "event": "commit",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''),' ',COALESCE(u.last_name,''))), ''), a.username) AS name FROM DOCTOR d JOIN USER u ON u.id = d.user_id JOIN ACCOUNT a ON a.user_id = d.user_id WHERE d.doctor_id = :did LIMIT 1",
+        "replacements": {
+          "did": 5
+        },
+        "type": "SELECT",
         "tx": null
       },
       {
@@ -729,13 +809,17 @@
         "tx": null
       },
       {
-        "sql": "SELECT a.id, a.patient_id AS patientId, a.doctor_id AS doctorId, a.room_id AS roomId, a.time AS slotTime, a.status FROM APPOINTMENT a WHERE a.id = :id AND a.doctor_id = :myDoctorId AND a.status = 'scheduled' LIMIT 1",
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT a.id, a.patient_id AS patientId, a.doctor_id AS doctorId, a.room_id AS roomId, a.time AS slotTime, a.status FROM APPOINTMENT a WHERE a.id = :id AND a.doctor_id = :myDoctorId AND a.status = 'scheduled' LIMIT 1 FOR UPDATE",
         "replacements": {
           "id": "11",
           "myDoctorId": 5
         },
         "type": "SELECT",
-        "tx": null
+        "tx": "tx1"
       },
       {
         "sql": "SELECT cr.department_id AS deptId FROM APPOINTMENT a LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id WHERE a.id = :id LIMIT 1",
@@ -755,13 +839,21 @@
         "tx": null
       },
       {
+        "sql": "SELECT doctor_id FROM DOCTOR WHERE doctor_id = :doctorId FOR UPDATE",
+        "replacements": {
+          "doctorId": 6
+        },
+        "type": "SELECT",
+        "tx": "tx1"
+      },
+      {
         "sql": "SELECT x.id FROM APPOINTMENT x WHERE x.doctor_id = :doctorId AND x.time = (SELECT a2.time FROM APPOINTMENT a2 WHERE a2.id = :id LIMIT 1) AND x.status = 'scheduled' AND x.id <> :id LIMIT 1",
         "replacements": {
           "doctorId": 6,
           "id": "11"
         },
         "type": "SELECT",
-        "tx": null
+        "tx": "tx1"
       },
       {
         "sql": "SELECT x.id FROM APPOINTMENT x WHERE x.doctor_id = :doctorId AND x.time = (SELECT a2.time FROM APPOINTMENT a2 WHERE a2.id = :id LIMIT 1) AND x.room_id = (SELECT a3.room_id FROM APPOINTMENT a3 WHERE a3.id = :id LIMIT 1) AND x.id <> :id LIMIT 1",
@@ -770,15 +862,7 @@
           "id": "11"
         },
         "type": "SELECT",
-        "tx": null
-      },
-      {
-        "sql": "SELECT COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''),' ',COALESCE(u.last_name,''))), ''), a.username) AS name FROM DOCTOR d JOIN USER u ON u.id = d.user_id JOIN ACCOUNT a ON a.user_id = d.user_id WHERE d.doctor_id = :did LIMIT 1",
-        "replacements": {
-          "did": 5
-        },
-        "type": "SELECT",
-        "tx": null
+        "tx": "tx1"
       },
       {
         "sql": "UPDATE APPOINTMENT SET doctor_id = :newDoctorId WHERE id = :appointmentId",
@@ -787,6 +871,18 @@
           "appointmentId": "11"
         },
         "type": "UPDATE",
+        "tx": "tx1"
+      },
+      {
+        "event": "commit",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name,''),' ',COALESCE(u.last_name,''))), ''), a.username) AS name FROM DOCTOR d JOIN USER u ON u.id = d.user_id JOIN ACCOUNT a ON a.user_id = d.user_id WHERE d.doctor_id = :did LIMIT 1",
+        "replacements": {
+          "did": 5
+        },
+        "type": "SELECT",
         "tx": null
       },
       {
@@ -841,13 +937,21 @@
         "tx": null
       },
       {
-        "sql": "SELECT a.id, a.patient_id AS patientId, a.doctor_id AS doctorId, a.room_id AS roomId, a.time AS slotTime, a.status FROM APPOINTMENT a WHERE a.id = :id AND a.doctor_id = :myDoctorId AND a.status = 'scheduled' LIMIT 1",
+        "event": "begin",
+        "tx": "tx1"
+      },
+      {
+        "sql": "SELECT a.id, a.patient_id AS patientId, a.doctor_id AS doctorId, a.room_id AS roomId, a.time AS slotTime, a.status FROM APPOINTMENT a WHERE a.id = :id AND a.doctor_id = :myDoctorId AND a.status = 'scheduled' LIMIT 1 FOR UPDATE",
         "replacements": {
           "id": "11",
           "myDoctorId": 5
         },
         "type": "SELECT",
-        "tx": null
+        "tx": "tx1"
+      },
+      {
+        "event": "rollback",
+        "tx": "tx1"
       }
     ]
   },

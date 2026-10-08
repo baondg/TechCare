@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken');
-const Session = require('../models/Session');
-const Account = require('../models/Account');
+const sessionRepository = require('../repositories/sessionRepository');
+const authAccountRepository = require('../repositories/authAccountRepository');
 const { normalizeRoleFromCode } = require('../security/roleMapping');
 const { getJwtSecret } = require('../security/jwtConfig');
 const { isAccountStatusActive } = require('../common/accountStatus');
@@ -32,12 +32,7 @@ const authenticateToken = async (req, res, next) => {
     }
     
     // Check if session exists and is valid
-    const session = await Session.findOne({
-      where: { 
-        token,
-        userId: decoded.userId
-      }
-    });
+    const session = await sessionRepository.findSessionByAccessToken(token, decoded.userId);
     
     if (!session) {
       return res.status(403).json({ 
@@ -49,7 +44,7 @@ const authenticateToken = async (req, res, next) => {
     
     // Check if session is expired
     if (new Date() > new Date(session.expiresAt)) {
-      await Session.destroy({ where: { id: session.id } });
+      await sessionRepository.deleteSession(session.id);
       return res.status(401).json({ 
         success: false,
         error: 'Session expired. Please login again.',
@@ -58,7 +53,7 @@ const authenticateToken = async (req, res, next) => {
     }
     
     // Check if user is active (same rules as login / ACCOUNT.status)
-    const user = await Account.findOne({ where: { user_id: decoded.userId } }); // Use user_id (Users table ID) instead of PK (Account table ID)
+    const user = await authAccountRepository.findAccountByUserId(decoded.userId);
     const rawStatus = user ? (user.getDataValue ? user.getDataValue('status') : user.status) : undefined;
     if (!user || !isAccountStatusActive(rawStatus)) {
       return res.status(403).json({ 
@@ -69,7 +64,7 @@ const authenticateToken = async (req, res, next) => {
     }
     
     // Update last activity
-    await session.update({ lastActivity: new Date() });
+    await sessionRepository.updateSession(session, { lastActivity: new Date() });
     
     // Attach user info to request
   req.user = {

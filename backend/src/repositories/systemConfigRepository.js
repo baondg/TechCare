@@ -1,3 +1,4 @@
+const { QueryTypes } = require('sequelize');
 const sequelize = require('../common/database');
 const defineSystemConfig = require('../models/SystemConfig');
 
@@ -23,4 +24,30 @@ async function upsertValue(key, value, description = null) {
   });
 }
 
-module.exports = { listEntries, getValue, upsertValue };
+/**
+ * `{ key: value }` of the stored rows among `keys` (raw SQL: on schemas without the key/value
+ * columns it fails with ER_BAD_FIELD_ERROR / ER_NO_SUCH_TABLE, which the rate limiter relies on).
+ */
+async function getValuesByKeys(keys) {
+  const rows = await sequelize.query(
+    `SELECT \`key\` AS configKey, value
+     FROM SYSTEM_CONFIGURATION
+     WHERE \`key\` IN (:keys)`,
+    { replacements: { keys }, type: QueryTypes.SELECT }
+  );
+  return Object.fromEntries(rows.map((row) => [row.configKey, row.value]));
+}
+
+/** Newest row of the legacy (pre key/value) schema: `{ rateLimit, accessLimit }`, or null. */
+async function findLatestLegacyLimits() {
+  const rows = await sequelize.query(
+    `SELECT rate_limit AS rateLimit, access_limit AS accessLimit
+     FROM SYSTEM_CONFIGURATION
+     ORDER BY time DESC, id DESC
+     LIMIT 1`,
+    { type: QueryTypes.SELECT }
+  );
+  return rows[0] || null;
+}
+
+module.exports = { listEntries, getValue, upsertValue, getValuesByKeys, findLatestLegacyLimits };

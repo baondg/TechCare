@@ -1,9 +1,6 @@
 const jwt = require('jsonwebtoken');
-const sequelize = require('../common/database');
-const Session = require('../models/Session');
-const defineSystemConfig = require('../models/SystemConfig');
-const SystemConfig = defineSystemConfig(sequelize);
-const { Op } = require('sequelize');
+const sessionRepository = require('../repositories/sessionRepository');
+const systemConfigRepository = require('../repositories/systemConfigRepository');
 const { getJwtSecret } = require('../security/jwtConfig');
 const logger = require('../common/logger');
 
@@ -12,13 +9,7 @@ const logger = require('../common/logger');
 // Làm sạch các session đã hết hạn
 const cleanupExpiredSessions = async () => {
   try {
-    await Session.destroy({
-      where: {
-        expiresAt: {
-          [Op.lt]: new Date()
-        }
-      }
-    });
+    await sessionRepository.deleteExpiredSessions();
   } catch (error) {
     logger.error({ err: error }, 'Error cleaning up expired sessions');
   }
@@ -26,10 +17,10 @@ const cleanupExpiredSessions = async () => {
 
 const getNumericConfig = async (key, fallback) => {
   try {
-    const config = await SystemConfig.findOne({ where: { key } });
-    if (!config) return fallback;
+    const value = await systemConfigRepository.getValue(key);
+    if (value == null) return fallback;
 
-    const parsed = Number.parseInt(String(config.value), 10);
+    const parsed = Number.parseInt(String(value), 10);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
   } catch (_error) {
     // Legacy deployments may not have key/value system config schema.
@@ -54,9 +45,7 @@ exports.checkSessionTimeout = async (req, res, next) => {
     
     try {
       const decoded = jwt.verify(token, getJwtSecret());
-      const session = await Session.findOne({ 
-        where: { token, userId: decoded.userId } 
-      });
+      const session = await sessionRepository.findSessionByAccessToken(token, decoded.userId);
       
       if (!session) {
         return next();
@@ -64,7 +53,7 @@ exports.checkSessionTimeout = async (req, res, next) => {
       
       // Kiểm tra session đã hết hạn chưa
       if (new Date() > new Date(session.expiresAt)) {
-        await Session.destroy({ where: { id: session.id } });
+        await sessionRepository.deleteSession(session.id);
         return res.status(401).json({
           success: false,
           error: 'Session expired. Please login again.'
@@ -72,8 +61,7 @@ exports.checkSessionTimeout = async (req, res, next) => {
       }
       
       // Cập nhật lastActivity
-      session.lastActivity = new Date();
-      await session.save();
+      await sessionRepository.updateSession(session, { lastActivity: new Date() });
       
       req.session = session;
       req.userId = decoded.userId;
@@ -95,13 +83,7 @@ exports.checkConcurrentUsers = async (req, res, next) => {
     
     const maxUsers = await getNumericConfig('maxConcurrentUsers', 500);
     
-    const activeSessions = await Session.count({
-      where: {
-        expiresAt: {
-          [Op.gt]: new Date()
-        }
-      }
-    });
+    const activeSessions = await sessionRepository.countActiveSessions();
     
     if (activeSessions >= maxUsers) {
       return res.status(429).json({

@@ -121,8 +121,8 @@ SQL đã chuyển khỏi controller; controller chỉ còn HTTP (`asyncHandler`)
 - [x] Sửa: `PUT /api/health-info` lưu bệnh sử vào `medical_history` (trước đây dồn vào `allergic_info`).
 - [x] Sửa: admin ghi hồ sơ sức khoẻ của bệnh nhân (so role với `'admin'`, không phải `'ADM'`).
 - [x] Sửa: nhân viên y tế (bác sĩ / y tá / kỹ thuật viên) từng đọc **và sửa** được profile (SĐT, email, CCCD) của **bất kỳ** user nào, kể cả admin / nhân viên khác. Nay chỉ profile của **bệnh nhân** (`ACCOUNT.type = 'PAT'`) + của chính mình; admin vẫn mọi profile. Người khác → 403, tài khoản không tồn tại → 404.
-- `PUT /api/profile` bắt buộc tên người thân hợp lệ với mọi tài khoản (nhân viên / admin không cập nhật được profile của mình nếu không có người thân); nhánh tách `fullName` vì thế không bao giờ chạy.
-- `GET /api/health-info/:userId` bỏ qua `:userId`, luôn trả dữ liệu của người đang đăng nhập (portal chỉ gọi cho chính mình).
+- [x] `PUT /api/profile`: tên người thân chỉ bắt buộc với tài khoản bệnh nhân (trước đây mọi tài khoản → nhân viên / admin không cập nhật được profile của mình); `fullName` được tách trước khi kiểm tra họ / tên.
+- [x] `GET /api/health-info/:userId` dùng `:userId` theo cùng quy tắc với các thao tác ghi: chính bệnh nhân hoặc admin, người khác 403 (trước đây bỏ qua `:userId`).
 
 ## Lịch hẹn phía bệnh nhân / y tá (`appointmentController`)
 

@@ -2,6 +2,7 @@ const appointmentRepository = require('../repositories/appointmentRepository');
 const { BadRequestError, ConflictError, NotFoundError } = require('../errors/AppError');
 const {
   notifyPatientAppointmentDoctorReassigned,
+  notifyPatientAppointmentMoved,
   notifyDoctorReceivedCoverAppointment,
 } = require('./appointmentNotifications');
 
@@ -111,7 +112,8 @@ async function createOpenSlot({ body }) {
 
 /**
  * Moves a slot (date / time / room) and may hand it to another doctor; a booked slot only to a doctor
- * sharing a department, and then the patient and the new doctor are notified. Returns `{ id, date, time }`.
+ * sharing a department, and then the patient and the new doctor are notified. A booked slot moved in
+ * time or room with the same doctor: the patient is notified. Returns `{ id, date, time }`.
  */
 async function updateOpenSlot({ id: idRaw, body }) {
   const id = Number(idRaw);
@@ -180,6 +182,16 @@ async function updateOpenSlot({ id: idRaw, body }) {
       department: depRow?.depName || '',
       oldDoctorName: oldDoctorLabel,
       newDoctorName: newDoctorLabel,
+    });
+  }
+
+  const oldRoomId = slot.roomId != null ? Number(slot.roomId) : null;
+  const moved = date !== existingDate || time !== existingTime || nextRoomId !== oldRoomId;
+  if (hadPatient && nextDoctorId === oldDoctorId && moved) {
+    await notifyPatientAppointmentMoved({
+      appointmentId: id,
+      previousDateVi: existingDate.split('-').reverse().join('/'),
+      previousTimeVi: existingTime,
     });
   }
 

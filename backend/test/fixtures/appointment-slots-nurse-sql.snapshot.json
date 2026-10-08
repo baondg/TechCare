@@ -759,6 +759,211 @@
       }
     ]
   },
+  "update slot, booked: moved in time, patient notified": {
+    "request": "PUT /api/appointments/open-slots/11",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "id": 11,
+        "date": "<date>",
+        "time": "10:15"
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT id, patient_id AS patientId, doctor_id AS doctorId, room_id AS roomId, time AS slotTime, status FROM APPOINTMENT WHERE id = :id LIMIT 1",
+        "replacements": {
+          "id": 11
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT room_id AS roomId FROM DOCTOR WHERE doctor_id = :did LIMIT 1",
+        "replacements": {
+          "did": 5
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id FROM APPOINTMENT WHERE doctor_id = :doctorId AND time = :dt AND status = 'scheduled' AND id <> :id LIMIT 1",
+        "replacements": {
+          "doctorId": 5,
+          "dt": "2026-10-02 10:15:00",
+          "id": 11
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "UPDATE APPOINTMENT SET time = :time, doctor_id = :doctorId, room_id = :roomId WHERE id = :id",
+        "replacements": {
+          "id": 11,
+          "time": "2026-10-02 10:15:00",
+          "doctorId": 5,
+          "roomId": 2
+        },
+        "type": "UPDATE",
+        "tx": null
+      },
+      {
+        "sql": "SELECT a.id, a.patient_id AS patientId, a.doctor_id AS doctorId, DATE_FORMAT(a.time, '%d/%m/%Y') AS dateVi, DATE_FORMAT(a.time, '%H:%i') AS timeVi, COALESCE(NULLIF(TRIM(dep.name), ''), NULLIF(TRIM(d.specifications), ''), '') AS department, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(du.first_name,''),' ',COALESCE(du.last_name,''))), ''), dacc.username) AS doctorLabel, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(pu.first_name,''),' ',COALESCE(pu.last_name,''))), ''), pacc.username) AS patientLabel FROM APPOINTMENT a JOIN DOCTOR d ON d.doctor_id = a.doctor_id JOIN ACCOUNT dacc ON dacc.user_id = d.user_id JOIN USER du ON du.id = d.user_id LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id LEFT JOIN DEPARTMENT dep ON dep.id = cr.department_id LEFT JOIN PATIENT p ON p.patient_id = a.patient_id LEFT JOIN ACCOUNT pacc ON pacc.user_id = p.user_id LEFT JOIN USER pu ON pu.id = p.user_id WHERE a.id = :id LIMIT 1",
+        "replacements": {
+          "id": 11
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT user_id AS uid FROM PATIENT WHERE patient_id = :pid LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "INSERT INTO NOTIFICATION (`type`, content, `time`, status, user_id) VALUES (:type, :content, NOW(), 'unread', :userId)",
+        "replacements": {
+          "type": "appointment_rescheduled",
+          "content": "Your appointment on 01/10/2026 at 09:30 has been moved to 02/10/2026 at 10:15 (Cardiology).",
+          "userId": 70
+        },
+        "type": "INSERT",
+        "tx": null
+      }
+    ]
+  },
+  "update slot, booked: room only, patient notified": {
+    "request": "PUT /api/appointments/open-slots/11",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "id": 11,
+        "date": "<date>",
+        "time": "09:30"
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT id, patient_id AS patientId, doctor_id AS doctorId, room_id AS roomId, time AS slotTime, status FROM APPOINTMENT WHERE id = :id LIMIT 1",
+        "replacements": {
+          "id": 11
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT room_id AS roomId FROM DOCTOR WHERE doctor_id = :did LIMIT 1",
+        "replacements": {
+          "did": 5
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id FROM APPOINTMENT WHERE doctor_id = :doctorId AND time = :dt AND status = 'scheduled' AND id <> :id LIMIT 1",
+        "replacements": {
+          "doctorId": 5,
+          "dt": "2026-10-01 09:30:00",
+          "id": 11
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "UPDATE APPOINTMENT SET time = :time, doctor_id = :doctorId, room_id = :roomId WHERE id = :id",
+        "replacements": {
+          "id": 11,
+          "time": "2026-10-01 09:30:00",
+          "doctorId": 5,
+          "roomId": 3
+        },
+        "type": "UPDATE",
+        "tx": null
+      },
+      {
+        "sql": "SELECT a.id, a.patient_id AS patientId, a.doctor_id AS doctorId, DATE_FORMAT(a.time, '%d/%m/%Y') AS dateVi, DATE_FORMAT(a.time, '%H:%i') AS timeVi, COALESCE(NULLIF(TRIM(dep.name), ''), NULLIF(TRIM(d.specifications), ''), '') AS department, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(du.first_name,''),' ',COALESCE(du.last_name,''))), ''), dacc.username) AS doctorLabel, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(pu.first_name,''),' ',COALESCE(pu.last_name,''))), ''), pacc.username) AS patientLabel FROM APPOINTMENT a JOIN DOCTOR d ON d.doctor_id = a.doctor_id JOIN ACCOUNT dacc ON dacc.user_id = d.user_id JOIN USER du ON du.id = d.user_id LEFT JOIN CLINIC_ROOM cr ON cr.id = a.room_id LEFT JOIN DEPARTMENT dep ON dep.id = cr.department_id LEFT JOIN PATIENT p ON p.patient_id = a.patient_id LEFT JOIN ACCOUNT pacc ON pacc.user_id = p.user_id LEFT JOIN USER pu ON pu.id = p.user_id WHERE a.id = :id LIMIT 1",
+        "replacements": {
+          "id": 11
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT user_id AS uid FROM PATIENT WHERE patient_id = :pid LIMIT 1",
+        "replacements": {
+          "pid": 7
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "INSERT INTO NOTIFICATION (`type`, content, `time`, status, user_id) VALUES (:type, :content, NOW(), 'unread', :userId)",
+        "replacements": {
+          "type": "appointment_rescheduled",
+          "content": "Your appointment on 01/10/2026 at 09:30 has been moved to another room.",
+          "userId": 70
+        },
+        "type": "INSERT",
+        "tx": null
+      }
+    ]
+  },
+  "update slot, booked: nothing changed, nobody notified": {
+    "request": "PUT /api/appointments/open-slots/11",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "id": 11,
+        "date": "<date>",
+        "time": "09:30"
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT id, patient_id AS patientId, doctor_id AS doctorId, room_id AS roomId, time AS slotTime, status FROM APPOINTMENT WHERE id = :id LIMIT 1",
+        "replacements": {
+          "id": 11
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT room_id AS roomId FROM DOCTOR WHERE doctor_id = :did LIMIT 1",
+        "replacements": {
+          "did": 5
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT id FROM APPOINTMENT WHERE doctor_id = :doctorId AND time = :dt AND status = 'scheduled' AND id <> :id LIMIT 1",
+        "replacements": {
+          "doctorId": 5,
+          "dt": "2026-10-01 09:30:00",
+          "id": 11
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "UPDATE APPOINTMENT SET time = :time, doctor_id = :doctorId, room_id = :roomId WHERE id = :id",
+        "replacements": {
+          "id": 11,
+          "time": "2026-10-01 09:30:00",
+          "doctorId": 5,
+          "roomId": 2
+        },
+        "type": "UPDATE",
+        "tx": null
+      }
+    ]
+  },
   "update slot, db down": {
     "request": "PUT /api/appointments/open-slots/11",
     "response": {

@@ -102,7 +102,7 @@
         "tx": null
       },
       {
-        "sql": "SELECT rx.order_id, rx.time, rx.note AS prescriptionNote, COALESCE(rx.duration, 7) AS prescriptionDuration, d.user_id AS doctorUserId, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username, CONCAT('doctor#', d.user_id)) AS doctorName, pd.no AS medNo, m.name, pd.quantity, COALESCE(pd.duration, 7) AS lineDuration, pd.usage, pd.unit, pd.note AS medNote FROM MEDICAL_PRESCRIPTION rx JOIN `ORDER` o ON o.id = rx.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id LEFT JOIN USER u ON u.id = d.user_id LEFT JOIN ACCOUNT a ON a.user_id = d.user_id LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id LEFT JOIN MEDICINE m ON m.id = pd.medicine_id WHERE r.patient_id = :patientId ORDER BY rx.time DESC, pd.no ASC",
+        "sql": "SELECT rx.order_id, rx.time, rx.updated_at AS updatedAt, rx.note AS prescriptionNote, COALESCE(rx.duration, 7) AS prescriptionDuration, d.user_id AS doctorUserId, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username, CONCAT('doctor#', d.user_id)) AS doctorName, pd.no AS medNo, m.name, pd.quantity, COALESCE(pd.duration, 7) AS lineDuration, pd.usage, pd.unit, pd.note AS medNote FROM MEDICAL_PRESCRIPTION rx JOIN `ORDER` o ON o.id = rx.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id LEFT JOIN USER u ON u.id = d.user_id LEFT JOIN ACCOUNT a ON a.user_id = d.user_id LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id LEFT JOIN MEDICINE m ON m.id = pd.medicine_id WHERE r.patient_id = :patientId ORDER BY rx.time DESC, pd.no ASC",
         "replacements": {
           "patientId": 7
         },
@@ -169,7 +169,7 @@
         "tx": null
       },
       {
-        "sql": "SELECT rx.order_id, rx.time, rx.note AS prescriptionNote, COALESCE(rx.duration, 7) AS prescriptionDuration, d.user_id AS doctorUserId, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username, CONCAT('doctor#', d.user_id)) AS doctorName, pd.no AS medNo, m.name, pd.quantity, COALESCE(pd.duration, 7) AS lineDuration, pd.usage, pd.unit, pd.note AS medNote FROM MEDICAL_PRESCRIPTION rx JOIN `ORDER` o ON o.id = rx.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id LEFT JOIN USER u ON u.id = d.user_id LEFT JOIN ACCOUNT a ON a.user_id = d.user_id LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id LEFT JOIN MEDICINE m ON m.id = pd.medicine_id WHERE r.patient_id = :patientId ORDER BY rx.time DESC, pd.no ASC",
+        "sql": "SELECT rx.order_id, rx.time, rx.updated_at AS updatedAt, rx.note AS prescriptionNote, COALESCE(rx.duration, 7) AS prescriptionDuration, d.user_id AS doctorUserId, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username, CONCAT('doctor#', d.user_id)) AS doctorName, pd.no AS medNo, m.name, pd.quantity, COALESCE(pd.duration, 7) AS lineDuration, pd.usage, pd.unit, pd.note AS medNote FROM MEDICAL_PRESCRIPTION rx JOIN `ORDER` o ON o.id = rx.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id LEFT JOIN USER u ON u.id = d.user_id LEFT JOIN ACCOUNT a ON a.user_id = d.user_id LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id LEFT JOIN MEDICINE m ON m.id = pd.medicine_id WHERE r.patient_id = :patientId ORDER BY rx.time DESC, pd.no ASC",
         "replacements": {
           "patientId": 7
         },
@@ -177,7 +177,7 @@
         "tx": null
       },
       {
-        "sql": "SELECT rx.order_id, rx.time, rx.note AS prescriptionNote, d.user_id AS doctorUserId, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username, CONCAT('doctor#', d.user_id)) AS doctorName, pd.no AS medNo, m.name, pd.quantity, pd.usage, pd.unit, pd.note AS medNote FROM MEDICAL_PRESCRIPTION rx JOIN `ORDER` o ON o.id = rx.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id LEFT JOIN USER u ON u.id = d.user_id LEFT JOIN ACCOUNT a ON a.user_id = d.user_id LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id LEFT JOIN MEDICINE m ON m.id = pd.medicine_id WHERE r.patient_id = :patientId ORDER BY rx.time DESC, pd.no ASC",
+        "sql": "SELECT rx.order_id, rx.time, rx.updated_at AS updatedAt, rx.note AS prescriptionNote, d.user_id AS doctorUserId, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username, CONCAT('doctor#', d.user_id)) AS doctorName, pd.no AS medNo, m.name, pd.quantity, pd.usage, pd.unit, pd.note AS medNote FROM MEDICAL_PRESCRIPTION rx JOIN `ORDER` o ON o.id = rx.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id LEFT JOIN USER u ON u.id = d.user_id LEFT JOIN ACCOUNT a ON a.user_id = d.user_id LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id LEFT JOIN MEDICINE m ON m.id = pd.medicine_id WHERE r.patient_id = :patientId ORDER BY rx.time DESC, pd.no ASC",
         "replacements": {
           "patientId": 7
         },
@@ -202,7 +202,7 @@
         "tx": null
       },
       {
-        "sql": "SELECT rx.order_id, rx.time, rx.note AS prescriptionNote, COALESCE(rx.duration, 7) AS prescriptionDuration, d.user_id AS doctorUserId, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username, CONCAT('doctor#', d.user_id)) AS doctorName, pd.no AS medNo, m.name, pd.quantity, COALESCE(pd.duration, 7) AS lineDuration, pd.usage, pd.unit, pd.note AS medNote FROM MEDICAL_PRESCRIPTION rx JOIN `ORDER` o ON o.id = rx.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id LEFT JOIN USER u ON u.id = d.user_id LEFT JOIN ACCOUNT a ON a.user_id = d.user_id LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id LEFT JOIN MEDICINE m ON m.id = pd.medicine_id WHERE r.patient_id = :patientId ORDER BY rx.time DESC, pd.no ASC",
+        "sql": "SELECT rx.order_id, rx.time, rx.updated_at AS updatedAt, rx.note AS prescriptionNote, COALESCE(rx.duration, 7) AS prescriptionDuration, d.user_id AS doctorUserId, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), a.username, CONCAT('doctor#', d.user_id)) AS doctorName, pd.no AS medNo, m.name, pd.quantity, COALESCE(pd.duration, 7) AS lineDuration, pd.usage, pd.unit, pd.note AS medNote FROM MEDICAL_PRESCRIPTION rx JOIN `ORDER` o ON o.id = rx.order_id JOIN TREATMENT t ON t.id = o.treatment_id JOIN REGIMEN r ON r.id = t.regimen_id LEFT JOIN DOCTOR d ON d.doctor_id = t.doctor_id LEFT JOIN USER u ON u.id = d.user_id LEFT JOIN ACCOUNT a ON a.user_id = d.user_id LEFT JOIN PRESCRIPTION_DETAIL pd ON pd.prescription_id = rx.order_id LEFT JOIN MEDICINE m ON m.id = pd.medicine_id WHERE r.patient_id = :patientId ORDER BY rx.time DESC, pd.no ASC",
         "replacements": {
           "patientId": 7
         },
@@ -1746,7 +1746,7 @@
             }
           ],
           "createdAt": "2026-10-01T09:00:00.000Z",
-          "updatedAt": "<now>"
+          "updatedAt": "2026-10-02T08:00:00.000Z"
         }
       }
     },
@@ -1805,7 +1805,7 @@
         "tx": "tx1"
       },
       {
-        "sql": "UPDATE MEDICAL_PRESCRIPTION SET time = NOW(), note = :note, duration = :duration WHERE order_id = :orderId",
+        "sql": "UPDATE MEDICAL_PRESCRIPTION SET updated_at = NOW(), note = :note, duration = :duration WHERE order_id = :orderId",
         "replacements": {
           "orderId": 601,
           "note": "{\"v\":2,\"department\":\"Cardiology\",\"byt\":{\"code\":\"TC001fixed01-C\",\"prescriptionType\":\"N\",\"facilityCode\":\"TC001\",\"facilityName\":\"Old clinic\",\"facilityAddress\":\"268 Lý Thường Kiệt, phường Diên Hồng, Hồ Chí Minh\",\"facilityPhone\":\"1900 1800\",\"contactPhone\":\"0901\",\"guardianName\":\"\",\"advice\":\"Drink water\",\"insuranceId\":\"\",\"patientAddress\":\"\",\"patientWeightKg\":\"61\",\"patientIdCard\":\"079\",\"patientPhone\":\"0909\"}}",
@@ -1900,7 +1900,7 @@
         "tx": "tx1"
       },
       {
-        "sql": "SELECT time, duration FROM MEDICAL_PRESCRIPTION WHERE order_id = :orderId LIMIT 1",
+        "sql": "SELECT time, updated_at AS updatedAt, duration FROM MEDICAL_PRESCRIPTION WHERE order_id = :orderId LIMIT 1",
         "replacements": {
           "orderId": 601
         },
@@ -1963,7 +1963,7 @@
             }
           ],
           "createdAt": "2026-10-01T09:00:00.000Z",
-          "updatedAt": "<now>"
+          "updatedAt": "2026-10-02T08:00:00.000Z"
         }
       }
     },
@@ -2006,7 +2006,7 @@
         "tx": "tx1"
       },
       {
-        "sql": "UPDATE MEDICAL_PRESCRIPTION SET time = NOW(), note = :note WHERE order_id = :orderId",
+        "sql": "UPDATE MEDICAL_PRESCRIPTION SET updated_at = NOW(), note = :note WHERE order_id = :orderId",
         "replacements": {
           "orderId": 601,
           "note": "{\"v\":2,\"department\":\"\",\"byt\":{\"code\":\"TC001fixed02-H\",\"prescriptionType\":\"C\",\"facilityCode\":\"TC001\",\"facilityName\":\"TechCare\",\"facilityAddress\":\"268 Lý Thường Kiệt, phường Diên Hồng, Hồ Chí Minh\",\"facilityPhone\":\"1900 1800\",\"contactPhone\":\"\",\"guardianName\":\"\",\"advice\":\"\",\"insuranceId\":\"\",\"patientAddress\":\"\",\"patientWeightKg\":\"\",\"patientIdCard\":\"\",\"patientPhone\":\"\"}}"
@@ -2052,7 +2052,7 @@
         "tx": "tx1"
       },
       {
-        "sql": "SELECT time, duration FROM MEDICAL_PRESCRIPTION WHERE order_id = :orderId LIMIT 1",
+        "sql": "SELECT time, updated_at AS updatedAt, duration FROM MEDICAL_PRESCRIPTION WHERE order_id = :orderId LIMIT 1",
         "replacements": {
           "orderId": 601
         },
@@ -2060,7 +2060,7 @@
         "tx": "tx1"
       },
       {
-        "sql": "SELECT time FROM MEDICAL_PRESCRIPTION WHERE order_id = :orderId LIMIT 1",
+        "sql": "SELECT time, updated_at AS updatedAt FROM MEDICAL_PRESCRIPTION WHERE order_id = :orderId LIMIT 1",
         "replacements": {
           "orderId": 601
         },
@@ -2190,7 +2190,7 @@
         "tx": "tx1"
       },
       {
-        "sql": "UPDATE MEDICAL_PRESCRIPTION SET time = NOW(), note = :note, duration = :duration WHERE order_id = :orderId",
+        "sql": "UPDATE MEDICAL_PRESCRIPTION SET updated_at = NOW(), note = :note, duration = :duration WHERE order_id = :orderId",
         "replacements": {
           "orderId": 601,
           "note": "{\"v\":2,\"department\":\"\",\"byt\":{\"code\":\"<byt-code>\",\"prescriptionType\":\"C\",\"facilityCode\":\"TC001\",\"facilityName\":\"TechCare\",\"facilityAddress\":\"268 Lý Thường Kiệt, phường Diên Hồng, Hồ Chí Minh\",\"facilityPhone\":\"1900 1800\",\"contactPhone\":\"\",\"guardianName\":\"\",\"advice\":\"\",\"insuranceId\":\"\",\"patientAddress\":\"\",\"patientWeightKg\":\"\",\"patientIdCard\":\"\",\"patientPhone\":\"\"}}",
@@ -2200,7 +2200,7 @@
         "tx": "tx1"
       },
       {
-        "sql": "UPDATE MEDICAL_PRESCRIPTION SET time = NOW(), note = :note WHERE order_id = :orderId",
+        "sql": "UPDATE MEDICAL_PRESCRIPTION SET updated_at = NOW(), note = :note WHERE order_id = :orderId",
         "replacements": {
           "orderId": 601,
           "note": "{\"v\":2,\"department\":\"\",\"byt\":{\"code\":\"<byt-code>\",\"prescriptionType\":\"C\",\"facilityCode\":\"TC001\",\"facilityName\":\"TechCare\",\"facilityAddress\":\"268 Lý Thường Kiệt, phường Diên Hồng, Hồ Chí Minh\",\"facilityPhone\":\"1900 1800\",\"contactPhone\":\"\",\"guardianName\":\"\",\"advice\":\"\",\"insuranceId\":\"\",\"patientAddress\":\"\",\"patientWeightKg\":\"\",\"patientIdCard\":\"\",\"patientPhone\":\"\"}}"
@@ -2232,7 +2232,7 @@
         "tx": "tx1"
       },
       {
-        "sql": "SELECT time, duration FROM MEDICAL_PRESCRIPTION WHERE order_id = :orderId LIMIT 1",
+        "sql": "SELECT time, updated_at AS updatedAt, duration FROM MEDICAL_PRESCRIPTION WHERE order_id = :orderId LIMIT 1",
         "replacements": {
           "orderId": 601
         },
@@ -2314,7 +2314,7 @@
         "tx": "tx1"
       },
       {
-        "sql": "UPDATE MEDICAL_PRESCRIPTION SET time = NOW(), note = :note WHERE order_id = :orderId",
+        "sql": "UPDATE MEDICAL_PRESCRIPTION SET updated_at = NOW(), note = :note WHERE order_id = :orderId",
         "replacements": {
           "orderId": 601,
           "note": "{\"v\":2,\"department\":\"Cardiology\",\"byt\":{\"code\":\"TC001fixed01-C\",\"prescriptionType\":\"H\",\"facilityCode\":\"TC001\",\"facilityName\":\"Old clinic\",\"facilityAddress\":\"268 Lý Thường Kiệt, phường Diên Hồng, Hồ Chí Minh\",\"facilityPhone\":\"1900 1800\",\"contactPhone\":\"0901\",\"guardianName\":\"\",\"advice\":\"\",\"insuranceId\":\"\",\"patientAddress\":\"\",\"patientWeightKg\":\"61\",\"patientIdCard\":\"079\",\"patientPhone\":\"0909\"}}"

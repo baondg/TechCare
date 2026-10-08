@@ -36,6 +36,7 @@ async function listPrescriptionRowsForPatient(patientId) {
   const sqlWithDuration = `SELECT
          rx.order_id,
          rx.time,
+         rx.updated_at AS updatedAt,
          rx.note AS prescriptionNote,
          COALESCE(rx.duration, 7) AS prescriptionDuration,
          d.user_id AS doctorUserId,
@@ -51,6 +52,7 @@ async function listPrescriptionRowsForPatient(patientId) {
   const sqlLegacy = `SELECT
          rx.order_id,
          rx.time,
+         rx.updated_at AS updatedAt,
          rx.note AS prescriptionNote,
          d.user_id AS doctorUserId,
          ${DOCTOR_NAME_SQL},
@@ -84,7 +86,7 @@ async function insertPrescription({ orderId, duration, note }, transaction) {
   await insertMedicalPrescriptionCompat(sequelize, { orderId, duration, note, transaction });
 }
 
-/** Sets `time = NOW()` and the note; `duration` too unless undefined. */
+/** Sets `updated_at = NOW()` and the note; `duration` too unless undefined. `time` is kept. */
 async function updatePrescription(orderId, { note, duration }, transaction) {
   await updateMedicalPrescriptionCompat(sequelize, { orderId, setNote: note, setDuration: duration, transaction });
 }
@@ -109,7 +111,7 @@ async function findPrescriptionTime(orderId, transaction) {
   return rows[0]?.time;
 }
 
-/** `{ time, duration? }` of a prescription (no duration on legacy schemas), or undefined. */
+/** `{ time, updatedAt, duration? }` of a prescription (no duration on legacy schemas), or undefined. */
 async function findPrescriptionTimeAndDuration(orderId, transaction) {
   const rows = await selectMedicalPrescriptionMetaCompat(sequelize, { orderId, transaction });
   return rows[0];

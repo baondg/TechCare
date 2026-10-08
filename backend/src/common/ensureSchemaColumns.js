@@ -9,6 +9,7 @@ const logger = require('./logger');
 const REQUIRED_COLUMNS = [
   ['DOCTOR', 'signature', 'LONGTEXT NULL', 'prescription PDF / profile signature'],
   ['ACCOUNT', 'must_change_password', 'TINYINT(1) NOT NULL DEFAULT 0', 'forced password change on next login'],
+  ['MEDICAL_PRESCRIPTION', 'updated_at', 'DATETIME NULL', 'last edit of a prescription (time stays the prescribing date)'],
 ];
 
 async function columnExists(sequelize, tableName, columnName) {

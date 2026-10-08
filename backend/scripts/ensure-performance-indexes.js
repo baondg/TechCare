@@ -4,7 +4,8 @@
  * Safe to re-run; skips if index name already exists (MySQL ER_DUP_KEYNAME).
  */
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
-const sequelize = require('../src/common/database');
+const { fromDist } = require('./lib/fromDist');
+const sequelize = fromDist('common/database');
 
 const INDEXES = [
   ['idx_patient_user_id', 'CREATE INDEX idx_patient_user_id ON PATIENT (user_id)'],

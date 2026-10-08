@@ -1,8 +1,9 @@
 require('dotenv').config({ path: __dirname + '/../.env' });
+const { fromDist } = require('./lib/fromDist');
 const bcrypt = require('bcrypt');
-const sequelize = require('../src/common/database');
-const Users = require('../src/models/Users');
-const Account = require('../src/models/Account');
+const sequelize = fromDist('common/database');
+const Users = fromDist('models/Users');
+const Account = fromDist('models/Account');
 
 const createAdmin = async () => {
   const username = process.argv[2] || 'admin';

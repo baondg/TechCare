@@ -5,9 +5,10 @@
  * Requires IMAGE_ENCRYPTION_KEY (32-byte key, base64) in .env
  */
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
+const { fromDist } = require('./lib/fromDist');
 const { QueryTypes } = require('sequelize');
-const sequelize = require('../src/common/database');
-const { encryptField, isEncrypted } = require('../src/common/fieldEncryption');
+const sequelize = fromDist('common/database');
+const { encryptField, isEncrypted } = fromDist('common/fieldEncryption');
 
 (async () => {
   await sequelize.authenticate();

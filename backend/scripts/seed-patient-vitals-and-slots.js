@@ -10,10 +10,11 @@
  * Requires: patient row already exists (register or import). Doctor + room must exist (e.g. npm run seed:demo).
  */
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
+const { fromDist } = require('./lib/fromDist');
 
 const bcrypt = require('bcrypt');
 const { QueryTypes } = require('sequelize');
-const sequelize = require('../src/common/database');
+const sequelize = fromDist('common/database');
 
 const SALT_ROUNDS = 12;
 const DEFAULT_IDCARD = '036096000004';

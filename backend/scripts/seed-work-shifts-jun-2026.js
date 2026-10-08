@@ -11,9 +11,10 @@
  *   node scripts/seed-work-shifts-jun-2026.js --start-date=2026-06-06 --end-date=2026-06-08
  */
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
+const { fromDist } = require('./lib/fromDist');
 
 const { QueryTypes } = require('sequelize');
-const sequelize = require('../src/common/database');
+const sequelize = fromDist('common/database');
 
 const DEFAULTS = {
   doctorId: 2,

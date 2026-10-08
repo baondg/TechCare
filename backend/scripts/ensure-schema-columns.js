@@ -1,9 +1,11 @@
 /**
- * Run: npm run db:ensure-columns (from backend/) — same as the server does at startup.
+ * Run: npm run db:ensure-columns (from backend/, after `npm run build`) — same as the server
+ * does at startup.
  */
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
-const sequelize = require('../src/common/database');
-const { ensureSchemaColumns } = require('../src/common/ensureSchemaColumns');
+const { fromDist } = require('./lib/fromDist');
+const sequelize = fromDist('common/database');
+const { ensureSchemaColumns } = fromDist('common/ensureSchemaColumns');
 
 (async () => {
   await sequelize.authenticate();

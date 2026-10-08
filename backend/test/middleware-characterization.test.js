@@ -238,9 +238,8 @@ const SCENARIOS = [
     },
   ],
   [
-    'concurrent: cleanup and count fail → passes',
+    'concurrent: count fails → passes',
     () => {
-      db.state.models['Session.destroy'] = () => dbError();
       db.state.models['Session.count'] = () => dbError();
       return run(sessionMiddleware.checkConcurrentUsers);
     },

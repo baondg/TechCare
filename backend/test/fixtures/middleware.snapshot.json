@@ -254,14 +254,6 @@
     },
     "db": [
       {
-        "event": "Session.destroy",
-        "where": {
-          "expiresAt": {
-            "[lt]": "<date>"
-          }
-        }
-      },
-      {
         "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'maxConcurrentUsers';",
         "replacements": null,
         "type": "SELECT",
@@ -289,14 +281,6 @@
     },
     "db": [
       {
-        "event": "Session.destroy",
-        "where": {
-          "expiresAt": {
-            "[lt]": "<date>"
-          }
-        }
-      },
-      {
         "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'maxConcurrentUsers';",
         "replacements": null,
         "type": "SELECT",
@@ -321,14 +305,6 @@
       }
     },
     "db": [
-      {
-        "event": "Session.destroy",
-        "where": {
-          "expiresAt": {
-            "[lt]": "<date>"
-          }
-        }
-      },
       {
         "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'maxConcurrentUsers';",
         "replacements": null,
@@ -357,14 +333,6 @@
     },
     "db": [
       {
-        "event": "Session.destroy",
-        "where": {
-          "expiresAt": {
-            "[lt]": "<date>"
-          }
-        }
-      },
-      {
         "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'maxConcurrentUsers';",
         "replacements": null,
         "type": "SELECT",
@@ -390,14 +358,6 @@
     },
     "db": [
       {
-        "event": "Session.destroy",
-        "where": {
-          "expiresAt": {
-            "[lt]": "<date>"
-          }
-        }
-      },
-      {
         "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'maxConcurrentUsers';",
         "replacements": null,
         "type": "SELECT",
@@ -413,19 +373,11 @@
       }
     ]
   },
-  "concurrent: cleanup and count fail → passes": {
+  "concurrent: count fails → passes": {
     "result": {
       "answer": "next"
     },
     "db": [
-      {
-        "event": "Session.destroy",
-        "where": {
-          "expiresAt": {
-            "[lt]": "<date>"
-          }
-        }
-      },
       {
         "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'maxConcurrentUsers';",
         "replacements": null,

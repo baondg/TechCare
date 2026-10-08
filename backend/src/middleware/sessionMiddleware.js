@@ -34,9 +34,7 @@ setInterval(cleanupExpiredSessions, 5 * 60 * 1000).unref();
 // Kiểm tra số lượng user đồng thời
 exports.checkConcurrentUsers = async (req, res, next) => {
   try {
-    // Làm sạch session hết hạn trước
-    await cleanupExpiredSessions();
-    
+    // countActiveSessions only counts unexpired sessions; login and the 5-minute timer delete expired ones.
     const maxUsers = await getNumericConfig('maxConcurrentUsers', 500);
     
     const activeSessions = await sessionRepository.countActiveSessions();

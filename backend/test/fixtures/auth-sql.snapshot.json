@@ -7,15 +7,6 @@
     },
     "db": [
       {
-        "event": "Session.destroy",
-        "where": {
-          "expiresAt": {
-            "[lt]": "<date>"
-          }
-        },
-        "tx": null
-      },
-      {
         "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'maxConcurrentUsers';",
         "replacements": null,
         "type": "SELECT",
@@ -39,15 +30,6 @@
       "message": "Invalid email or password"
     },
     "db": [
-      {
-        "event": "Session.destroy",
-        "where": {
-          "expiresAt": {
-            "[lt]": "<date>"
-          }
-        },
-        "tx": null
-      },
       {
         "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'maxConcurrentUsers';",
         "replacements": null,
@@ -99,15 +81,6 @@
     },
     "db": [
       {
-        "event": "Session.destroy",
-        "where": {
-          "expiresAt": {
-            "[lt]": "<date>"
-          }
-        },
-        "tx": null
-      },
-      {
         "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'maxConcurrentUsers';",
         "replacements": null,
         "type": "SELECT",
@@ -158,15 +131,6 @@
       "code": "ACCOUNT_DEACTIVATED"
     },
     "db": [
-      {
-        "event": "Session.destroy",
-        "where": {
-          "expiresAt": {
-            "[lt]": "<date>"
-          }
-        },
-        "tx": null
-      },
       {
         "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'maxConcurrentUsers';",
         "replacements": null,
@@ -232,15 +196,6 @@
       "cookie": "refreshToken=<jwt>; Path=/api/auth; Expires=<date>; HttpOnly; SameSite=Lax"
     },
     "db": [
-      {
-        "event": "Session.destroy",
-        "where": {
-          "expiresAt": {
-            "[lt]": "<date>"
-          }
-        },
-        "tx": null
-      },
       {
         "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'maxConcurrentUsers';",
         "replacements": null,
@@ -346,15 +301,6 @@
       "cookie": "refreshToken=<jwt>; Path=/api/auth; Expires=<date>; HttpOnly; SameSite=Lax"
     },
     "db": [
-      {
-        "event": "Session.destroy",
-        "where": {
-          "expiresAt": {
-            "[lt]": "<date>"
-          }
-        },
-        "tx": null
-      },
       {
         "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'maxConcurrentUsers';",
         "replacements": null,
@@ -463,15 +409,6 @@
     },
     "db": [
       {
-        "event": "Session.destroy",
-        "where": {
-          "expiresAt": {
-            "[lt]": "<date>"
-          }
-        },
-        "tx": null
-      },
-      {
         "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'maxConcurrentUsers';",
         "replacements": null,
         "type": "SELECT",
@@ -564,15 +501,6 @@
     },
     "db": [
       {
-        "event": "Session.destroy",
-        "where": {
-          "expiresAt": {
-            "[lt]": "<date>"
-          }
-        },
-        "tx": null
-      },
-      {
         "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'maxConcurrentUsers';",
         "replacements": null,
         "type": "SELECT",
@@ -596,15 +524,6 @@
       "message": "login failed. please try again."
     },
     "db": [
-      {
-        "event": "Session.destroy",
-        "where": {
-          "expiresAt": {
-            "[lt]": "<date>"
-          }
-        },
-        "tx": null
-      },
       {
         "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'maxConcurrentUsers';",
         "replacements": null,

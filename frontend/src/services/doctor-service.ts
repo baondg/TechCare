@@ -818,24 +818,6 @@ export const doctorService = {
     }>(`${API_BASE_URL}/api/doctor/appointments?${query}`);
   },
 
-  async createAppointment(data: {
-    patientId: number | string;
-    department: string;
-    date: string;
-    time: string;
-    room?: string;
-    symptoms?: string;
-    notes?: string;
-  }) {
-    return apiRequest<{
-      success: boolean;
-      appointment: DoctorAppointment;
-    }>(`${API_BASE_URL}/api/doctor/appointments`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  },
-
   async createPatientTransfer(
     patientId: number | string,
     data:

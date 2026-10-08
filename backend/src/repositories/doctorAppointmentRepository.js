@@ -61,36 +61,6 @@ async function listForDoctor(doctorId, { startDate, endDate, status }) {
   );
 }
 
-/** `{ doctor_id, room_id }` (room_id = the doctor's default room) for a user, or null. */
-async function findDoctorWithRoomByUserId(userId) {
-  const rows = await sequelize.query('SELECT doctor_id, room_id FROM DOCTOR WHERE user_id = :userId LIMIT 1', {
-    replacements: { userId },
-    type: QueryTypes.SELECT,
-  });
-  return rows[0] || null;
-}
-
-/** Whether the doctor already has a scheduled appointment at exactly `dateTime`. */
-async function hasScheduledAt(doctorId, dateTime) {
-  const rows = await sequelize.query(
-    `SELECT id FROM APPOINTMENT
-     WHERE doctor_id = :doctorId AND time = :dateTime AND status = 'scheduled'
-     LIMIT 1`,
-    { replacements: { doctorId, dateTime }, type: QueryTypes.SELECT }
-  );
-  return Boolean(rows[0]);
-}
-
-/** Scheduled appointment the doctor booked themselves (already accepted). Returns the new id. */
-async function insertAcceptedAppointment({ dateTime, condition, patientPk, doctorId, roomId }) {
-  const [appointmentId] = await sequelize.query(
-    `INSERT INTO APPOINTMENT (time, status, \`condition\`, patient_id, doctor_id, room_id, regimen_id, doctor_confirmed)
-     VALUES (:dateTime, 'scheduled', :condition, :patientPk, :doctorId, :roomId, NULL, 1)`,
-    { replacements: { dateTime, condition, patientPk, doctorId, roomId }, type: QueryTypes.INSERT }
-  );
-  return appointmentId;
-}
-
 // ─── Cover (hand the slot to another doctor) ───
 
 /** `{ id, patientId, doctorId, roomId, slotTime, status }` of a scheduled appointment of the doctor, or null. */
@@ -247,9 +217,6 @@ async function markDoctorConfirmed(id) {
 
 module.exports = {
   listForDoctor,
-  findDoctorWithRoomByUserId,
-  hasScheduledAt,
-  insertAcceptedAppointment,
   findScheduledOwnedBy,
   findRoomDepartmentId,
   doctorInDepartment,

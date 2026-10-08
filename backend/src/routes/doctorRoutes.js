@@ -90,7 +90,6 @@ router.put('/patients/:patientId/surgeries/:id', surgeryController.updateSurgery
 
 // ─── Appointments ───
 router.get('/appointments', doctorAppointmentController.getAppointments);
-router.post('/appointments', doctorAppointmentController.createAppointment);
 router.put('/appointments/:id/cancel', doctorAppointmentController.cancelAppointment);
 router.put('/appointments/:id/cover', doctorAppointmentController.coverAppointment);
 router.put('/appointments/:id/confirm', doctorAppointmentController.confirmAppointment);

@@ -1,7 +1,5 @@
-const jwt = require('jsonwebtoken');
 const sessionRepository = require('../repositories/sessionRepository');
 const systemConfigRepository = require('../repositories/systemConfigRepository');
-const { getJwtSecret } = require('../security/jwtConfig');
 const logger = require('../common/logger');
 
 
@@ -28,52 +26,10 @@ const getNumericConfig = async (key, fallback) => {
   }
 };
 
-// Kiểm tra và làm sạch session định kỳ (mỗi 5 phút)
+// Kiểm tra và làm sạch session định kỳ (mỗi 5 phút). Phiên hết hạn của một request do
+// authMiddleware chặn (401 SESSION_EXPIRED) và xoá.
 // unref: the timer must not keep the process alive on its own (tests, graceful shutdown).
 setInterval(cleanupExpiredSessions, 5 * 60 * 1000).unref();
-
-// Middleware kiểm tra session timeout
-exports.checkSessionTimeout = async (req, res, next) => {
-  try {
-    const token = req.headers.authorization?.replace('Bearer ', '') || 
-                  req.query.token || 
-                  req.body?.token;
-    
-    if (!token) {
-      return next();
-    }
-    
-    try {
-      const decoded = jwt.verify(token, getJwtSecret());
-      const session = await sessionRepository.findSessionByAccessToken(token, decoded.userId);
-      
-      if (!session) {
-        return next();
-      }
-      
-      // Kiểm tra session đã hết hạn chưa
-      if (new Date() > new Date(session.expiresAt)) {
-        await sessionRepository.deleteSession(session.id);
-        return res.status(401).json({
-          success: false,
-          error: 'Session expired. Please login again.'
-        });
-      }
-      
-      // Cập nhật lastActivity
-      await sessionRepository.updateSession(session, { lastActivity: new Date() });
-      
-      req.session = session;
-      req.userId = decoded.userId;
-    } catch (error) {
-      // Token không hợp lệ, bỏ qua
-    }
-    
-    next();
-  } catch (error) {
-    next();
-  }
-};
 
 // Kiểm tra số lượng user đồng thời
 exports.checkConcurrentUsers = async (req, res, next) => {
@@ -101,4 +57,4 @@ exports.checkConcurrentUsers = async (req, res, next) => {
   }
 };
 
-// Middleware quản lý session: kiểm tra timeout, làm sạch session hết hạn, và kiểm tra giới hạn số user đồng thời
+// Middleware quản lý session: làm sạch session hết hạn định kỳ và kiểm tra giới hạn số user đồng thời khi đăng nhập

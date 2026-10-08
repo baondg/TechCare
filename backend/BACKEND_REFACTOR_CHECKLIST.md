@@ -142,7 +142,7 @@ SQL đã chuyển khỏi controller; controller chỉ còn HTTP (`asyncHandler`)
 
 - [x] `authMiddleware`, `sessionMiddleware`, `rateLimitMiddleware` đọc DB qua `sessionRepository` (`findSessionByAccessToken`, `countActiveSessions`, …), `authAccountRepository.findAccountByUserId`, `systemConfigRepository` (`getValuesByKeys`, `findLatestLegacyLimits`); không middleware nào còn import model / `sequelize`. Test: `test/middleware-characterization.test.js` (24 kịch bản gọi trực tiếp middleware + 3 test qua app).
 - [x] Bỏ `checkSessionTimeout` (chạy cho mọi request trước route): request đã đăng nhập từng tra session + ghi `lastActivity` hai lần; nay chỉ `authMiddleware` làm (phiên hết hạn → 401 `SESSION_EXPIRED` + xoá). Không còn nhận token qua `?token=` / `body.token`; route công khai (login, refresh…) không còn bị chặn bởi header `Authorization` của phiên cũ.
-- `checkConcurrentUsers` xoá session hết hạn ở mỗi lần đăng nhập (ngoài lượt dọn định kỳ 5 phút).
+- [x] `checkConcurrentUsers` chỉ đếm (không còn xoá session hết hạn ở mỗi lần thử đăng nhập — đăng nhập thành công và lượt 5 phút vẫn dọn).
 
 ## Follow-up (broader backend — khối lớn, làm dần)
 

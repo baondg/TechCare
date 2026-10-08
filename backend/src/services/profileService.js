@@ -1,5 +1,6 @@
 const profileRepository = require('../repositories/profileRepository');
 const patientRepository = require('../repositories/patientRepository');
+const accountRepository = require('../repositories/accountRepository');
 const { inTransaction } = require('../common/transaction');
 const { AppError, BadRequestError, ForbiddenError, NotFoundError } = require('../errors/AppError');
 
@@ -15,9 +16,16 @@ function parseUserId(param) {
 const isSelfOrAdmin = (user, userId) => String(user.userId) === String(userId) || user.role === 'admin';
 const isMedicalStaff = (user) => MEDICAL_STAFF.has(String(user?.role || '').toLowerCase());
 
-/** Self, admin or medical staff (e.g. a nurse completing a patient's details) may read and edit. */
-function requireProfileAccess(user, userId) {
-  if (!isSelfOrAdmin(user, userId) && !isMedicalStaff(user)) throw new ForbiddenError('Forbidden');
+/**
+ * Self and admin may read and edit any profile; medical staff (e.g. a nurse completing a patient's
+ * details) only patients' — not other staff's or admins' (phone, email, national id).
+ */
+async function requireProfileAccess(user, userId) {
+  if (isSelfOrAdmin(user, userId)) return;
+  if (!isMedicalStaff(user)) throw new ForbiddenError('Forbidden');
+  const target = await accountRepository.findAccountType(userId);
+  if (!target) throw new NotFoundError('Account not found');
+  if (String(target.type || '').toUpperCase() !== 'PAT') throw new ForbiddenError('Forbidden');
 }
 
 function splitFullName(fullName) {
@@ -58,7 +66,7 @@ const toSexCode = (sex) => (sex === 'Male' ? 'M' : sex === 'Female' ? 'F' : 'O')
 /** `{ profile, relative, insurance }` of a user (relative / insurance only for patients). */
 async function getProfile(user, userIdParam) {
   const userId = parseUserId(userIdParam);
-  requireProfileAccess(user, userId);
+  await requireProfileAccess(user, userId);
 
   const account = await profileRepository.findAccountWithUser(userId);
   if (!account) throw new NotFoundError('Account not found');
@@ -91,7 +99,7 @@ async function getProfile(user, userIdParam) {
  */
 async function updateProfile(user, userIdParam, body) {
   const userId = parseUserId(userIdParam);
-  requireProfileAccess(user, userId);
+  await requireProfileAccess(user, userId);
 
   const fnRaw = (body.firstName ?? body.first_name ?? '').toString().trim();
   const lnRaw = (body.lastName ?? body.last_name ?? '').toString().trim();

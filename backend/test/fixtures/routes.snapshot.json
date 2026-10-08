@@ -116,6 +116,7 @@
   "POST /api/admin/accounts",
   "PATCH /api/admin/accounts/:id",
   "PATCH /api/admin/accounts/:id/status",
+  "POST /api/admin/accounts/:id/reset-password",
   "GET /api/admin/feedbacks",
   "PATCH /api/admin/feedbacks/:id",
   "GET /api/notifications/unread-count",

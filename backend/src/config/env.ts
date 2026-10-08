@@ -64,8 +64,6 @@ const schema = z
     JWT_SECRET: z.string().optional(),
     AUTH_REFRESH_COOKIE_SAMESITE: z.string().optional(),
     AUTH_REFRESH_COOKIE_SECURE: z.string().optional(),
-    DEFAULT_ACCOUNT_PASSWORD: z.string().optional(),
-    DEMO_ACCOUNT_PASSWORD: z.string().optional(),
     INTERNAL_API_SECRET: z.string().optional(),
     IMAGE_ENCRYPTION_KEY: z
       .string()
@@ -189,8 +187,6 @@ export const config = {
     /** undefined when unset (controller then derives it from NODE_ENV). */
     refreshCookieSecure:
       e.AUTH_REFRESH_COOKIE_SECURE === undefined ? undefined : e.AUTH_REFRESH_COOKIE_SECURE.toLowerCase() === 'true',
-    /** Initial password for admin-created accounts; creation is refused without it (accountService). */
-    defaultAccountPassword: e.DEFAULT_ACCOUNT_PASSWORD || e.DEMO_ACCOUNT_PASSWORD || '',
     internalApiSecret: str(e.INTERNAL_API_SECRET),
     imageEncryptionKey: str(e.IMAGE_ENCRYPTION_KEY),
   },
@@ -287,8 +283,6 @@ export const config = {
 
 export type AppConfig = typeof config;
 
-/** Demo seed password, published in the docs: never accepted as DEFAULT_ACCOUNT_PASSWORD. */
-export const PUBLISHED_DEMO_PASSWORD = 'Test@1234';
 
 /**
  * Production settings that are not fatal (today's deploys run without them) but weaken security.
@@ -302,9 +296,6 @@ export function configWarnings(c: AppConfig = config): string[] {
   }
   if (!c.auth.internalApiSecret) {
     warnings.push('INTERNAL_API_SECRET is not set: internal AI routes answer 500.');
-  }
-  if (!c.auth.defaultAccountPassword || c.auth.defaultAccountPassword === PUBLISHED_DEMO_PASSWORD) {
-    warnings.push('DEFAULT_ACCOUNT_PASSWORD is not set (or is the published demo password): admins cannot create accounts.');
   }
   if (c.rateLimit.benchmarkBypass) {
     warnings.push('BENCHMARK_RATE_LIMIT_BYPASS is enabled: rate limiting can be bypassed in production.');

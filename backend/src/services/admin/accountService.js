@@ -1,9 +1,9 @@
-const bcrypt = require('bcrypt');
 const { inTransaction } = require('../../common/transaction');
 const accountRepository = require('../../repositories/accountRepository');
 const catalogRepository = require('../../repositories/catalogRepository');
-const { config, PUBLISHED_DEMO_PASSWORD } = require('../../config/env');
-const { AppError, BadRequestError, ForbiddenError, NotFoundError } = require('../../errors/AppError');
+const sessionRepository = require('../../repositories/sessionRepository');
+const { generateTemporaryPassword, hashPassword } = require('../auth/passwordPolicy');
+const { BadRequestError, ForbiddenError, NotFoundError } = require('../../errors/AppError');
 const { ROLE_CODES } = require('../../validators/adminSchemas');
 const { ACCOUNT_ROLE_LABEL } = require('./roleLabels');
 
@@ -175,20 +175,14 @@ async function listAccounts(query) {
 }
 
 /**
- * Creates USER + ACCOUNT (+ DOCTOR for doctors) with the configured initial password.
+ * Creates USER + ACCOUNT (+ DOCTOR for doctors) with a random temporary password, returned once
+ * (`temporaryPassword`) for the admin to hand over; the user must change it at first sign-in.
  * @param {number | null} createdBy admin user id
  */
 async function createAccount(body, createdBy) {
   const account = parseNewAccount(body);
-  const initialPassword = config.auth.defaultAccountPassword;
-  if (!initialPassword || initialPassword === PUBLISHED_DEMO_PASSWORD) {
-    throw new AppError(
-      'Account creation is disabled: DEFAULT_ACCOUNT_PASSWORD is not configured on the server.',
-      500,
-      { expose: true }
-    );
-  }
-  const password = await bcrypt.hash(initialPassword, 12);
+  const temporaryPassword = generateTemporaryPassword();
+  const password = await hashPassword(temporaryPassword);
 
   const created = await inTransaction(async (tx) => {
     if (await accountRepository.findAccountByUsername(account.username, tx)) {
@@ -206,6 +200,7 @@ async function createAccount(body, createdBy) {
         type: account.roleCode,
         createdBy: createdBy || null,
         status: account.enabled ? 1 : 0,
+        mustChangePassword: true,
       },
       tx
     );
@@ -214,7 +209,22 @@ async function createAccount(body, createdBy) {
     }
     return accountRepository.findAccountView(userId, tx);
   });
-  return mapAccountRow(created);
+  return { account: mapAccountRow(created), temporaryPassword };
+}
+
+/**
+ * New temporary password for a user who lost theirs (returned once); their sessions end and they
+ * must change it at next sign-in. Not for the admin's own account: they use change password.
+ */
+async function resetPassword(userId, adminUserId) {
+  if (Number(userId) === Number(adminUserId)) {
+    throw new BadRequestError('Use "Change password" for your own account.');
+  }
+  if (!(await accountRepository.findAccountType(userId))) throw new NotFoundError('Account not found');
+  const temporaryPassword = generateTemporaryPassword();
+  await accountRepository.setTemporaryPassword(userId, await hashPassword(temporaryPassword));
+  await sessionRepository.deleteSessionsOfUser(userId);
+  return { id: userId, temporaryPassword };
 }
 
 /** Updates profile fields and the enabled flag; username and role are read-only. */
@@ -257,6 +267,7 @@ module.exports = {
   listDepartments,
   listAccounts,
   createAccount,
+  resetPassword,
   updateAccount,
   setAccountEnabled,
 };

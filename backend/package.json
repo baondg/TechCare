@@ -25,6 +25,7 @@
     "migrate:system-config-kv": "node scripts/migrate-system-configuration-to-kv.js",
     "db:migrate:system-config": "node scripts/migrate-system-configuration-to-kv.js",
     "db:ensure-columns": "node scripts/ensure-schema-columns.js",
+    "db:flag-shared-passwords": "node scripts/flag-shared-passwords.js",
     "normalize-js-utf8": "node scripts/normalize-js-utf8.js"
   },
   "dependencies": {

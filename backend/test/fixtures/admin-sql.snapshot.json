@@ -359,7 +359,8 @@
           "doctorSpecifications": "Cardiology",
           "doctorQualifications": "MD",
           "doctorDepartmentIds": []
-        }
+        },
+        "temporaryPassword": "<temporary>"
       }
     },
     "db": [
@@ -390,14 +391,15 @@
         "tx": "tx1"
       },
       {
-        "sql": "INSERT INTO ACCOUNT (user_id, username, password, type, created_by, status) VALUES (:userId, :username, :password, :type, :createdBy, :status)",
+        "sql": "INSERT INTO ACCOUNT (user_id, username, password, type, created_by, status, must_change_password) VALUES (:userId, :username, :password, :type, :createdBy, :status, :mustChangePassword)",
         "replacements": {
           "userId": 101,
           "username": "newbie",
           "password": "<bcrypt>",
           "type": "PAT",
           "createdBy": 1,
-          "status": 1
+          "status": 1,
+          "mustChangePassword": 1
         },
         "type": "INSERT",
         "tx": "tx1"
@@ -445,7 +447,8 @@
             3,
             4
           ]
-        }
+        },
+        "temporaryPassword": "<temporary>"
       }
     },
     "db": [
@@ -476,14 +479,15 @@
         "tx": "tx1"
       },
       {
-        "sql": "INSERT INTO ACCOUNT (user_id, username, password, type, created_by, status) VALUES (:userId, :username, :password, :type, :createdBy, :status)",
+        "sql": "INSERT INTO ACCOUNT (user_id, username, password, type, created_by, status, must_change_password) VALUES (:userId, :username, :password, :type, :createdBy, :status, :mustChangePassword)",
         "replacements": {
           "userId": 102,
           "username": "newbie",
           "password": "<bcrypt>",
           "type": "DOC",
           "createdBy": 1,
-          "status": 0
+          "status": 0,
+          "mustChangePassword": 1
         },
         "type": "INSERT",
         "tx": "tx1"
@@ -630,6 +634,76 @@
         "tx": "tx1"
       }
     ]
+  },
+  "reset password": {
+    "request": "POST /api/admin/accounts/42/reset-password",
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "id": 42,
+        "temporaryPassword": "<temporary>"
+      }
+    },
+    "db": [
+      {
+        "sql": "SELECT user_id AS userId, type FROM ACCOUNT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 42
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "UPDATE ACCOUNT SET password = :password, must_change_password = 1 WHERE user_id = :userId",
+        "replacements": {
+          "userId": 42,
+          "password": "<bcrypt>"
+        },
+        "type": "UPDATE",
+        "tx": null
+      },
+      {
+        "event": "Session.destroy",
+        "where": {
+          "userId": 42
+        },
+        "tx": null
+      }
+    ]
+  },
+  "reset password, unknown account": {
+    "request": "POST /api/admin/accounts/43/reset-password",
+    "response": {
+      "status": 404,
+      "message": "Account not found"
+    },
+    "db": [
+      {
+        "sql": "SELECT user_id AS userId, type FROM ACCOUNT WHERE user_id = :userId LIMIT 1",
+        "replacements": {
+          "userId": 43
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "reset password, own account": {
+    "request": "POST /api/admin/accounts/1/reset-password",
+    "response": {
+      "status": 400,
+      "message": "Use \"Change password\" for your own account."
+    },
+    "db": []
+  },
+  "reset password, bad id": {
+    "request": "POST /api/admin/accounts/abc/reset-password",
+    "response": {
+      "status": 400,
+      "message": "Invalid account id"
+    },
+    "db": []
   },
   "update account, bad id": {
     "request": "PATCH /api/admin/accounts/abc",

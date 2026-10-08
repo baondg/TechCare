@@ -22,6 +22,7 @@ router.get('/accounts', validate({ query: listAccountsQuery }), accountControlle
 router.post('/accounts', accountController.createAccount);
 router.patch('/accounts/:id', validate({ params: accountIdParams }), accountController.updateAccount);
 router.patch('/accounts/:id/status', validate({ params: accountIdParams }), accountController.updateAccountStatus);
+router.post('/accounts/:id/reset-password', validate({ params: accountIdParams }), accountController.resetPassword);
 router.get('/feedbacks', feedbackController.getFeedbacks);
 router.patch(
   '/feedbacks/:id',

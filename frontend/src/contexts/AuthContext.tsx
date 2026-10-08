@@ -23,6 +23,8 @@ export interface User {
   fullName?: string
   role?: string
   type?: string
+  /** Admin-issued password: only the change-password screen works until the user picks their own. */
+  mustChangePassword?: boolean
 }
 
 export interface RegisterData {
@@ -66,6 +68,8 @@ interface AuthContextType {
   ) => Promise<{ success: boolean; error?: string; code?: string }>
   register: (userData: RegisterData) => Promise<{ success: boolean; error?: string }>
   logout: () => void
+  /** After a successful password change: lift the forced-change state. */
+  markPasswordChanged: () => void
 }
 
 // ── Context ────────────────────────────────────────────────────
@@ -251,8 +255,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     window.location.href = '/login'
   }
 
+  const markPasswordChanged = () => {
+    setUser((prev) => {
+      if (!prev) return prev
+      const next: User = { ...prev, mustChangePassword: false }
+      localStorage.setItem('user', JSON.stringify(next))
+      return next
+    })
+  }
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, isAuthenticated, login, logout, register }}>
+    <AuthContext.Provider value={{ user, isLoading, isAuthenticated, login, logout, register, markPasswordChanged }}>
       {children}
     </AuthContext.Provider>
   )

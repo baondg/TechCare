@@ -15,6 +15,7 @@ import { API_BASE_URL as API_BASE } from '@/lib/api-base'
 import i18n from '@/i18n'
 import { emitErrorToast } from '@/lib/error-toast-bus'
 import { emitSuccessToast } from '@/lib/success-toast-bus'
+import { CHANGE_PASSWORD_PATH } from '@/lib/auth-paths'
 
 function getToken(): string | null {
   return localStorage.getItem('authToken')
@@ -66,6 +67,20 @@ function scheduleRedirectToLogin(): void {
     authLostRedirectTimer = null
     navigateIfDifferent(`${window.location.origin}/login`)
   }, AUTH_LOST_REDIRECT_DELAY_MS)
+}
+
+/**
+ * 403 PASSWORD_CHANGE_REQUIRED: the account was flagged for a forced change while signed in (shared-password
+ * audit). Remember it on the stored user so the app keeps the user on the change-password screen.
+ */
+function redirectToPasswordChange(): void {
+  try {
+    const stored = JSON.parse(localStorage.getItem('user') ?? 'null') as Record<string, unknown> | null
+    if (stored) localStorage.setItem('user', JSON.stringify({ ...stored, mustChangePassword: true }))
+  } catch {
+    // unreadable stored user: the server keeps refusing until the password is changed
+  }
+  navigateIfDifferent(`${window.location.origin}${CHANGE_PASSWORD_PATH}`)
 }
 
 /** Only call for 401 (always logout) or 403 with an auth-lost code (RBAC 403 must not use this). */
@@ -156,6 +171,10 @@ async function request<T>(path: string, options: RequestInit = {}, hasRetried = 
       // ignore parsing errors
     }
     const code = payload?.code
+    if (code === 'PASSWORD_CHANGE_REQUIRED') {
+      redirectToPasswordChange()
+      throw new Error(payload?.error || i18n.t('errors.httpError', { status: 403 }))
+    }
     if (code && AUTH_LOST_CODES.has(code)) {
       handleUnauthorized(403, code)
       throw new Error(i18n.t('errors.unauthorized'))

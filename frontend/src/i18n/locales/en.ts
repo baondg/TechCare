@@ -10,6 +10,7 @@ const en = {
     noData: "No data.",
     notAvailable: "—",
     logout: "Logout",
+    cancel: "Cancel",
     notifications: "Notifications",
     patientInDepartment: {
       outpatient: "Outpatient",
@@ -68,6 +69,17 @@ const en = {
     accountDeactivatedMessage:
       "This account has been deactivated and cannot sign in. Please contact your administrator if you need access.",
     accountDeactivatedOk: "OK",
+    changePassword: {
+      title: "Change password",
+      forcedNotice: "Your password was issued by an administrator. Choose your own password to continue.",
+      current: "Current password",
+      new: "New password",
+      confirm: "Confirm new password",
+      rules: "At least 8 characters, with an uppercase letter, a lowercase letter and a number.",
+      mismatch: "The new passwords do not match.",
+      submit: "Change password",
+      success: "Password changed.",
+    },
   },
   layout: {
     adminPortal: "Admin Portal",
@@ -272,6 +284,14 @@ const en = {
       statusUpdated: "Account status updated.",
       profileUpdated: "Account profile updated.",
       noChanges: "No changes to save.",
+      passwordGeneratedOnCreate: "A temporary password is generated when the account is created.",
+      resetPassword: "Reset password",
+      resetPasswordConfirm: "Reset the password of {{username}}? Their sessions end and they must choose a new password at next sign-in.",
+      temporaryPasswordTitle: "Temporary password",
+      temporaryPasswordNotice: "Give this password to {{username}}. It is shown only once; they must change it at first sign-in.",
+      copy: "Copy",
+      copied: "Copied",
+      done: "Done",
     },
     config: {
       failedLoadFeatures: "Failed to load features",

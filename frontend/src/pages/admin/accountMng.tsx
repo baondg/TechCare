@@ -9,7 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button"
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { UserPlus, Save, X, ArrowUp, ArrowDown, ArrowUpDown, Search, Calendar as CalendarIcon } from "lucide-react"
+import { UserPlus, Save, X, ArrowUp, ArrowDown, ArrowUpDown, Search, Calendar as CalendarIcon, KeyRound } from "lucide-react"
+import { TemporaryPasswordDialog, type IssuedPassword } from "@/components/admin/temporary-password-dialog"
+import { useAuth } from "@/contexts/AuthContext"
 import { AdminLayout } from "@/components/admin-layout"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Switch } from "@/components/ui/switch"
@@ -153,6 +155,9 @@ function hasProfileChangesBetween(original: Patient, draft: Patient): boolean {
 export default function UserManagement() {
   const { t, i18n } = useTranslation()
   const { toast, isExiting, showSuccess, showError, onMouseEnter, onMouseLeave } = usePauseableToast()
+  const { user: currentUser } = useAuth()
+  const [issuedPassword, setIssuedPassword] = useState<IssuedPassword | null>(null)
+  const [resettingPassword, setResettingPassword] = useState(false)
   const ROLE_FILTER_OPTIONS = [
     { value: "ADM", label: t("admin.accounts.roleFilter.admin") },
     { value: "DOC", label: t("admin.accounts.roleFilter.doctor") },
@@ -631,16 +636,30 @@ export default function UserManagement() {
         return
       }
 
-      await adminAccountService.createAccount(payload)
+      const created = await adminAccountService.createAccount(payload)
       await loadAccounts({ cancelled: false })
       setFormMode("view")
       setIsDetailModalOpen(false)
       showSuccess("Account created successfully")
+      setIssuedPassword({ username: draftPatient.username, password: created.temporaryPassword })
     } catch (e) {
       console.error("Save account failed:", e)
       showError(e instanceof Error ? e.message : "Failed to save account")
     } finally {
       setSavingAccount(false)
+    }
+  }
+
+  const handleResetPassword = async (account: Patient) => {
+    if (!window.confirm(t("admin.accounts.resetPasswordConfirm", { username: account.username }))) return
+    setResettingPassword(true)
+    try {
+      const { temporaryPassword } = await adminAccountService.resetPassword(account.userId)
+      setIssuedPassword({ username: account.username, password: temporaryPassword })
+    } catch (e) {
+      showError(e instanceof Error ? e.message : "Failed to reset password")
+    } finally {
+      setResettingPassword(false)
     }
   }
 
@@ -981,7 +1000,24 @@ export default function UserManagement() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
-                    <Input id="password" type="password" value="********" disabled className="bg-gray-50" />
+                    {formMode === "add" ? (
+                      <p className="text-sm text-muted-foreground py-2">{t("admin.accounts.passwordGeneratedOnCreate")}</p>
+                    ) : (
+                      <div className="flex gap-2">
+                        <Input id="password" type="password" value="********" disabled className="bg-gray-50" />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={
+                            formMode !== "view" || resettingPassword || activePatient.userId === currentUser?.id
+                          }
+                          onClick={() => void handleResetPassword(activePatient)}
+                        >
+                          <KeyRound className="w-4 h-4 mr-1.5" />
+                          {t("admin.accounts.resetPassword")}
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1226,6 +1262,7 @@ export default function UserManagement() {
     </div>
   </AdminLayout>
   {pauseableToast}
+  <TemporaryPasswordDialog issued={issuedPassword} onClose={() => setIssuedPassword(null)} />
   </>
   )
 }

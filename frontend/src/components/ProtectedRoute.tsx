@@ -1,28 +1,12 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { getSafeRedirectByRole } from '@/lib/auth-paths';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
   requiredRole?: string;
 }
-
-const getSafeRedirectByRole = (role?: string): string => {
-  switch (role) {
-    case 'patient':
-      return '/patient/dashboard';
-    case 'doctor':
-      return '/doctor/dashboard';
-    case 'nurse':
-      return '/nurse/dashboard';
-    case 'technician':
-      return '/technician/dashboard';
-    case 'admin':
-      return '/admin/dashboard';
-    default:
-      return '/';
-  }
-};
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole }) => {
   const { isAuthenticated, isLoading, user } = useAuth();

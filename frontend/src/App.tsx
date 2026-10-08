@@ -3,6 +3,8 @@ import "./App.css"
 import { lazy, Suspense } from "react"
 import { Navigate, Route, Routes, useLocation, useParams } from "react-router-dom"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
+import { useAuth } from "@/contexts/AuthContext"
+import { CHANGE_PASSWORD_PATH, passwordChangeRedirect } from "@/lib/auth-paths"
 import { ErrorToastProvider } from "@/components/error-toast-provider"
 import { SuccessToastProvider } from "@/components/success-toast-provider"
 
@@ -11,6 +13,7 @@ const FadeTransition = lazy(() => import("@/components/FadeTransition"))
 const NetworkBackground = lazy(() => import("@/components/NetworkBackground"))
 const LoginPage = lazy(() => import("./authentication/login"))
 const RegisterPage = lazy(() => import("./authentication/register"))
+const ChangePasswordPage = lazy(() => import("./pages/account/change-password"))
 const DashBoardPage = lazy(() => import("./pages/patient/dashboard"))
 const FeedBackPage = lazy(() => import("./pages/patient/feedback"))
 const ProfilePage = lazy(() => import("./pages/patient/profile"))
@@ -87,6 +90,7 @@ function LegacyDoctorPatientProfileRedirect() {
 
 function App() {
   const location = useLocation()
+  const { isAuthenticated, user } = useAuth()
   const transitionRoutes = new Set(["/", "/login", "/register"])
   const withTransition = transitionRoutes.has(location.pathname)
 
@@ -96,6 +100,14 @@ function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route
+          path={CHANGE_PASSWORD_PATH}
+          element={
+            <ProtectedRoute>
+              <ChangePasswordPage />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Protected Patient Routes */}
         <Route path="/patient/dashboard" element={<DashBoardPage />} />
@@ -182,6 +194,9 @@ function App() {
       </Routes>
     </Suspense>
   )
+
+  const pendingPasswordChange = isAuthenticated ? passwordChangeRedirect(user?.mustChangePassword, location.pathname) : null
+  if (pendingPasswordChange) return <Navigate to={pendingPasswordChange} replace />
 
   const routedContent = withTransition ? (
     <Suspense fallback={routes}>

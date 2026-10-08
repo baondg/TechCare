@@ -34,6 +34,16 @@ async function listActiveSessionsOfUser(userId) {
   });
 }
 
+/** @returns {Promise<Session | null>} the session holding this access token for this user */
+async function findSessionByAccessToken(token, userId) {
+  return Session.findOne({ where: { token, userId } });
+}
+
+/** @returns {Promise<number>} sessions not yet expired */
+async function countActiveSessions() {
+  return Session.count({ where: { expiresAt: { [Op.gt]: new Date() } } });
+}
+
 /** @returns {Promise<Session | null>} the session holding this refresh token for this user */
 async function findSessionByRefreshToken(refreshToken, userId) {
   return Session.findOne({ where: { refreshToken, userId } });
@@ -84,6 +94,8 @@ async function deleteSessionsExceptUsers(userIds) {
 module.exports = {
   listActiveSessions,
   listActiveSessionsOfUser,
+  findSessionByAccessToken,
+  countActiveSessions,
   findSessionByRefreshToken,
   createSession,
   updateSession,

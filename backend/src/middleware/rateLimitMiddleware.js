@@ -1,4 +1,3 @@
-const sequelize = require('../common/database');
 const jwt = require('jsonwebtoken');
 const { createClient } = require('redis');
 const { getJwtSecret } = require('../security/jwtConfig');
@@ -8,6 +7,7 @@ const {
   buildRateLimitPolicyFromKvMap,
   parsePositiveInt,
 } = require('../config/systemConfigurationContract');
+const systemConfigRepository = require('../repositories/systemConfigRepository');
 const logger = require('../common/logger');
 const { config } = require('../config/env');
 
@@ -153,15 +153,9 @@ const envScopeOverride = (scope, field, fallback) => {
  */
 const loadKeyValueRateLimitPolicy = async (scope, defaults) => {
   if (!RATE_LIMIT_SCOPE_TO_KEYS[scope]) return null;
-  const rows = await sequelize.query(
-    `SELECT \`key\` AS configKey, value
-     FROM SYSTEM_CONFIGURATION
-     WHERE \`key\` IN (:keys)`,
-    { replacements: { keys: getRateLimitQueryKeysForScope(scope) }, type: sequelize.QueryTypes.SELECT }
-  );
-  if (!rows?.length) return null;
+  const stored = await systemConfigRepository.getValuesByKeys(getRateLimitQueryKeysForScope(scope));
+  if (Object.keys(stored).length === 0) return null;
 
-  const stored = Object.fromEntries(rows.map((row) => [row.configKey, row.value]));
   const policy = buildRateLimitPolicyFromKvMap(stored, scope, defaults);
   policy.maxRequests = envScopeOverride(scope, 'max', policy.maxRequests);
   policy.windowSeconds = envScopeOverride(scope, 'window', policy.windowSeconds);
@@ -215,14 +209,7 @@ const loadRateLimitPolicy = async (scope, defaults) => {
       }
     }
 
-    const rows = await sequelize.query(
-      `SELECT rate_limit AS rateLimit, access_limit AS accessLimit
-       FROM SYSTEM_CONFIGURATION
-       ORDER BY time DESC, id DESC
-       LIMIT 1`,
-      { type: sequelize.QueryTypes.SELECT }
-    );
-    const row = rows[0] || null;
+    const row = await systemConfigRepository.findLatestLegacyLimits();
     const derivedMax = row
       ? parsePositiveInt(
           scope === 'global' ? row.accessLimit ?? row.rateLimit : row.rateLimit,

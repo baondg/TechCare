@@ -2,8 +2,8 @@ const bcrypt = require('bcrypt');
 const { inTransaction } = require('../../common/transaction');
 const accountRepository = require('../../repositories/accountRepository');
 const catalogRepository = require('../../repositories/catalogRepository');
-const { config } = require('../../config/env');
-const { BadRequestError, ForbiddenError, NotFoundError } = require('../../errors/AppError');
+const { config, PUBLISHED_DEMO_PASSWORD } = require('../../config/env');
+const { AppError, BadRequestError, ForbiddenError, NotFoundError } = require('../../errors/AppError');
 const { ROLE_CODES } = require('../../validators/adminSchemas');
 const { ACCOUNT_ROLE_LABEL } = require('./roleLabels');
 
@@ -180,8 +180,14 @@ async function listAccounts(query) {
  */
 async function createAccount(body, createdBy) {
   const account = parseNewAccount(body);
-  // TODO(security): drop the hard-coded fallback once every environment sets DEFAULT_ACCOUNT_PASSWORD.
-  const initialPassword = config.auth.defaultAccountPassword || 'Test@1234';
+  const initialPassword = config.auth.defaultAccountPassword;
+  if (!initialPassword || initialPassword === PUBLISHED_DEMO_PASSWORD) {
+    throw new AppError(
+      'Account creation is disabled: DEFAULT_ACCOUNT_PASSWORD is not configured on the server.',
+      500,
+      { expose: true }
+    );
+  }
   const password = await bcrypt.hash(initialPassword, 12);
 
   const created = await inTransaction(async (tx) => {

@@ -149,7 +149,8 @@ SQL đã chuyển khỏi controller; controller chỉ còn HTTP (`asyncHandler`)
 - [x] `CONFIG_DEFAULTS` / `NUMERIC_CONFIG_RULES` chỉ còn ở `config/systemConfigurationContract.js` (lấy theo giá trị của trang admin: appointment 60/60, không có `aiRecovery*` / `aiModelCatalog`).
 - [x] Rate limit: một bảng scope → key duy nhất (`RATE_LIMIT_SCOPE_TO_KEYS`), middleware dùng nó; `aiRecovery` dùng chung cấu hình "AI symptom" của trang admin (đúng như đang chạy). Test: `test/rate-limit-scope-keys.test.js`.
 - [x] `adminRoutes.js` / `systemConfig.js` dùng `authorizeCapability('admin.console')`. Test: `test/admin-guard.test.js`.
-- ⚠️ `accountService.createAccount` vẫn rơi về mật khẩu mặc định cứng `Test@1234` (ghi trong docs) khi thiếu `DEFAULT_ACCOUNT_PASSWORD`; không deploy nào đặt biến này. **Backend không có API đổi mật khẩu** → mọi tài khoản admin tạo dùng chung một mật khẩu mãi mãi. Cần quyết định: mật khẩu ngẫu nhiên từng tài khoản (hiện một lần cho admin) + API đổi mật khẩu + bắt đổi ở lần đăng nhập đầu.
+- [x] `accountService.createAccount` không còn rơi về mật khẩu cứng `Test@1234`: thiếu `DEFAULT_ACCOUNT_PASSWORD` (hoặc đặt đúng `Test@1234`) → từ chối tạo tài khoản (500, câu báo nêu tên biến), không ghi gì. App vẫn khởi động được; `configWarnings` báo ở production. Test: `test/default-account-password.test.js`.
+  - ⚠️ Vẫn là **một** mật khẩu chung cho mọi tài khoản admin tạo, và **chưa có API đổi mật khẩu**. Bước tiếp (hướng A): mật khẩu tạm ngẫu nhiên hiện một lần + `must_change_password` + `POST /api/auth/change-password` + admin reset; tài khoản cũ khớp `Test@1234` bị gắn cờ buộc đổi.
 
 ## Doctor / EMR (G3 — bước A: tách controller theo miền)
 

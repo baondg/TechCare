@@ -1,6 +1,6 @@
 /**
  * Characterization of the DB-backed middleware: authMiddleware (access token → session → account),
- * sessionMiddleware (session timeout, concurrent-user cap) and the rate limiter's policy loading
+ * sessionMiddleware (concurrent-user cap) and the rate limiter's policy loading
  * (key/value rows, legacy SYSTEM_CONFIGURATION columns, missing table, DB failure).
  *
  * Each middleware is called directly with a fake req / res. Recorded per scenario: SQL (fake DB),
@@ -15,6 +15,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const jwt = require('jsonwebtoken');
 
+const { startTestServer } = require('./helpers/app');
 const { installFakeDb, accessToken, refreshToken } = require('./helpers/fakeDb');
 const { legacySchemaError, dbError } = require('./helpers/characterize');
 
@@ -196,39 +197,6 @@ const SCENARIOS = [
     },
   ],
 
-  // ---- checkSessionTimeout
-  ['timeout: no token', () => run(sessionMiddleware.checkSessionTimeout)],
-  ['timeout: invalid token', () => run(sessionMiddleware.checkSessionTimeout, { headers: bearer('nope') })],
-  ['timeout: token without session', () => run(sessionMiddleware.checkSessionTimeout, { headers: bearer(doctorToken()) })],
-  [
-    'timeout: live session (token in query string)',
-    () => {
-      db.state.models['Session.findOne'] = () => sessionRow();
-      return run(sessionMiddleware.checkSessionTimeout, { query: { token: doctorToken() } });
-    },
-  ],
-  [
-    'timeout: live session (token in body)',
-    () => {
-      db.state.models['Session.findOne'] = () => sessionRow();
-      return run(sessionMiddleware.checkSessionTimeout, { body: { token: doctorToken() } });
-    },
-  ],
-  [
-    'timeout: expired session is deleted',
-    () => {
-      db.state.models['Session.findOne'] = () => sessionRow({ expiresAt: new Date(Date.now() - 1000) });
-      return run(sessionMiddleware.checkSessionTimeout, { headers: bearer(doctorToken()) });
-    },
-  ],
-  [
-    'timeout: session lookup fails',
-    () => {
-      db.state.models['Session.findOne'] = () => dbError();
-      return run(sessionMiddleware.checkSessionTimeout, { headers: bearer(doctorToken()) });
-    },
-  ],
-
   // ---- checkConcurrentUsers
   [
     'concurrent: under the configured cap',
@@ -359,3 +327,44 @@ test('middleware characterization', async () => {
   }
   assert.deepEqual(Object.keys(json), Object.keys(expected));
 });
+
+describeApp();
+
+/** Through the whole app: what one request costs, and who answers a stale session. */
+function describeApp() {
+  let server;
+  test.before(async () => {
+    server = await startTestServer();
+  });
+  test.after(() => server?.close());
+
+  const events = (name) => db.state.calls.filter((c) => c.event === name);
+
+  test('an authenticated request looks up and stamps its session once', async () => {
+    db.reset();
+    db.state.models['Session.findOne'] = () => sessionRow();
+    db.state.models['Account.findOne'] = () => activeAccount;
+    const res = await fetch(`${server.baseUrl}/api/notifications/unread-count`, { headers: bearer(doctorToken()) });
+    assert.equal(res.status, 200);
+    assert.equal(events('Session.findOne').length, 1);
+    assert.equal(events('Session#persist').length, 1);
+  });
+
+  test('an expired session on a protected route: 401 SESSION_EXPIRED, session deleted', async () => {
+    db.reset();
+    db.state.models['Session.findOne'] = () => sessionRow({ expiresAt: new Date(Date.now() - 1000) });
+    const res = await fetch(`${server.baseUrl}/api/notifications/unread-count`, { headers: bearer(doctorToken()) });
+    assert.equal(res.status, 401);
+    assert.equal((await res.json()).code, 'SESSION_EXPIRED');
+    assert.deepEqual(events('Session.destroy').map((c) => c.where), [{ id: 7 }]);
+  });
+
+  test('a stale Authorization header does not block a public route', async () => {
+    db.reset();
+    db.state.models['Session.findOne'] = () => sessionRow({ expiresAt: new Date(Date.now() - 1000) });
+    const res = await fetch(`${server.baseUrl}/api/auth/refresh`, { method: 'POST', headers: bearer(doctorToken()) });
+    const body = await res.json();
+    assert.notEqual(body.error, 'Session expired. Please login again.');
+    assert.equal(events('Session.findOne').length, 0);
+  });
+}

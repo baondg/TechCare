@@ -18,7 +18,6 @@ const adminRoutes = require('./routes/adminRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const workShiftRoutes = require('./routes/workShiftRoutes');
 const coverRoutes = require('./routes/coverRoutes');
-const sessionMiddleware = require('./middleware/sessionMiddleware');
 const { jsonBody } = require('./middleware/jsonBody');
 const { globalRateLimit, appointmentRateLimit } = require('./middleware/rateLimitMiddleware');
 const sequelize = require('./common/database');
@@ -57,8 +56,6 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
-// Session middleware for checking timeout
-app.use(sessionMiddleware.checkSessionTimeout);
 app.use('/api', globalRateLimit);
 
 // Routes

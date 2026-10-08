@@ -18,6 +18,9 @@ const { ADMIN_USER_ID } = require('./helpers/fakeDb');
 
 const SNAPSHOT = path.join(__dirname, 'fixtures', 'admin-sql.snapshot.json');
 
+// Admin-created accounts need a configured initial password (see default-account-password.test.js).
+require(path.join(__dirname, '..', 'dist', 'config', 'env')).config.auth.defaultAccountPassword = 'Clinic#Start2026';
+
 const ACCOUNT_ROW = {
   userId: 42,
   username: 'jdoe',

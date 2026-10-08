@@ -107,5 +107,8 @@ test('production warns about weak-but-tolerated settings', () => {
     DEFAULT_ACCOUNT_PASSWORD: 'y',
   });
   assert.deepEqual(hardened.warnings, []);
+  const demoPassword = loadConfig({ ...base, IMAGE_ENCRYPTION_KEY: VALID_KEY, INTERNAL_API_SECRET: 'x', DEFAULT_ACCOUNT_PASSWORD: 'Test@1234' });
+  assert.equal(demoPassword.warnings.length, 1);
+  assert.match(demoPassword.warnings[0], /DEFAULT_ACCOUNT_PASSWORD/);
   assert.deepEqual(loadConfig({}).warnings, []);
 });

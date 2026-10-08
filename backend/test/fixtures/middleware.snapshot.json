@@ -1,0 +1,818 @@
+{
+  "auth: no Authorization header": {
+    "result": {
+      "answer": {
+        "status": 401,
+        "body": {
+          "success": false,
+          "error": "Authentication required",
+          "code": "NO_TOKEN"
+        }
+      }
+    },
+    "db": []
+  },
+  "auth: malformed token": {
+    "result": {
+      "answer": {
+        "status": 403,
+        "body": {
+          "success": false,
+          "error": "Invalid token",
+          "code": "INVALID_TOKEN"
+        }
+      }
+    },
+    "db": []
+  },
+  "auth: expired JWT": {
+    "result": {
+      "answer": {
+        "status": 401,
+        "body": {
+          "success": false,
+          "error": "Token expired",
+          "code": "TOKEN_EXPIRED"
+        }
+      }
+    },
+    "db": []
+  },
+  "auth: refresh token used as access token": {
+    "result": {
+      "answer": {
+        "status": 403,
+        "body": {
+          "success": false,
+          "error": "Invalid token type",
+          "code": "INVALID_TOKEN_TYPE"
+        }
+      }
+    },
+    "db": []
+  },
+  "auth: no session for the token": {
+    "result": {
+      "answer": {
+        "status": 403,
+        "body": {
+          "success": false,
+          "error": "Session not found or expired",
+          "code": "INVALID_SESSION"
+        }
+      }
+    },
+    "db": [
+      {
+        "event": "Session.findOne",
+        "where": {
+          "token": "<jwt>",
+          "userId": 42
+        }
+      }
+    ]
+  },
+  "auth: session past expiresAt is deleted": {
+    "result": {
+      "answer": {
+        "status": 401,
+        "body": {
+          "success": false,
+          "error": "Session expired. Please login again.",
+          "code": "SESSION_EXPIRED"
+        }
+      }
+    },
+    "db": [
+      {
+        "event": "Session.findOne",
+        "where": {
+          "token": "<jwt>",
+          "userId": 42
+        }
+      },
+      {
+        "event": "Session.destroy",
+        "where": {
+          "id": 7
+        }
+      }
+    ]
+  },
+  "auth: account missing": {
+    "result": {
+      "answer": {
+        "status": 403,
+        "body": {
+          "success": false,
+          "error": "Account is inactive or not found",
+          "code": "ACCOUNT_INACTIVE"
+        }
+      }
+    },
+    "db": [
+      {
+        "event": "Session.findOne",
+        "where": {
+          "token": "<jwt>",
+          "userId": 42
+        }
+      },
+      {
+        "event": "Account.findOne",
+        "where": {
+          "user_id": 42
+        }
+      }
+    ]
+  },
+  "auth: account inactive": {
+    "result": {
+      "answer": {
+        "status": 403,
+        "body": {
+          "success": false,
+          "error": "Account is inactive or not found",
+          "code": "ACCOUNT_INACTIVE"
+        }
+      }
+    },
+    "db": [
+      {
+        "event": "Session.findOne",
+        "where": {
+          "token": "<jwt>",
+          "userId": 42
+        }
+      },
+      {
+        "event": "Account.findOne",
+        "where": {
+          "user_id": 42
+        }
+      }
+    ]
+  },
+  "auth: account status as text \"active\"": {
+    "result": {
+      "answer": "next",
+      "req": {
+        "user": {
+          "userId": 42,
+          "role": "doctor",
+          "type": "access"
+        },
+        "sessionId": 7
+      }
+    },
+    "db": [
+      {
+        "event": "Session.findOne",
+        "where": {
+          "token": "<jwt>",
+          "userId": 42
+        }
+      },
+      {
+        "event": "Account.findOne",
+        "where": {
+          "user_id": 42
+        }
+      },
+      {
+        "event": "Session#persist",
+        "id": 7,
+        "fields": [
+          "lastActivity"
+        ]
+      }
+    ]
+  },
+  "auth: valid session — role normalized, lastActivity stamped": {
+    "result": {
+      "answer": "next",
+      "req": {
+        "user": {
+          "userId": 42,
+          "role": "doctor",
+          "type": "access"
+        },
+        "sessionId": 7
+      }
+    },
+    "db": [
+      {
+        "event": "Session.findOne",
+        "where": {
+          "token": "<jwt>",
+          "userId": 42
+        }
+      },
+      {
+        "event": "Account.findOne",
+        "where": {
+          "user_id": 42
+        }
+      },
+      {
+        "event": "Session#persist",
+        "id": 7,
+        "fields": [
+          "lastActivity"
+        ]
+      }
+    ]
+  },
+  "auth: session lookup fails": {
+    "result": {
+      "answer": {
+        "status": 500,
+        "body": {
+          "success": false,
+          "error": "Authentication failed",
+          "code": "AUTH_ERROR"
+        }
+      }
+    },
+    "db": [
+      {
+        "event": "Session.findOne",
+        "where": {
+          "token": "<jwt>",
+          "userId": 42
+        }
+      }
+    ]
+  },
+  "timeout: no token": {
+    "result": {
+      "answer": "next"
+    },
+    "db": []
+  },
+  "timeout: invalid token": {
+    "result": {
+      "answer": "next"
+    },
+    "db": []
+  },
+  "timeout: token without session": {
+    "result": {
+      "answer": "next"
+    },
+    "db": [
+      {
+        "event": "Session.findOne",
+        "where": {
+          "token": "<jwt>",
+          "userId": 42
+        }
+      }
+    ]
+  },
+  "timeout: live session (token in query string)": {
+    "result": {
+      "answer": "next",
+      "req": {
+        "sessionId": 7,
+        "userId": 42
+      }
+    },
+    "db": [
+      {
+        "event": "Session.findOne",
+        "where": {
+          "token": "<jwt>",
+          "userId": 42
+        }
+      },
+      {
+        "event": "Session#persist",
+        "id": 7,
+        "fields": [
+          "lastActivity"
+        ]
+      }
+    ]
+  },
+  "timeout: live session (token in body)": {
+    "result": {
+      "answer": "next",
+      "req": {
+        "sessionId": 7,
+        "userId": 42
+      }
+    },
+    "db": [
+      {
+        "event": "Session.findOne",
+        "where": {
+          "token": "<jwt>",
+          "userId": 42
+        }
+      },
+      {
+        "event": "Session#persist",
+        "id": 7,
+        "fields": [
+          "lastActivity"
+        ]
+      }
+    ]
+  },
+  "timeout: expired session is deleted": {
+    "result": {
+      "answer": {
+        "status": 401,
+        "body": {
+          "success": false,
+          "error": "Session expired. Please login again."
+        }
+      }
+    },
+    "db": [
+      {
+        "event": "Session.findOne",
+        "where": {
+          "token": "<jwt>",
+          "userId": 42
+        }
+      },
+      {
+        "event": "Session.destroy",
+        "where": {
+          "id": 7
+        }
+      }
+    ]
+  },
+  "timeout: session lookup fails": {
+    "result": {
+      "answer": "next"
+    },
+    "db": [
+      {
+        "event": "Session.findOne",
+        "where": {
+          "token": "<jwt>",
+          "userId": 42
+        }
+      }
+    ]
+  },
+  "concurrent: under the configured cap": {
+    "result": {
+      "answer": "next",
+      "req": {
+        "maxConcurrentUsers": 3,
+        "currentActiveUsers": 2
+      }
+    },
+    "db": [
+      {
+        "event": "Session.destroy",
+        "where": {
+          "expiresAt": {
+            "[lt]": "<date>"
+          }
+        }
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'maxConcurrentUsers';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "Session.count",
+        "where": {
+          "expiresAt": {
+            "[gt]": "<date>"
+          }
+        }
+      }
+    ]
+  },
+  "concurrent: cap reached": {
+    "result": {
+      "answer": {
+        "status": 429,
+        "body": {
+          "success": false,
+          "error": "Maximum concurrent users (3) reached. Please try again later."
+        }
+      }
+    },
+    "db": [
+      {
+        "event": "Session.destroy",
+        "where": {
+          "expiresAt": {
+            "[lt]": "<date>"
+          }
+        }
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'maxConcurrentUsers';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "Session.count",
+        "where": {
+          "expiresAt": {
+            "[gt]": "<date>"
+          }
+        }
+      }
+    ]
+  },
+  "concurrent: no stored cap → default cap 500": {
+    "result": {
+      "answer": "next",
+      "req": {
+        "maxConcurrentUsers": 500,
+        "currentActiveUsers": 499
+      }
+    },
+    "db": [
+      {
+        "event": "Session.destroy",
+        "where": {
+          "expiresAt": {
+            "[lt]": "<date>"
+          }
+        }
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'maxConcurrentUsers';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "Session.count",
+        "where": {
+          "expiresAt": {
+            "[gt]": "<date>"
+          }
+        }
+      }
+    ]
+  },
+  "concurrent: stored cap not a positive number → default cap 500": {
+    "result": {
+      "answer": {
+        "status": 429,
+        "body": {
+          "success": false,
+          "error": "Maximum concurrent users (500) reached. Please try again later."
+        }
+      }
+    },
+    "db": [
+      {
+        "event": "Session.destroy",
+        "where": {
+          "expiresAt": {
+            "[lt]": "<date>"
+          }
+        }
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'maxConcurrentUsers';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "Session.count",
+        "where": {
+          "expiresAt": {
+            "[gt]": "<date>"
+          }
+        }
+      }
+    ]
+  },
+  "concurrent: config table unreadable → default cap 500": {
+    "result": {
+      "answer": "next",
+      "req": {
+        "maxConcurrentUsers": 500,
+        "currentActiveUsers": 1
+      }
+    },
+    "db": [
+      {
+        "event": "Session.destroy",
+        "where": {
+          "expiresAt": {
+            "[lt]": "<date>"
+          }
+        }
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'maxConcurrentUsers';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "Session.count",
+        "where": {
+          "expiresAt": {
+            "[gt]": "<date>"
+          }
+        }
+      }
+    ]
+  },
+  "concurrent: cleanup and count fail → passes": {
+    "result": {
+      "answer": "next"
+    },
+    "db": [
+      {
+        "event": "Session.destroy",
+        "where": {
+          "expiresAt": {
+            "[lt]": "<date>"
+          }
+        }
+      },
+      {
+        "sql": "SELECT `id`, `key`, `value`, `description` FROM `SYSTEM_CONFIGURATION` AS `SYSTEM_CONFIGURATION` WHERE `SYSTEM_CONFIGURATION`.`key` = 'maxConcurrentUsers';",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "event": "Session.count",
+        "where": {
+          "expiresAt": {
+            "[gt]": "<date>"
+          }
+        }
+      }
+    ]
+  },
+  "rate limit: key/value policy, 2 allowed": {
+    "result": [
+      {
+        "answer": "next",
+        "headers": {
+          "X-RateLimit-Limit": 2,
+          "X-RateLimit-Remaining": 1,
+          "X-RateLimit-Reset": "<date>"
+        }
+      },
+      {
+        "answer": "next",
+        "headers": {
+          "X-RateLimit-Limit": 2,
+          "X-RateLimit-Remaining": 0,
+          "X-RateLimit-Reset": "<date>"
+        }
+      },
+      {
+        "answer": {
+          "status": 429,
+          "body": {
+            "success": false,
+            "error": "Too many login attempts. Please try again later.",
+            "retryAfter": 30,
+            "limit": 2,
+            "windowSeconds": 30
+          }
+        }
+      }
+    ],
+    "db": [
+      {
+        "sql": "SELECT `key` AS configKey, value FROM SYSTEM_CONFIGURATION WHERE `key` IN (:keys)",
+        "replacements": {
+          "keys": [
+            "rateLimitEnabled",
+            "rateLimitIpBased",
+            "loginRateLimitRequests",
+            "loginRateLimitWindowSeconds"
+          ]
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "rate limit: key/value policy disabled": {
+    "result": {
+      "answer": "next"
+    },
+    "db": [
+      {
+        "sql": "SELECT `key` AS configKey, value FROM SYSTEM_CONFIGURATION WHERE `key` IN (:keys)",
+        "replacements": {
+          "keys": [
+            "rateLimitEnabled",
+            "rateLimitIpBased",
+            "chatbotRateLimitRequests",
+            "chatbotRateLimitWindowSeconds"
+          ]
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "rate limit: per-user key when not IP based": {
+    "result": [
+      {
+        "answer": "next",
+        "headers": {
+          "X-RateLimit-Limit": 1,
+          "X-RateLimit-Remaining": 0,
+          "X-RateLimit-Reset": "<date>"
+        }
+      },
+      {
+        "answer": {
+          "status": 429,
+          "body": {
+            "success": false,
+            "error": "Too many chatbot requests. Please slow down.",
+            "retryAfter": 60,
+            "limit": 1,
+            "windowSeconds": 60
+          }
+        }
+      }
+    ],
+    "db": [
+      {
+        "sql": "SELECT `key` AS configKey, value FROM SYSTEM_CONFIGURATION WHERE `key` IN (:keys)",
+        "replacements": {
+          "keys": [
+            "rateLimitEnabled",
+            "rateLimitIpBased",
+            "chatbotRateLimitRequests",
+            "chatbotRateLimitWindowSeconds"
+          ]
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "rate limit: no key/value rows → legacy rate_limit column": {
+    "result": [
+      {
+        "answer": "next",
+        "headers": {
+          "X-RateLimit-Limit": 1,
+          "X-RateLimit-Remaining": 0,
+          "X-RateLimit-Reset": "<date>"
+        }
+      },
+      {
+        "answer": {
+          "status": 429,
+          "body": {
+            "success": false,
+            "error": "Too many appointment requests. Please try again later.",
+            "retryAfter": 60,
+            "limit": 1,
+            "windowSeconds": 60
+          }
+        }
+      }
+    ],
+    "db": [
+      {
+        "sql": "SELECT `key` AS configKey, value FROM SYSTEM_CONFIGURATION WHERE `key` IN (:keys)",
+        "replacements": {
+          "keys": [
+            "rateLimitEnabled",
+            "rateLimitIpBased",
+            "appointmentRateLimitRequests",
+            "appointmentRateLimitWindowSeconds"
+          ]
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT rate_limit AS rateLimit, access_limit AS accessLimit FROM SYSTEM_CONFIGURATION ORDER BY time DESC, id DESC LIMIT 1",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "rate limit: global scope uses legacy access_limit": {
+    "result": [
+      {
+        "answer": "next",
+        "headers": {
+          "X-RateLimit-Limit": 1,
+          "X-RateLimit-Remaining": 0,
+          "X-RateLimit-Reset": "<date>"
+        }
+      },
+      {
+        "answer": {
+          "status": 429,
+          "body": {
+            "success": false,
+            "error": "Too many requests. Please try again later.",
+            "retryAfter": 60,
+            "limit": 1,
+            "windowSeconds": 60
+          }
+        }
+      }
+    ],
+    "db": [
+      {
+        "sql": "SELECT `key` AS configKey, value FROM SYSTEM_CONFIGURATION WHERE `key` IN (:keys)",
+        "replacements": {
+          "keys": [
+            "rateLimitEnabled",
+            "rateLimitIpBased",
+            "globalRateLimitRequests",
+            "globalRateLimitWindowSeconds"
+          ]
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT rate_limit AS rateLimit, access_limit AS accessLimit FROM SYSTEM_CONFIGURATION ORDER BY time DESC, id DESC LIMIT 1",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "rate limit: no SYSTEM_CONFIGURATION table → defaults, table not asked again": {
+    "result": [
+      {
+        "answer": "next",
+        "headers": {
+          "X-RateLimit-Limit": 10,
+          "X-RateLimit-Remaining": 9,
+          "X-RateLimit-Reset": "<date>"
+        }
+      },
+      {
+        "answer": "next",
+        "headers": {
+          "X-RateLimit-Limit": 20,
+          "X-RateLimit-Remaining": 19,
+          "X-RateLimit-Reset": "<date>"
+        }
+      }
+    ],
+    "db": [
+      {
+        "sql": "SELECT `key` AS configKey, value FROM SYSTEM_CONFIGURATION WHERE `key` IN (:keys)",
+        "replacements": {
+          "keys": [
+            "rateLimitEnabled",
+            "rateLimitIpBased",
+            "aiSymptomRateLimitRequests",
+            "aiSymptomRateLimitWindowSeconds"
+          ]
+        },
+        "type": "SELECT",
+        "tx": null
+      },
+      {
+        "sql": "SELECT rate_limit AS rateLimit, access_limit AS accessLimit FROM SYSTEM_CONFIGURATION ORDER BY time DESC, id DESC LIMIT 1",
+        "replacements": null,
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  },
+  "rate limit: other DB error → request passes": {
+    "result": {
+      "answer": "next"
+    },
+    "db": [
+      {
+        "sql": "SELECT `key` AS configKey, value FROM SYSTEM_CONFIGURATION WHERE `key` IN (:keys)",
+        "replacements": {
+          "keys": [
+            "rateLimitEnabled",
+            "rateLimitIpBased",
+            "registrationRateLimitRequests",
+            "registrationRateLimitWindowSeconds"
+          ]
+        },
+        "type": "SELECT",
+        "tx": null
+      }
+    ]
+  }
+}

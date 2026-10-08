@@ -100,6 +100,24 @@ exports.notifyPatientAppointmentDoctorReassigned = ({ patientId, dateVi, timeVi,
     await appointmentNotificationRepository.insertNotificationForUser(uid, 'appointment_doctor_reassigned', content);
   });
 
+/**
+ * A booked slot moved to another time and / or room, same doctor (nurse edit): tell the patient.
+ * `previous*` are the slot's former date (dd/mm/yyyy) and time (HH:mm).
+ */
+exports.notifyPatientAppointmentMoved = ({ appointmentId, previousDateVi, previousTimeVi }) =>
+  safeRun('notifyPatientAppointmentMoved', async () => {
+    const s = await appointmentNotificationRepository.selectAppointmentSummaryForNotify(appointmentId);
+    if (!s || s.patientId == null) return;
+    const uid = await appointmentNotificationRepository.selectPatientUserId(s.patientId);
+    if (!uid) return;
+    const dept = s.department ? ` (${s.department})` : '';
+    const sameTime = s.dateVi === previousDateVi && s.timeVi === previousTimeVi;
+    const content = sameTime
+      ? `Your appointment on ${s.dateVi} at ${s.timeVi}${dept} has been moved to another room.`
+      : `Your appointment on ${previousDateVi} at ${previousTimeVi} has been moved to ${s.dateVi} at ${s.timeVi}${dept}.`;
+    await appointmentNotificationRepository.insertNotificationForUser(uid, 'appointment_rescheduled', content);
+  });
+
 /** Y tá đổi lịch trong ngày: thông báo bác sĩ khung cũ và khung mới */
 exports.notifyDoctorsAfterNurseReschedule = ({ fromAppointmentId, toAppointmentId, patientId }) =>
   safeRun('notifyDoctorsAfterNurseReschedule', async () => {

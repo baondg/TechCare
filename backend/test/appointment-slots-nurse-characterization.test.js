@@ -93,6 +93,17 @@ const SCENARIOS = [
     [/AS doctorId, DATE_FORMAT\(a.time/, [{ id: 11, patientId: 7, doctorId: 6, dateVi: '01/10/2026', timeVi: '09:30', department: '' }]],
     [/^SELECT user_id AS uid FROM DOCTOR/, [{ uid: 22 }]],
   ], () => ADMIN],
+  ['update slot, booked: moved in time, patient notified', 'PUT', '/api/appointments/open-slots/11', { date: '2026-10-02', time: '10:15' }, [
+    SLOT_11({ patientId: 7 }),
+    [/AS doctorId, DATE_FORMAT\(a.time/, [{ id: 11, patientId: 7, doctorId: 5, dateVi: '02/10/2026', timeVi: '10:15', department: 'Cardiology' }]],
+    [/^SELECT user_id AS uid FROM PATIENT/, [{ uid: 70 }]],
+  ], () => NURSE],
+  ['update slot, booked: room only, patient notified', 'PUT', '/api/appointments/open-slots/11', { roomId: '3' }, [
+    SLOT_11({ patientId: 7 }),
+    [/AS doctorId, DATE_FORMAT\(a.time/, [{ id: 11, patientId: 7, doctorId: 5, dateVi: '01/10/2026', timeVi: '09:30', department: '' }]],
+    [/^SELECT user_id AS uid FROM PATIENT/, [{ uid: 70 }]],
+  ], () => NURSE],
+  ['update slot, booked: nothing changed, nobody notified', 'PUT', '/api/appointments/open-slots/11', {}, [SLOT_11({ patientId: 7 })], () => NURSE],
   ['update slot, db down', 'PUT', '/api/appointments/open-slots/11', {}, [[/APPOINTMENT/, dbError]], () => NURSE],
 
   // ---- cancel slot

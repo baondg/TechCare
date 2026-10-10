@@ -51,7 +51,7 @@ import {
 import { medicationUnitLabelVi } from "@/lib/medication-units-vi"
 import { profileService } from "@/services/profile-service"
 import { stampPdfWithExportFooter } from "@/lib/pdf-export-stamp"
-import { usePauseableToast } from "@/hooks/usePauseableToast"
+import { usePauseableToast } from "@/hooks/use-pauseable-toast"
 import { PauseableCornerToastPortal } from "@/components/pauseable-corner-toast"
 import {
   Dialog,
@@ -61,7 +61,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { SignaturePad } from "@/components/SignaturePad"
+import { SignaturePad } from "@/components/signature-pad"
 import { useEmrSession } from "@/contexts/emr-session-context"
 import { useTranslation } from "react-i18next"
 import type { TFunction } from "i18next"

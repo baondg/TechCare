@@ -3,9 +3,9 @@
 import { Button } from "@/components/ui/button"
 import { PatientRegistrationForm } from "@/components/patient-registration-form"
 import { PauseableCornerToastPortal } from "@/components/pauseable-corner-toast"
-import type { RegisterData } from "@/contexts/AuthContext"
+import type { RegisterData } from "@/contexts/auth-context"
 import { NurseLayout } from "@/components/nurse-layout"
-import { usePauseableToast } from "@/hooks/usePauseableToast"
+import { usePauseableToast } from "@/hooks/use-pauseable-toast"
 import { Link } from "react-router-dom"
 
 import { API_BASE_URL as API_BASE } from "@/lib/api-base"

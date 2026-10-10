@@ -12,9 +12,9 @@ import { Calendar } from "@/components/ui/calendar"
 import { format, isValid, parse, parseISO } from "date-fns"
 import type { PatientProfile } from "@/services/profile-service"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { useProfile } from "@/hooks/useProfile"
+import { useProfile } from "@/hooks/use-profile"
 import { NurseLayout } from "@/components/nurse-layout"
-import { usePauseableToast } from "@/hooks/usePauseableToast"
+import { usePauseableToast } from "@/hooks/use-pauseable-toast"
 import { PauseableCornerToastPortal } from "@/components/pauseable-corner-toast"
 /** Route param may be `OP000000049` (USER.id padded) or plain `49`; profile API expects USER.id. */
 function parseProfileRouteUserId(raw: string | undefined): number | null {

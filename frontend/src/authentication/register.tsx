@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { PatientRegistrationForm } from "@/components/patient-registration-form"
-import { useAuth } from "@/contexts/AuthContext"
+import { useAuth } from "@/contexts/auth-context"
 import { Link, useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 

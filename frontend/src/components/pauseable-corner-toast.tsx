@@ -3,7 +3,7 @@
 import { useLayoutEffect, useState } from "react"
 import { createPortal } from "react-dom"
 import { cn } from "@/lib/utils"
-import type { PauseableToastEntry } from "@/hooks/usePauseableToast"
+import type { PauseableToastEntry } from "@/hooks/use-pauseable-toast"
 
 function PauseableCornerToast({
   toast,

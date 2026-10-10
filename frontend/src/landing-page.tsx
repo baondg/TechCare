@@ -1,6 +1,6 @@
 import { Header } from "@/components/header"
 import { Hero } from "@/components/hero"
-import MainCarousel from "@/components/MainCarousel"
+import MainCarousel from "@/components/main-carousel"
 import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react"
 import "./App.css"
 

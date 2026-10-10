@@ -26,7 +26,7 @@ import {
   type ClinicalStaffDirectoryRow,
   type WorkShiftRow,
 } from "@/services/work-shift-service"
-import { useAuth } from "@/contexts/AuthContext"
+import { useAuth } from "@/contexts/auth-context"
 import { Calendar } from "@/components/ui/calendar"
 import { format, parse, isValid } from "date-fns"
 import { enUS, vi } from "date-fns/locale"

@@ -11,7 +11,7 @@ import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/compon
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { UserPlus, Save, X, ArrowUp, ArrowDown, ArrowUpDown, Search, Calendar as CalendarIcon, KeyRound } from "lucide-react"
 import { TemporaryPasswordDialog, type IssuedPassword } from "@/components/admin/temporary-password-dialog"
-import { useAuth } from "@/contexts/AuthContext"
+import { useAuth } from "@/contexts/auth-context"
 import { AdminLayout } from "@/components/admin-layout"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Switch } from "@/components/ui/switch"
@@ -24,7 +24,7 @@ import {
   type SaveAdminAccountPayload,
 } from "@/services/admin-account-service"
 import { cn } from "@/lib/utils"
-import { usePauseableToast, type PauseableToastEntry } from "@/hooks/usePauseableToast"
+import { usePauseableToast, type PauseableToastEntry } from "@/hooks/use-pauseable-toast"
 import { useTranslation } from "react-i18next"
 import { differenceInYears, format, isValid, parse, startOfDay } from "date-fns"
 import { enUS, vi } from "date-fns/locale"

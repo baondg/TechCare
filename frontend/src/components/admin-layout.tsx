@@ -1,6 +1,6 @@
 import type React from 'react'
-import { AppShell } from '@/components/layout/AppShell'
-import type { NavItem } from '@/components/layout/AppShell'
+import { AppShell } from '@/components/layout/app-shell'
+import type { NavItem } from '@/components/layout/app-shell'
 import { LayoutDashboard, Users, Settings, MessageSquareText } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 

@@ -5,8 +5,7 @@ import { Navigate, Route, Routes, useLocation, useParams } from "react-router-do
 import { ProtectedRoute } from "@/components/protected-route"
 import { useAuth } from "@/contexts/auth-context"
 import { CHANGE_PASSWORD_PATH, passwordChangeRedirect } from "@/lib/auth-paths"
-import { ErrorToastProvider } from "@/components/error-toast-provider"
-import { SuccessToastProvider } from "@/components/success-toast-provider"
+import { ErrorToastProvider, SuccessToastProvider } from "@/components/toast-provider"
 
 const LandingPage = lazy(() => import("./landing-page"))
 const FadeTransition = lazy(() => import("@/components/fade-transition"))

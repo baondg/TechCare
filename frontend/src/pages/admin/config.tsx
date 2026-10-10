@@ -9,8 +9,7 @@ import { AdminLayout } from "@/components/admin-layout"
 import { Save, Settings, Loader2, Shield, RefreshCw, AlertCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useTranslation } from "react-i18next"
-import { emitErrorToast } from "@/lib/error-toast-bus"
-import { emitSuccessToast } from "@/lib/success-toast-bus"
+import { emitErrorToast, emitSuccessToast } from "@/lib/toast-bus"
 import { apiClient } from "@/api/client"
 
 /** Must match backend CONFIG_DEFAULTS for rate-limit keys */

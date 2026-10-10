@@ -110,9 +110,30 @@ async function type(selector: string, value: string) {
   })
 }
 
+/** Radix Select by keyboard: Enter opens the trigger, Enter on an option picks it. */
+async function choose(triggerSelector: string, optionText: string) {
+  Element.prototype.scrollIntoView ??= () => {}
+  Element.prototype.hasPointerCapture ??= () => false
+  const trigger = document.querySelector(triggerSelector) as HTMLElement
+  await act(async () => {
+    trigger.focus()
+    trigger.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }))
+  })
+  await flush()
+  const option = [...document.querySelectorAll('[role="option"]')].find((o) => o.textContent?.trim() === optionText) as
+    | HTMLElement
+    | undefined
+  if (!option) throw new Error(`no option "${optionText}"`)
+  await act(async () => {
+    option.focus()
+    option.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }))
+  })
+  await flush()
+}
+
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] })
-  vi.setSystemTime(new Date("2026-10-11T08:30:00"))
+  vi.setSystemTime(new Date("2026-10-11T08:30:00+07:00"))
   vi.stubGlobal("localStorage", memoryStorage())
   localStorage.setItem("user", JSON.stringify({ id: 5, firstName: "Binh", lastName: "Tran", role: "doctor" }))
   vi.clearAllMocks()
@@ -145,7 +166,7 @@ describe("DoctorEmrLayout", () => {
     await renderLayout()
     expect(svc.getPatient).toHaveBeenCalledWith("OP000000012")
     expect(svc.getActiveRegimen).toHaveBeenCalledWith("OP000000012")
-    expect(svc.getDepartments).toHaveBeenCalledTimes(2)
+    expect(svc.getDepartments).toHaveBeenCalledTimes(1)
     expect(document.body.textContent).toContain("Nguyen An | 40 Male | BMI: 22.1")
     expect(document.body.textContent).toContain("Diagnosis: I10 - Hypertension")
     expect(document.body.textContent).toContain("tab:dashboard")
@@ -210,6 +231,28 @@ describe("DoctorEmrLayout", () => {
     await click("Continue")
     expect(svc.createPatientTransfer).not.toHaveBeenCalled()
     expect(document.body.textContent).toContain("Reason is required.")
+  })
+
+  it("hospital transfer: saved with reason, note and hospital; slip payload has only the filled fields", async () => {
+    await renderLayout()
+    await click("Finish examination")
+    await click("Transfer to other hospital")
+    await type("#tr-reason", "Needs cath lab")
+    await type("#tr-note", "Stable")
+    await choose("#h-name", "Bệnh viện Chợ Rẫy")
+    await click("Continue")
+    expect(svc.createPatientTransfer).toHaveBeenCalledTimes(1)
+    const [id, body] = svc.createPatientTransfer.mock.calls[0]
+    expect(id).toBe("OP000000012")
+    // What reaches the server (undefined fields are dropped by JSON).
+    expect(JSON.parse(JSON.stringify(body))).toEqual({
+      kind: "hospital",
+      reason: "Needs cath lab",
+      note: "Stable",
+      toHospitalName: "Bệnh viện Chợ Rẫy",
+      formPayload: { portalVersion: 1, recordedAt: "2026-10-11T01:30:00.000Z", toHospitalName: "Bệnh viện Chợ Rẫy" },
+    })
+    expect(document.body.textContent).toContain("Hospital transfer recorded: Bệnh viện Chợ Rẫy")
   })
 
   it("clinic transfer: from the check-in room to the other room", async () => {

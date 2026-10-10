@@ -11,6 +11,8 @@ const en = {
     notAvailable: "—",
     logout: "Logout",
     cancel: "Cancel",
+    close: "Close",
+    saveDownload: "Save / Download",
     notifications: "Notifications",
     patientInDepartment: {
       outpatient: "Outpatient",

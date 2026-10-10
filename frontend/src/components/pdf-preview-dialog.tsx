@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react"
+import { useTranslation } from "react-i18next"
 import { FileDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -13,13 +14,15 @@ import { stampPdfWithExportFooter } from "@/lib/pdf-export-stamp"
 
 /**
  * Generate a PDF, preview it in a dialog, save it with the export footer stamped on.
- * `preview(key, title, make)` marks `busyKey` while `make` runs; render `dialog` once.
+ * `preview(key, title, make)` marks `busyKey` while `make` runs (`make` returns null to show nothing);
+ * render `dialog` once.
  * `extraActions(close)` renders more footer buttons before Save.
  */
 export function usePdfPreview(
   showError: (message: string) => void,
   extraActions?: (close: () => void) => ReactNode,
 ) {
+  const { t } = useTranslation()
   const [url, setUrl] = useState<string | null>(null)
   const [title, setTitle] = useState("PDF preview")
   const [filename, setFilename] = useState("document.pdf")
@@ -32,10 +35,12 @@ export function usePdfPreview(
   }, [url])
 
   const preview = useCallback(
-    async (key: string, nextTitle: string, make: () => Promise<{ blob: Blob; filename: string }>) => {
+    async (key: string, nextTitle: string, make: () => Promise<{ blob: Blob; filename: string } | null>) => {
       setBusyKey(key)
       try {
-        const { blob, filename: name } = await make()
+        const made = await make()
+        if (!made) return
+        const { blob, filename: name } = made
         setFilename(name || "document.pdf")
         setTitle(nextTitle || "PDF preview")
         setUrl(URL.createObjectURL(blob))
@@ -84,12 +89,12 @@ export function usePdfPreview(
         ) : null}
         <DialogFooter className="gap-2 sm:justify-end">
           <Button type="button" variant="outline" onClick={close}>
-            Cancel
+            {t("common.close")}
           </Button>
           {extraActions?.(close)}
           <Button type="button" onClick={save} disabled={!url}>
             <FileDown className="mr-2 h-4 w-4" />
-            Save / Download
+            {t("common.saveDownload")}
           </Button>
         </DialogFooter>
       </DialogContent>

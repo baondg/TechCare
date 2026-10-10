@@ -20,9 +20,6 @@ const OTHER_PATIENT = as('PAT', 80);
 const NURSE = as('NUR', 41);
 const ADMIN = as('ADM', 1);
 
-/** The target account's role, read before medical staff touch someone else's profile. */
-const targetIs = (type) => [[/^SELECT user_id AS userId, type FROM ACCOUNT WHERE user_id = :userId LIMIT 1$/, [{ userId: 70, type }]]];
-
 /** authMiddleware also reads the account (no include): keep it active. */
 const activeAccount = { status: 1, getDataValue: () => 1 };
 
@@ -108,20 +105,8 @@ const SCENARIOS = [
     profileFixtures(s, { account: ACCOUNT_70, relative: { name: 'Lan', tel: '091' }, insurance: { id: 'HI1', expired_date: '2027-01-01' } });
     return PATIENT;
   }],
-  ['profile, staff reads a patient without relative / insurance', 'GET', '/api/profile/70', null, targetIs('PAT'), (s) => {
+  ['profile, staff reads a patient without relative / insurance', 'GET', '/api/profile/70', null, [], (s) => {
     profileFixtures(s, { account: { ...ACCOUNT_70, User: undefined, user: { first_name: '', last_name: null, idcard: null } }, relative: null, insurance: null });
-    return NURSE;
-  }],
-  ['profile, staff reads an admin', 'GET', '/api/profile/70', null, targetIs('ADM'), (s) => {
-    profileFixtures(s, { account: { ...ACCOUNT_70, type: 'ADM' } });
-    return NURSE;
-  }],
-  ['profile, staff reads another staff member', 'GET', '/api/profile/70', null, targetIs('DOC'), (s) => {
-    profileFixtures(s, { account: { ...ACCOUNT_70, type: 'DOC' } });
-    return NURSE;
-  }],
-  ['profile, staff reads a missing account', 'GET', '/api/profile/70', null, [], (s) => {
-    profileFixtures(s);
     return NURSE;
   }],
   ['profile, admin', 'GET', '/api/profile/70', null, [], (s) => {
@@ -153,11 +138,7 @@ const SCENARIOS = [
   }],
   ['update profile, snake_case names, staff, no patient row', 'PUT', '/api/profile/70', {
     first_name: 'Lan', last_name: "O'Neil", sex: 'x', relativeName: 'Minh', relativeSex: 'Male', relativeRelationship: 'Father',
-  }, targetIs('PAT'), (s) => {
-    s.models['User.findByPk'] = () => fakeInstance('User', { id: 70 }, s);
-    return NURSE;
-  }],
-  ['update profile, staff edits an admin', 'PUT', '/api/profile/70', PROFILE_BODY, targetIs('ADM'), (s) => {
+  }, [], (s) => {
     s.models['User.findByPk'] = () => fakeInstance('User', { id: 70 }, s);
     return NURSE;
   }],

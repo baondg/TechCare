@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useState, type ReactNode } from "react"
 import { FileDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -14,8 +14,12 @@ import { stampPdfWithExportFooter } from "@/lib/pdf-export-stamp"
 /**
  * Generate a PDF, preview it in a dialog, save it with the export footer stamped on.
  * `preview(key, title, make)` marks `busyKey` while `make` runs; render `dialog` once.
+ * `extraActions(close)` renders more footer buttons before Save.
  */
-export function usePdfPreview(showError: (message: string) => void) {
+export function usePdfPreview(
+  showError: (message: string) => void,
+  extraActions?: (close: () => void) => ReactNode,
+) {
   const [url, setUrl] = useState<string | null>(null)
   const [title, setTitle] = useState("PDF preview")
   const [filename, setFilename] = useState("document.pdf")
@@ -82,6 +86,7 @@ export function usePdfPreview(showError: (message: string) => void) {
           <Button type="button" variant="outline" onClick={close}>
             Cancel
           </Button>
+          {extraActions?.(close)}
           <Button type="button" onClick={save} disabled={!url}>
             <FileDown className="mr-2 h-4 w-4" />
             Save / Download

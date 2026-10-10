@@ -305,7 +305,7 @@ describe("EMR prescription page", () => {
     expect(text()).toContain("Cập nhật cân nặng bệnh nhân trong Health Info (trẻ dưới 72 tháng)")
   })
 
-  it("a child under 72 months with a weight is saved (BYT data is fetched twice today)", async () => {
+  it("a child under 72 months with a weight is saved (BYT data fetched once)", async () => {
     svc.getPatient.mockResolvedValue({ success: true, patient: { ...patient, dateOfBirth: "2024-01-01" } } as never)
     await renderPage()
     await click(button("doctor.prescription.add"))
@@ -313,8 +313,8 @@ describe("EMR prescription page", () => {
     await click(button("doctor.prescription.save"))
     expect(svc.createPrescription).toHaveBeenCalledTimes(1)
     expect(svc.createPrescription.mock.calls[0][1].byt).toMatchObject({ patientWeightKg: "65", contactPhone: expect.any(String) })
-    expect(svc.getHealthInfo).toHaveBeenCalledTimes(2)
-    expect(profile.getProfile).toHaveBeenCalledTimes(2)
+    expect(svc.getHealthInfo).toHaveBeenCalledTimes(1)
+    expect(profile.getProfile).toHaveBeenCalledTimes(1)
   })
 
   it("without an active visit nothing can be added", async () => {

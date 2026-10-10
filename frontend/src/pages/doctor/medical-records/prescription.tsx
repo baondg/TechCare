@@ -198,14 +198,16 @@ export default function PatientPrescription() {
       showError(checked.error)
       return
     }
+    // Under 72 months the BYT fields are checked first; the save reuses them.
+    let byt: Awaited<ReturnType<typeof resolveBytPayload>> | null = null
     if (isPatientUnder72Months(patientDetail?.dateOfBirth)) {
       try {
-        const previewByt = await resolveBytPayload()
-        if (!previewByt.patientWeightKg) {
+        byt = await resolveBytPayload()
+        if (!byt.patientWeightKg) {
           showError("Cập nhật cân nặng bệnh nhân trong Health Info (trẻ dưới 72 tháng)")
           return
         }
-        if (!previewByt.contactPhone) {
+        if (!byt.contactPhone) {
           showError("Thiếu SĐT bệnh nhân hoặc người thân")
           return
         }
@@ -220,7 +222,7 @@ export default function PatientPrescription() {
         department: activeDiagnosis?.interpretation?.trim() || undefined,
         medications: checked.lines,
         duration: prescriptionDuration(checked.lines),
-        byt: await resolveBytPayload(),
+        byt: byt ?? (await resolveBytPayload()),
       })
       const newId = created.success && created.prescription?.id != null ? String(created.prescription.id) : undefined
       await load(newId ? { selectPrescriptionId: newId } : undefined)

@@ -1,6 +1,6 @@
 import type React from 'react'
-import { AppShell } from '@/components/layout/AppShell'
-import type { NavItem } from '@/components/layout/AppShell'
+import { AppShell } from '@/components/layout/app-shell'
+import type { NavItem } from '@/components/layout/app-shell'
 import { PatientNotificationBell } from '@/components/patient-notification-bell'
 import { Airplay, Calendar, ScanHeart, Heart, FileText, BotMessageSquare, User, MessageSquare } from 'lucide-react'
 import { useTranslation } from 'react-i18next'

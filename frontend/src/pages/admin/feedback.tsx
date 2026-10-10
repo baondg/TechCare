@@ -21,7 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
 import { adminAccountService, type AdminFeedbackRow } from '@/services/admin-account-service'
-import { usePauseableToast, type PauseableToastEntry } from "@/hooks/usePauseableToast"
+import { usePauseableToast, type PauseableToastEntry } from "@/hooks/use-pauseable-toast"
 import { createPortal } from "react-dom"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"

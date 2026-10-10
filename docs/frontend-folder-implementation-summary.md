@@ -71,9 +71,9 @@ Example: User login (`/login`)
 ## Key References
 - `frontend/src/main.tsx`
 - `frontend/src/App.tsx`
-- `frontend/src/contexts/AuthContext.tsx`
+- `frontend/src/contexts/auth-context.tsx`
 - `frontend/src/api/client.ts`
-- `frontend/src/components/ProtectedRoute.tsx`
+- `frontend/src/components/protected-route.tsx`
 - `frontend/src/services/appointment-service.ts`
 - `frontend/src/test/setup.ts`
 - `frontend/package.json`

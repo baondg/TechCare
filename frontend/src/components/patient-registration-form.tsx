@@ -12,7 +12,7 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { format, isValid, parse } from "date-fns"
 import { Select, SelectTrigger, SelectValue, SelectItem, SelectContent } from "@/components/ui/select";
-import type { RegisterData } from "@/contexts/AuthContext";
+import type { RegisterData } from "@/contexts/auth-context";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export type PatientRegistrationFormProps = {

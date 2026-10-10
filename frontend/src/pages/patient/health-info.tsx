@@ -13,8 +13,8 @@ import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { healthInfoService } from "@/services/health-info-service"
 import { vitalPayloadFromHealthInfo, HEALTH_INFO_SYMPTOMS_UPDATED_EVENT } from "@/lib/symptom-checker-persist-health"
-import { useAuth } from "@/contexts/AuthContext"
-import { usePauseableToast } from "@/hooks/usePauseableToast"
+import { useAuth } from "@/contexts/auth-context"
+import { usePauseableToast } from "@/hooks/use-pauseable-toast"
 import { PauseableCornerToastPortal } from "@/components/pauseable-corner-toast"
 import {
   PATIENT_BLOOD_TYPES,

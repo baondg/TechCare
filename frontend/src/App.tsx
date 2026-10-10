@@ -2,15 +2,15 @@ import "./App.css"
 
 import { lazy, Suspense } from "react"
 import { Navigate, Route, Routes, useLocation, useParams } from "react-router-dom"
-import { ProtectedRoute } from "@/components/ProtectedRoute"
-import { useAuth } from "@/contexts/AuthContext"
+import { ProtectedRoute } from "@/components/protected-route"
+import { useAuth } from "@/contexts/auth-context"
 import { CHANGE_PASSWORD_PATH, passwordChangeRedirect } from "@/lib/auth-paths"
 import { ErrorToastProvider } from "@/components/error-toast-provider"
 import { SuccessToastProvider } from "@/components/success-toast-provider"
 
-const LandingPage = lazy(() => import("./LandingPage"))
-const FadeTransition = lazy(() => import("@/components/FadeTransition"))
-const NetworkBackground = lazy(() => import("@/components/NetworkBackground"))
+const LandingPage = lazy(() => import("./landing-page"))
+const FadeTransition = lazy(() => import("@/components/fade-transition"))
+const NetworkBackground = lazy(() => import("@/components/network-background"))
 const LoginPage = lazy(() => import("./authentication/login"))
 const RegisterPage = lazy(() => import("./authentication/register"))
 const ChangePasswordPage = lazy(() => import("./pages/account/change-password"))
@@ -20,19 +20,19 @@ const ProfilePage = lazy(() => import("./pages/patient/profile"))
 const ChatbotPage = lazy(() => import("./pages/patient/chatbot"))
 const AppointmentsPage = lazy(() => import("./pages/patient/appointments"))
 const BookAppointmentPage = lazy(() => import("./pages/patient/appointments/book-appointment"))
-const HealthInfoPage = lazy(() => import("./pages/patient/healthInfo"))
+const HealthInfoPage = lazy(() => import("./pages/patient/health-info"))
 const RecordsPage = lazy(() => import("./pages/patient/records"))
 const SymptomCheckerPage = lazy(() => import("./pages/patient/symptomchecker"))
 const AdminDashboardPage = lazy(() => import("./pages/admin/dashboard"))
 const SystemConfig = lazy(() => import("./pages/admin/config"))
-const UserManagement = lazy(() => import("./pages/admin/accountMng"))
+const UserManagement = lazy(() => import("./pages/admin/account-management"))
 const FeedbackManagement = lazy(() => import("./pages/admin/feedback"))
 const DoctorDashboard = lazy(() => import("./pages/doctor/dashboard"))
 const DoctorPatients = lazy(() => import("./pages/doctor/patients"))
 const DoctorEmrLayout = lazy(() =>
   import("@/components/doctor-emr-layout").then((m) => ({ default: m.DoctorEmrLayout })),
 )
-const Doctor_EMRManagement = lazy(() => import("./pages/doctor/medical_records/dashboard"))
+const Doctor_EMRManagement = lazy(() => import("./pages/doctor/medical-records/dashboard"))
 const DoctorAppointment = lazy(() => import("./pages/doctor/appointment"))
 const DoctorWorkShifts = lazy(() => import("./pages/doctor/work-shifts"))
 const DoctorFeedback = lazy(() => import("./pages/doctor/feedback"))
@@ -41,18 +41,18 @@ const NursePatients = lazy(() => import("./pages/nurse/patients"))
 const NurseEmrLayout = lazy(() =>
   import("@/components/nurse-emr-layout").then((m) => ({ default: m.NurseEmrLayout })),
 )
-const Nurse_EMRManagement = lazy(() => import("./pages/nurse/medical_records/dashboard"))
+const Nurse_EMRManagement = lazy(() => import("./pages/nurse/medical-records/dashboard"))
 const NurseAppointment = lazy(() => import("./pages/nurse/appointment"))
 const NurseWorkShifts = lazy(() => import("./pages/nurse/work-shifts"))
 const NurseFeedback = lazy(() => import("./pages/nurse/feedback"))
 const NursePatientRegistration = lazy(() => import("./pages/nurse/patient-registration"))
-const NursePatientProfilePage = lazy(() => import("./pages/nurse/medical_records/patient-profile"))
+const NursePatientProfilePage = lazy(() => import("./pages/nurse/medical-records/patient-profile"))
 const TechnicianDashboard = lazy(() => import("./pages/technician/dashboard"))
 const TechnicianPatients = lazy(() => import("./pages/technician/patients"))
 const TechnicianEmrLayout = lazy(() =>
   import("@/components/technician-emr-layout").then((m) => ({ default: m.TechnicianEmrLayout })),
 )
-const Technician_EMRManagement = lazy(() => import("./pages/technician/medical_records/lab"))
+const Technician_EMRManagement = lazy(() => import("./pages/technician/medical-records/lab"))
 const TechnicianWorkShifts = lazy(() => import("./pages/technician/work-shifts"))
 const TechnicianFeedback = lazy(() => import("./pages/technician/feedback"))
 

@@ -117,6 +117,26 @@ async function type(el: HTMLInputElement, value: string) {
   })
 }
 
+/** Radix Select by keyboard: Enter opens the trigger, Enter on an option picks it. */
+async function choose(trigger: HTMLElement, optionText: string) {
+  Element.prototype.scrollIntoView ??= () => {}
+  Element.prototype.hasPointerCapture ??= () => false
+  await act(async () => {
+    trigger.focus()
+    trigger.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }))
+  })
+  await flush()
+  const option = [...document.querySelectorAll('[role="option"]')].find((o) => o.textContent?.trim() === optionText) as
+    | HTMLElement
+    | undefined
+  if (!option) throw new Error(`no option "${optionText}"`)
+  await act(async () => {
+    option.focus()
+    option.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }))
+  })
+  await flush()
+}
+
 const rowCheckbox = (rowIndex: number) => bodyRows()[rowIndex].querySelector('input[type="checkbox"]') as HTMLInputElement
 
 beforeEach(() => {
@@ -254,6 +274,17 @@ describe("EMR health info page", () => {
     await flush()
     expect(bodyRows()).toHaveLength(1)
     expect(bodyRows()[0].textContent).toContain("Cough")
+  })
+
+  it("status filter: Confirmed / Draft", async () => {
+    await renderPage()
+    const statusFilter = document.querySelector('thead [role="combobox"]') as HTMLElement
+    await choose(statusFilter, "Confirmed")
+    expect(bodyRows()).toHaveLength(1)
+    expect(bodyRows()[0].textContent).toContain("Cough")
+    await choose(statusFilter, "Draft")
+    expect(bodyRows()).toHaveLength(1)
+    expect(bodyRows()[0].textContent).toContain("Headache")
   })
 
   it("doctor: export the selected rows oldest first, then add the slip to the medical record", async () => {

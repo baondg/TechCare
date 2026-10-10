@@ -140,8 +140,7 @@ export function HealthRecordsTable({
                     <SelectContent>
                       <SelectItem value="All">All</SelectItem>
                       <SelectItem value="Draft">Draft</SelectItem>
-                      <SelectItem value="Signed">Signed</SelectItem>
-                      <SelectItem value="Voided">Voided</SelectItem>
+                      <SelectItem value="Confirmed">Confirmed</SelectItem>
                     </SelectContent>
                   </Select>
                 </TableHead>

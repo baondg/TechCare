@@ -198,7 +198,9 @@ export function formFromRecord(record: HealthRecord, defaults: PatientDefaults):
     spo2: record.spo2.toString(),
     symptoms: parseHealthInfoSymptoms(record.symptoms),
     lists: withDefaults(record, defaults.lists),
-    bloodType: normalizePatientBloodTypeForSelect(record.bloodType || defaults.bloodType || ""),
+    // Records rarely carry a blood type ("__unset__" after normalizing): fall back to the patient's.
+    bloodType:
+      record.bloodType && record.bloodType !== PATIENT_BLOOD_TYPE_UNSET ? record.bloodType : defaults.bloodType,
   }
 }
 

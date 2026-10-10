@@ -197,7 +197,7 @@ describe("EMR health info page", () => {
       respiratoryRate: 16,
       temperature: 36.8,
       spo2: 98,
-      // Today: a record has no blood type of its own and the patient's is not used as the fallback.
+      bloodType: "O+",
       currentSymptoms: "- Headache: moderate; 1–3 days",
       drugAllergies: ["Penicillin"],
       foodAllergies: ["Peanut"],

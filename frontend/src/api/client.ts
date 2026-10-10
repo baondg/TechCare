@@ -13,8 +13,7 @@
 
 import { API_BASE_URL as API_BASE } from '@/lib/api-base'
 import i18n from '@/i18n'
-import { emitErrorToast } from '@/lib/error-toast-bus'
-import { emitSuccessToast } from '@/lib/success-toast-bus'
+import { emitErrorToast, emitSuccessToast } from '@/lib/toast-bus'
 import { CHANGE_PASSWORD_PATH } from '@/lib/auth-paths'
 
 function getToken(): string | null {

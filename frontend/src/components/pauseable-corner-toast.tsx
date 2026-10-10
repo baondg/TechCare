@@ -46,7 +46,7 @@ function PauseableCornerToast({
   )
 }
 
-/** Bottom-right pauseable toast (aligned with global toast corner; avoids stacking with ErrorToastProvider when only one path fires). */
+/** Bottom-right pauseable toast (aligned with global toast corner; avoids stacking with the global error toast when only one path fires). */
 export function PauseableCornerToastPortal({
   toast,
   isExiting,

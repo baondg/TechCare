@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useAuth } from "@/contexts/auth-context"
 import { getSafeRedirectByRole } from "@/lib/auth-paths"
-import { emitSuccessToast } from "@/lib/success-toast-bus"
+import { emitSuccessToast } from "@/lib/toast-bus"
 import { authService } from "@/services/auth-service"
 
 /**

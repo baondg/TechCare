@@ -11,6 +11,7 @@ import type React from 'react'
 import i18n from '@/i18n'
 
 import { API_BASE_URL as API_BASE } from '@/lib/api-base'
+import { profileService } from '@/services/profile-service'
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -123,15 +124,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     void (async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/profile/${uid}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (!res.ok || cancelled) return
-        const data = (await res.json()) as {
-          profile?: { firstName?: string; lastName?: string; fullName?: string; email?: string }
-        }
-        const p = data.profile
-        if (!p || cancelled) return
+        const p = await profileService.getProfile(uid)
+        if (cancelled) return
 
         const firstName = (p.firstName || '').trim()
         const lastName = (p.lastName || '').trim()
@@ -171,6 +165,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   ): Promise<{ success: boolean; error?: string; code?: string }> => {
     setIsLoading(true)
     try {
+      // Not apiClient: a wrong password is a 401, which apiClient treats as an expired session.
       const res = await fetch(`${API_BASE}/api/auth/login`, {
         method: 'POST',
         credentials: 'include',

@@ -283,6 +283,12 @@ export interface PatientSymptomLog {
 }
 
 export const appointmentService = {
+  /** Patients + latest diagnosis + today's appointment, for the nurse / technician patient lists (EMR staff only). */
+  async getPortalPatients(): Promise<Record<string, unknown>[]> {
+    const data = await apiClient.get<{ success: boolean; patients?: Record<string, unknown>[] }>('/api/appointments/patients');
+    return data.patients || [];
+  },
+
   async getAppointments(): Promise<Appointment[]> {
     const data = await apiClient.get<{ success: boolean; appointments: Appointment[] }>('/api/appointments');
     return data.appointments;

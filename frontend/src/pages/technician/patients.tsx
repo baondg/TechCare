@@ -16,9 +16,9 @@ import { Checkbox } from "@/components/ui/checkbox"
 import {Tooltip,TooltipContent,TooltipProvider,TooltipTrigger,} from "@/components/ui/tooltip"
 import { useTranslation } from "react-i18next"
 import { PATIENT_IN_DEPARTMENT_OPTIONS, translatePatientInDepartment } from "@/lib/patient-departments"
+import { appointmentService } from "@/services/appointment-service"
 
 
-import { API_BASE_URL } from "@/lib/api-base"
 type Patient = {
   id: string
   name: string
@@ -75,18 +75,7 @@ export default function TechnicianPatients() {
     useEffect(() => {
       const fetchPatients = async () => {
         try {
-          const token = localStorage.getItem("authToken")
-          const res = await fetch(`${API_BASE_URL}/api/appointments/patients`, {
-            method: "GET",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${token}`
-            }
-          })
-          const data = await res.json()
-          if (!data.success) return
-
-          const mapped = (data.patients || []).map((p: any) => ({
+          const mapped = (await appointmentService.getPortalPatients()).map((p: any) => ({
             id: "OP" + String(p.id).padStart(9, "0"),
             name: `${p.lastName || ""} ${p.firstName || ""}`.trim() || p.username || `Patient #${p.id}`,
             sex: p.gender || null,

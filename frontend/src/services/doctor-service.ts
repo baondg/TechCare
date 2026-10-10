@@ -1,53 +1,8 @@
-import { API_BASE_URL } from '@/lib/api-base';
+import { apiClient } from '@/api/client';
 import type { PatientMedicalRegimen } from './appointment-service';
 import type { RecoveryPredictionApiResponse } from '@/types/recovery-prediction';
 
 // ─── Helpers ───
-
-const getAuthHeader = () => {
-  const token = localStorage.getItem('authToken');
-  return {
-    'Content-Type': 'application/json',
-    Authorization: token ? `Bearer ${token}` : '',
-  };
-};
-
-const getSafeRouteByRole = (role?: string): string => {
-  switch ((role || '').toLowerCase()) {
-    case 'admin':
-      return '/admin/dashboard';
-    case 'doctor':
-      return '/doctor/dashboard';
-    case 'nurse':
-      return '/nurse/dashboard';
-    case 'technician':
-      return '/technician/dashboard';
-    case 'patient':
-      return '/patient/dashboard';
-    default:
-      return '/';
-  }
-};
-
-const handleUnauthorized = (status: number) => {
-  if (status === 403) {
-    try {
-      const user = JSON.parse(localStorage.getItem('user') || 'null') as { role?: string } | null;
-      window.location.href = getSafeRouteByRole(user?.role);
-      return;
-    } catch {
-      window.location.href = '/';
-      return;
-    }
-  }
-
-  if (status === 401) {
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('user');
-    localStorage.removeItem('sessionExpiresAt');
-    window.location.href = '/login';
-  }
-};
 
 async function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -62,20 +17,7 @@ async function fileToBase64(file: File): Promise<string> {
   })
 }
 
-async function apiRequest<T>(url: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    ...options,
-    headers: { ...getAuthHeader(), ...(options?.headers || {}) },
-  });
-
-  if (!res.ok) {
-    handleUnauthorized(res.status);
-    const err = await res.json().catch(() => ({ message: res.statusText }));
-    throw new Error(err.message || 'Request failed');
-  }
-
-  return res.json();
-}
+const apiRequest = apiClient.request
 
 // ─── Types ───
 
@@ -329,14 +271,14 @@ export const doctorService = {
       success: boolean;
       patients: Patient[];
       pagination: Pagination;
-    }>(`${API_BASE_URL}/api/doctor/patients?${params}`);
+    }>(`/api/doctor/patients?${params}`);
   },
 
   async getPatient(patientId: number | string) {
     return apiRequest<{
       success: boolean;
       patient: PatientDetail;
-    }>(`${API_BASE_URL}/api/doctor/patients/${patientId}`);
+    }>(`/api/doctor/patients/${patientId}`);
   },
 
   async getActiveRegimen(patientId: number | string) {
@@ -345,19 +287,19 @@ export const doctorService = {
       active: { regimenId: number; startAt: string } | null;
       /** Today’s check-in slot room (APPOINTMENT), or first treatment room on open visit — for clinic transfer “from”. */
       checkInRoom: { id: number; name: string } | null;
-    }>(`${API_BASE_URL}/api/doctor/patients/${patientId}/regimen/active`);
+    }>(`/api/doctor/patients/${patientId}/regimen/active`);
   },
 
   async getDepartments() {
     return apiRequest<{
       success: boolean
       departments: DepartmentOption[]
-    }>(`${API_BASE_URL}/api/doctor/departments`)
+    }>(`/api/doctor/departments`)
   },
 
   async closeOpenVisitRegimen(patientId: number | string) {
     return apiRequest<{ success: boolean; regimenId: number }>(
-      `${API_BASE_URL}/api/doctor/patients/${patientId}/regimen/close`,
+      `/api/doctor/patients/${patientId}/regimen/close`,
       { method: 'POST' }
     );
   },
@@ -365,7 +307,7 @@ export const doctorService = {
   /** Persist PHIẾU HẸN KHÁM LẠI into the open regimen (merged patient/doctor PDF export). */
   async createFollowUpReexamSlip(patientId: number | string, slip: Record<string, unknown>) {
     return apiRequest<{ success: boolean; slip: { orderId: number; regimenId: number } }>(
-      `${API_BASE_URL}/api/doctor/patients/${encodeURIComponent(String(patientId))}/follow-up-reexam-slip`,
+      `/api/doctor/patients/${encodeURIComponent(String(patientId))}/follow-up-reexam-slip`,
       { method: 'POST', body: JSON.stringify({ slip }) }
     );
   },
@@ -478,12 +420,12 @@ export const doctorService = {
           formPayload: Record<string, unknown> | null;
         }>;
       };
-    }>(`${API_BASE_URL}/api/doctor/patients/${patientId}/regimen/active/documents`);
+    }>(`/api/doctor/patients/${patientId}/regimen/active/documents`);
   },
 
   async getPatientMedicalRegimens(patientId: number | string): Promise<PatientMedicalRegimen[]> {
     const data = await apiRequest<{ success: boolean; regimens: PatientMedicalRegimen[] }>(
-      `${API_BASE_URL}/api/doctor/patients/${patientId}/medical-regimens`
+      `/api/doctor/patients/${patientId}/medical-regimens`
     );
     return (data.regimens ?? []).map((r) => ({
       ...r,
@@ -499,7 +441,7 @@ export const doctorService = {
     return apiRequest<{
       success: boolean;
       healthInfo: HealthInfo | null;
-    }>(`${API_BASE_URL}/api/doctor/patients/${patientId}/health-info`);
+    }>(`/api/doctor/patients/${patientId}/health-info`);
   },
 
   async getHealthInfoHistory(patientId: number, page = 1, limit = 10) {
@@ -508,14 +450,14 @@ export const doctorService = {
       success: boolean;
       history: HealthInfo[];
       pagination: Pagination;
-    }>(`${API_BASE_URL}/api/doctor/patients/${patientId}/health-info/history?${params}`);
+    }>(`/api/doctor/patients/${patientId}/health-info/history?${params}`);
   },
 
   async createHealthInfo(patientId: number, data: Partial<HealthInfo>) {
     return apiRequest<{
       success: boolean;
       healthInfo: HealthInfo;
-    }>(`${API_BASE_URL}/api/doctor/patients/${patientId}/health-info`, {
+    }>(`/api/doctor/patients/${patientId}/health-info`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -525,7 +467,7 @@ export const doctorService = {
     return apiRequest<{
       success: boolean;
       healthInfo: HealthInfo;
-    }>(`${API_BASE_URL}/api/doctor/patients/${patientId}/health-info/${id}`, {
+    }>(`/api/doctor/patients/${patientId}/health-info/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
@@ -533,14 +475,14 @@ export const doctorService = {
 
   async deleteHealthInfo(patientId: number, id: number) {
     return apiRequest<{ success: boolean; message: string }>(
-      `${API_BASE_URL}/api/doctor/patients/${patientId}/health-info/${id}`,
+      `/api/doctor/patients/${patientId}/health-info/${id}`,
       { method: 'DELETE' }
     );
   },
 
   async confirmHealthInfo(patientId: number | string, id: number | string) {
     return apiRequest<{ success: boolean; id: number; status: 'confirmed' }>(
-      `${API_BASE_URL}/api/doctor/patients/${patientId}/health-info/${id}/confirm`,
+      `/api/doctor/patients/${patientId}/health-info/${id}/confirm`,
       { method: 'PATCH' }
     );
   },
@@ -551,7 +493,7 @@ export const doctorService = {
     return apiRequest<{
       success: boolean;
       diagnoses: Diagnosis[];
-    }>(`${API_BASE_URL}/api/doctor/patients/${patientId}/diagnoses`);
+    }>(`/api/doctor/patients/${patientId}/diagnoses`);
   },
 
   async createDiagnosis(patientId: number | string, data: {
@@ -564,7 +506,7 @@ export const doctorService = {
     return apiRequest<{
       success: boolean;
       diagnosis: Diagnosis;
-    }>(`${API_BASE_URL}/api/doctor/patients/${patientId}/diagnoses`, {
+    }>(`/api/doctor/patients/${patientId}/diagnoses`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -584,7 +526,7 @@ export const doctorService = {
     return apiRequest<{
       success: boolean;
       diagnosis: Diagnosis;
-    }>(`${API_BASE_URL}/api/doctor/patients/${patientId}/diagnoses/${diagnosisId}`, {
+    }>(`/api/doctor/patients/${patientId}/diagnoses/${diagnosisId}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
@@ -596,7 +538,7 @@ export const doctorService = {
     return apiRequest<{
       success: boolean;
       diseases: DiseaseCode[];
-    }>(`${API_BASE_URL}/api/doctor/diseases${params.toString() ? `?${params}` : ''}`);
+    }>(`/api/doctor/diseases${params.toString() ? `?${params}` : ''}`);
   },
 
   async getMedicines(q?: string) {
@@ -605,7 +547,7 @@ export const doctorService = {
     return apiRequest<{
       success: boolean;
       medicines: MedicineOption[];
-    }>(`${API_BASE_URL}/api/doctor/medicines${params.toString() ? `?${params}` : ''}`);
+    }>(`/api/doctor/medicines${params.toString() ? `?${params}` : ''}`);
   },
 
   // ═══ Prescriptions ═══
@@ -614,14 +556,14 @@ export const doctorService = {
     return apiRequest<{
       success: boolean;
       prescriptions: Prescription[];
-    }>(`${API_BASE_URL}/api/doctor/patients/${patientId}/prescriptions`);
+    }>(`/api/doctor/patients/${patientId}/prescriptions`);
   },
 
   /** Same contract as patient GET /api/appointments/ai/recovery-prediction — staff view for EMR patient. */
   async getPatientRecoveryPrediction(patientId: number | string, options?: { refresh?: boolean }) {
     const suffix = options?.refresh ? '?refresh=1' : '';
     return apiRequest<RecoveryPredictionApiResponse>(
-      `${API_BASE_URL}/api/doctor/patients/${encodeURIComponent(String(patientId))}/recovery-prediction${suffix}`,
+      `/api/doctor/patients/${encodeURIComponent(String(patientId))}/recovery-prediction${suffix}`,
     );
   },
 
@@ -645,7 +587,7 @@ export const doctorService = {
     return apiRequest<{
       success: boolean;
       prescription: Prescription;
-    }>(`${API_BASE_URL}/api/doctor/patients/${patientId}/prescriptions`, {
+    }>(`/api/doctor/patients/${patientId}/prescriptions`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -674,7 +616,7 @@ export const doctorService = {
     return apiRequest<{
       success: boolean;
       prescription: Prescription;
-    }>(`${API_BASE_URL}/api/doctor/patients/${patientId}/prescriptions/${prescriptionId}`, {
+    }>(`/api/doctor/patients/${patientId}/prescriptions/${prescriptionId}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
@@ -686,21 +628,21 @@ export const doctorService = {
     return apiRequest<{
       success: boolean;
       labTests: LabTest[];
-    }>(`${API_BASE_URL}/api/doctor/patients/${patientId}/lab-tests`);
+    }>(`/api/doctor/patients/${patientId}/lab-tests`);
   },
 
   async getTechnicians() {
     return apiRequest<{
       success: boolean;
       technicians: TechnicianOption[];
-    }>(`${API_BASE_URL}/api/doctor/technicians`);
+    }>(`/api/doctor/technicians`);
   },
 
   async getLabTestDetails(patientId: number | string, testId: number | string) {
     return apiRequest<{
       success: boolean
       details: LabTestDetail[]
-    }>(`${API_BASE_URL}/api/doctor/patients/${patientId}/lab-tests/${testId}/details`)
+    }>(`/api/doctor/patients/${patientId}/lab-tests/${testId}/details`)
   },
 
   async uploadLabAttachment(file: File) {
@@ -709,7 +651,7 @@ export const doctorService = {
       success: boolean
       fileUrl: string
       fileName: string
-    }>(`${API_BASE_URL}/api/doctor/lab-attachments`, {
+    }>(`/api/doctor/lab-attachments`, {
       method: "POST",
       body: JSON.stringify({
         fileName: file.name,
@@ -732,7 +674,7 @@ export const doctorService = {
     }
   ) {
     return apiRequest<{ success: boolean; labTest: LabTest }>(
-      `${API_BASE_URL}/api/doctor/patients/${patientId}/lab-tests`,
+      `/api/doctor/patients/${patientId}/lab-tests`,
       { method: 'POST', body: JSON.stringify(data) }
     );
   },
@@ -751,7 +693,7 @@ export const doctorService = {
     }>
   ) {
     return apiRequest<{ success: boolean; labTest: LabTest }>(
-      `${API_BASE_URL}/api/doctor/patients/${patientId}/lab-tests/${id}`,
+      `/api/doctor/patients/${patientId}/lab-tests/${id}`,
       { method: 'PUT', body: JSON.stringify(data) }
     );
   },
@@ -762,7 +704,7 @@ export const doctorService = {
     return apiRequest<{
       success: boolean;
       surgeries: SurgeryRecord[];
-    }>(`${API_BASE_URL}/api/doctor/patients/${patientId}/surgeries`);
+    }>(`/api/doctor/patients/${patientId}/surgeries`);
   },
 
   async createSurgery(
@@ -779,7 +721,7 @@ export const doctorService = {
     }
   ) {
     return apiRequest<{ success: boolean; surgery: SurgeryRecord }>(
-      `${API_BASE_URL}/api/doctor/patients/${patientId}/surgeries`,
+      `/api/doctor/patients/${patientId}/surgeries`,
       { method: 'POST', body: JSON.stringify(data) }
     );
   },
@@ -799,7 +741,7 @@ export const doctorService = {
     }>
   ) {
     return apiRequest<{ success: boolean; surgery: SurgeryRecord }>(
-      `${API_BASE_URL}/api/doctor/patients/${patientId}/surgeries/${id}`,
+      `/api/doctor/patients/${patientId}/surgeries/${id}`,
       { method: 'PUT', body: JSON.stringify(data) }
     );
   },
@@ -815,7 +757,7 @@ export const doctorService = {
     return apiRequest<{
       success: boolean;
       appointments: DoctorAppointment[];
-    }>(`${API_BASE_URL}/api/doctor/appointments?${query}`);
+    }>(`/api/doctor/appointments?${query}`);
   },
 
   async createPatientTransfer(
@@ -842,7 +784,7 @@ export const doctorService = {
     return apiRequest<{
       success: boolean;
       transfer: { orderId: number; treatmentId: number; kind: string };
-    }>(`${API_BASE_URL}/api/doctor/patients/${encodeURIComponent(String(patientId))}/transfers`, {
+    }>(`/api/doctor/patients/${encodeURIComponent(String(patientId))}/transfers`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -864,7 +806,7 @@ export const doctorService = {
         regimenId: number;
         rowsCount: number;
       };
-    }>(`${API_BASE_URL}/api/doctor/patients/${encodeURIComponent(String(patientId))}/health-tracking-slips`, {
+    }>(`/api/doctor/patients/${encodeURIComponent(String(patientId))}/health-tracking-slips`, {
       method: "POST",
       body: JSON.stringify(data),
     });
@@ -874,7 +816,7 @@ export const doctorService = {
     return apiRequest<{
       success: boolean;
       appointment: DoctorAppointment;
-    }>(`${API_BASE_URL}/api/doctor/appointments/${id}/cancel`, {
+    }>(`/api/doctor/appointments/${id}/cancel`, {
       method: 'PUT',
       body: JSON.stringify({ reason }),
     });
@@ -884,7 +826,7 @@ export const doctorService = {
     return apiRequest<{
       success: boolean;
       appointment: { id: number; doctorId: number; roomId: number };
-    }>(`${API_BASE_URL}/api/doctor/appointments/${appointmentId}/cover`, {
+    }>(`/api/doctor/appointments/${appointmentId}/cover`, {
       method: 'PUT',
       body: JSON.stringify({ coverDoctorId, reason }),
     });
@@ -894,7 +836,7 @@ export const doctorService = {
     return apiRequest<{
       success: boolean;
       appointment: DoctorAppointment;
-    }>(`${API_BASE_URL}/api/doctor/appointments/${id}/confirm`, {
+    }>(`/api/doctor/appointments/${id}/confirm`, {
       method: 'PUT',
     });
   },
@@ -903,14 +845,14 @@ export const doctorService = {
     return apiRequest<{
       success: boolean;
       appointment: { id: number; status: string };
-    }>(`${API_BASE_URL}/api/doctor/appointments/${id}/decline`, {
+    }>(`/api/doctor/appointments/${id}/decline`, {
       method: 'PUT',
       body: JSON.stringify({ reason }),
     });
   },
 
   async getDashboardSummary() {
-    return apiRequest<{ success: boolean } & DoctorDashboardSummary>(`${API_BASE_URL}/api/doctor/dashboard/summary`);
+    return apiRequest<{ success: boolean } & DoctorDashboardSummary>(`/api/doctor/dashboard/summary`);
   },
 
   // ═══════════════════════════════════════════════
@@ -937,7 +879,7 @@ export const doctorService = {
       }>;
       raw: string;
       provider: string;
-    }>(`${API_BASE_URL}/api/ai/suggest-medicine`, {
+    }>(`/api/ai/suggest-medicine`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -951,13 +893,13 @@ export const doctorService = {
     return apiRequest<{
       success: boolean;
       signature: string | null;
-    }>(`${API_BASE_URL}/api/doctor/signature`);
+    }>(`/api/doctor/signature`);
   },
 
   async saveSignature(signatureDataUrl: string) {
     return apiRequest<{
       success: boolean;
-    }>(`${API_BASE_URL}/api/doctor/signature`, {
+    }>(`/api/doctor/signature`, {
       method: 'PUT',
       body: JSON.stringify({ signature: signatureDataUrl }),
     });
@@ -971,7 +913,7 @@ export const doctorService = {
     return apiRequest<{
       success: boolean;
       coverRequests: Array<{ id: number; appointmentId: number }>;
-    }>(`${API_BASE_URL}/api/cover/request`, {
+    }>(`/api/cover/request`, {
       method: 'POST',
       body: JSON.stringify({ appointmentIds, reason }),
     });
@@ -994,7 +936,7 @@ export const doctorService = {
         patientName: string;
         roomName: string;
       }>;
-    }>(`${API_BASE_URL}/api/cover/requests`);
+    }>(`/api/cover/requests`);
   },
 
   async getMyCoverRequests() {
@@ -1010,19 +952,19 @@ export const doctorService = {
         appointmentTime: string;
         coverDoctorName: string;
       }>;
-    }>(`${API_BASE_URL}/api/cover/my-requests`);
+    }>(`/api/cover/my-requests`);
   },
 
   async acceptCoverRequest(id: number) {
     return apiRequest<{ success: boolean; message: string }>(
-      `${API_BASE_URL}/api/cover/${id}/accept`,
+      `/api/cover/${id}/accept`,
       { method: 'PUT' }
     );
   },
 
   async rejectCoverRequest(id: number) {
     return apiRequest<{ success: boolean; message: string }>(
-      `${API_BASE_URL}/api/cover/${id}/reject`,
+      `/api/cover/${id}/reject`,
       { method: 'PUT' }
     );
   },

@@ -248,7 +248,7 @@ export default function DoctorPatientHistoryPage() {
       }
 
       for (const lab of v.labTests) {
-        const details = await doctorService.getLabTestDetails(patientId, lab.id)
+        const { details = [] } = await doctorService.getLabTestDetails(patientId, lab.id)
         const { blob } = await generateBloodTestPdfBlob({
           patientName: fullName,
           age: ageStr,
@@ -267,7 +267,7 @@ export default function DoctorPatientHistoryPage() {
         const { blob } = await generateHospitalTransferPdfBlob({
           patientName: fullName,
           patientDob: "—",
-          patientSex: patient.gender,
+          patientSex: patient.gender ?? undefined,
           insuranceId: patient.healthInsuranceId ?? undefined,
           insuranceExpiry: "—",
           destinationHospital: ht.toHospitalName,

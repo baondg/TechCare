@@ -182,9 +182,9 @@ export function PatientSymptomEntriesEditor({
 
   const hasFilledRow = entries.some((e) => e.name.trim())
   const columnLabels = {
-    symptom: t(`${p}.columns.symptom`),
-    severity: t(`${p}.columns.severity`),
-    duration: t(`${p}.columns.duration`),
+    symptomLabel: t(`${p}.columns.symptom`),
+    severityLabel: t(`${p}.columns.severity`),
+    durationLabel: t(`${p}.columns.duration`),
     emptySymptom: t(`${p}.emptySymptom`),
     emptySeverity: t(`${p}.emptySeverity`),
     emptyDuration: t(`${p}.emptyDuration`),

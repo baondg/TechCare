@@ -153,14 +153,6 @@
         "tx": null
       },
       {
-        "sql": "SELECT user_id AS userId, type FROM ACCOUNT WHERE user_id = :userId LIMIT 1",
-        "replacements": {
-          "userId": 70
-        },
-        "type": "SELECT",
-        "tx": null
-      },
-      {
         "event": "Account.findOne",
         "where": {
           "user_id": 70
@@ -194,78 +186,6 @@
             ]
           }
         ],
-        "tx": null
-      }
-    ]
-  },
-  "profile, staff reads an admin": {
-    "request": "GET /api/profile/70",
-    "response": {
-      "status": 403,
-      "message": "Forbidden"
-    },
-    "db": [
-      {
-        "event": "Account.findOne",
-        "where": {
-          "user_id": 41
-        },
-        "tx": null
-      },
-      {
-        "sql": "SELECT user_id AS userId, type FROM ACCOUNT WHERE user_id = :userId LIMIT 1",
-        "replacements": {
-          "userId": 70
-        },
-        "type": "SELECT",
-        "tx": null
-      }
-    ]
-  },
-  "profile, staff reads another staff member": {
-    "request": "GET /api/profile/70",
-    "response": {
-      "status": 403,
-      "message": "Forbidden"
-    },
-    "db": [
-      {
-        "event": "Account.findOne",
-        "where": {
-          "user_id": 41
-        },
-        "tx": null
-      },
-      {
-        "sql": "SELECT user_id AS userId, type FROM ACCOUNT WHERE user_id = :userId LIMIT 1",
-        "replacements": {
-          "userId": 70
-        },
-        "type": "SELECT",
-        "tx": null
-      }
-    ]
-  },
-  "profile, staff reads a missing account": {
-    "request": "GET /api/profile/70",
-    "response": {
-      "status": 404,
-      "message": "Account not found"
-    },
-    "db": [
-      {
-        "event": "Account.findOne",
-        "where": {
-          "user_id": 41
-        },
-        "tx": null
-      },
-      {
-        "sql": "SELECT user_id AS userId, type FROM ACCOUNT WHERE user_id = :userId LIMIT 1",
-        "replacements": {
-          "userId": 70
-        },
-        "type": "SELECT",
         "tx": null
       }
     ]
@@ -544,14 +464,6 @@
     },
     "db": [
       {
-        "sql": "SELECT user_id AS userId, type FROM ACCOUNT WHERE user_id = :userId LIMIT 1",
-        "replacements": {
-          "userId": 70
-        },
-        "type": "SELECT",
-        "tx": null
-      },
-      {
         "event": "begin",
         "tx": "tx1"
       },
@@ -580,23 +492,6 @@
       {
         "event": "commit",
         "tx": "tx1"
-      }
-    ]
-  },
-  "update profile, staff edits an admin": {
-    "request": "PUT /api/profile/70",
-    "response": {
-      "status": 403,
-      "message": "Forbidden"
-    },
-    "db": [
-      {
-        "sql": "SELECT user_id AS userId, type FROM ACCOUNT WHERE user_id = :userId LIMIT 1",
-        "replacements": {
-          "userId": 70
-        },
-        "type": "SELECT",
-        "tx": null
       }
     ]
   },

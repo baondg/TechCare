@@ -4,7 +4,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Bell, Check, CheckCheck, Clock, UserRound, Calendar, X } from 'lucide-react'
+import { Bell, CheckCheck, Clock, UserRound, Calendar, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { apiClient } from '@/api/client'

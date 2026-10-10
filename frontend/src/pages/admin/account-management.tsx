@@ -571,15 +571,6 @@ export default function UserManagement() {
     setIsDetailModalOpen(true)
   }
 
-  const handleResetDraft = () => {
-    if (!canSubmitOrCancel) return
-    if (formMode === "add") {
-      setDraftPatient({ ...EMPTY_PATIENT_DRAFT })
-      return
-    }
-    setDraftPatient(selectedPatient ? { ...selectedPatient } : null)
-  }
-
   const handleCancel = () => {
     if (!canSubmitOrCancel) return
     setFormMode("view")

@@ -123,7 +123,7 @@ export function Header() {
 
         {/* KHỐI PHẢI: BUTTONS */}
         <div className="hidden lg:flex items-center gap-4">
-          <LanguageToggle compact />
+          <LanguageToggle />
           <Button size="default" className="btn-outline transition-transform duration-500 text-xl px-7 py-4" asChild>
             <Link to="/login">{t("header.signIn")}</Link>
           </Button>
@@ -133,7 +133,7 @@ export function Header() {
         </div>
 
         <div className="flex items-center gap-2 lg:hidden">
-          <LanguageToggle compact />
+          <LanguageToggle />
           <Button
             type="button"
             variant="outline"

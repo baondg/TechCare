@@ -528,7 +528,7 @@ export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps)
       }
 
       {
-        const info = result.healthInfo as Record<string, unknown>
+        const info = result.healthInfo as unknown as Record<string, unknown>
         const allergicInfo = (() => {
           try {
             return typeof info.allergic_info === "string"
@@ -552,7 +552,7 @@ export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps)
         setCurrentHealthInfoId(Number(info.id))
         setHeight(info.height?.toString() || "")
         setWeight(info.weight?.toString() || "")
-        const [sys, dia] = (info.blood_pressure || "0/0").split("/")
+        const [sys, dia] = String(info.blood_pressure || "0/0").split("/")
         setBpSys(sys)
         setBpDia(dia)
         setHeartRate(info.heart_rate?.toString() || "")

@@ -11,7 +11,7 @@ import { AlertCircle, X, Clock, Stethoscope, AlertTriangle, CheckCircle } from "
 import { Link } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { appointmentService } from "@/services/appointment-service"
-import type { SymptomInput, SymptomAnalysisResult } from "@/types/ai-types"
+import type { SymptomAnalysisResult } from "@/types/ai-types"
 import { getReadableApiError } from "@/lib/utils"
 import { persistSymptomCheckerToHealthInfo } from "@/lib/symptom-checker-persist-health"
 import {

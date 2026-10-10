@@ -56,7 +56,7 @@ type Patient = {
 
 type ColumnKey = keyof Patient | "no" | "visitStatus"
 
-const columnWidthClassEn: Record<ColumnKey, string> = {
+const columnWidthClassEn: Partial<Record<ColumnKey, string>> = {
   no: "w-[4%] min-w-0",
   id: "w-[9%] min-w-0",
   name: "w-[13%] min-w-0",
@@ -68,7 +68,7 @@ const columnWidthClassEn: Record<ColumnKey, string> = {
   visitStatus: "w-[14%] min-w-0",
 }
 
-const columnWidthClassVi: Record<ColumnKey, string> = {
+const columnWidthClassVi: Partial<Record<ColumnKey, string>> = {
   no: "w-[3.5%] min-w-0",
   id: "w-[8.5%] min-w-0",
   name: "w-[12.5%] min-w-0",

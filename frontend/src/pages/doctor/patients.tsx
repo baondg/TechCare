@@ -39,7 +39,7 @@ type PatientStored = Omit<Patient, "latestVisit"> & {
 }
 
 /** Percent widths for `table-fixed`; must sum to 100% so columns fill the card. */
-const columnWidthClassEn: Record<ColumnKey, string> = {
+const columnWidthClassEn: Partial<Record<ColumnKey, string>> = {
   no: "w-[5%] min-w-0",
   id: "w-[11%] min-w-0",
   name: "w-[20%] min-w-0",
@@ -51,7 +51,7 @@ const columnWidthClassEn: Record<ColumnKey, string> = {
 }
 
 /** Wider sex/age/last-visit columns for Vietnamese labels and filters. */
-const columnWidthClassVi: Record<ColumnKey, string> = {
+const columnWidthClassVi: Partial<Record<ColumnKey, string>> = {
   no: "w-[4%] min-w-0",
   id: "w-[10%] min-w-0",
   name: "w-[18%] min-w-0",

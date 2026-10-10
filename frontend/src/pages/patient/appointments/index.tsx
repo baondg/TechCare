@@ -21,7 +21,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useAppointments } from "@/hooks/use-appointments"
 import type { Appointment } from "@/services/appointment-service"
-import { format, parseISO, parse, isValid } from "date-fns"
+import { format, parseISO } from "date-fns"
 import { applyDdMmYyyyRangeTyping } from "@/lib/date-range"
 
 export default function AppointmentsPage() {
@@ -32,21 +32,6 @@ export default function AppointmentsPage() {
   const [endDateValue, setEndDateValue] = useState<Date | undefined>()
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
   const [statusFilter, setStatusFilter] = useState<"All" | Appointment["status"]>("All")
-
-  const formatDateInput = (value: string) => {
-    const digits = value.replace(/\D/g, "").slice(0, 8)
-    if (digits.length <= 2) return digits
-    if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`
-    return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`
-  }
-
-  const parseDateInput = (value: string) => {
-    if (!value) return undefined
-    const parsedDate = parse(value, "dd/MM/yyyy", new Date())
-    if (!isValid(parsedDate)) return undefined
-    if (format(parsedDate, "dd/MM/yyyy") !== value) return undefined
-    return parsedDate
-  }
 
   const [cancelTargetId, setCancelTargetId] = useState<number | null>(null)
   const [cancelReason, setCancelReason] = useState("")

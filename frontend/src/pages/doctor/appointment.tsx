@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
-import { format, parseISO, parse, isValid } from "date-fns"
+import { format, parseISO } from "date-fns"
 import { useDoctorAppointments } from "@/hooks/use-doctor-appointments"
 import { Link } from "react-router-dom"
 import { appointmentService, type DoctorOption } from "@/services/appointment-service"
@@ -121,21 +121,6 @@ export default function DoctorAppointmentsPage() {
 
   const { toast, isExiting, showSuccess, showError, onMouseEnter, onMouseLeave } = usePauseableToast(2600)
   const { appointments, loading, refresh, confirm, cancelConfirmed } = useDoctorAppointments()
-
-  const formatDateInput = (value: string) => {
-    const digits = value.replace(/\D/g, "").slice(0, 8)
-    if (digits.length <= 2) return digits
-    if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`
-    return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`
-  }
-
-  const parseDateInput = (value: string) => {
-    if (!value) return undefined
-    const parsedDate = parse(value, "dd/MM/yyyy", new Date())
-    if (!isValid(parsedDate)) return undefined
-    if (format(parsedDate, "dd/MM/yyyy") !== value) return undefined
-    return parsedDate
-  }
 
   useEffect(() => {
     void (async () => {

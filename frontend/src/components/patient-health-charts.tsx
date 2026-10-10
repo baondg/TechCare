@@ -14,7 +14,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
-import type { TooltipProps } from "recharts"
+import type { TooltipContentProps } from "recharts"
 import { useTranslation } from "react-i18next"
 import {
   isWithinNormalRange,
@@ -278,7 +278,7 @@ function HealthMetricTooltip({
   label,
   unit = "",
   range,
-}: TooltipProps<number, string> & { unit?: string; range?: VitalNormalBounds }) {
+}: Partial<TooltipContentProps<number, string>> & { unit?: string; range?: VitalNormalBounds }) {
   if (!active || !payload?.length) return null
   const row = payload[0]?.payload as ChartPayload | undefined
   const timeLabel = row?.timeFull ?? label
@@ -311,7 +311,7 @@ function HealthMetricTooltip({
   )
 }
 
-function BloodPressureTooltip({ active, payload, label }: TooltipProps<number, string>) {
+function BloodPressureTooltip({ active, payload, label }: Partial<TooltipContentProps<number, string>>) {
   const { t } = useTranslation()
   if (!active || !payload?.length) return null
   const row = payload[0]?.payload as ChartPayload | undefined

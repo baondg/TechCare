@@ -132,7 +132,7 @@ export function AppShell({ children, navItems, portalLabel, headerEnd }: AppShel
             </div>
 
             <div className="flex items-center gap-1">
-              <LanguageToggle compact />
+              <LanguageToggle />
               {headerEnd ?? <NotificationBell />}
               <Button asChild variant="ghost" size="icon" className="h-9 w-9" title={t("auth.changePassword.title")}>
                 <Link to={CHANGE_PASSWORD_PATH} aria-label={t("auth.changePassword.title")}>

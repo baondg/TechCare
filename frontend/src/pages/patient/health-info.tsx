@@ -101,7 +101,6 @@ export default function HealthInfoPage() {
   const [symptomEntries, setSymptomEntries] = useState<SymptomEntry[]>([createEmptySymptomEntry()])
 
   // Current health info ID for updates
-  const [currentHealthInfoId, setCurrentHealthInfoId] = useState<number | null>(null)
 
   const bmi = useMemo(() => {
     const h = parseFloat(height)
@@ -164,7 +163,6 @@ export default function HealthInfoPage() {
         const allergicInfo = info.allergic_info || info.allergicInfo || {}
         const medicalHistory = info.medical_history || info.medicalHistory || {}
 
-        setCurrentHealthInfoId(info.id)
         setHeight(info.height?.toString() || "")
         setWeight(info.weight?.toString() || "")
         setBpSys(info.bloodPressureSys?.toString() || "")

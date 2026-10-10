@@ -13,7 +13,6 @@ import { doctorService } from "@/services/doctor-service"
 import { NursePatientProfilePanel } from "@/pages/nurse/medical-records/patient-profile"
 import { translatePatientInDepartment } from "@/lib/patient-departments"
 
-import { API_BASE_URL } from "@/lib/api-base"
 const VISIT_STORAGE_PREFIX = "nurseExamVisit:"
 
 type StoredVisit = { startedAt: string; appointmentId?: number; regimenId?: number }
@@ -144,16 +143,8 @@ export function NurseEmrLayout() {
     const fetchPatient = async () => {
       if (!patientId) return
       try {
-        const res = await fetch(`${API_BASE_URL}/api/doctor/patients/${patientId}`, {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("authToken")}`,
-          },
-        })
-        const data = await res.json()
-        if (data.success) {
-          const p = data.patient as PatientHeader
-          setPatientData(p)
-        }
+        const data = await doctorService.getPatient(patientId)
+        if (data.success) setPatientData(data.patient as PatientHeader)
       } catch (err) {
         console.error(err)
       }

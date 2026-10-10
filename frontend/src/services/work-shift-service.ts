@@ -1,12 +1,4 @@
-import { API_BASE_URL } from "@/lib/api-base"
-
-const authHeader = () => {
-  const token = localStorage.getItem("authToken")
-  return {
-    "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  }
-}
+import { apiClient } from "@/api/client"
 
 export type WorkShiftRow = {
   id: number
@@ -52,14 +44,7 @@ export type StaffDirectoryResponse = {
 }
 
 export async function getClinicalStaffDirectory(): Promise<StaffDirectoryResponse> {
-  const res = await fetch(`${API_BASE_URL}/api/work-shifts/staff-directory`, {
-    headers: authHeader(),
-  })
-  const data = (await res.json().catch(() => ({}))) as StaffDirectoryResponse & { error?: string; message?: string }
-  if (!res.ok) {
-    throw new Error(data.message || data.error || "Failed to load staff directory")
-  }
-  return data
+  return apiClient.get<StaffDirectoryResponse>("/api/work-shifts/staff-directory")
 }
 
 export async function getMyWorkShifts(params: {
@@ -74,12 +59,5 @@ export async function getMyWorkShifts(params: {
   } else if (params.forUserId != null && Number.isFinite(params.forUserId)) {
     q.set("forUserId", String(params.forUserId))
   }
-  const res = await fetch(`${API_BASE_URL}/api/work-shifts?${q}`, {
-    headers: authHeader(),
-  })
-  const data = (await res.json().catch(() => ({}))) as WorkShiftsResponse & { error?: string }
-  if (!res.ok) {
-    throw new Error(data.message || data.error || "Failed to load work shifts")
-  }
-  return data
+  return apiClient.get<WorkShiftsResponse>(`/api/work-shifts?${q}`)
 }

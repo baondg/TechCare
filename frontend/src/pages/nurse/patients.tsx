@@ -17,8 +17,8 @@ import { useTranslation } from "react-i18next"
 import { PATIENT_IN_DEPARTMENT_OPTIONS, translatePatientInDepartment } from "@/lib/patient-departments"
 import { NurseCheckInDialog } from "@/components/nurse-check-in-dialog"
 import { cn } from "@/lib/utils"
+import { appointmentService } from "@/services/appointment-service"
 
-import { API_BASE_URL } from "@/lib/api-base"
 const VISIT_STORAGE_PREFIX = "nurseExamVisit:"
 
 type StoredVisit = { startedAt: string; appointmentId?: number; regimenId?: number }
@@ -155,18 +155,7 @@ export default function NursePatients() {
 
     const loadPatients = useCallback(async () => {
       try {
-        const token = localStorage.getItem("authToken")
-        const res = await fetch(`${API_BASE_URL}/api/appointments/patients`, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        })
-        const data = await res.json()
-        if (!data.success) return
-
-        const mapped = (data.patients || []).map((p: Record<string, unknown>) => {
+        const mapped = (await appointmentService.getPortalPatients()).map((p) => {
           const raw = p.todayAppointment as Record<string, unknown> | null | undefined
           let todayAppointment: TodayAppointment | null = null
           if (raw && typeof raw.appointmentId === "number" && Number.isFinite(raw.appointmentId)) {

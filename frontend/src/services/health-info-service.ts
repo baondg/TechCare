@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '@/lib/api-base';
+import { apiClient } from '@/api/client';
 
 export interface HealthInfo {
   id: number;
@@ -57,169 +57,66 @@ export interface HealthHistoryResponse {
   error?: string;
 }
 
-const getAuthHeader = () => {
-  const token = localStorage.getItem('authToken');
-  if (!token) return null;
-  return {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`,
-  };
-};
+function currentUserId(): number | null {
+  const user = localStorage.getItem('user');
+  return user ? (JSON.parse(user) as { id: number }).id : null;
+}
+
+const NOT_AUTHENTICATED = { success: false, error: 'User not authenticated' } as const;
+
+/** apiClient already handles 401 (refresh / redirect); callers here get `{ success: false, error }`. */
+function failure(context: string, error: unknown) {
+  console.error(`${context} error:`, error);
+  return { success: false as const, error: error instanceof Error ? error.message : 'Network error' };
+}
+
+type HealthInfoBody = { healthInfo?: HealthInfo } & Partial<HealthInfo>;
 
 export const healthInfoService = {
   async getHealthInfo(): Promise<HealthInfoResponse> {
+    const userId = currentUserId();
+    if (userId == null) return NOT_AUTHENTICATED;
     try {
-      const user = localStorage.getItem('user');
-      if (!user) {
-        return { success: false, error: 'User not authenticated' };
-      }
-      const headers = getAuthHeader();
-      if (!headers) {
-        return { success: false, error: 'Session expired. Please log in again.' };
-      }
-      
-      const userId = JSON.parse(user).id;
-      const response = await fetch(`${API_BASE_URL}/api/health-info/${userId}`, {
-        method: 'GET',
-        headers,
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          return { success: false, error: 'Session expired. Please log in again.' };
-        }
-        return { success: false, error: 'Failed to fetch health info' };
-      }
-
-      const data = await response.json();
-      return {
-        success: true,
-        healthInfo: data.healthInfo || data,
-      };
+      const data = await apiClient.get<HealthInfoBody>(`/api/health-info/${userId}`);
+      return { success: true, healthInfo: (data.healthInfo || data) as HealthInfo };
     } catch (error) {
-      console.error('Get health info error:', error);
-      return {
-        success: false,
-        error: 'Network error',
-      };
+      return failure('Get health info', error);
     }
   },
 
   async updateHealthInfo(recordId: number, healthData: Partial<HealthInfo>): Promise<HealthInfoResponse> {
+    const userId = currentUserId();
+    if (userId == null) return NOT_AUTHENTICATED;
     try {
-      const user = localStorage.getItem('user');
-      if (!user) {
-        return { success: false, error: 'User not authenticated' };
-      }
-      const headers = getAuthHeader();
-      if (!headers) {
-        return { success: false, error: 'Session expired. Please log in again.' };
-      }
-      
-      const userId = JSON.parse(user).id;
-      const response = await fetch(`${API_BASE_URL}/api/health-info/${userId}`, {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify({ id: recordId, ...healthData }),
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          return { success: false, error: 'Session expired. Please log in again.' };
-        }
-        return { success: false, error: 'Failed to update health info' };
-      }
-
-      const data = await response.json();
-      return {
-        success: true,
-        healthInfo: data.healthInfo || data,
-      };
+      const data = await apiClient.put<HealthInfoBody>(`/api/health-info/${userId}`, { id: recordId, ...healthData });
+      return { success: true, healthInfo: (data.healthInfo || data) as HealthInfo };
     } catch (error) {
-      console.error('Update health info error:', error);
-      return {
-        success: false,
-        error: 'Network error',
-      };
+      return failure('Update health info', error);
     }
   },
 
   async createHealthInfo(healthData: Partial<HealthInfo>): Promise<HealthInfoResponse> {
+    const userId = currentUserId();
+    if (userId == null) return NOT_AUTHENTICATED;
     try {
-      const user = localStorage.getItem('user');
-      if (!user) {
-        return { success: false, error: 'User not authenticated' };
-      }
-      const headers = getAuthHeader();
-      if (!headers) {
-        return { success: false, error: 'Session expired. Please log in again.' };
-      }
-      
-      const userId = JSON.parse(user).id;
-      const response = await fetch(`${API_BASE_URL}/api/health-info/${userId}`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(healthData),
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          return { success: false, error: 'Session expired. Please log in again.' };
-        }
-        return { success: false, error: 'Failed to create health info' };
-      }
-
-      const data = await response.json();
-      return {
-        success: true,
-        healthInfo: data.healthInfo || data,
-      };
+      const data = await apiClient.post<HealthInfoBody>(`/api/health-info/${userId}`, healthData);
+      return { success: true, healthInfo: (data.healthInfo || data) as HealthInfo };
     } catch (error) {
-      console.error('Create health info error:', error);
-      return {
-        success: false,
-        error: 'Network error',
-      };
+      return failure('Create health info', error);
     }
   },
 
   async getHealthHistory(page: number = 1, limit: number = 10): Promise<HealthHistoryResponse> {
+    const userId = currentUserId();
+    if (userId == null) return NOT_AUTHENTICATED;
     try {
-      const user = localStorage.getItem('user');
-      if (!user) {
-        return { success: false, error: 'User not authenticated' };
-      }
-      const headers = getAuthHeader();
-      if (!headers) {
-        return { success: false, error: 'Session expired. Please log in again.' };
-      }
-      
-      const userId = JSON.parse(user).id;
-      const response = await fetch(
-        `${API_BASE_URL}/api/health-info/${userId}`,
-        {
-          method: 'GET',
-          headers,
-        }
-      );
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          return { success: false, error: 'Session expired. Please log in again.' };
-        }
-        return { success: false, error: 'Failed to fetch health history' };
-      }
-
-      const data = await response.json();
-      const fullHistory: HealthInfo[] = data.history || [];
+      const data = await apiClient.get<{ history?: HealthInfo[] }>(`/api/health-info/${userId}`);
+      const fullHistory = data.history || [];
       const start = (page - 1) * limit;
-      const end = start + limit;
-      const paginatedHistory = fullHistory.slice(start, end);
       const total = fullHistory.length;
-
       return {
         success: true,
-        history: paginatedHistory,
+        history: fullHistory.slice(start, start + limit),
         pagination: {
           total,
           page,
@@ -228,65 +125,29 @@ export const healthInfoService = {
         },
       };
     } catch (error) {
-      console.error('Get health history error:', error);
-      return {
-        success: false,
-        error: 'Network error',
-      };
+      return failure('Get health history', error);
     }
   },
 
   async deleteHealthRecords(recordIds: number[]): Promise<{ success: boolean; message?: string; error?: string }> {
+    const userId = currentUserId();
+    if (userId == null) return NOT_AUTHENTICATED;
     try {
-      const user = localStorage.getItem('user');
-      if (!user) {
-        return { success: false, error: 'User not authenticated' };
-      }
-
-      const headers = getAuthHeader();
-      if (!headers) {
-        return { success: false, error: 'Session expired. Please log in again.' };
-      }
-
-      const userId = JSON.parse(user).id;
-
-      const response = await fetch(`${API_BASE_URL}/api/health-info/${userId}`, {
-        method: 'DELETE',
-        headers,
-        body: JSON.stringify({ ids: recordIds }),
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          return { success: false, error: 'Session expired. Please log in again.' };
-        }
-        return { success: false, error: 'Failed to delete health records' };
-      }
-
-      const data = await response.json();
-      return { success: true, message: data.message || 'Records deleted successfully' };
+      const data = await apiClient.delete<{ message?: string }>(`/api/health-info/${userId}`, { ids: recordIds });
+      return { success: true, message: data?.message || 'Records deleted successfully' };
     } catch (error) {
-      console.error('Delete health records error:', error);
-      return { success: false, error: 'Network error' };
+      return failure('Delete health records', error);
     }
   },
 
   async confirmHealthRecord(recordId: number): Promise<{ success: boolean; status?: 'confirmed'; error?: string }> {
+    const userId = currentUserId();
+    if (userId == null) return NOT_AUTHENTICATED;
     try {
-      const user = localStorage.getItem('user');
-      if (!user) return { success: false, error: 'User not authenticated' };
-      const headers = getAuthHeader();
-      if (!headers) return { success: false, error: 'Session expired. Please log in again.' };
-      const userId = JSON.parse(user).id;
-      const response = await fetch(`${API_BASE_URL}/api/health-info/${userId}/${recordId}/confirm`, { method: 'PATCH', headers });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) return { success: false, error: data.message || data.error || 'Failed to confirm record' };
+      await apiClient.patch(`/api/health-info/${userId}/${recordId}/confirm`, undefined);
       return { success: true, status: 'confirmed' };
     } catch (error) {
-      console.error('Confirm health record error:', error);
-      return { success: false, error: 'Network error' };
+      return failure('Confirm health record', error);
     }
   },
 };
-
-

@@ -1,515 +1,89 @@
 "use client"
 
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-  type KeyboardEvent,
-} from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useParams } from "react-router-dom"
-import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import {
-  Trash2,
-  History,
-  Plus,
-  Copy,
-  Save,
-  X,
-  ChevronDown,
-  FileDown,
-  Loader2,
-  Printer,
-  Sparkles,
-  PenLine,
-} from "lucide-react"
-import { cn } from "@/lib/utils"
-import {
-  Table,
-  TableHeader,
-  TableBody,
-  TableHead,
-  TableRow,
-  TableCell,
-} from "@/components/ui/table"
-import {
-  doctorService,
-  type Prescription as ApiPrescription,
-  type MedicineOption,
-} from "@/services/doctor-service"
-import {
-  buildAutoBytFields,
-  generatePrescriptionPdfBlob,
-  isPatientUnder72Months,
-} from "@/lib/export-prescription-pdf"
-import { medicationUnitLabelVi } from "@/lib/medication-units-vi"
-import { profileService } from "@/services/profile-service"
-import { stampPdfWithExportFooter } from "@/lib/pdf-export-stamp"
-import { usePauseableToast } from "@/hooks/use-pauseable-toast"
-import { PauseableCornerToastPortal } from "@/components/pauseable-corner-toast"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { SignaturePad } from "@/components/signature-pad"
-import { useEmrSession } from "@/contexts/emr-session-context"
 import { useTranslation } from "react-i18next"
-import type { TFunction } from "i18next"
+import { Copy, FileDown, History, Loader2, PenLine, Plus, Printer, Save, Sparkles, X } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { PauseableCornerToastPortal } from "@/components/pauseable-corner-toast"
+import { usePdfPreview } from "@/components/pdf-preview-dialog"
+import { MedicationTable } from "@/components/emr-prescription/medication-table"
+import { useDoctorSignature } from "@/components/emr-prescription/use-doctor-signature"
+import {
+  draftFrom,
+  draftFromSuggestions,
+  emptyMed,
+  formatDiagnosisLine,
+  formatDt,
+  formatGenderVi,
+  formatHistoryTableDate,
+  isEmptyMedication,
+  medicationsToExport,
+  prescriptionDuration,
+  resolveLocaleTag,
+  toUiPrescription,
+  validateDraft,
+  DEFAULT_DURATION,
+  type Medication,
+  type UiPrescription,
+} from "@/components/emr-prescription/medications"
+import { EMR_PRESCRIPTION_SAVED_EVENT } from "@/components/doctor-emr/finish-examination-dialog"
+import { useEmrSession } from "@/contexts/emr-session-context"
+import { usePauseableToast } from "@/hooks/use-pauseable-toast"
+import { buildAutoBytFields, generatePrescriptionPdfBlob, isPatientUnder72Months } from "@/lib/export-prescription-pdf"
+import { doctorService } from "@/services/doctor-service"
+import { profileService } from "@/services/profile-service"
 
 const EMR_PRESCRIPTION_DRAFT_STATE_EVENT = "emr:prescription-draft-state"
-const EMR_PRESCRIPTION_SAVED_EVENT = "emr:prescription-saved"
 
-type Medication = {
-  name: string
-  quantity: string
-  unit: string
-  /** Số ngày dùng thuốc (PRESCRIPTION_DETAIL.duration). */
-  duration: string
-  usage: string
-  note?: string
-}
-
-function normalizeMedicationUnit(raw: string | null | undefined): string {
-  const s = String(raw || "")
-    .trim()
-    .toLowerCase()
-  if (!s) return "tablet"
-  // Keep the DB unit label when available (e.g. "application", "vial", "ml")
-  return s
-}
-
-type UiPrescription = {
-  id: string
-  /** ISO from API — for compact history column */
-  createdAt: string
-  date: string
-  doctor: string
-  medications: Medication[]
-  byt?: {
-    code: string | null
-    prescriptionType: "N" | "H" | "C"
-    facilityCode: string
-    facilityName?: string
-    facilityAddress?: string
-    facilityPhone: string
-    contactPhone?: string
-    guardianName?: string
-    advice?: string
-    insuranceId?: string
-    patientAddress?: string
-    patientWeightKg?: string
-    patientIdCard?: string
-    patientPhone?: string
-  }
-  isDraft?: boolean
-}
-
-function resolveLocaleTag(lang: string | undefined): string {
-  return lang?.toLowerCase().startsWith("vi") ? "vi-VN" : "en-US"
-}
-
-function formatHistoryTableDate(iso: string, localeTag: string, notAvailable: string) {
-  if (!iso) return notAvailable
-  try {
-    const d = new Date(iso)
-    if (Number.isNaN(d.getTime())) return iso
-    const date = d.toLocaleDateString(localeTag, { day: "2-digit", month: "2-digit", year: "2-digit" })
-    const time = d.toLocaleTimeString(localeTag, { hour: "2-digit", minute: "2-digit", hour12: false })
-    return `${date} ${time}`
-  } catch {
-    return iso
-  }
-}
-
-function formatDt(iso: string, localeTag: string) {
-  try {
-    return new Date(iso).toLocaleString(localeTag)
-  } catch {
-    return iso
-  }
-}
-
-function formatGenderVi(g: string | null | undefined): string {
-  const s = String(g ?? "").trim().toUpperCase()
-  if (s === "M" || s === "MALE") return "Nam"
-  if (s === "F" || s === "FEMALE") return "Nữ"
-  if (!s) return ""
-  return g ?? ""
-}
-
-function formatDiagnosisLine(
-  d: { icd10?: string; interpretation?: string } | null | undefined,
-  fallback: string
-): string {
-  if (!d) return fallback
-  const parts = [d.icd10, d.interpretation].map((s) => String(s ?? "").trim()).filter(Boolean)
-  return parts.length > 0 ? parts.join(" — ") : fallback
-}
-
-function mapApi(p: ApiPrescription, localeTag: string): UiPrescription {
-  return {
-    id: String(p.id),
-    createdAt: p.createdAt,
-    date: formatDt(p.createdAt, localeTag),
-    doctor: p.doctorName,
-    byt: p.byt,
-    medications: (p.medications || []).map((m) => ({
-      name: m.name,
-      quantity: m.quantity || "",
-      unit: normalizeMedicationUnit(m.unit),
-      duration: m.duration != null && String(m.duration).trim() !== "" ? String(m.duration).trim() : "7",
-      usage: m.usage || "",
-      note: m.note || "",
-    })),
-    isDraft: false,
-  }
-}
-
-const emptyMed = (): Medication => ({
-  name: "",
-  quantity: "",
-  unit: "tablet",
-  duration: "7",
-  usage: "",
-  note: "",
-})
-
-function MedicineNameCombobox({
-  value,
-  onChange,
-  onMedicinePickOrResolve,
-  disabled,
-}: {
-  value: string
-  onChange: (v: string) => void
-  /** Chọn từ danh sách hoặc khớp tên chính xác sau blur → cập nhật unit từ MEDICINE */
-  onMedicinePickOrResolve?: (m: MedicineOption) => void
-  disabled?: boolean
-}) {
-  const { t } = useTranslation()
-  const listId = useId()
-  const skipBlurResolveRef = useRef(false)
-  const blurResolveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [open, setOpen] = useState(false)
-  const [items, setItems] = useState<MedicineOption[]>([])
-  const [loading, setLoading] = useState(false)
-
-  const load = useCallback(async (q: string) => {
-    setLoading(true)
-    try {
-      const res = await doctorService.getMedicines(q.trim() || undefined)
-      setItems(res.medicines || [])
-    } catch {
-      setItems([])
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!open) return
-    const t = window.setTimeout(() => {
-      void load(value)
-    }, 200)
-    return () => window.clearTimeout(t)
-  }, [open, value, load])
-
-  const tryResolveExactMatch = useCallback(async () => {
-    if (!onMedicinePickOrResolve) return
-    const n = value.trim()
-    if (!n) return
-    try {
-      const res = await doctorService.getMedicines(n)
-      const exact = res.medicines?.find((x) => x.name.toLowerCase() === n.toLowerCase())
-      if (exact) onMedicinePickOrResolve(exact)
-    } catch {
-      /* ignore */
-    }
-  }, [value, onMedicinePickOrResolve])
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverAnchor asChild>
-        <div
-          className={cn(
-            "flex h-7 w-full max-w-[9.5rem] sm:max-w-[11rem] items-stretch rounded border border-slate-200 bg-white shadow-sm",
-            "focus-within:border-cyan-500 focus-within:ring-1 focus-within:ring-cyan-500/30",
-            disabled && "cursor-not-allowed opacity-60"
-          )}
-        >
-          <Input
-            className="h-7 min-h-7 min-w-0 flex-1 rounded-none border-0 bg-transparent px-1.5 py-0 text-xs leading-tight shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 md:h-7 md:text-xs"
-            value={value}
-            disabled={disabled}
-            onChange={(e) => onChange(e.target.value)}
-            onInput={(e) => onChange((e.target as HTMLInputElement).value)}
-            onFocus={() => setOpen(true)}
-            onBlur={() => {
-              if (blurResolveTimerRef.current) clearTimeout(blurResolveTimerRef.current)
-              blurResolveTimerRef.current = window.setTimeout(() => {
-                blurResolveTimerRef.current = null
-                if (skipBlurResolveRef.current) return
-                void tryResolveExactMatch()
-              }, 200)
-            }}
-            autoComplete="off"
-            role="combobox"
-            aria-expanded={open}
-            aria-haspopup="listbox"
-            aria-controls={listId}
-          />
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 min-h-7 w-6 shrink-0 rounded-none rounded-r-md border-l border-slate-200 p-0 hover:bg-slate-50"
-            disabled={disabled}
-            aria-label={t("doctor.prescription.openMedicineList")}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => setOpen((o) => !o)}
-          >
-            <ChevronDown
-              className={cn("h-3 w-3 text-slate-600 transition-transform duration-200", open && "rotate-180")}
-            />
-          </Button>
-        </div>
-      </PopoverAnchor>
-      <PopoverContent
-        className="p-0 w-[var(--radix-popover-anchor-width)] min-w-[10rem] max-w-[min(20rem,90vw)]"
-        align="start"
-        sideOffset={4}
-        onOpenAutoFocus={(e) => e.preventDefault()}
-      >
-        <ScrollArea className="h-[200px]">
-          {loading ? (
-            <div className="p-3 text-sm text-slate-500">{t("doctor.prescription.comboboxLoading")}</div>
-          ) : items.length === 0 ? (
-            <div className="p-3 text-sm text-slate-500">{t("doctor.prescription.noResult")}</div>
-          ) : (
-            <ul id={listId} className="py-1" role="listbox">
-              {items.map((m) => (
-                <li key={m.id}>
-                  <button
-                    type="button"
-                    role="option"
-                    className="w-full text-left px-2.5 py-1.5 text-xs hover:bg-cyan-50 truncate"
-                    onMouseDown={(e) => {
-                      e.preventDefault()
-                      if (blurResolveTimerRef.current) {
-                        clearTimeout(blurResolveTimerRef.current)
-                        blurResolveTimerRef.current = null
-                      }
-                      skipBlurResolveRef.current = true
-                    }}
-                    onClick={() => {
-                      onMedicinePickOrResolve?.(m)
-                      setOpen(false)
-                      skipBlurResolveRef.current = false
-                    }}
-                  >
-                    {m.name}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </ScrollArea>
-      </PopoverContent>
-    </Popover>
-  )
-}
-
-/** Per-day amount: quantity ÷ duration (for usage typeahead). */
-function formatDailyDoseFromQtyDuration(quantityStr: string, durationStr: string): string | null {
-  const qty = Number.parseFloat(String(quantityStr ?? "").trim().replace(",", "."))
-  const dur = Number.parseFloat(String(durationStr ?? "").trim().replace(",", "."))
-  if (!Number.isFinite(qty) || qty <= 0) return null
-  if (!Number.isFinite(dur) || dur <= 0) return null
-  const per = qty / dur
-  if (!Number.isFinite(per) || per <= 0) return null
-  const rounded = Math.round(per * 100) / 100
-  if (Number.isInteger(rounded)) return String(rounded)
-  return rounded.toFixed(2).replace(/\.?0+$/, "")
-}
-
-function buildUsageTypeaheadSuggestion(
-  med: Pick<Medication, "quantity" | "duration" | "unit">,
-  t: TFunction
-): string | null {
-  const n = formatDailyDoseFromQtyDuration(med.quantity, med.duration)
-  if (n == null) return null
-  const unit = medicationUnitLabelVi(med.unit || "tablet")
-  return t("doctor.prescription.usageDailyPrefix", { amount: n, unit })
-}
-
-function usageTypeaheadGhostTail(suggestion: string | null, usage: string): string | null {
-  if (!suggestion) return null
-  if (!usage) return suggestion
-  if (suggestion.startsWith(usage)) return suggestion.slice(usage.length)
-  return null
-}
-
-function UsageTypeaheadInput({
-  value,
-  onChange,
-  quantity,
-  duration,
-  unit,
-  disabled,
-}: {
-  value: string
-  onChange: (v: string) => void
-  quantity: string
-  duration: string
-  unit: string
-  disabled?: boolean
-}) {
-  const { t } = useTranslation()
-  const suggestion = useMemo(
-    () => buildUsageTypeaheadSuggestion({ quantity, duration, unit }, t),
-    [quantity, duration, unit, t]
-  )
-  const ghostTail = usageTypeaheadGhostTail(suggestion, value)
-
-  const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key !== "Enter") return
-    if (!suggestion) return
-    if (value === suggestion) return
-    if (value === "" || suggestion.startsWith(value)) {
-      e.preventDefault()
-      onChange(suggestion)
-    }
-  }
-
-  return (
-    <div
-      className={cn(
-        "relative h-7 w-full min-w-[7rem] rounded border border-slate-200 bg-white",
-        !disabled && "focus-within:border-cyan-500 focus-within:ring-1 focus-within:ring-cyan-500/30"
-      )}
-    >
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 flex items-center overflow-hidden rounded px-1.5 text-xs leading-tight"
-      >
-        <span className="whitespace-pre text-slate-900">{value}</span>
-        {ghostTail ? <span className="whitespace-pre text-slate-400">{ghostTail}</span> : null}
-      </div>
-      <input
-        className="relative z-10 h-7 w-full box-border rounded bg-transparent px-1.5 text-xs leading-tight text-transparent caret-slate-900 selection:bg-cyan-200/80"
-        value={value}
-        placeholder={suggestion ? "" : t("doctor.prescription.usagePlaceholder")}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.value)}
-        onInput={(e) => onChange((e.target as HTMLInputElement).value)}
-        onKeyDown={onKeyDown}
-        title={
-          suggestion
-            ? t("doctor.prescription.usageEnterHint", { suggestion: suggestion.trimEnd() })
-            : undefined
-        }
-        spellCheck={false}
-        autoComplete="off"
-      />
-    </div>
-  )
-}
-
+/** Doctor EMR "Prescription" tab: history, new / inherited draft, AI suggestion, signed PDF. */
 export default function PatientPrescription() {
   const { t, i18n } = useTranslation()
   const localeTag = resolveLocaleTag(i18n.language)
   const { toast, isExiting, showSuccess, showError, onMouseEnter, onMouseLeave } = usePauseableToast(2600)
   const { patientId } = useParams<{ patientId: string }>()
   const { mutationsAllowed } = useEmrSession()
+  const pdf = usePdfPreview(showError, () => (
+    <Button type="button" variant="outline" className="btn-outline" disabled title={t("doctor.prescription.printDisabledHint")}>
+      <Printer className="h-4 w-4 mr-2" />
+      {t("doctor.prescription.print")}
+    </Button>
+  ))
+  const signature = useDoctorSignature(showError, showSuccess)
+
   const [prescriptions, setPrescriptions] = useState<UiPrescription[]>([])
   const [selectedRx, setSelectedRx] = useState<UiPrescription | null>(null)
+  /** Saved prescription shown before Add / Inherit; Cancel goes back to it. */
   const [viewRxBeforeEdit, setViewRxBeforeEdit] = useState<UiPrescription | null>(null)
   const [isEditMode, setIsEditMode] = useState(false)
   const [draftMeds, setDraftMeds] = useState<Medication[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [exportingPdf, setExportingPdf] = useState(false)
-  const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false)
-  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null)
-  const [pdfPreviewFilename, setPdfPreviewFilename] = useState("")
-  const pdfBlobUrlRef = useRef<string | null>(null)
-  const [signatureDialogOpen, setSignatureDialogOpen] = useState(false)
-  /** `export` = opened because PDF needs a signature; `edit` = user chose "Change signature". */
-  const [signatureDialogContext, setSignatureDialogContext] = useState<"export" | "edit">("export")
-  const [signaturePadInitial, setSignaturePadInitial] = useState<string | null>(null)
-  const [signaturePadKey, setSignaturePadKey] = useState(0)
-  const [signatureSaving, setSignatureSaving] = useState(false)
-  const [openingSignatureEditor, setOpeningSignatureEditor] = useState(false)
-  const signatureWaiterRef = useRef<{ resolve: (sig: string | null) => void } | null>(null)
+  const [aiSuggesting, setAiSuggesting] = useState(false)
   const [patientDetail, setPatientDetail] = useState<Awaited<ReturnType<typeof doctorService.getPatient>>["patient"] | null>(null)
-  const [activeDiagnosis, setActiveDiagnosis] = useState<{
-    icd10: string
-    interpretation: string
-  } | null>(null)
+  const [activeDiagnosis, setActiveDiagnosis] = useState<{ icd10: string; interpretation: string } | null>(null)
 
-  const releasePdfBlobUrl = useCallback((next: string | null) => {
-    if (pdfBlobUrlRef.current && pdfBlobUrlRef.current !== next) {
-      URL.revokeObjectURL(pdfBlobUrlRef.current)
-    }
-    pdfBlobUrlRef.current = next
-    setPdfPreviewUrl(next)
-  }, [])
-
-  const closePdfPreview = useCallback(() => {
-    setPdfPreviewOpen(false)
-    releasePdfBlobUrl(null)
-    setPdfPreviewFilename("")
-  }, [releasePdfBlobUrl])
-
-  useEffect(() => {
-    return () => {
-      if (pdfBlobUrlRef.current) {
-        URL.revokeObjectURL(pdfBlobUrlRef.current)
-        pdfBlobUrlRef.current = null
-      }
-    }
-  }, [])
-
-  const isEmptyMedication = (med: Medication) =>
-    !med.name && !med.quantity && !med.usage && !med.note
-  const hasDraftContent = useMemo(
-    () => draftMeds.some((med) => !isEmptyMedication(med)),
-    [draftMeds]
-  )
+  const hasDraftContent = useMemo(() => draftMeds.some((med) => !isEmptyMedication(med)), [draftMeds])
   const hasUnsavedPrescriptionDraft = isEditMode && hasDraftContent
 
+  // The EMR layout blocks "Finish examination" while a draft is unsaved.
   useEffect(() => {
     if (!patientId) return
     window.dispatchEvent(
       new CustomEvent(EMR_PRESCRIPTION_DRAFT_STATE_EVENT, {
-        detail: {
-          patientId: String(patientId),
-          hasUnsavedChanges: hasUnsavedPrescriptionDraft,
-          updatedAt: Date.now(),
-        },
-      })
+        detail: { patientId: String(patientId), hasUnsavedChanges: hasUnsavedPrescriptionDraft, updatedAt: Date.now() },
+      }),
     )
   }, [patientId, hasUnsavedPrescriptionDraft])
 
+  /** BYT fields filled from the patient, their relative and their latest weight. */
   const resolveBytPayload = useCallback(async () => {
-    if (!patientId || !patientDetail) {
-      throw new Error(t("doctor.prescription.patientLoadFail"))
-    }
+    if (!patientId || !patientDetail) throw new Error(t("doctor.prescription.patientLoadFail"))
     const [profile, healthRes] = await Promise.all([
       profileService.getProfile(patientDetail.id).catch(() => null),
-      doctorService
-        .getHealthInfo(Number(String(patientId).replace(/^OP0*/i, "")))
-        .catch(() => ({ healthInfo: null })),
+      doctorService.getHealthInfo(Number(String(patientId).replace(/^OP0*/i, ""))).catch(() => ({ healthInfo: null })),
     ])
     return buildAutoBytFields({
       dateOfBirth: patientDetail.dateOfBirth,
@@ -529,8 +103,7 @@ export default function PatientPrescription() {
       setLoading(true)
       try {
         const res = await doctorService.getPrescriptions(patientId)
-        const loc = resolveLocaleTag(i18n.language)
-        const rows = (res.prescriptions || []).map((p) => mapApi(p, loc))
+        const rows = (res.prescriptions || []).map((p) => toUiPrescription(p, resolveLocaleTag(i18n.language)))
         setPrescriptions(rows)
         const pickId = options?.selectPrescriptionId
         if (pickId) {
@@ -538,8 +111,7 @@ export default function PatientPrescription() {
           setSelectedRx(pick ? { ...pick, isDraft: false } : null)
         } else {
           setSelectedRx((prev) => {
-            if (!prev) return null
-            const matched = rows.find((r) => r.id === prev.id)
+            const matched = prev && rows.find((r) => r.id === prev.id)
             return matched ? { ...matched, isDraft: false } : null
           })
         }
@@ -553,42 +125,35 @@ export default function PatientPrescription() {
         setLoading(false)
       }
     },
-    [patientId, showError, i18n.language, t]
+    [patientId, showError, i18n.language, t],
   )
 
   useEffect(() => {
-    load()
+    void load()
   }, [load])
 
+  // Patient (for BYT fields and the PDF) and the most recent diagnosis.
   useEffect(() => {
     let alive = true
     if (!patientId) return
-    ;(async () => {
+    void (async () => {
       try {
         const [patientRes, diagRes] = await Promise.all([
           doctorService.getPatient(patientId),
-          doctorService.getDiagnoses(patientId).catch(() => ({ success: false, diagnoses: [] as { icd10: string; interpretation: string; createdAt?: string }[] })),
+          doctorService
+            .getDiagnoses(patientId)
+            .catch(() => ({ success: false, diagnoses: [] as { icd10: string; interpretation: string; createdAt?: string }[] })),
         ])
         if (!alive) return
-        if (patientRes.success && patientRes.patient) {
-          setPatientDetail(patientRes.patient)
-        }
+        if (patientRes.success && patientRes.patient) setPatientDetail(patientRes.patient)
         const list = diagRes.success && diagRes.diagnoses?.length ? diagRes.diagnoses : []
         const latest =
           list.length > 0
-            ? [...list].sort(
-                (a, b) =>
-                  new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
-              )[0]
+            ? [...list].sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())[0]
             : patientRes.patient?.latestDiagnosis
-        if (latest?.icd10 || latest?.interpretation) {
-          setActiveDiagnosis({
-            icd10: latest.icd10 || "",
-            interpretation: latest.interpretation || "",
-          })
-        } else {
-          setActiveDiagnosis(null)
-        }
+        setActiveDiagnosis(
+          latest?.icd10 || latest?.interpretation ? { icd10: latest.icd10 || "", interpretation: latest.interpretation || "" } : null,
+        )
       } catch {
         if (alive) {
           setPatientDetail(null)
@@ -601,118 +166,36 @@ export default function PatientPrescription() {
     }
   }, [patientId])
 
-  const removeMedication = (index: number) => {
-    setDraftMeds((prev) => {
-      if (index === prev.length - 1) return prev
-      return prev.filter((_, i) => i !== index)
-    })
-  }
-
-  const handleRowBlur = (index: number) => {
-    setDraftMeds((prev) => {
-      if (index === prev.length - 1) return prev
-      if (isEmptyMedication(prev[index])) {
-        return prev.filter((_, i) => i !== index)
-      }
-      return prev
-    })
-  }
-
-  const handleAddPrescription = () => {
-    if (!mutationsAllowed) return
+  const startDraft = (meds: Medication[], base: Partial<UiPrescription> = {}) => {
     setViewRxBeforeEdit(selectedRx && !selectedRx.isDraft ? selectedRx : null)
     setSelectedRx({
-      id: "new",
-      createdAt: "",
-      date: t("common.notAvailable"),
-      doctor: t("common.notAvailable"),
       medications: [],
-      isDraft: true,
-    })
-    setDraftMeds([emptyMed()])
-    setIsEditMode(true)
-  }
-
-  const handleInheritPrescription = () => {
-    if (!mutationsAllowed) return
-    if (!selectedRx || selectedRx.isDraft) return
-    setViewRxBeforeEdit(selectedRx)
-    setSelectedRx({
-      ...selectedRx,
+      ...base,
       id: "new",
       createdAt: "",
       date: t("common.notAvailable"),
       doctor: t("common.notAvailable"),
       isDraft: true,
     })
-    setDraftMeds([
-      ...(selectedRx.medications || []).map((m) => ({
-        name: m.name || "",
-        quantity: m.quantity || "",
-        unit: m.unit || "tablet",
-        duration: m.duration?.trim() || "7",
-        usage: m.usage || "",
-        note: m.note || "",
-      })),
-      emptyMed(),
-    ])
+    setDraftMeds(meds)
     setIsEditMode(true)
   }
 
-  const updateMedication = (index: number, field: keyof Medication, value: string) => {
-    setDraftMeds((prev) => {
-      const updated = [...prev]
-      updated[index] = { ...updated[index], [field]: value }
-
-      if (index === prev.length - 1 && field === "name" && value.trim() !== "") {
-        return [...updated, emptyMed()]
-      }
-      return updated
-    })
+  const handleAdd = () => {
+    if (!mutationsAllowed) return
+    startDraft([emptyMed()])
   }
 
-  const applyPickedMedicineToDraft = useCallback((index: number, m: MedicineOption) => {
-    setDraftMeds((prev) => {
-      const updated = [...prev]
-      updated[index] = {
-        ...updated[index],
-        name: m.name,
-        unit: normalizeMedicationUnit(m.unit),
-      }
-      const isLast = index === prev.length - 1
-      if (isLast && m.name.trim() !== "") {
-        return [...updated, emptyMed()]
-      }
-      return updated
-    })
-  }, [])
+  const handleInherit = () => {
+    if (!mutationsAllowed || !selectedRx || selectedRx.isDraft) return
+    startDraft(draftFrom(selectedRx.medications || []), selectedRx)
+  }
 
   const handleSave = async () => {
-    if (!mutationsAllowed) return
-    if (!patientId || !selectedRx || !isEditMode) return
-    const meds = draftMeds
-      .filter((m) => !isEmptyMedication(m))
-      .map((m) => ({
-        name: m.name.trim(),
-        quantity: m.quantity.trim(),
-        unit: m.unit,
-        duration: String(m.duration ?? "").trim() || "7",
-        usage: String(m.usage ?? "").trim(),
-        ...(m.note?.trim() ? { note: m.note.trim() } : {}),
-      }))
-    if (meds.length === 0 || !meds.some((m) => m.name)) {
-      showError("Add at least one medication with a name")
-      return
-    }
-    const invalidRequiredIndex = meds.findIndex(
-      (m) => !m.name.trim() || !String(m.quantity ?? "").trim() || !String(m.usage ?? "").trim()
-    )
-    if (invalidRequiredIndex !== -1) {
-      showError(`Please complete Medication, Qty, and Usage on row ${invalidRequiredIndex + 1}`)
-      return
-    }
-    if (selectedRx.id !== "new") {
-      showError("Only new prescriptions can be saved. Click Add to create a new one.")
+    if (!mutationsAllowed || !patientId || !selectedRx || !isEditMode) return
+    const checked = validateDraft(draftMeds)
+    if ("error" in checked) {
+      showError(checked.error)
       return
     }
     if (isPatientUnder72Months(patientDetail?.dateOfBirth)) {
@@ -733,32 +216,19 @@ export default function PatientPrescription() {
     }
     setSaving(true)
     try {
-      const byt = await resolveBytPayload()
-      const lineDurations = meds.map((m) => {
-        const n = parseInt(String(m.duration), 10)
-        return Number.isFinite(n) && n >= 1 ? n : 7
-      })
-      const headerDuration = Math.max(...lineDurations, 1)
       const created = await doctorService.createPrescription(patientId, {
         department: activeDiagnosis?.interpretation?.trim() || undefined,
-        medications: meds,
-        duration: headerDuration,
-        byt,
+        medications: checked.lines,
+        duration: prescriptionDuration(checked.lines),
+        byt: await resolveBytPayload(),
       })
-      const newId =
-        created.success && created.prescription?.id != null
-          ? String(created.prescription.id)
-          : undefined
+      const newId = created.success && created.prescription?.id != null ? String(created.prescription.id) : undefined
       await load(newId ? { selectPrescriptionId: newId } : undefined)
       setIsEditMode(false)
       window.dispatchEvent(
         new CustomEvent(EMR_PRESCRIPTION_SAVED_EVENT, {
-          detail: {
-            patientId: String(patientId),
-            prescriptionId: newId ?? null,
-            savedAt: Date.now(),
-          },
-        })
+          detail: { patientId: String(patientId), prescriptionId: newId ?? null, savedAt: Date.now() },
+        }),
       )
       showSuccess(t("doctor.prescription.saveSuccess"))
     } catch (e) {
@@ -775,657 +245,238 @@ export default function PatientPrescription() {
     setViewRxBeforeEdit(null)
   }
 
-  const hasSelectedViewRow = !!selectedRx && !selectedRx.isDraft
-  const selectedCanInherit = hasSelectedViewRow
-  const canAdd = !isEditMode && !loading && !saving && mutationsAllowed
-  const canInherit =
-    !isEditMode && selectedCanInherit && !loading && !saving && mutationsAllowed
-  const canCancelEdit = isEditMode && !loading
-  const canSaveRx = isEditMode && !loading && mutationsAllowed
-  // ── AI Suggest State ──
-  const [aiSuggesting, setAiSuggesting] = useState(false)
-
   const handleAiSuggest = async () => {
     if (!patientId || !selectedRx?.isDraft) return
     setAiSuggesting(true)
     try {
       const patient = patientDetail
-      const diagnosis = formatDiagnosisLine(
-        activeDiagnosis ?? patient?.latestDiagnosis ?? null,
-        t("doctor.prescription.generalConsultation")
-      )
+      const diagnosis = formatDiagnosisLine(activeDiagnosis ?? patient?.latestDiagnosis ?? null, t("doctor.prescription.generalConsultation"))
       const na = t("doctor.prescription.patientInfoNa")
+      const filled = (v: unknown) => (v != null && String(v).trim() !== "" ? String(v) : na)
       const patientInfo = patient
         ? t("doctor.prescription.patientInfoLine", {
             ageLabel: t("doctor.prescription.patientInfoAge"),
-            age: patient.age != null && String(patient.age).trim() !== "" ? String(patient.age) : na,
+            age: filled(patient.age),
             genderLabel: t("doctor.prescription.patientInfoGender"),
             gender: formatGenderVi(patient.gender) || na,
             bmiLabel: t("doctor.prescription.patientInfoBmi"),
-            bmi: patient.bmi != null && String(patient.bmi).trim() !== "" ? String(patient.bmi) : na,
+            bmi: filled(patient.bmi),
           })
         : ""
-
       const res = await doctorService.getAiMedicineSuggestions({
         diagnosis,
         symptoms: diagnosis,
         patientInfo,
         language: i18n.language?.toLowerCase().startsWith("vi") ? "vi" : "en",
       })
-
       if (res.success && res.suggestions.length > 0) {
-        const newMeds: Medication[] = res.suggestions.map((s) => {
-          const durRaw = s.duration != null ? String(s.duration).trim() : ''
-          const duration =
-            durRaw !== '' && Number.parseInt(durRaw, 10) >= 1 ? durRaw : '7'
-          return {
-            name: s.name || '',
-            quantity: String(s.quantity || ''),
-            unit: normalizeMedicationUnit(s.unit),
-            duration,
-            usage: s.usage || '',
-            note: s.note || '',
-          }
-        })
-        setDraftMeds([...newMeds, emptyMed()])
+        setDraftMeds(draftFromSuggestions(res.suggestions))
         showSuccess(t("doctor.prescription.aiSuggestSuccess", { count: res.suggestions.length }))
       } else {
         showError(t("doctor.prescription.aiNoSuggestions"))
       }
-    } catch (err: any) {
-      showError(err?.message || t("doctor.prescription.aiSuggestFail"))
+    } catch (err) {
+      showError((err instanceof Error && err.message) || t("doctor.prescription.aiSuggestFail"))
     } finally {
       setAiSuggesting(false)
     }
   }
 
-  const getMedicationsForExport = (): Medication[] => {
-    if (!selectedRx) return []
-    if (selectedRx.isDraft) {
-      return draftMeds.filter((m) => !isEmptyMedication(m) && m.name.trim())
-    }
-    return (selectedRx.medications || []).filter((m) => m.name?.trim())
-  }
+  const exportMeds = medicationsToExport(selectedRx, draftMeds)
+  const exportingPdf = pdf.busyKey === "export"
+  const canExportPdf = !!patientId && exportMeds.length > 0 && !exportingPdf
 
-  const canExportPdf =
-    !!patientId && getMedicationsForExport().length > 0 && !exportingPdf
-
-  const ensureSignatureForPdf = useCallback(async (): Promise<string | null> => {
-    try {
-      const got = await doctorService.getSignature()
-      if (got.success && got.signature?.trim()) {
-        return got.signature.trim()
-      }
-    } catch (e) {
-      showError(e instanceof Error ? e.message : t("doctor.prescription.signatureLoadFail"))
-      return null
-    }
-    return await new Promise((resolve) => {
-      signatureWaiterRef.current = { resolve }
-      setSignatureDialogContext("export")
-      setSignaturePadInitial(null)
-      setSignaturePadKey((k) => k + 1)
-      setSignatureDialogOpen(true)
-    })
-  }, [showError, t])
-
-  const openEditSignatureDialog = useCallback(async () => {
-    setOpeningSignatureEditor(true)
-    try {
-      const got = await doctorService.getSignature()
-      const initial =
-        got.success && got.signature?.trim() ? got.signature.trim() : null
-      setSignatureDialogContext("edit")
-      setSignaturePadInitial(initial)
-      setSignaturePadKey((k) => k + 1)
-      setSignatureDialogOpen(true)
-    } catch (e) {
-      showError(e instanceof Error ? e.message : t("doctor.prescription.signatureLoadFail"))
-    } finally {
-      setOpeningSignatureEditor(false)
-    }
-  }, [showError, t])
-
-  const finishSignatureDialog = useCallback((sig: string | null) => {
-    const w = signatureWaiterRef.current
-    signatureWaiterRef.current = null
-    w?.resolve(sig)
-    setSignatureDialogOpen(false)
-  }, [])
-
-  const handleSignaturePadSave = useCallback(
-    async (dataUrl: string) => {
-      setSignatureSaving(true)
-      const hadExportWaiter = signatureWaiterRef.current != null
-      try {
-        await doctorService.saveSignature(dataUrl)
-        finishSignatureDialog(dataUrl)
-        if (!hadExportWaiter) {
-          showSuccess(t("doctor.prescription.signatureUpdateSuccess"))
-        }
-      } catch (e) {
-        showError(e instanceof Error ? e.message : t("doctor.prescription.signatureSaveFail"))
-      } finally {
-        setSignatureSaving(false)
-      }
-    },
-    [finishSignatureDialog, showError, showSuccess, t]
-  )
-
-  const handleSignaturePadCancel = useCallback(() => {
-    if (signatureWaiterRef.current) {
-      finishSignatureDialog(null)
-      showError(t("doctor.prescription.signatureExportCancelled"))
-      return
-    }
-    setSignatureDialogOpen(false)
-  }, [finishSignatureDialog, showError, t])
-
-  const handleExportPdf = async () => {
-    if (!patientId) return
-    const meds = getMedicationsForExport()
-    if (meds.length === 0) return
-    setExportingPdf(true)
-    try {
-      const sigDataUrl = await ensureSignatureForPdf()
-      if (!sigDataUrl) return
-
+  const handleExportPdf = () => {
+    if (!patientId || exportMeds.length === 0) return
+    void pdf.preview("export", t("doctor.prescription.dialogPdfTitle"), async () => {
+      const sigDataUrl = await signature.ensureSignature()
+      if (!sigDataUrl) return null
       const res = await doctorService.getPatient(patientId)
-      if (!res.success || !res.patient) {
-        throw new Error(t("doctor.prescription.patientLoadFail"))
-      }
-      const dxForPdf = activeDiagnosis ?? res.patient.latestDiagnosis
-      const patientForPdf = {
-        ...res.patient,
-        latestDiagnosis: dxForPdf
-          ? {
-              icd10: dxForPdf.icd10,
-              interpretation: dxForPdf.interpretation,
-              department: "department" in dxForPdf ? String(dxForPdf.department || "") : "",
-            }
-          : null,
-      }
+      if (!res.success || !res.patient) throw new Error(t("doctor.prescription.patientLoadFail"))
+      const dx = activeDiagnosis ?? res.patient.latestDiagnosis
       const dash = t("common.notAvailable")
-      const rxDateIso = selectedRx?.createdAt || new Date().toISOString()
-      const rxDoctor =
-        selectedRx?.doctor && selectedRx.doctor !== dash ? selectedRx.doctor : dash
-      releasePdfBlobUrl(null)
-      /** Export always shows doctor name + signature image when a signature is saved. */
-      const sigForPdf = "signed" as const
-
+      const rxByt = selectedRx?.byt
       const autoByt = await resolveBytPayload()
-      const { blob, filename } = await generatePrescriptionPdfBlob({
-        patient: patientForPdf,
-        medications: meds.map((m) => ({
+      const made = await generatePrescriptionPdfBlob({
+        patient: {
+          ...res.patient,
+          latestDiagnosis: dx
+            ? {
+                icd10: dx.icd10,
+                interpretation: dx.interpretation,
+                department: "department" in dx ? String(dx.department || "") : "",
+              }
+            : null,
+        },
+        medications: exportMeds.map((m) => ({
           name: m.name,
           quantity: m.quantity,
           unit: m.unit,
-          duration: String(m.duration ?? "").trim() || "7",
+          duration: String(m.duration ?? "").trim() || DEFAULT_DURATION,
           usage: m.usage ?? "",
           note: m.note,
         })),
-        prescriptionDateIso: rxDateIso,
-        doctorName: rxDoctor,
+        prescriptionDateIso: selectedRx?.createdAt || new Date().toISOString(),
+        doctorName: selectedRx?.doctor && selectedRx.doctor !== dash ? selectedRx.doctor : dash,
         byt: {
-          code: selectedRx?.byt?.code || null,
-          prescriptionType: selectedRx?.byt?.prescriptionType || "C",
-          facilityCode: selectedRx?.byt?.facilityCode || "TC001",
-          facilityName: selectedRx?.byt?.facilityName || import.meta.env.VITE_BYT_FACILITY_NAME || "TechCare",
-          facilityAddress: selectedRx?.byt?.facilityAddress || import.meta.env.VITE_BYT_FACILITY_ADDRESS || "",
+          code: rxByt?.code || null,
+          prescriptionType: rxByt?.prescriptionType || "C",
+          facilityCode: rxByt?.facilityCode || "TC001",
+          facilityName: rxByt?.facilityName || import.meta.env.VITE_BYT_FACILITY_NAME || "TechCare",
+          facilityAddress: rxByt?.facilityAddress || import.meta.env.VITE_BYT_FACILITY_ADDRESS || "",
           facilityPhone: autoByt.facilityPhone,
           contactPhone: autoByt.contactPhone,
           guardianName: autoByt.guardianName,
-          advice: selectedRx?.byt?.advice?.trim() || autoByt.advice,
+          advice: rxByt?.advice?.trim() || autoByt.advice,
           insuranceId: autoByt.insuranceId || res.patient.healthInsuranceId || "",
           patientAddress: autoByt.patientAddress,
           patientWeightKg: autoByt.patientWeightKg,
-          patientIdCard: res.patient.idCard || selectedRx?.byt?.patientIdCard || "",
-          patientPhone: res.patient.phone || selectedRx?.byt?.patientPhone || "",
+          patientIdCard: res.patient.idCard || rxByt?.patientIdCard || "",
+          patientPhone: res.patient.phone || rxByt?.patientPhone || "",
         },
-        signatureStatus: sigForPdf,
+        // Export always shows the doctor's name and signature image.
+        signatureStatus: "signed",
         signatureDataUrl: sigDataUrl,
       })
-      const url = URL.createObjectURL(blob)
-      setPdfPreviewFilename(filename)
-      releasePdfBlobUrl(url)
-      setPdfPreviewOpen(true)
       showSuccess(t("doctor.prescription.pdfPreviewSuccess"))
-    } catch (e) {
-      showError(e instanceof Error ? e.message : t("doctor.prescription.pdfExportFail"))
-    } finally {
-      setExportingPdf(false)
-    }
+      return made
+    })
   }
 
-  const handleSavePdfFromPreview = async () => {
-    if (!pdfPreviewUrl || !pdfPreviewFilename) return
-    try {
-      const res = await fetch(pdfPreviewUrl)
-      const raw = await res.blob()
-      const stamped = await stampPdfWithExportFooter(raw, new Date())
-      const url = URL.createObjectURL(stamped)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = pdfPreviewFilename
-      a.rel = "noopener"
-      a.click()
-      URL.revokeObjectURL(url)
-    } catch (e) {
-      console.error(e)
-      showError(e instanceof Error ? e.message : t("doctor.prescription.downloadFailed"))
-    }
-  }
+  const canAdd = !isEditMode && !loading && !saving && mutationsAllowed
+  const canInherit = !isEditMode && !!selectedRx && !selectedRx.isDraft && !loading && !saving && mutationsAllowed
 
   return (
     <>
-    <Dialog
-      open={signatureDialogOpen}
-      onOpenChange={(open) => {
-        setSignatureDialogOpen(open)
-        if (!open && signatureWaiterRef.current) {
-          signatureWaiterRef.current.resolve(null)
-          signatureWaiterRef.current = null
-          showError(t("doctor.prescription.signatureExportCancelled"))
-        }
-      }}
-    >
-      <DialogContent className="max-w-md gap-4">
-        <DialogHeader>
-          <DialogTitle>
-            {signatureDialogContext === "edit"
-              ? t("doctor.prescription.signatureEditDialogTitle")
-              : t("doctor.prescription.signatureDialogTitle")}
-          </DialogTitle>
-          <DialogDescription>
-            {signatureDialogContext === "edit"
-              ? t("doctor.prescription.signatureEditDialogDescription")
-              : t("doctor.prescription.signatureDialogDescription")}
-          </DialogDescription>
-        </DialogHeader>
-        <SignaturePad
-          key={signaturePadKey}
-          initialSignature={signaturePadInitial}
-          onSave={(url) => void handleSignaturePadSave(url)}
-          onCancel={handleSignaturePadCancel}
-          className={signatureSaving ? "pointer-events-none opacity-60" : undefined}
-        />
-        {signatureSaving ? (
-          <div className="flex items-center justify-center gap-2 text-sm text-slate-600">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            {t("common.loading")}
-          </div>
-        ) : null}
-      </DialogContent>
-    </Dialog>
+      {signature.dialog}
+      <div className="grid grid-cols-12 gap-6">
+        {pdf.dialog}
 
-    <div className="grid grid-cols-12 gap-6">
-      <Dialog
-        open={pdfPreviewOpen}
-        onOpenChange={(open) => {
-          if (!open) closePdfPreview()
-        }}
-      >
-        <DialogContent className="flex max-h-[90vh] w-[min(920px,96vw)] max-w-none flex-col gap-3 p-4 sm:p-6">
-          <DialogHeader>
-            <DialogTitle>{t("doctor.prescription.dialogPdfTitle")}</DialogTitle>
-          </DialogHeader>
-          {pdfPreviewUrl ? (
-            <iframe
-              title={t("doctor.prescription.iframePdfTitle")}
-              src={pdfPreviewUrl}
-              className="min-h-[min(520px,60vh)] w-full flex-1 rounded-md border border-slate-200 bg-slate-50"
-            />
-          ) : null}
-          <DialogFooter className="gap-2 sm:gap-2">
-            <Button type="button" variant="outline" className="btn-outline" onClick={closePdfPreview}>
-              {t("doctor.prescription.close")}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="btn-outline"
-              disabled
-              title={t("doctor.prescription.printDisabledHint")}
-            >
-              <Printer className="h-4 w-4 mr-2" />
-              {t("doctor.prescription.print")}
-            </Button>
-            <Button type="button" className="btn-gradient" onClick={handleSavePdfFromPreview}>
-              <FileDown className="h-4 w-4 mr-2" />
-              {t("doctor.prescription.saveDownload")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Card className="col-span-4">
-        <CardContent className="p-4 space-y-3">
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <div className="flex items-center gap-2">
-              <History size={18} />
-              <h3 className="font-semibold text-lg">{t("doctor.prescription.historyTitle")}</h3>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 justify-end">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="btn-outline shrink-0"
-                disabled={loading || signatureSaving || openingSignatureEditor}
-                onClick={() => void openEditSignatureDialog()}
-                title={t("doctor.prescription.editSignatureHint")}
-              >
-                {openingSignatureEditor ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <PenLine className="h-4 w-4" />
-                )}
-                <span className="ml-2">{t("doctor.prescription.editSignature")}</span>
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="btn-outline shrink-0"
-                disabled={!canExportPdf}
-                onClick={() => void handleExportPdf()}
-              >
-                {exportingPdf ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <FileDown className="h-4 w-4" />
-                )}
-                <span className="ml-2">{t("doctor.prescription.exportPdf")}</span>
-              </Button>
-            </div>
-          </div>
-
-          {loading ? (
-            <p className="text-sm text-slate-500">{t("common.loading")}</p>
-          ) : (
-            <div className="overflow-hidden border rounded-lg">
-              <Table className="w-full table-fixed text-xs">
-                <TableHeader
-                  className="text-white"
-                  style={{
-                    background:
-                      "linear-gradient(135deg, #06b6d4 0%, #0891b2 50%, #06b6d4 100%)",
-                  }}
+        <Card className="col-span-4">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2">
+                <History size={18} />
+                <h3 className="font-semibold text-lg">{t("doctor.prescription.historyTitle")}</h3>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 justify-end">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="btn-outline shrink-0"
+                  disabled={loading || signature.saving || signature.opening}
+                  onClick={() => void signature.openEditor()}
+                  title={t("doctor.prescription.editSignatureHint")}
                 >
-                  <TableRow>
-                    <TableHead className="w-[38%] p-1.5 text-left text-[13px] font-semibold text-white">
-                      {t("doctor.prescription.colDate")}
-                    </TableHead>
-                    <TableHead className="p-1.5 text-left text-[13px] font-semibold text-white">
-                      {t("doctor.patients.colDoctor")}
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-
-                <TableBody>
-                  {prescriptions.map((rx) => (
-                    <TableRow
-                      key={rx.id}
-                      onClick={() => {
-                        if (isEditMode) return
-                        const picked = { ...rx, isDraft: false }
-                        setSelectedRx(picked)
-                        setDraftMeds([])
-                      }}
-                      className={`border-t cursor-pointer ${
-                        selectedRx?.id === rx.id ? "bg-cyan-50" : ""
-                      }`}
-                    >
-                      <TableCell className="max-w-0 p-1.5 align-top leading-snug">
-                        <span className="block truncate" title={formatDt(rx.createdAt, localeTag)}>
-                          {formatHistoryTableDate(rx.createdAt, localeTag, t("common.notAvailable"))}
-                        </span>
-                      </TableCell>
-                      <TableCell className="max-w-0 p-1.5 align-top leading-snug">
-                        <span className="block truncate" title={rx.doctor}>
-                          {rx.doctor}
-                        </span>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  {signature.opening ? <Loader2 className="h-4 w-4 animate-spin" /> : <PenLine className="h-4 w-4" />}
+                  <span className="ml-2">{t("doctor.prescription.editSignature")}</span>
+                </Button>
+                <Button type="button" size="sm" variant="outline" className="btn-outline shrink-0" disabled={!canExportPdf} onClick={handleExportPdf}>
+                  {exportingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+                  <span className="ml-2">{t("doctor.prescription.exportPdf")}</span>
+                </Button>
+              </div>
             </div>
-          )}
-        </CardContent>
-      </Card>
 
-      <Card className="col-span-8">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-end mb-4">
-            <div className="flex gap-2 flex-wrap justify-end">
-              <Button
-                size="sm"
-                className="btn-gradient transition-transform duration-500"
-                onClick={handleAddPrescription}
-                disabled={!canAdd}
-              >
-                <Plus className="h-4 w-4" />
-                {t("doctor.prescription.add")}
-              </Button>
-              {/* AI Suggest Medicine Button */}
-              {selectedRx?.isDraft && isEditMode && (
+            {loading ? (
+              <p className="text-sm text-slate-500">{t("common.loading")}</p>
+            ) : (
+              <div className="overflow-hidden border rounded-lg">
+                <Table className="w-full table-fixed text-xs">
+                  <TableHeader className="text-white" style={{ background: "linear-gradient(135deg, #06b6d4 0%, #0891b2 50%, #06b6d4 100%)" }}>
+                    <TableRow>
+                      <TableHead className="w-[38%] p-1.5 text-left text-[13px] font-semibold text-white">{t("doctor.prescription.colDate")}</TableHead>
+                      <TableHead className="p-1.5 text-left text-[13px] font-semibold text-white">{t("doctor.patients.colDoctor")}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {prescriptions.map((rx) => (
+                      <TableRow
+                        key={rx.id}
+                        onClick={() => {
+                          if (isEditMode) return
+                          setSelectedRx({ ...rx, isDraft: false })
+                          setDraftMeds([])
+                        }}
+                        className={`border-t cursor-pointer ${selectedRx?.id === rx.id ? "bg-cyan-50" : ""}`}
+                      >
+                        <TableCell className="max-w-0 p-1.5 align-top leading-snug">
+                          <span className="block truncate" title={formatDt(rx.createdAt, localeTag)}>
+                            {formatHistoryTableDate(rx.createdAt, localeTag, t("common.notAvailable"))}
+                          </span>
+                        </TableCell>
+                        <TableCell className="max-w-0 p-1.5 align-top leading-snug">
+                          <span className="block truncate" title={rx.doctor}>
+                            {rx.doctor}
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="col-span-8">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-end mb-4">
+              <div className="flex gap-2 flex-wrap justify-end">
+                <Button size="sm" className="btn-gradient transition-transform duration-500" onClick={handleAdd} disabled={!canAdd}>
+                  <Plus className="h-4 w-4" />
+                  {t("doctor.prescription.add")}
+                </Button>
+                {selectedRx?.isDraft && isEditMode && (
+                  <Button
+                    size="sm"
+                    className="h-9 gap-2 border-0 !bg-gradient-to-r !from-violet-500 !to-purple-600 px-4 text-white shadow-sm hover:from-violet-600 hover:to-purple-700"
+                    onClick={() => void handleAiSuggest()}
+                    disabled={aiSuggesting}
+                    title={t("doctor.prescription.aiSuggestHint")}
+                  >
+                    {aiSuggesting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                    {t("doctor.prescription.aiSuggest")}
+                  </Button>
+                )}
+                <Button size="sm" className="btn-outline transition-transform duration-500" onClick={handleInherit} disabled={!canInherit}>
+                  <Copy className="h-4 w-4" />
+                  {t("doctor.prescription.inherit")}
+                </Button>
                 <Button
                   size="sm"
-                  className="h-9 gap-2 border-0 !bg-gradient-to-r !from-violet-500 !to-purple-600 px-4 text-white shadow-sm hover:from-violet-600 hover:to-purple-700"
-                  onClick={handleAiSuggest}
-                  disabled={aiSuggesting}
-                  title={t("doctor.prescription.aiSuggestHint")}
+                  className="btn-outline transition-transform duration-500"
+                  onClick={() => void handleSave()}
+                  disabled={!isEditMode || loading || !mutationsAllowed || saving}
                 >
-                  {aiSuggesting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                  {t("doctor.prescription.aiSuggest")}
+                  <Save className="h-4 w-4" />
+                  {t("doctor.prescription.save")}
                 </Button>
-              )}
-              <Button
-                size="sm"
-                className="btn-outline transition-transform duration-500"
-                onClick={handleInheritPrescription}
-                disabled={!canInherit}
-              >
-                <Copy className="h-4 w-4" />
-                {t("doctor.prescription.inherit")}
-              </Button>
-              <Button
-                size="sm"
-                className="btn-outline transition-transform duration-500"
-                onClick={handleSave}
-                disabled={!canSaveRx || saving}
-              >
-                <Save className="h-4 w-4" />
-                {t("doctor.prescription.save")}
-              </Button>
-              <Button
-                size="sm"
-                className="btn-outline transition-transform duration-500"
-                onClick={handleCancel}
-                disabled={!canCancelEdit || saving}
-              >
-                <X className="h-4 w-4" />
-                {t("doctor.prescription.cancel")}
-              </Button>
+                <Button size="sm" className="btn-outline transition-transform duration-500" onClick={handleCancel} disabled={!isEditMode || loading || saving}>
+                  <X className="h-4 w-4" />
+                  {t("doctor.prescription.cancel")}
+                </Button>
+              </div>
             </div>
-          </div>
 
-          {!selectedRx ? (
-            <p className="text-sm text-slate-500">{t("doctor.prescription.selectRowHint")}</p>
-          ) : (
-            <div className="space-y-3">
-              {activeDiagnosis && (activeDiagnosis.icd10 || activeDiagnosis.interpretation) ? (
-                <p className="text-sm text-slate-700 rounded-md border border-slate-200 bg-slate-50/80 px-3 py-2">
-                  <span className="font-semibold">{t("doctor.prescription.activeDiagnosisLabel")}: </span>
-                  {formatDiagnosisLine(activeDiagnosis, t("doctor.prescription.diagnosisLineFallback"))}
-                </p>
-              ) : null}
-              <div className="relative overflow-x-hidden border rounded-lg">
-              <Table className="relative z-0 w-full table-fixed text-xs">
-                <TableHeader>
-                  <TableRow
-                    style={{
-                      background:
-                        "linear-gradient(135deg, #06b6d4 0%, #0891b2 50%, #06b6d4 100%)",
-                    }}
-                  >
-                    <TableHead className="w-8 p-1.5 text-center text-white">
-                      {t("doctor.prescription.tableNo")}
-                    </TableHead>
-                    <TableHead className="w-[18%] min-w-0 p-1.5 text-left text-white">
-                      {t("doctor.prescription.medication")} <span className="text-red-500">*</span>
-                    </TableHead>
-                    <TableHead className="w-[9%] p-1.5 text-white">
-                      {t("doctor.prescription.qty")} <span className="text-red-500">*</span>
-                    </TableHead>
-                    <TableHead className="w-[10%] p-1.5 text-white">{t("doctor.prescription.unit")}</TableHead>
-                    <TableHead className="w-[9%] p-1.5 text-white">
-                      {t("doctor.prescription.duration")} <span className="text-red-500">*</span>
-                    </TableHead>
-                    <TableHead className="min-w-0 p-1.5 text-white">
-                      {t("doctor.prescription.usage")} <span className="text-red-500">*</span>
-                    </TableHead>
-                    <TableHead className="min-w-0 p-1.5 text-white">{t("doctor.prescription.note")}</TableHead>
-                    <TableHead
-                      className="w-7 p-1 text-center text-white"
-                      aria-label={t("doctor.prescription.removeRow")}
-                    />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {selectedRx.isDraft ? (
-                    draftMeds.map((med, index) => (
-                      <TableRow
-                        key={index}
-                        className="border-t"
-                        onBlur={() => handleRowBlur(index)}
-                      >
-                        <TableCell className="p-0.5 text-center align-middle text-xs tabular-nums">
-                          {index + 1}
-                        </TableCell>
-                        <TableCell className="max-w-0 p-0.5 align-middle">
-                          <MedicineNameCombobox
-                            value={med.name}
-                            onChange={(v) => updateMedication(index, "name", v)}
-                            onMedicinePickOrResolve={(m) => applyPickedMedicineToDraft(index, m)}
-                            disabled={saving || !mutationsAllowed}
-                          />
-                        </TableCell>
-                        <TableCell className="p-0.5 align-middle">
-                          <input
-                            className="h-7 w-full box-border rounded border border-slate-200 px-1.5 text-xs leading-tight"
-                            value={med.quantity}
-                            placeholder={t("doctor.prescription.qtyPlaceholder")}
-                            disabled={!mutationsAllowed}
-                            onChange={(e) => updateMedication(index, "quantity", e.target.value)}
-                            onInput={(e) => updateMedication(index, "quantity", (e.target as HTMLInputElement).value)}
-                            onBlur={(e) => updateMedication(index, "quantity", e.target.value)}
-                          />
-                        </TableCell>
-                        <TableCell className="p-0.5 align-middle">
-                          <input
-                            readOnly
-                            disabled
-                            className="h-7 w-full box-border cursor-not-allowed rounded border border-slate-200 bg-slate-100 px-1.5 text-xs leading-tight text-slate-700"
-                            value={medicationUnitLabelVi(med.unit)}
-                            title={t("doctor.prescription.unitFromCatalogHint")}
-                          />
-                        </TableCell>
-                        <TableCell className="p-0.5 align-middle">
-                          <input
-                            type="number"
-                            min={1}
-                            className="h-7 w-full box-border rounded border border-slate-200 px-1.5 text-xs leading-tight"
-                            value={med.duration}
-                            placeholder={t("doctor.prescription.daysPlaceholder")}
-                            title={t("doctor.prescription.durationDaysHint")}
-                            disabled={!mutationsAllowed}
-                            onChange={(e) => updateMedication(index, "duration", e.target.value)}
-                            onInput={(e) => updateMedication(index, "duration", (e.target as HTMLInputElement).value)}
-                            onBlur={(e) => updateMedication(index, "duration", e.target.value)}
-                          />
-                        </TableCell>
-                        <TableCell className="p-0.5 align-middle">
-                          <UsageTypeaheadInput
-                            value={med.usage}
-                            onChange={(v) => updateMedication(index, "usage", v)}
-                            quantity={med.quantity}
-                            duration={med.duration}
-                            unit={med.unit}
-                            disabled={!mutationsAllowed}
-                          />
-                        </TableCell>
-                        <TableCell className="p-0.5 align-middle">
-                          <input
-                            className="h-7 w-full box-border rounded border border-slate-200 px-1.5 text-xs leading-tight"
-                            value={med.note}
-                            placeholder={t("doctor.prescription.notePlaceholder")}
-                            disabled={!mutationsAllowed}
-                            onChange={(e) => updateMedication(index, "note", e.target.value)}
-                            onInput={(e) => updateMedication(index, "note", (e.target as HTMLInputElement).value)}
-                            onBlur={(e) => updateMedication(index, "note", e.target.value)}
-                          />
-                        </TableCell>
-                        <TableCell className="w-7 p-0.5 text-center align-middle">
-                          {index !== draftMeds.length - 1 && (
-                            <button
-                              type="button"
-                              onClick={() => removeMedication(index)}
-                              disabled={!mutationsAllowed}
-                              className="inline-flex h-7 w-6 shrink-0 items-center justify-center rounded text-red-500 hover:bg-red-50 disabled:opacity-40"
-                              title={t("doctor.prescription.removeMedHint")}
-                            >
-                              <Trash2 className="h-3.5 w-3.5 " strokeWidth={2} aria-hidden />
-                            </button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  ) : (
-                    selectedRx.medications.map((med, index) => (
-                      <TableRow key={index} className="border-t hover:bg-slate-50">
-                        <TableCell className="p-0.5 text-center align-middle text-xs tabular-nums">
-                          {index + 1}
-                        </TableCell>
-                        <TableCell className="p-0.5 align-middle text-xs">{med.name}</TableCell>
-                        <TableCell className="p-0.5 text-center align-middle text-xs">{med.quantity}</TableCell>
-                        <TableCell className="p-0.5 align-middle text-xs">
-                          {medicationUnitLabelVi(med.unit)}
-                        </TableCell>
-                        <TableCell className="p-0.5 text-center align-middle text-xs tabular-nums">
-                          {med.duration || t("common.notAvailable")}
-                        </TableCell>
-                        <TableCell className="p-0.5 align-middle text-xs">{med.usage}</TableCell>
-                        <TableCell className="p-0.5 align-middle text-xs">{med.note ?? t("common.notAvailable")}</TableCell>
-                        <TableCell className="w-7 p-0.5" />
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-              {!selectedRx.isDraft ? (
-                <div className="relative z-[1] flex items-start gap-3 border-t border-slate-200 bg-cyan-50/80 px-4 py-3">
-                  <div className="min-w-0">
-                    <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                      {t("doctor.prescription.doctorLabel")}
-                    </div>
-                    <div className="text-base font-semibold text-slate-900">{selectedRx.doctor}</div>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-    <PauseableCornerToastPortal
-      toast={toast}
-      isExiting={isExiting}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
-    />
+            {!selectedRx ? (
+              <p className="text-sm text-slate-500">{t("doctor.prescription.selectRowHint")}</p>
+            ) : (
+              <div className="space-y-3">
+                {activeDiagnosis && (activeDiagnosis.icd10 || activeDiagnosis.interpretation) ? (
+                  <p className="text-sm text-slate-700 rounded-md border border-slate-200 bg-slate-50/80 px-3 py-2">
+                    <span className="font-semibold">{t("doctor.prescription.activeDiagnosisLabel")}: </span>
+                    {formatDiagnosisLine(activeDiagnosis, t("doctor.prescription.diagnosisLineFallback"))}
+                  </p>
+                ) : null}
+                <MedicationTable rx={selectedRx} draft={draftMeds} onDraftChange={setDraftMeds} editable={mutationsAllowed} saving={saving} />
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+      <PauseableCornerToastPortal toast={toast} isExiting={isExiting} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} />
     </>
   )
 }

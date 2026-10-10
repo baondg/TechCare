@@ -11,6 +11,8 @@ const vi = {
     notAvailable: "—",
     logout: "Đăng xuất",
     cancel: "Huỷ",
+    close: "Đóng",
+    saveDownload: "Lưu / Tải xuống",
     notifications: "Thông báo",
     patientInDepartment: {
       outpatient: "Ngoại trú",

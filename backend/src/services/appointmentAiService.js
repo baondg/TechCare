@@ -308,7 +308,7 @@ async function chatWithAiAndSave(req, userId, body) {
   const messages = Array.isArray(body.messages) ? body.messages : [];
 
   const selectedModelIdRaw = body.modelId;
-  let model = null;
+  let model;
   let modelFallbackReason = '';
   if (selectedModelIdRaw !== undefined && selectedModelIdRaw !== null && String(selectedModelIdRaw).trim() !== '') {
     model = await getAiModelById(selectedModelIdRaw);
@@ -507,7 +507,7 @@ async function recoveryPredictionForPatient(req, patientId, refresh) {
     const cached = await appointmentAiRepository.selectLatestRecoveryPredictionRow(patientId);
     if (cached?.content != null && cached?.time != null) {
       const ageMs = Date.now() - new Date(cached.time).getTime();
-      let payload = null;
+      let payload;
       try {
         payload = typeof cached.content === 'string' ? JSON.parse(cached.content) : cached.content;
       } catch {

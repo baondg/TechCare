@@ -142,8 +142,8 @@ async function main() {
   const relaxedLegacyColumns = await relaxLegacyRequiredColumns();
 
   const changedColumns = [];
-  if (await addColumnIfMissing('key', '\`key\` VARCHAR(191) NULL')) changedColumns.push('key');
-  if (await addColumnIfMissing('value', '\`value\` LONGTEXT NULL')) changedColumns.push('value');
+  if (await addColumnIfMissing('key', '`key` VARCHAR(191) NULL')) changedColumns.push('key');
+  if (await addColumnIfMissing('value', '`value` LONGTEXT NULL')) changedColumns.push('value');
   if (await addColumnIfMissing('description', 'description TEXT NULL')) changedColumns.push('description');
 
   const createdIndex = await ensureKeyIndex();

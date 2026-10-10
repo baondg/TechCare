@@ -21,7 +21,9 @@ vi.mock("@/components/patient-health-charts", () => ({
   PatientHealthChartsHeader: () => null,
   PatientHealthChartsPanel: () => null,
 }))
-vi.mock("@/components/patient-layout", () => ({ PatientLayout: ({ children }: { children: React.ReactNode }) => <>{children}</> }))
+vi.mock("@/components/patient-layout", () => ({
+  PatientLayout: ({ children }: { children: React.ReactNode }) => <div data-patient-layout>{children}</div>,
+}))
 
 import { doctorService } from "@/services/doctor-service"
 import { generateHealthInfoTrackingPdfBlob } from "@/lib/export-health-info-tracking-pdf"
@@ -166,6 +168,13 @@ afterEach(() => {
 })
 
 describe("EMR health info page", () => {
+  it("while loading: a spinner inside the EMR, not the patient portal frame", async () => {
+    svc.getHealthInfo.mockReturnValue(new Promise(() => {}))
+    await renderPage()
+    expect(text()).toContain("Loading health information...")
+    expect(document.querySelector("[data-patient-layout]")).toBeNull()
+  })
+
   it("loads the latest record and the history for the numeric patient id", async () => {
     await renderPage()
     expect(svc.getHealthInfo).toHaveBeenCalledWith(12)

@@ -7,7 +7,6 @@ import { CheckCircle2, Copy, Edit, FileDown, Loader2, Plus, Save, Trash2, X } fr
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { PatientLayout } from "@/components/patient-layout"
 import { PatientHealthChartsHeader, PatientHealthChartsPanel } from "@/components/patient-health-charts"
 import { PauseableCornerToastPortal } from "@/components/pauseable-corner-toast"
 import { usePdfPreview } from "@/components/pdf-preview-dialog"
@@ -280,14 +279,12 @@ export default function HealthInfoPage({ mode = "doctor" }: HealthInfoPageProps)
 
   if (loading) {
     return (
-      <PatientLayout>
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="text-center">
-            <Loader2 className="h-8 w-8 animate-spin text-cyan-600 mx-auto mb-4" />
-            <p className="text-slate-600">Loading health information...</p>
-          </div>
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-cyan-600 mx-auto mb-4" />
+          <p className="text-slate-600">Loading health information...</p>
         </div>
-      </PatientLayout>
+      </div>
     )
   }
 

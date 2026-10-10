@@ -12,5 +12,5 @@ export async function mergePdfBlobs(blobs: Blob[]): Promise<Blob> {
     copiedPages.forEach((page) => mergedPdf.addPage(page))
   }
   const bytes = await mergedPdf.save()
-  return new Blob([bytes], { type: "application/pdf" })
+  return new Blob([bytes as Uint8Array<ArrayBuffer>], { type: "application/pdf" })
 }

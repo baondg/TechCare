@@ -72,5 +72,5 @@ export async function stampPdfWithExportFooter(pdfBlob: Blob, exportAt: Date): P
     })
   }
 
-  return new Blob([await pdfDoc.save()], { type: "application/pdf" })
+  return new Blob([(await pdfDoc.save()) as Uint8Array<ArrayBuffer>], { type: "application/pdf" })
 }

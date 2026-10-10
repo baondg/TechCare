@@ -3,11 +3,7 @@ import { cn } from "@/lib/utils"
 
 type Language = "vi" | "en"
 
-interface LanguageToggleProps {
-  compact?: boolean
-}
-
-export function LanguageToggle({ compact = false }: LanguageToggleProps) {
+export function LanguageToggle() {
   const { i18n, t } = useTranslation()
   const current = (i18n.resolvedLanguage || i18n.language || "vi") as Language
 

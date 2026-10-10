@@ -92,12 +92,6 @@ export default function NurseDashboard() {
     }
   }, [todaySlots])
 
-  const nextOpenSlot = useMemo(() => {
-    const nowKey = format(new Date(), "HH:mm")
-    return todaySlots
-      .filter((s) => s.status === "open" && s.time >= nowKey)
-      .sort((a, b) => a.time.localeCompare(b.time))[0]
-  }, [todaySlots])
   const nextBookedSlot = useMemo(() => {
     const nowKey = format(new Date(), "HH:mm")
     return todaySlots

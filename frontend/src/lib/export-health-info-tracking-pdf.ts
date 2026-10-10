@@ -70,10 +70,6 @@ function fmtDate(d: Date): string {
   return d.toLocaleDateString("vi-VN")
 }
 
-function fmtTime(d: Date): string {
-  return d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })
-}
-
 function clamp(n: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, n))
 }

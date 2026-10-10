@@ -99,11 +99,6 @@ export default function ProfilePage() {
   const normalizeNationalId = (value: string) => value.replace(/\D/g, "").slice(0, 12)
   const normalizePhone = (value: string) => value.replace(/\D/g, "").slice(0, 10)
 
-  const syncNationalId = (value: string) => setNationalId(normalizeNationalId(value))
-  const syncPhone = (value: string) => setPhone(normalizePhone(value))
-  const syncRelativeNationalId = (value: string) => setReNationalId(normalizeNationalId(value))
-  const syncRelativePhone = (value: string) => setRePhone(normalizePhone(value))
-
   const formatDateInput = (raw: string) => {
     const digits = raw.replace(/\D/g, "").slice(0, 8)
     if (digits.length <= 2) return digits

@@ -193,10 +193,6 @@ export function buildTreatmentFollowupSlipHtmlDocument(opts: TreatmentFollowupSl
   const roomLabel = String(opts.roomLabel || "")
   const icd10 = String(opts.diagnosisIcd10 || "")
   const diagnosisInterpretation = String(opts.diagnosisInterpretation || "")
-  const complaintSymptoms = String(opts.complaintSymptoms || "")
-  const doctorName = String(opts.doctorName || "")
-  const note = String(opts.note || "")
-  const dateLabel = String(opts.dateLabel || "")
 
   const g = String(opts.gender || "").toUpperCase()
   const isMale = g === "M"

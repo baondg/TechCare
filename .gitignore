@@ -46,7 +46,7 @@ k6/.env.grafana.local
 # Logs
 logs/
 *.log
-# Local deploy transcripts (gcp/*.ps1 output)
+# Local deploy transcripts
 deploy-log*.txt
 
 # Database files

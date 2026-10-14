@@ -78,9 +78,6 @@ const schema = z
     DB_NAME: z.string().optional(),
     DB_USER: z.string().optional(),
     DB_PASSWORD: z.string().optional(),
-    CLOUDSQL_INSTANCE_CONNECTION_NAME: z.string().optional(),
-    INSTANCE_CONNECTION_NAME: z.string().optional(),
-    CLOUD_SQL_CONNECTION_NAME: z.string().optional(),
     DB_USE_SSL: z.string().optional(),
     DB_SSL_REJECT_UNAUTHORIZED: z.string().optional(),
     DB_SSL_CA_PATH: z.string().optional(),
@@ -197,8 +194,6 @@ export const config = {
     password: e.DB_PASSWORD,
     host: e.DB_HOST || 'localhost',
     port: e.DB_PORT,
-    instanceConnectionName:
-      e.CLOUDSQL_INSTANCE_CONNECTION_NAME || e.INSTANCE_CONNECTION_NAME || e.CLOUD_SQL_CONNECTION_NAME || '',
     useSsl: parseBool(e.DB_USE_SSL, false),
     sslRejectUnauthorized: parseBool(e.DB_SSL_REJECT_UNAUTHORIZED, true),
     sslCaPath: e.DB_SSL_CA_PATH || e.DB_SSL_CA_FILE || '',

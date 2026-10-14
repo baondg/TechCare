@@ -1,16 +1,15 @@
-# Backend observability (GCP and logs)
+# Backend observability (logs)
 
 Short runbook for Phase C2-style operations: find failures faster using logs and optional Error Reporting.
 
 ## Structured logs
 
-The backend logs through `src/common/logger.ts` (pino): **one JSON object per line on stdout**, so Cloud Run
-ingests them as `jsonPayload` (not `textPayload`).
+The backend logs through `src/common/logger.ts` (pino): **one JSON object per line on stdout**; Render shows them under the service **Logs** tab.
 
 | Field | Meaning |
 |---|---|
 | `msg` | Event name / message (`http.request`, `ai.http`, `ai.orchestration`, `Unhandled error`, …) |
-| `severity` | `INFO` / `WARNING` / `ERROR` / `CRITICAL` — Cloud Logging uses it for the level filter |
+| `severity` | `INFO` / `WARNING` / `ERROR` / `CRITICAL` — filter on it in the log viewer |
 | `err` | Serialized error (`type`, `message`, `stack`) |
 | `req.id` / `requestId` | The `X-Request-ID` of the request (also returned to clients in error bodies) |
 
@@ -22,30 +21,17 @@ ingests them as `jsonPayload` (not `textPayload`).
 `LOG_LEVEL` = `trace` | `debug` | `info` (default) | `warn` | `error` | `fatal` | `silent`.
 Authorization headers, cookies and `password` / `token` fields are redacted. Request bodies are never logged.
 
-### Cloud Logging queries (examples)
-
-- `jsonPayload.msg="ai.orchestration"`
-- `jsonPayload.feature="symptom-analysis"`
-- `jsonPayload.requestId="..." OR jsonPayload.req.id="..."` (correlate with a client error body or support ticket)
-- `severity>=ERROR AND jsonPayload.msg="Unhandled error"`
-
-## Google Cloud Error Reporting
-
-1. Enable the **Error Reporting API** on the project.
-2. For Node on Cloud Run, errors logged as **stack traces** to stderr are often picked up automatically.
-3. Optional: add `@google-cloud/error-reporting` and report handled errors you care about (follow Google Cloud Node.js docs).
-
 ## OpenTelemetry (optional)
 
 For distributed traces (AI upstream, DB), consider:
 
-- OpenTelemetry SDK for Node + exporter to **Cloud Trace** or a vendor.
+- OpenTelemetry SDK for Node + exporter to a tracing vendor.
 - Start with one route (for example `POST /api/ai/chat`) before rolling out widely.
 
 ## Dashboards
 
-- Cloud Run: request count, latency, error rate per service.
-- Cloud SQL: connections, CPU (correlate with AI traffic spikes).
+- Render: request count, latency, CPU/memory per service (Metrics tab).
+- MySQL provider: connections, CPU (correlate with AI traffic spikes).
 
 ## Related
 

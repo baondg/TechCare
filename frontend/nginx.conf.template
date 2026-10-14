@@ -36,7 +36,7 @@ server {
         proxy_set_header X-Forwarded-Proto $$scheme;
     }
 
-    # Cloud Run / compose: set BACKEND_URL (e.g. https://api-xxxxx.run.app or http://backend:3000)
+    # Compose: set BACKEND_URL (e.g. http://backend:3000)
     location /api/ {
         proxy_pass ${BACKEND_URL};
         # Lab attachments are sent as base64 JSON (15 MB file ≈ 20 MB); the backend limits every other route.

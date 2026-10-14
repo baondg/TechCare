@@ -11,7 +11,7 @@ function requireInternalApiSecret(req, res, next) {
       logger.error('[security] INTERNAL_API_SECRET is required in production for internal AI routes');
       return res.status(500).json({
         error: 'Server misconfiguration',
-        hint: 'Set INTERNAL_API_SECRET (e.g. Secret Manager techcare-internal-api-secret) for Cloud Run.',
+        hint: 'Set INTERNAL_API_SECRET in the backend environment.',
       });
     }
     return next();

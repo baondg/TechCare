@@ -2,7 +2,7 @@
 
 ## Runtime TLS model
 
-- TLS terminates at the ingress/reverse proxy layer (Cloud Run HTTPS endpoint or external load balancer).
+- TLS terminates at the ingress/reverse proxy layer (Netlify and Render HTTPS endpoints).
 - Backend service only accepts trusted internal HTTP from the platform boundary.
 - Client-facing traffic must use `https://` URLs exclusively.
 

@@ -57,15 +57,6 @@ npm run seed:patient:vitals-slots
 # tùy chọn đổi mật khẩu: --set-password=Demo12345A
 ```
 
-Cloud merge path (no data reset): import SQL helper to Cloud SQL
-
-```bash
-gcloud storage cp ./scripts/seed-booking-window-2026-05-07_2026-05-10.sql gs://techcare2026_cloudbuild/db-sync/seed-booking-window-2026-05-07_2026-05-10.sql
-gcloud sql import sql techcare-mysql gs://techcare2026_cloudbuild/db-sync/seed-booking-window-2026-05-07_2026-05-10.sql --database=techcare --quiet
-```
-
-**Đồng bộ ngược (cloud → local):** xem [Update local database from Cloud SQL (GCP)](./backup-restore-baseline.md#task-update-local-database-from-cloud-sql-gcp) (`gcloud sql export` → tải `.sql.gz` → `npm run db:restore` với `.env` trỏ MySQL local).
-
 ## Seeded personas
 
 - `admin` (admin)

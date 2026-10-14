@@ -4,15 +4,8 @@ const { Sequelize } = require('sequelize');
 const logger = require('./logger');
 const { config } = require('../config/env');
 
-// Cloud Run + Cloud SQL: set CLOUDSQL_INSTANCE_CONNECTION_NAME (or INSTANCE_CONNECTION_NAME)
-// to project:region:instance and add the instance under the service "Connections" tab.
-// Then mysql2 uses the /cloudsql/... socket; no MySQL on 127.0.0.1 inside the container.
-const instanceConnectionName = config.db.instanceConnectionName;
-
-const useCloudSqlSocket = Boolean(instanceConnectionName);
-
 /** TCP MySQL (e.g. Aiven): set DB_USE_SSL=1 when the provider requires TLS on the public endpoint. */
-const useTcpSsl = !useCloudSqlSocket && config.db.useSsl;
+const useTcpSsl = config.db.useSsl;
 const sslRejectUnauthorized = config.db.sslRejectUnauthorized;
 
 const resolveSslCa = () => {
@@ -44,8 +37,6 @@ const buildTcpSslOptions = () => {
 if (!config.isProduction) {
   const sslOpts = buildTcpSslOptions();
   logger.info({
-    useCloudSqlSocket,
-    hasInstanceName: Boolean(instanceConnectionName),
     useTcpSsl,
     sslRejectUnauthorized,
     hasSslCa: Boolean(sslOpts.ssl?.ca),
@@ -59,23 +50,14 @@ const pool = { ...config.db.pool };
 
 const { syncMysqlClinicTimezone } = require('./clinicDate');
 
-const sequelize = useCloudSqlSocket
-  ? new Sequelize(config.db.name, config.db.user, config.db.password, {
-      dialect: 'mysql',
-      dialectOptions: {
-        socketPath: `/cloudsql/${instanceConnectionName}`,
-      },
-      logging: logSql,
-      pool,
-    })
-  : new Sequelize(config.db.name, config.db.user, config.db.password, {
-      host: config.db.host,
-      port: config.db.port,
-      dialect: 'mysql',
-      dialectOptions: buildTcpSslOptions(),
-      logging: logSql,
-      pool,
-    });
+const sequelize = new Sequelize(config.db.name, config.db.user, config.db.password, {
+  host: config.db.host,
+  port: config.db.port,
+  dialect: 'mysql',
+  dialectOptions: buildTcpSslOptions(),
+  logging: logSql,
+  pool,
+});
 
 sequelize.addHook('afterConnect', async (connection) => {
   try {

@@ -23,7 +23,6 @@ async function startServer() {
         hasDB_NAME: Boolean(config.db.name),
         hasDB_USER: Boolean(config.db.user),
         hasDB_PASSWORD: Boolean(config.db.password),
-        INSTANCE_CONNECTION_NAME: config.db.instanceConnectionName || null,
         NODE_ENV: config.nodeEnv ?? null,
       }, '[startup] environment');
     }

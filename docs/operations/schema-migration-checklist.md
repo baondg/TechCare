@@ -7,7 +7,7 @@ Use this before releases or when merging DB-related changes. Goal: avoid silent 
 1. **SYSTEM_CONFIGURATION** - Confirm keys used by the app exist in seed/migration docs (`AI_MODEL_REGISTRY`, feature defaults, rate limits if stored in DB).
 2. **AI_MODEL** - Active row has `provider` and non-empty `version` (API model id) when the product expects a specific remote model; align with `AI_INTEGRATION.md`.
 3. **Prescription / duration** - If the branch touches prescriptions, confirm duration columns and CHECK constraints match `LIMITATIONS.md` (section 5).
-4. **New tables** - Run `database_description.sql` fragment or migration on staging first; verify `sequelize.sync` / `AUTO_SYNC_DB` behavior is not relied on in production (`AUTO_SYNC_DB=0` on Cloud Run).
+4. **New tables** - Run `database_description.sql` fragment or migration on staging first; verify `sequelize.sync` / `AUTO_SYNC_DB` behavior is not relied on in production (`AUTO_SYNC_DB=0` on Render).
 
 ## CI / dev hygiene (optional hardening)
 

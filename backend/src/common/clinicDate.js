@@ -15,7 +15,8 @@ function getClinicTodayYmd(now = new Date()) {
 async function syncMysqlClinicTimezone(connection) {
   const offset = getClinicTzOffset();
   if (!/^[-+]\d{2}:\d{2}$/.test(offset)) return;
-  await connection.query(`SET time_zone = '${offset}'`);
+  // Sequelize hands afterConnect the callback-style mysql2 connection.
+  await connection.promise().query(`SET time_zone = '${offset}'`);
 }
 
 module.exports = {

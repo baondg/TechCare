@@ -134,5 +134,5 @@ Please open an issue or submit a pull request with a clear description of your c
 
 - **Frontend → Netlify** (`netlify.toml`): connect the repo; Netlify builds `frontend/` and proxies `/api/*` and `/uploads/*` to the backend.
 - **Backend → Render** (`render.yaml`): New → Blueprint → this repo. Creates `techcare-backend` and a `techcare-redis` Key Value. Then fill `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` (and `DB_SSL_CA` if needed) with an external MySQL 8 that already has the schema; `GROQ_API_KEY` for AI.
-- If Render names the service URL other than `https://techcare-backend.onrender.com`, update the two proxy rules in `netlify.toml`.
+- The backend runs at `https://techcare-zx6u.onrender.com`; if that URL changes, update the two proxy rules in `netlify.toml`.
 - Both deploy automatically on every push to `main`.

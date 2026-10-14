@@ -12,13 +12,13 @@
 # Change this host if Render gives the service another URL.
 [[redirects]]
   from = "/api/*"
-  to = "https://techcare-backend.onrender.com/api/:splat"
+  to = "https://techcare-zx6u.onrender.com/api/:splat"
   status = 200
   force = true
 
 [[redirects]]
   from = "/uploads/*"
-  to = "https://techcare-backend.onrender.com/uploads/:splat"
+  to = "https://techcare-zx6u.onrender.com/uploads/:splat"
   status = 200
   force = true
 
